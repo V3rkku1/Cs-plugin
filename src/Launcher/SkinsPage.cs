@@ -29,11 +29,7 @@ public class SkinsPage : UserControl
     private SkinSettings _work = new();
 
     private readonly Segmented _category = new(Categories, 0, 3);
-    private readonly ListBox _weapons = new()
-    {
-        DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 56, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill,
-        BackColor = Theme.Sidebar, IntegralHeight = false,
-    };
+    private readonly RowList _weapons = new() { RowHeight = 56, Dock = DockStyle.Fill, BackColor = Theme.Sidebar };
     private readonly TextField _search = new(210) { PlaceholderText = "Search" };
     private readonly PillButton _importButton = new("Import Item");
     private readonly PillButton _loadoutsButton = new("Loadouts");
@@ -80,7 +76,7 @@ public class SkinsPage : UserControl
         Theme.Apply(this);
 
         _category.SelectedChanged += (_, _) => FillWeapons();
-        _weapons.DrawItem += DrawWeaponRow;
+        _weapons.DrawRow = DrawWeaponRow;
         _weapons.SelectedIndexChanged += (_, _) => { if (!_loading) OpenWeapon(); };
         _search.TextChanged += (_, _) => FillGrid();
         _grid.SelectedChanged += (_, _) => OnCardPicked();
@@ -165,11 +161,7 @@ public class SkinsPage : UserControl
     private Control BuildDetails()
     {
         var outer = new Panel { Dock = DockStyle.Right, Width = 404, BackColor = Theme.Background, Padding = new Padding(8, 18, 18, 10) };
-        var body = new FlowLayoutPanel
-        {
-            Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true,
-            BackColor = Theme.Background, Padding = new Padding(0, 0, 0, 10),
-        };
+        var body = new VStack();
 
         const int width = 356;
         var wear = new Group(width);
@@ -204,7 +196,8 @@ public class SkinsPage : UserControl
         foreach (var caption in body.Controls.OfType<Label>().Where(l => l.Font == Theme.Small && l.ForeColor == Theme.Muted && l != _range))
             caption.Margin = new Padding(14, 16, 0, 6);
 
-        outer.Controls.Add(body);
+        body.Size = body.PreferredSize;
+        outer.Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(0, 0, 0, 12), Content = body });
         outer.Controls.Add(_preview);
         return outer;
     }
@@ -242,10 +235,7 @@ public class SkinsPage : UserControl
         }
 
         _loading = true;
-        _weapons.BeginUpdate();
-        _weapons.Items.Clear();
-        foreach (var row in rows.OrderBy(r => r.Name)) _weapons.Items.Add(row);
-        _weapons.EndUpdate();
+        _weapons.SetItems(rows.OrderBy(r => r.Name));
         _loading = false;
 
         if (_weapons.Items.Count > 0)
@@ -274,18 +264,14 @@ public class SkinsPage : UserControl
         return ItemData.Pistols.Contains(def) ? 2 : 3;
     }
 
-    private void DrawWeaponRow(object? sender, DrawItemEventArgs e)
+    private void DrawWeaponRow(Graphics g, object item, Rectangle r, bool selected, bool hover)
     {
-        if (e.Index < 0) return;
-        var row = (WeaponRow)_weapons.Items[e.Index];
-        var g = e.Graphics;
+        var row = (WeaponRow)item;
         Theme.Smooth(g);
-        var selected = (e.State & DrawItemState.Selected) != 0;
-        var r = e.Bounds;
 
-        using (var bg = new SolidBrush(Theme.Sidebar)) g.FillRectangle(bg, r);
         var pill = new RectangleF(r.Left + 2, r.Top + 2, r.Width - 6, r.Height - 4);
         if (selected) Theme.FillRounded(g, Theme.Accent, pill, 9);
+        else if (hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 120), pill, 9);
 
         var loadout = ReadLoadoutCached();
         var skin = loadout.Skins.GetValueOrDefault(row.Def);

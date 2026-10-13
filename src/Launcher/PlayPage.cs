@@ -58,8 +58,7 @@ public class PlayPage : UserControl
     {
         _app = app;
         BackColor = Theme.Background;
-        AutoScroll = true;
-        Padding = new Padding(36, 28, 24, 24);
+        Padding = Padding.Empty;
 
         foreach (var m in ServerSettings.Modes) _modeBox.Items.Add(m);
         _botTeam.SetItems(ServerSettings.BotTeams);
@@ -149,11 +148,8 @@ public class PlayPage : UserControl
             Theme.Caption("LIVE"), live,
             Theme.Caption("ACTIVITY"), activity);
 
-        var page = new VStack(Header("Play", "Start a local server with bots and try your skins."), new HStack(leftColumn, rightColumn))
-        {
-            Location = new Point(36, 26),
-        };
-        Controls.Add(page);
+        var page = new VStack(Header("Play", "Start a local server with bots and try your skins."), new HStack(leftColumn, rightColumn));
+        Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
         LoadServerSettings();

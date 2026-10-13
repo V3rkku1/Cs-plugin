@@ -1,0 +1,75 @@
+name: Build
+
+# Builds the plugin and the Windows launcher on every push. Pushes to main (or the working branch) also
+# update the "latest" release, so the newest files are always at Releases → "Latest build".
+# Tags like v2.1.0 get their own release.
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Build plugin and launcher
+        run: ./build.sh
+
+      - name: Upload build files
+        uses: actions/upload-artifact@v4
+        with:
+          name: LanSkinTester-${{ github.sha }}
+          path: |
+            build/LanSkinTesterLauncher.exe
+            build/LanSkinTesterLauncher-small.zip
+            build/LanSkinTester.zip
+          if-no-files-found: error
+
+      - name: Move the "latest" tag to this commit
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/dreamy-sagan-o0d3u5')
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
+      - name: Publish "Latest build" release
+        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/dreamy-sagan-o0d3u5')
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: latest
+          name: Latest build
+          prerelease: true
+          body: |
+            Newest build of `${{ github.ref_name }}` (commit ${{ github.sha }}).
+
+            - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install (about 50 MB).
+            - **LanSkinTesterLauncher-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
+            - **LanSkinTester.zip**: only the plugin, for installing by hand (extract into `game/csgo/`).
+          files: |
+            build/LanSkinTesterLauncher.exe
+            build/LanSkinTesterLauncher-small.zip
+            build/LanSkinTester.zip
+
+      - name: Publish versioned release
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            build/LanSkinTesterLauncher.exe
+            build/LanSkinTesterLauncher-small.zip
+            build/LanSkinTester.zip

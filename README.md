@@ -21,6 +21,9 @@ and its pattern seed before you buy it.
 
 ## Easiest: the launcher (Windows)
 
+**Download:** on GitHub, open **Releases → Latest build**. Every push builds the launcher and plugin
+automatically (see `.github/workflows/build.yml`).
+
 Two versions, same app:
 - `LanSkinTesterLauncher.exe` (about 50 MB): one file, nothing else to install.
 - `LanSkinTesterLauncher-small.zip` (about 0.1 MB): extract it and run `LanSkinTesterLauncher.exe`.
@@ -308,6 +311,9 @@ Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 - **The gloves look doubled for a moment**: switch weapons once, or respawn.
 
 ## Building from source
+
+GitHub Actions builds everything on every push and puts the files on the **Latest build** release.
+Builds of other branches are under *Actions → Build → Artifacts*. To build yourself:
 
 You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 

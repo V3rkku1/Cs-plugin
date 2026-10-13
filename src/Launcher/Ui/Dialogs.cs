@@ -5,11 +5,7 @@ public class LoadoutsDialog : Form
 {
     public enum Choice { None, Load, SaveCurrent, Randomize, Reset }
 
-    private readonly ListBox _list = new()
-    {
-        Width = 276, Height = 214, BorderStyle = BorderStyle.None, BackColor = Theme.Card, ForeColor = Theme.Text,
-        IntegralHeight = false, Font = Theme.Body, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 34,
-    };
+    private readonly RowList _list = new() { Width = 276, Height = 214, BackColor = Theme.Card, RowHeight = 34 };
     private readonly PillButton _load = new("Load", PillButton.Style.Primary);
     private readonly PillButton _delete = new("Delete", PillButton.Style.Destructive);
 
@@ -26,18 +22,15 @@ public class LoadoutsDialog : Form
         ClientSize = new Size(700, 390);
         Padding = new Padding(24, 20, 24, 20);
 
-        foreach (var n in names) _list.Items.Add(n);
+        _list.SetItems(names);
         if (_list.Items.Count > 0) _list.SelectedIndex = 0;
-        _list.DrawItem += (_, e) =>
+        _list.DrawRow = (g, item, r, selected, hover) =>
         {
-            if (e.Index < 0) return;
-            var g = e.Graphics;
             Theme.Smooth(g);
-            using (var bg = new SolidBrush(Theme.Card)) g.FillRectangle(bg, e.Bounds);
-            var selected = (e.State & DrawItemState.Selected) != 0;
-            if (selected) Theme.FillRounded(g, Theme.Accent, new RectangleF(e.Bounds.X + 2, e.Bounds.Y + 2, e.Bounds.Width - 4, e.Bounds.Height - 4), 7);
-            Theme.DrawText(g, (string)_list.Items[e.Index], Theme.Body, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, e.Bounds.Width - 16, e.Bounds.Height),
-                selected ? Color.White : Theme.Text);
+            var pill = new RectangleF(r.X + 2, r.Y + 2, r.Width - 4, r.Height - 4);
+            if (selected) Theme.FillRounded(g, Theme.Accent, pill, 7);
+            else if (hover) Theme.FillRounded(g, Theme.Fill, pill, 7);
+            Theme.DrawText(g, (string)item, Theme.Body, new Rectangle(r.X + 12, r.Y, r.Width - 16, r.Height), selected ? Color.White : Theme.Text);
         };
 
         var save = Row("Save Current", "Keep it under a name", new PillButton("Save…"), Choice.SaveCurrent);
@@ -46,13 +39,13 @@ public class LoadoutsDialog : Form
         random.Accessory!.Enabled = canRandomize;
 
         _load.Click += (_, _) => Finish(Choice.Load);
-        _list.DoubleClick += (_, _) => Finish(Choice.Load);
+        _list.ItemActivated += (_, _) => Finish(Choice.Load);
         _delete.Click += (_, _) =>
         {
             if (SelectedName is not { } name) return;
             if (MessageBox.Show(this, $"Delete the saved loadout \"{name}\"?", "Delete", MessageBoxButtons.OKCancel) != DialogResult.OK) return;
             delete(name);
-            _list.Items.Remove(name);
+            _list.Remove(name);
             UpdateButtons();
         };
         _list.SelectedIndexChanged += (_, _) => UpdateButtons();

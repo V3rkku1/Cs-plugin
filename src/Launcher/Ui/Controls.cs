@@ -286,7 +286,8 @@ public class TextField : DrawnControl
         Size = new Size(width, multiline ? height : 32);
         Margin = new Padding(0, 0, 8, 0);
         Box.Multiline = multiline;
-        if (multiline) Box.ScrollBars = ScrollBars.Vertical;
+        // No native (white) scrollbar: the mouse wheel still scrolls, and logs follow new lines.
+        if (multiline) Box.ScrollBars = ScrollBars.None;
         Controls.Add(Box);
         Box.TextChanged += (_, _) => TextChanged?.Invoke(this, EventArgs.Empty);
         Box.GotFocus += (_, _) => Invalidate();

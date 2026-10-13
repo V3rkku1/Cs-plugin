@@ -31,8 +31,7 @@ public class SetupPage : UserControl
     {
         _app = app;
         BackColor = Theme.Background;
-        AutoScroll = true;
-        Padding = new Padding(36, 28, 24, 24);
+        Padding = Padding.Empty;
         _log.Font = Theme.Mono;
 
         const int left = 560;
@@ -87,10 +86,8 @@ public class SetupPage : UserControl
         log.AddContent(_log, new Padding(12, 12, 12, 12));
         var rightColumn = new VStack(Theme.Caption("LOG"), log);
 
-        Controls.Add(new VStack(PlayPage.Header("Setup", "Install, update or remove everything the skin test needs."), new HStack(leftColumn, rightColumn))
-        {
-            Location = new Point(36, 26),
-        });
+        var page = new VStack(PlayPage.Header("Setup", "Install, update or remove everything the skin test needs."), new HStack(leftColumn, rightColumn));
+        Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
         _app.Changed += () => { if (!_busy) Refresh(); };

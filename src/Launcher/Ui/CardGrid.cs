@@ -24,6 +24,7 @@ public class CardGrid : Panel
     private int _hover = -1;
     private ImageCache? _images;
     private string _emptyText = "";
+    private readonly OverlayScroller _scroller;
 
     public Size CardSize { get; set; } = new(176, 156);
     public int Gap { get; set; } = 12;
@@ -34,7 +35,8 @@ public class CardGrid : Panel
     public CardGrid()
     {
         DoubleBuffered = true;
-        AutoScroll = true;
+        _scroller = new OverlayScroller(this);
+        _scroller.Scrolled += Invalidate;
         BackColor = Theme.Background;
         SetStyle(ControlStyles.Selectable | ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint | ControlStyles.UserPaint, true);
     }
@@ -49,8 +51,8 @@ public class CardGrid : Panel
         _selected = -1;
         _hover = -1;
         _emptyText = emptyText;
-        AutoScrollPosition = Point.Empty;
         UpdateScrollSize();
+        _scroller.ScrollTo(0);
         Invalidate();
     }
 
@@ -64,7 +66,7 @@ public class CardGrid : Panel
 
     public void RefreshBadges() => Invalidate();
 
-    private int Columns => Math.Max(1, (ClientSize.Width - Gap) / (CardSize.Width + Gap));
+    private int Columns => Math.Max(1, (ClientSize.Width - Gap - 12) / (CardSize.Width + Gap));
 
     private Rectangle CardRect(int index)
     {
@@ -73,21 +75,22 @@ public class CardGrid : Panel
         // Centre the grid horizontally.
         var used = Columns * (CardSize.Width + Gap) - Gap;
         var left = Math.Max(Gap, (ClientSize.Width - used) / 2);
-        return new Rectangle(left + col * (CardSize.Width + Gap), Gap + row * (CardSize.Height + Gap) + AutoScrollPosition.Y,
+        return new Rectangle(left + col * (CardSize.Width + Gap), Gap + row * (CardSize.Height + Gap) - _scroller.Offset,
             CardSize.Width, CardSize.Height);
     }
 
     private void UpdateScrollSize()
     {
         var rows = (_items.Count + Columns - 1) / Columns;
-        AutoScrollMinSize = new Size(0, Gap + rows * (CardSize.Height + Gap));
+        _scroller.ContentHeight = Gap + rows * (CardSize.Height + Gap);
+        _scroller.Clamp();
     }
 
     private void ScrollToIndex(int index)
     {
         var r = CardRect(index);
         if (r.Top < 0 || r.Bottom > ClientSize.Height)
-            AutoScrollPosition = new Point(0, -AutoScrollPosition.Y + r.Top - Gap);
+            _scroller.ScrollTo(_scroller.Offset + r.Top - Gap);
     }
 
     protected override void OnResize(EventArgs e)
@@ -97,16 +100,16 @@ public class CardGrid : Panel
         Invalidate();
     }
 
-    protected override void OnScroll(ScrollEventArgs se)
-    {
-        base.OnScroll(se);
-        Invalidate();
-    }
-
     protected override void OnMouseWheel(MouseEventArgs e)
     {
         base.OnMouseWheel(e);
-        Invalidate();
+        _scroller.Wheel(e.Delta);
+    }
+
+    protected override void OnMouseUp(MouseEventArgs e)
+    {
+        base.OnMouseUp(e);
+        _scroller.MouseUp();
     }
 
     private int HitTest(Point p)
@@ -122,13 +125,19 @@ public class CardGrid : Panel
 
     private int FirstVisible()
     {
-        var row = Math.Max(0, (-AutoScrollPosition.Y - Gap) / (CardSize.Height + Gap));
+        var row = Math.Max(0, (_scroller.Offset - Gap) / (CardSize.Height + Gap));
         return row * Columns;
     }
 
     protected override void OnMouseMove(MouseEventArgs e)
     {
         base.OnMouseMove(e);
+        if (_scroller.MouseMove(e))
+        {
+            if (_hover != -1) { _hover = -1; Invalidate(); }
+            Cursor = Cursors.Default;
+            return;
+        }
         var hit = HitTest(e.Location);
         if (hit == _hover) return;
         _hover = hit;
@@ -140,6 +149,7 @@ public class CardGrid : Panel
     {
         base.OnMouseLeave(e);
         _hover = -1;
+        _scroller.MouseLeave();
         Invalidate();
     }
 
@@ -147,6 +157,7 @@ public class CardGrid : Panel
     {
         base.OnMouseDown(e);
         Focus();
+        if (_scroller.MouseDown(e)) return;
         var hit = HitTest(e.Location);
         if (hit < 0) return;
         _selected = hit;
@@ -180,6 +191,7 @@ public class CardGrid : Panel
             if (r.Bottom < 0) continue;
             DrawCard(g, _items[i], r, i == _selected, i == _hover);
         }
+        _scroller.Paint(g);
     }
 
     private void DrawCard(Graphics g, CardItem item, Rectangle r, bool selected, bool hover)
