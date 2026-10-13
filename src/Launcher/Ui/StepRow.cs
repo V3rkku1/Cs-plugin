@@ -2,37 +2,43 @@ namespace LanSkinTester.Launcher.Ui;
 
 public enum StepState { Missing, Ok, Warning, Working, Failed }
 
-/// <summary>One line of the setup checklist: status dot, name, detail (version/info), progress bar and an action button.</summary>
+/// <summary>A row of the setup checklist (lives in a <see cref="Group"/>): status icon, name, detail, progress, button.</summary>
 public class StepRow : Panel
 {
-    private readonly Label _title = new() { AutoSize = true, Font = Theme.Bold, ForeColor = Theme.Text, Location = new Point(36, 10) };
-    private readonly Label _detail = new() { AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, Location = new Point(36, 32) };
+    private readonly Label _title = new() { AutoSize = true, Font = Theme.Body, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _detail = new() { AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, BackColor = Color.Transparent };
     private StepState _state;
     private double _progress = -2; // -2 hidden, -1 indeterminate, 0..1
 
-    public Button Action { get; }
+    public PillButton Action { get; }
 
     public StepRow(string title, string actionText)
     {
-        Height = 60;
-        Width = 640;
-        BackColor = Theme.Card;
-        Margin = new Padding(0, 0, 0, 6);
-        DoubleBuffered = true;
+        Height = 62;
+        BackColor = Color.Transparent;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.SupportsTransparentBackColor, true);
         _title.Text = title;
-        Action = Theme.MakeButton(actionText);
-        Action.Anchor = AnchorStyles.Right | AnchorStyles.Top;
-        Action.AutoSize = false;
-        Action.Size = new Size(130, 32);
-        Action.Location = new Point(Width - Action.Width - 12, 14);
+        Action = new PillButton(actionText) { AutoWidth = false };
+        Action.Width = 100;
+        Action.Height = 28;
         Controls.AddRange([_title, _detail, Action]);
+    }
+
+    protected override void OnLayout(LayoutEventArgs levent)
+    {
+        base.OnLayout(levent);
+        if (Action == null) return;
+        _title.Location = new Point(52, 12);
+        _detail.Location = new Point(52, 33);
+        _detail.MaximumSize = new Size(Math.Max(Width - 52 - 130, 60), 0);
+        Action.Location = new Point(Width - Action.Width - 14, (Height - Action.Height) / 2);
     }
 
     public void Set(StepState state, string detail)
     {
         _state = state;
         _detail.Text = detail;
-        _detail.ForeColor = state switch { StepState.Failed => Theme.Bad, StepState.Warning => Theme.Accent, _ => Theme.Muted };
+        _detail.ForeColor = state switch { StepState.Failed => Theme.Bad, StepState.Warning => Theme.Warning, _ => Theme.Muted };
         if (state != StepState.Working) _progress = -2;
         Invalidate();
     }
@@ -49,31 +55,40 @@ public class StepRow : Panel
     {
         base.OnPaint(e);
         var g = e.Graphics;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+        Theme.Smooth(g);
 
-        var color = _state switch
+        var icon = new RectangleF(16, Height / 2f - 11, 22, 22);
+        switch (_state)
         {
-            StepState.Ok => Theme.Good,
-            StepState.Warning or StepState.Working => Theme.Accent,
-            StepState.Failed => Theme.Bad,
-            _ => Theme.Border,
-        };
-        using (var brush = new SolidBrush(color)) g.FillEllipse(brush, 12, 22, 14, 14);
-        if (_state == StepState.Missing)
-            using (var bg = new SolidBrush(Theme.Card)) g.FillEllipse(bg, 15, 25, 8, 8);
+            case StepState.Ok:
+                using (var b = new SolidBrush(Theme.Good)) g.FillEllipse(b, icon);
+                using (var pen = new Pen(Color.White, 2f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round })
+                    g.DrawLines(pen, [new PointF(icon.Left + 6, icon.Top + 11.5f), new PointF(icon.Left + 9.5f, icon.Top + 15), new PointF(icon.Left + 16, icon.Top + 7.5f)]);
+                break;
+            case StepState.Warning or StepState.Failed:
+                using (var b = new SolidBrush(_state == StepState.Failed ? Theme.Bad : Theme.Warning)) g.FillEllipse(b, icon);
+                Theme.DrawText(g, "!", Theme.Bold, Rectangle.Round(icon), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+                break;
+            case StepState.Working:
+                using (var track = new Pen(Theme.Fill, 2.5f)) g.DrawEllipse(track, icon);
+                var sweep = (float)(DateTime.Now.TimeOfDay.TotalMilliseconds / 3 % 360);
+                using (var arc = new Pen(Theme.Accent, 2.5f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round })
+                    g.DrawArc(arc, icon, sweep, 100);
+                break;
+            default:
+                using (var ring = new Pen(Theme.Tertiary, 1.8f)) g.DrawEllipse(ring, icon);
+                break;
+        }
 
         if (_progress > -2)
         {
-            var bar = new Rectangle(36, Height - 7, Width - 36 - 160, 3);
-            using var back = new SolidBrush(Theme.Border);
-            g.FillRectangle(back, bar);
-            using var fill = new SolidBrush(Theme.Accent);
-            if (_progress >= 0) g.FillRectangle(fill, bar.Left, bar.Top, (int)(bar.Width * Math.Clamp(_progress, 0, 1)), bar.Height);
+            var bar = new RectangleF(52, Height - 9, Width - 52 - 130, 4);
+            Theme.FillRounded(g, Theme.Fill, bar, 2);
+            if (_progress >= 0) Theme.FillRounded(g, Theme.Accent, new RectangleF(bar.Left, bar.Top, bar.Width * (float)Math.Clamp(_progress, 0, 1), bar.Height), 2);
             else
             {
-                // Unknown size: a moving block.
-                var x = (int)(DateTime.Now.TimeOfDay.TotalMilliseconds / 4 % bar.Width);
-                g.FillRectangle(fill, bar.Left + x, bar.Top, Math.Min(60, bar.Width - x), bar.Height);
+                var x = (float)(DateTime.Now.TimeOfDay.TotalMilliseconds / 4 % bar.Width);
+                Theme.FillRounded(g, Theme.Accent, new RectangleF(bar.Left + x, bar.Top, Math.Min(60, bar.Width - x), bar.Height), 2);
             }
         }
     }

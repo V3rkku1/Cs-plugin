@@ -28,47 +28,51 @@ public class SkinsPage : UserControl
     private ushort _def;
     private SkinSettings _work = new();
 
-    private readonly Segmented _category = new(Categories, 0);
+    private readonly Segmented _category = new(Categories, 0, 3);
     private readonly ListBox _weapons = new()
     {
-        DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 58, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill,
-        BackColor = Theme.Surface, IntegralHeight = false,
+        DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 56, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill,
+        BackColor = Theme.Sidebar, IntegralHeight = false,
     };
-    private readonly TextBox _search = new() { PlaceholderText = "Search skins...", Width = 200 };
-    private readonly Button _importButton = Theme.MakeButton("Import real item...", Theme.ButtonKind.Normal);
-    private readonly Button _loadoutsButton = Theme.MakeButton("Loadouts...", Theme.ButtonKind.Normal);
-    private readonly Label _gridTitle = new() { AutoSize = true, Font = Theme.Heading, ForeColor = Theme.Text, Margin = new Padding(0, 6, 16, 0) };
+    private readonly TextField _search = new(210) { PlaceholderText = "Search" };
+    private readonly PillButton _importButton = new("Import Item");
+    private readonly PillButton _loadoutsButton = new("Loadouts");
+    private readonly Label _gridTitle = new() { AutoSize = true, Font = Theme.Title, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _gridSubtitle = new() { AutoSize = true, Font = Theme.Body, ForeColor = Theme.Muted, BackColor = Color.Transparent };
     private readonly CardGrid _grid = new() { Dock = DockStyle.Fill };
 
     // Details
-    private readonly Panel _preview = new() { Height = 200, Dock = DockStyle.Top, BackColor = Theme.Card };
-    private readonly Label _title = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, MaximumSize = new Size(330, 0) };
-    private readonly Label _rarity = new() { AutoSize = true, Font = Theme.Bold };
-    private readonly Label _range = new() { AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted };
-    private readonly TrackBar _wearBar = new() { Minimum = 0, Maximum = 1000, TickStyle = TickStyle.None, Width = 220, Height = 28 };
-    private readonly NumericUpDown _wear = new() { DecimalPlaces = 6, Increment = 0.001m, Minimum = 0, Maximum = 1, Width = 92 };
-    private readonly Segmented _condition = new(Conditions.Select(c => c.Short), 58);
-    private readonly NumericUpDown _seed = new() { Maximum = 1000, Width = 80 };
-    private readonly Button _randomSeed = Theme.MakeButton("Random");
-    private readonly CheckBox _statTrak = new() { Text = "StatTrak™", AutoSize = true, Margin = new Padding(0, 8, 8, 0) };
-    private readonly NumericUpDown _kills = new() { Maximum = 999999, Width = 90 };
-    private readonly TextBox _nametag = new() { MaxLength = 20, Width = 220, PlaceholderText = "Name tag (optional)" };
+    private readonly Panel _preview = new() { Height = 210, Dock = DockStyle.Top };
+    private readonly Label _title = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, MaximumSize = new Size(340, 0), BackColor = Color.Transparent, Margin = new Padding(2, 14, 0, 2) };
+    private readonly Label _rarity = new() { AutoSize = true, Font = Theme.Body, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
+    private readonly Label _range = new() { AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(2, 2, 0, 0) };
+    private readonly Slider _wearBar = new() { Minimum = 0, Maximum = 1000, Width = 178 };
+    private readonly NumberField _wear = new(130) { DecimalPlaces = 6, Increment = 0.001m, Minimum = 0, Maximum = 1 };
+    private readonly Segmented _condition = new(Conditions.Select(c => c.Short), 62);
+    private readonly NumberField _seed = new(120) { Maximum = 1000 };
+    private readonly PillButton _randomSeed = new("Random");
+    private readonly Toggle _statTrak = new();
+    private readonly NumberField _kills = new(120) { Maximum = 999999 };
+    private readonly TextField _nametag = new(190) { MaxLength = 20, PlaceholderText = "None" };
     private readonly SlotTile[] _stickerSlots = Enumerable.Range(0, 5).Select(i => new SlotTile($"{i + 1}")).ToArray();
     private readonly SlotTile _charmSlot = new("Charm");
-    private readonly ComboBox _model = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
-    private readonly Button _equip = Theme.MakeButton("EQUIP", Theme.ButtonKind.Primary, 200);
-    private readonly Button _unequip = Theme.MakeButton("Unequip", Theme.ButtonKind.Danger, 100);
-    private readonly Button _copyGen = Theme.MakeButton("Copy !gen", Theme.ButtonKind.Ghost);
-    private readonly Button _copyLink = Theme.MakeButton("Copy inspect link", Theme.ButtonKind.Ghost);
-    private readonly Label _status = new() { AutoSize = true, MaximumSize = new Size(330, 0), Font = Theme.Small, Margin = new Padding(0, 6, 0, 0) };
+    private readonly Picker _model = new(150);
+    private readonly PillButton _equip = new("Equip", PillButton.Style.Primary) { AutoWidth = false };
+    private readonly PillButton _unequip = new("Unequip", PillButton.Style.Destructive) { AutoWidth = false };
+    private readonly PillButton _copyGen = new("Copy !gen", PillButton.Style.Plain);
+    private readonly PillButton _copyLink = new("Copy Inspect Link", PillButton.Style.Plain);
+    private readonly Label _status = new() { AutoSize = true, MaximumSize = new Size(340, 0), Font = Theme.Small, BackColor = Color.Transparent, Margin = new Padding(4, 8, 0, 0) };
 
     public SkinsPage(ImageCache images)
     {
         _images = images;
         BackColor = Theme.Background;
         _grid.SetImageCache(images);
-        _model.Items.AddRange(["Model: auto", "Model: old (legacy)", "Model: new"]);
+        _model.SetItems(["Automatic", "Old (legacy)", "New"]);
         _model.SelectedIndex = 0;
+        _equip.Width = 220;
+        _unequip.Width = 112;
+        _equip.Height = _unequip.Height = 36;
 
         Controls.Add(BuildCenter());
         Controls.Add(BuildDetails());
@@ -133,66 +137,76 @@ public class SkinsPage : UserControl
 
     private Control BuildLeft()
     {
-        var panel = new Panel { Dock = DockStyle.Left, Width = 290, BackColor = Theme.Surface, Padding = new Padding(12) };
-        _category.Dock = DockStyle.Top;
-        _category.MaximumSize = new Size(270, 0);
-        var gap = new Panel { Dock = DockStyle.Top, Height = 8, BackColor = Theme.Surface };
+        var panel = new Panel { Dock = DockStyle.Left, Width = 280, BackColor = Theme.Sidebar, Padding = new Padding(14, 16, 8, 10) };
+        var top = new Panel { Dock = DockStyle.Top, Height = _category.Height + 14, BackColor = Theme.Sidebar };
+        _category.Location = new Point(0, 0);
+        _category.Width = 256;
+        top.Controls.Add(_category);
         panel.Controls.Add(_weapons);
-        panel.Controls.Add(gap);
-        panel.Controls.Add(_category);
+        panel.Controls.Add(top);
         return panel;
     }
 
     private Control BuildCenter()
     {
-        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(14, 12, 14, 12) };
-        var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 46, BackColor = Theme.Background, WrapContents = false };
-        _search.Margin = new Padding(0, 6, 10, 0);
-        toolbar.Controls.AddRange([_gridTitle, _search, _importButton, _loadoutsButton]);
+        var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(22, 18, 14, 10) };
+        var header = new Panel { Dock = DockStyle.Top, Height = 98, BackColor = Theme.Background };
+        _gridTitle.Location = new Point(0, 0);
+        _gridSubtitle.Location = new Point(2, 46);
+        var tools = new HStack(_search, _importButton, _loadoutsButton);
+        tools.Location = new Point(0, 66);
+        _importButton.Margin = _loadoutsButton.Margin = new Padding(0, 0, 8, 0);
+        header.Controls.AddRange([_gridTitle, _gridSubtitle, tools]);
         panel.Controls.Add(_grid);
-        panel.Controls.Add(toolbar);
+        panel.Controls.Add(header);
         return panel;
     }
 
     private Control BuildDetails()
     {
-        var outer = new Panel { Dock = DockStyle.Right, Width = 390, BackColor = Theme.Surface, Padding = new Padding(14) };
+        var outer = new Panel { Dock = DockStyle.Right, Width = 404, BackColor = Theme.Background, Padding = new Padding(8, 18, 18, 10) };
         var body = new FlowLayoutPanel
         {
             Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoScroll = true,
-            BackColor = Theme.Surface, Padding = new Padding(0, 10, 0, 0),
+            BackColor = Theme.Background, Padding = new Padding(0, 0, 0, 10),
         };
 
-        var stickers = Row(_stickerSlots.Cast<Control>().Append(_charmSlot).ToArray());
+        const int width = 356;
+        var wear = new Group(width);
+        _wearBar.Margin = new Padding(0, 2, 8, 0);
+        _wear.Margin = Padding.Empty;
+        _condition.Margin = new Padding(0, 10, 0, 0);
+        wear.AddContent(new VStack(new HStack(_wearBar, _wear), _condition) { Margin = Padding.Empty }, new Padding(14, 12, 14, 12));
+
+        var details = new Group(width);
+        details.AddRow("Pattern", new HStack(_randomSeed, _seed));
+        _randomSeed.Margin = new Padding(0, 0, 8, 0);
+        _randomSeed.ButtonStyle = PillButton.Style.Plain;
+        details.AddRow("StatTrak™", new HStack(_kills, _statTrak));
+        _kills.Margin = new Padding(0, 0, 12, 0);
+        _statTrak.Margin = new Padding(0, 3, 0, 0);
+        details.AddRow("Name Tag", _nametag);
+        details.AddRow("Model", _model, "If the skin looks stretched");
+
+        var stickers = new Group(width);
+        stickers.AddContent(new HStack(_stickerSlots.Cast<Control>().Append(_charmSlot).ToArray()), new Padding(12, 12, 12, 12));
+
+        var actions = new HStack(_equip, _unequip) { Margin = new Padding(0, 16, 0, 0) };
+        var copy = new HStack(_copyGen, _copyLink) { Margin = new Padding(0, 6, 0, 0) };
+
         body.Controls.AddRange([
             _title, _rarity, _range,
-            Caption("WEAR"), Row(_wearBar, _wear), _condition,
-            Caption("PATTERN SEED"), Row(_seed, _randomSeed),
-            Row(_statTrak, _kills),
-            Caption("NAME TAG"), _nametag,
-            Caption("STICKERS  ·  CHARM   (click to add, right-click to remove)"), stickers,
-            _model,
-            Row(_equip, _unequip),
-            Row(_copyGen, _copyLink),
-            _status,
+            Theme.Caption("WEAR"), wear,
+            Theme.Caption("DETAILS"), details,
+            Theme.Caption("STICKERS AND CHARM  ·  right-click to remove"), stickers,
+            actions, copy, _status,
         ]);
-        _seed.Margin = new Padding(0, 6, 8, 0);
-        _wear.Margin = new Padding(4, 2, 0, 0);
-        _model.Margin = new Padding(0, 10, 0, 6);
+        foreach (var caption in body.Controls.OfType<Label>().Where(l => l.Font == Theme.Small && l.ForeColor == Theme.Muted && l != _range))
+            caption.Margin = new Padding(14, 16, 0, 6);
 
         outer.Controls.Add(body);
         outer.Controls.Add(_preview);
         return outer;
-    }
-
-    private static Label Caption(string text) =>
-        new() { Text = text, AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, Margin = new Padding(0, 12, 0, 3) };
-
-    private static FlowLayoutPanel Row(params Control[] controls)
-    {
-        var row = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 2, 0, 2) };
-        row.Controls.AddRange(controls);
-        return row;
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -265,31 +279,37 @@ public class SkinsPage : UserControl
         if (e.Index < 0) return;
         var row = (WeaponRow)_weapons.Items[e.Index];
         var g = e.Graphics;
+        Theme.Smooth(g);
         var selected = (e.State & DrawItemState.Selected) != 0;
         var r = e.Bounds;
 
-        using (var bg = new SolidBrush(selected ? Theme.Card : Theme.Surface)) g.FillRectangle(bg, r);
-        if (selected)
-            using (var bar = new SolidBrush(Theme.Accent)) g.FillRectangle(bar, r.Left, r.Top + 6, 3, r.Height - 12);
+        using (var bg = new SolidBrush(Theme.Sidebar)) g.FillRectangle(bg, r);
+        var pill = new RectangleF(r.Left + 2, r.Top + 2, r.Width - 6, r.Height - 4);
+        if (selected) Theme.FillRounded(g, Theme.Accent, pill, 9);
 
         var loadout = ReadLoadoutCached();
         var skin = loadout.Skins.GetValueOrDefault(row.Def);
         var info = skin is { Paint: not 0 } ? _db.Find(row.Def, skin.Paint) : null;
 
-        var imageBox = new Rectangle(r.Left + 10, r.Top + 6, 74, r.Height - 12);
+        var imageBox = new Rectangle(r.Left + 10, r.Top + 7, 66, r.Height - 14);
         var img = _images.Get(info?.Image ?? row.Image, 128, () => { if (IsHandleCreated) BeginInvoke(() => _weapons.Invalidate()); });
         if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, imageBox));
 
-        TextRenderer.DrawText(g, row.Name, Theme.Bold, new Rectangle(r.Left + 92, r.Top + 9, r.Width - 96, 20), Theme.Text,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        Theme.DrawText(g, row.Name, Theme.Bold, new Rectangle(r.Left + 86, r.Top + 9, r.Width - 92, 20), selected ? Color.White : Theme.Text);
 
         var equippedType = ItemData.Knives.ContainsValue(row.Def) ? loadout.Knife == row.Def
             : ItemData.Gloves.ContainsValue(row.Def) && loadout.Gloves == row.Def;
         var sub = info != null ? info.DisplayFinish : skin is { Paint: not 0 } ? $"Paint #{skin.Paint}" : equippedType ? "Vanilla" : "Default";
-        var color = info != null ? Theme.Parse(info.RarityColor, Theme.Muted) : Theme.Muted;
-        if (equippedType) sub = "EQUIPPED · " + sub;
-        TextRenderer.DrawText(g, sub, Theme.Small, new Rectangle(r.Left + 92, r.Top + 30, r.Width - 96, 18),
-            equippedType ? Theme.Accent : color, TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        if (equippedType) sub = "Equipped · " + sub;
+        var color = selected ? Color.FromArgb(220, 235, 255) : info != null ? Theme.Parse(info.RarityColor, Theme.Muted) : Theme.Muted;
+        var subRect = new Rectangle(r.Left + 86, r.Top + 29, r.Width - 92, 18);
+        if (info != null && !selected)
+        {
+            using (var dot = new SolidBrush(color)) g.FillEllipse(dot, subRect.Left, subRect.Top + 6, 6, 6);
+            subRect = new Rectangle(subRect.Left + 11, subRect.Top, subRect.Width - 11, subRect.Height);
+            color = Theme.Muted;
+        }
+        Theme.DrawText(g, sub, Theme.Small, subRect, equippedType && !selected ? Theme.Accent : color);
     }
 
     // The list redraws often; read the file at most twice a second.
@@ -315,6 +335,8 @@ public class SkinsPage : UserControl
         if (_weapons.SelectedItem is not WeaponRow row) return;
         _def = row.Def;
         _gridTitle.Text = row.Name;
+        var finishes = _db.SkinsFor(row.Def).Count();
+        _gridSubtitle.Text = finishes > 0 ? $"{finishes} finishes · double-click a card to equip" : "Pick a finish by paint ID or import an item";
 
         // Start from what is saved for this weapon (or a fresh default).
         var saved = ReadLoadout().Skins.GetValueOrDefault(_def);
@@ -384,7 +406,7 @@ public class SkinsPage : UserControl
 
         _loading = true;
         _title.Text = info?.FullName ?? (_work.Paint != 0 ? $"{weaponName} | Paint #{_work.Paint}" : $"{weaponName} | Vanilla");
-        _rarity.Text = info?.Rarity ?? "";
+        _rarity.Text = info != null ? $"● {info.Rarity}" : "";
         _rarity.ForeColor = Theme.Parse(info?.RarityColor, Theme.Muted);
         _range.Text = info != null ? $"Float range {info.MinFloat:0.00} – {info.MaxFloat:0.00}" : "";
 
@@ -454,27 +476,35 @@ public class SkinsPage : UserControl
     private void DrawPreview(object? sender, PaintEventArgs e)
     {
         var g = e.Graphics;
-        var r = _preview.ClientRectangle;
+        using (var clear = new SolidBrush(Theme.Background)) g.FillRectangle(clear, _preview.ClientRectangle);
+        Theme.Smooth(g);
+        var r = new RectangleF(0, 0, _preview.Width - 1, _preview.Height - 1);
         var info = CurrentInfo;
-        var accent = Theme.Parse(info?.RarityColor, Theme.Border);
+        var accent = Theme.Parse(info?.RarityColor, Theme.Tertiary);
 
-        using (var bg = new System.Drawing.Drawing2D.LinearGradientBrush(r, Theme.Card, CardGrid.Blend(Theme.Card, accent, 0.35f),
-                   System.Drawing.Drawing2D.LinearGradientMode.Vertical))
-            g.FillRectangle(bg, r);
-        using (var stripe = new SolidBrush(accent)) g.FillRectangle(stripe, r.Left, r.Bottom - 4, r.Width, 4);
+        Theme.FillRounded(g, Theme.Card, r, 16);
+        using (var glowPath = new System.Drawing.Drawing2D.GraphicsPath())
+        {
+            glowPath.AddEllipse(RectangleF.Inflate(r, -r.Width * 0.12f, -r.Height * 0.08f));
+            using var glow = new System.Drawing.Drawing2D.PathGradientBrush(glowPath)
+            {
+                CenterColor = Color.FromArgb(75, accent),
+                SurroundColors = [Color.FromArgb(0, accent)],
+            };
+            g.FillPath(glow, glowPath);
+        }
 
         var url = info?.Image ?? _db.Weapon(_def)?.Image ?? "";
         var img = _images.Get(url, 512, () => { if (IsHandleCreated) BeginInvoke(_preview.Invalidate); });
-        if (img != null)
-        {
-            g.InterpolationMode = System.Drawing.Drawing2D.InterpolationMode.HighQualityBicubic;
-            g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(r, -14, -14)));
-        }
+        if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(Rectangle.Round(r), -20, -18)));
 
         if (_work.Paint != 0)
         {
-            var text = $"{ItemData.WearName(_work.Wear)}  ·  {_work.Wear.ToString("0.000000", CultureInfo.InvariantCulture)}";
-            TextRenderer.DrawText(g, text, Theme.Small, new Rectangle(r.Left + 10, r.Top + 8, r.Width - 20, 18), Theme.Muted, TextFormatFlags.NoPrefix);
+            var text = $"{ItemData.WearName(_work.Wear)}  {_work.Wear.ToString("0.000000", CultureInfo.InvariantCulture)}";
+            var size = TextRenderer.MeasureText(text, Theme.Small);
+            var tag = new RectangleF(12, 12, size.Width + 14, 22);
+            Theme.FillRounded(g, Color.FromArgb(150, 0, 0, 0), tag, 11);
+            Theme.DrawText(g, text, Theme.Small, Rectangle.Round(tag), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
     }
 
@@ -585,6 +615,7 @@ public class SkinsPage : UserControl
 
         Save(item.DefIndex, item.Skin);
         SelectWeapon(item.DefIndex);
+        OpenWeapon(); // also when that weapon was already open (selection didn't change)
         SetStatus("Imported and equipped.", false);
     }
 

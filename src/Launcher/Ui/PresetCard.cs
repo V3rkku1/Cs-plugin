@@ -1,44 +1,41 @@
 namespace LanSkinTester.Launcher.Ui;
 
-/// <summary>A clickable quick-start card: bold title, grey description, accent bar on hover.</summary>
-public class PresetCard : Control
+/// <summary>A quick-start tile: coloured symbol, title and description.</summary>
+public class PresetCard : DrawnControl
 {
     private readonly string _title;
     private readonly string _subtitle;
-    private bool _hover;
+    private readonly Color _tint;
 
-    public PresetCard(string title, string subtitle)
+    public PresetCard(string title, string subtitle, Color tint)
     {
         _title = title;
         _subtitle = subtitle;
-        Size = new Size(168, 64);
-        Margin = new Padding(0, 0, 6, 6);
+        _tint = tint;
+        Size = new Size(176, 92);
+        Margin = new Padding(0, 0, 10, 10);
         Cursor = Cursors.Hand;
-        DoubleBuffered = true;
     }
 
-    protected override void OnMouseEnter(EventArgs e) { _hover = true; Invalidate(); base.OnMouseEnter(e); }
-    protected override void OnMouseLeave(EventArgs e) { _hover = false; Invalidate(); base.OnMouseLeave(e); }
-    protected override void OnEnabledChanged(EventArgs e) { Invalidate(); base.OnEnabledChanged(e); }
-
-    protected override void OnPaint(PaintEventArgs e)
+    protected override void Draw(Graphics g)
     {
-        var g = e.Graphics;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var r = new Rectangle(0, 0, Width - 1, Height - 1);
-        using (var path = CardGrid.Rounded(r, 5))
+        var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        var bg = Pressed ? Theme.Fill : Hover ? Theme.CardHover : Theme.Card;
+        Theme.FillRounded(g, bg, r, 12);
+        if (Hover)
         {
-            using var bg = new SolidBrush(_hover ? Theme.CardHover : Theme.Card);
-            g.FillPath(bg, path);
-            using var pen = new Pen(_hover ? Theme.Accent : Theme.Border);
+            using var path = Theme.Rounded(r, 12);
+            using var pen = new Pen(Theme.WithAlpha(_tint, 180), 1.5f);
             g.DrawPath(pen, path);
         }
-        using (var bar = new SolidBrush(_hover ? Theme.Accent : Theme.Border)) g.FillRectangle(bar, 1, 8, 3, Height - 16);
 
-        var text = Enabled ? Theme.Text : Theme.Muted;
-        TextRenderer.DrawText(g, _title, Theme.Bold, new Rectangle(12, 8, Width - 18, 20), _hover ? Theme.Accent : text,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
-        TextRenderer.DrawText(g, _subtitle, Theme.Small, new Rectangle(12, 28, Width - 18, 32), Theme.Muted,
-            TextFormatFlags.WordBreak | TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix);
+        // Icon: a rounded square in the tile's colour with a play triangle.
+        var icon = new RectangleF(14, 14, 26, 26);
+        Theme.FillRounded(g, _tint, icon, 7);
+        using (var white = new SolidBrush(Color.White))
+            g.FillPolygon(white, [new PointF(icon.Left + 10, icon.Top + 7.5f), new PointF(icon.Left + 10, icon.Bottom - 7.5f), new PointF(icon.Right - 7, icon.Top + 13)]);
+
+        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(14, 46, Width - 22, 20), Enabled ? Theme.Text : Theme.Muted);
+        Theme.DrawText(g, _subtitle, Theme.Small, new Rectangle(14, 64, Width - 20, 22), Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top);
     }
 }

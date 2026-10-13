@@ -13,76 +13,89 @@ public class SetupPage : UserControl
     private string? _latestMetamod;
     private string? _latestCss;
 
-    private readonly TextBox _pathBox = new() { ReadOnly = true, Width = 330 };
+    private SettingRow _folderRow = null!;
     private readonly StepRow _metamod = new("Metamod:Source 2.x", "Install");
     private readonly StepRow _css = new("CounterStrikeSharp", "Install");
     private readonly StepRow _plugin = new("LAN Skin Tester plugin", "Install");
     private readonly StepRow _cssConfig = new("Skins allowed in CounterStrikeSharp", "Fix");
     private readonly StepRow _data = new("Skin, sticker and charm lists", "Download");
-    private readonly Button _installAll = Theme.MakeButton("INSTALL / UPDATE EVERYTHING", Theme.ButtonKind.Primary, 330);
-    private readonly Button _checkUpdates = Theme.MakeButton("Check for updates");
-    private readonly Button _zip = Theme.MakeButton("Install from zip...");
-    private readonly Button _repair = Theme.MakeButton("Repair");
-    private readonly Button _uninstall = Theme.MakeButton("Uninstall everything", Theme.ButtonKind.Danger);
-    private readonly TextBox _log = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 440, Height = 560, Font = Theme.Small };
-    private readonly System.Windows.Forms.Timer _spinner = new() { Interval = 50 };
+    private readonly PillButton _installAll = new("Install Everything", PillButton.Style.Primary) { AutoWidth = false };
+    private readonly PillButton _checkUpdates = new("Check");
+    private readonly PillButton _zip = new("Choose Zip…");
+    private readonly PillButton _repair = new("Repair");
+    private readonly PillButton _uninstall = new("Uninstall", PillButton.Style.Destructive);
+    private readonly TextField _log = new(416, multiline: true, height: 560) { ReadOnly = true };
+    private readonly System.Windows.Forms.Timer _spinner = new() { Interval = 40 };
 
     public SetupPage(AppState app)
     {
         _app = app;
         BackColor = Theme.Background;
         AutoScroll = true;
-        Padding = new Padding(18);
+        Padding = new Padding(36, 28, 24, 24);
+        _log.Font = Theme.Mono;
 
-        var browse = Theme.MakeButton("Browse...");
-        var find = Theme.MakeButton("Find automatically");
+        const int left = 560;
+        const int right = 440;
+
+        var browse = new PillButton("Browse…");
+        var find = new PillButton("Find");
         browse.Click += (_, _) => Browse();
         find.Click += (_, _) => _app.SetGame(GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
+        var folder = new Group(left);
+        _folderRow = folder.AddRow("Counter-Strike 2", new HStack(browse, find), "Not found yet");
+        browse.Margin = new Padding(0, 0, 8, 0);
+        find.Margin = Padding.Empty;
 
-        var folder = Stack(Row(_pathBox, browse, find));
-
-        _metamod.Action.Click += async (_, _) => await Run(i => Step(_metamod, i.InstallMetamodAsync));
-        _css.Action.Click += async (_, _) => await Run(i => Step(_css, async () => { await i.InstallCounterStrikeSharpAsync(); _app.AllowSkinsInCss(); }));
+        _metamod.Action.Click += async (_, _) => await Run(i => Step(_metamod, () => WithProgress(i, _metamod).InstallMetamodAsync()));
+        _css.Action.Click += async (_, _) => await Run(i => Step(_css, async () => { await WithProgress(i, _css).InstallCounterStrikeSharpAsync(); _app.AllowSkinsInCss(); }));
         _plugin.Action.Click += async (_, _) => await Run(i => Step(_plugin, () => { i.InstallPlugin(); return Task.CompletedTask; }));
         _cssConfig.Action.Click += (_, _) => { _app.AllowSkinsInCss(); _app.NotifyChanged(); };
         _data.Action.Click += async (_, _) => await Run(_ => Step(_data, DownloadData));
-        var steps = Stack(_metamod, _css, _plugin, _cssConfig, _data);
+        var steps = new Group(left);
+        foreach (var row in new[] { _metamod, _css, _plugin, _cssConfig, _data }) steps.AddRaw(row);
 
-        _installAll.Height = 42;
+        _installAll.Width = left - 28;
+        _installAll.Height = 40;
         _installAll.Click += async (_, _) => await InstallEverything();
         _checkUpdates.Click += async (_, _) => await CheckUpdates();
         _zip.Click += async (_, _) => await InstallZip();
         _repair.Click += async (_, _) => await Repair();
         _uninstall.Click += (_, _) => Uninstall();
-        var actions = Stack(Row(_installAll), Row(_checkUpdates, _zip, _repair, _uninstall));
+        var actions = new Group(left);
+        actions.AddContent(_installAll, new Padding(14, 14, 14, 14));
+        actions.AddRow("Check for Updates", _checkUpdates, "Compare with the newest Metamod and CounterStrikeSharp");
+        actions.AddRow("Install from Zip", _zip, "If a download fails: get the zip from the links below");
+        actions.AddRow("Repair", _repair, "Reinstall the plugin and fix leftovers after a crash");
+        actions.AddRow("Uninstall Everything", _uninstall, "Remove all mods from your CS2 folder (loadout is backed up)");
 
-        var folders = Stack(
-            Row(
-                FolderButton("CS2 folder", () => _app.Game?.Root),
-                FolderButton("Plugin folder", () => _app.Game?.PluginDir),
-                FolderButton("Server configs", () => _app.Game == null ? null : Path.Combine(_app.Game.Csgo, "cfg")),
-                FolderButton("Launcher data", () => AppState.LauncherDataDir)),
-            Row(
-                Link("Metamod downloads", Installer.MetamodPage),
-                Link("CounterStrikeSharp downloads", Installer.CounterStrikeSharpPage)));
+        var folders = new Group(left);
+        folders.AddRow("CS2 Folder", FolderButton(() => _app.Game?.Root));
+        folders.AddRow("Plugin Folder", FolderButton(() => _app.Game?.PluginDir));
+        folders.AddRow("Server Configs", FolderButton(() => _app.Game == null ? null : Path.Combine(_app.Game.Csgo, "cfg")));
+        folders.AddRow("Launcher Data", FolderButton(() => AppState.LauncherDataDir));
+        folders.AddRow("Metamod Downloads", LinkButton(Installer.MetamodPage));
+        folders.AddRow("CounterStrikeSharp Downloads", LinkButton(Installer.CounterStrikeSharpPage));
 
-        var left = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0, 0, 18, 0) };
-        left.Controls.Add(Card("CS2 folder", folder, 680));
-        left.Controls.Add(Card("What's installed", steps, 680));
-        left.Controls.Add(Card("Actions", actions, 680));
-        left.Controls.Add(Card("Open folder", folders, 680));
+        var leftColumn = new VStack(
+            Theme.Caption("GAME"), folder,
+            Theme.Caption("COMPONENTS"), steps,
+            Theme.Caption("ACTIONS"), actions,
+            Theme.Caption("FOLDERS AND LINKS"), folders) { Margin = new Padding(0, 0, 28, 0) };
 
-        var right = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true };
-        right.Controls.Add(Card("Log", _log, 480));
+        var log = new Group(right);
+        log.AddContent(_log, new Padding(12, 12, 12, 12));
+        var rightColumn = new VStack(Theme.Caption("LOG"), log);
 
-        var columns = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Background };
-        columns.Controls.AddRange([left, right]);
-        Controls.Add(columns);
+        Controls.Add(new VStack(PlayPage.Header("Setup", "Install, update or remove everything the skin test needs."), new HStack(leftColumn, rightColumn))
+        {
+            Location = new Point(36, 26),
+        });
         Theme.Apply(this);
 
         _app.Changed += () => { if (!_busy) Refresh(); };
         _app.Logged += line => Ui(() => _log.AppendText(line + Environment.NewLine));
-        _spinner.Tick += (_, _) => { foreach (var r in new[] { _metamod, _css, _plugin, _data }) r.Invalidate(); };
+        _spinner.Tick += (_, _) => { foreach (var r in new[] { _metamod, _css, _plugin, _cssConfig, _data }) r.Invalidate(); };
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -92,7 +105,8 @@ public class SetupPage : UserControl
     public new void Refresh()
     {
         var g = _app.Game;
-        _pathBox.Text = g?.Root ?? "CS2 not found - press Browse or Find automatically";
+        _folderRow.Subtitle = g == null ? "Not found - press Browse or Find" : ShortPath(g.Root);
+        _folderRow.SubtitleColor = g == null ? Theme.Warning : Theme.Muted;
 
         if (g == null)
         {
@@ -314,9 +328,11 @@ public class SetupPage : UserControl
         else action();
     }
 
-    private Button FolderButton(string text, Func<string?> path)
+    private static string ShortPath(string path) => path.Length <= 56 ? path : "…" + path[^55..];
+
+    private PillButton FolderButton(Func<string?> path)
     {
-        var b = Theme.MakeButton(text, Theme.ButtonKind.Ghost);
+        var b = new PillButton("Open", PillButton.Style.Plain);
         b.Click += (_, _) =>
         {
             var p = path();
@@ -327,37 +343,10 @@ public class SetupPage : UserControl
         return b;
     }
 
-    private static LinkLabel Link(string text, string url)
+    private static PillButton LinkButton(string url)
     {
-        var link = new LinkLabel { Text = text, AutoSize = true, Margin = new Padding(8, 10, 8, 0) };
-        link.LinkClicked += (_, _) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
-        return link;
-    }
-
-    internal static FlowLayoutPanel Stack(params Control[] controls)
-    {
-        var panel = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, BackColor = Theme.Surface };
-        panel.Controls.AddRange(controls);
-        return panel;
-    }
-
-    internal static FlowLayoutPanel Row(params Control[] controls)
-    {
-        var panel = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Surface, Margin = new Padding(0, 2, 0, 4) };
-        panel.Controls.AddRange(controls);
-        return panel;
-    }
-
-    internal static Panel Card(string title, Control content, int width)
-    {
-        var panel = Theme.Section(title, content);
-        content.Dock = DockStyle.None;
-        content.Location = new Point(16, 40);
-        panel.Controls.Remove(content);
-        panel.Controls.Add(content);
-        panel.Width = width;
-        panel.Height = content.PreferredSize.Height + 58;
-        content.SizeChanged += (_, _) => panel.Height = content.Height + 58;
-        return panel;
+        var b = new PillButton("Open in Browser", PillButton.Style.Plain);
+        b.Click += (_, _) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
+        return b;
     }
 }

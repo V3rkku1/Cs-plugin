@@ -18,10 +18,10 @@ public class ImportDialog : Form
 
     private readonly ItemDatabase _db;
     private readonly ImageCache _images;
-    private readonly TextBox _input = new() { Multiline = true, Height = 90, Dock = DockStyle.Top, ScrollBars = ScrollBars.Vertical };
-    private readonly Panel _preview = new() { Dock = DockStyle.Fill, BackColor = Theme.Card };
-    private readonly Label _summary = new() { Dock = DockStyle.Bottom, Height = 110, ForeColor = Theme.Text, Padding = new Padding(12, 8, 12, 8) };
-    private readonly Button _import;
+    private readonly TextField _input = new(612, multiline: true, height: 84) { PlaceholderText = "Paste a !gen code or inspect link…" };
+    private readonly Panel _preview = new() { Width = 612, Height = 200 };
+    private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(584, 0), ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly PillButton _import = new("Import and Equip", PillButton.Style.Primary);
 
     public ImportedItem? Result { get; private set; }
 
@@ -29,44 +29,37 @@ public class ImportDialog : Form
     {
         _db = db;
         _images = images;
-        Text = "Import a real item";
-        Size = new Size(720, 620);
+        Text = "Import a Real Item";
+        FormBorderStyle = FormBorderStyle.FixedDialog;
+        MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        BackColor = Theme.Background;
-        ForeColor = Theme.Text;
-        Font = Theme.Body;
+        Theme.StyleWindow(this);
+        ClientSize = new Size(660, 640);
 
+        var title = new Label { Text = "Import a Real Item", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 4) };
         var help = new Label
         {
-            Dock = DockStyle.Top, Height = 92, ForeColor = Theme.Muted, Padding = new Padding(0, 0, 0, 6),
-            Text = "Paste one of these:\n" +
-                   "  •  an inspect link with item data:  steam://run/730//+csgo_econ_action_preview 00…\n" +
-                   "  •  a !gen code, e.g. from CSFloat's \"Copy !gen\":  !gen 7 282 661 0.15 …\n" +
-                   "  •  a Steam Market listing name or link (exact float/pattern isn't in those)\n" +
-                   "Old market \"Inspect in Game\" links (…M123A456D789) don't contain the item - use CSFloat for those.",
+            AutoSize = true, MaximumSize = new Size(612, 0), ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 12),
+            Text = "Paste a !gen code (CSFloat → Copy !gen), an inspect link with item data (csgo_econ_action_preview 00…), " +
+                   "or a Steam Market listing name or link. Old market \"Inspect in Game\" links (…M123A456D789) don't " +
+                   "contain the item - open those on CSFloat and copy the !gen code.",
         };
 
-        var paste = Theme.MakeButton("Paste");
-        _import = Theme.MakeButton("Import and equip", Theme.ButtonKind.Primary, 200);
-        var cancel = Theme.MakeButton("Cancel");
+        var paste = new PillButton("Paste");
+        var cancel = new PillButton("Cancel") { DialogResult = DialogResult.Cancel };
         paste.Click += (_, _) => { try { _input.Text = Clipboard.GetText(); } catch (Exception) { } };
         _import.Click += (_, _) => { if (Result != null) DialogResult = DialogResult.OK; };
-        cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
 
-        var buttons = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 50, Padding = new Padding(0, 8, 0, 0), BackColor = Theme.Background };
-        buttons.Controls.AddRange([_import, paste, cancel]);
+        var previewGroup = new Group(612);
+        previewGroup.AddContent(_preview, Padding.Empty);
+        previewGroup.AddContent(_summary, new Padding(14, 12, 14, 14));
 
-        var body = new Panel { Dock = DockStyle.Fill, Padding = new Padding(16), BackColor = Theme.Background };
-        var spacer = new Panel { Dock = DockStyle.Top, Height = 10, BackColor = Theme.Background };
-        var previewBox = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Card };
-        previewBox.Controls.Add(_preview);
-        previewBox.Controls.Add(_summary);
-        body.Controls.Add(previewBox);
-        body.Controls.Add(spacer);
-        body.Controls.Add(_input);
-        body.Controls.Add(help);
-        body.Controls.Add(buttons);
-        Controls.Add(body);
+        var layout = new VStack(
+            title, help, _input,
+            new Panel { Height = 14, Width = 10, BackColor = Color.Transparent },
+            previewGroup,
+            new HStack(paste, cancel, _import) { Margin = new Padding(0, 16, 0, 0) }) { Location = new Point(24, 20) };
+        Controls.Add(layout);
         Theme.Apply(this);
         CancelButton = cancel;
 
@@ -84,7 +77,7 @@ public class ImportDialog : Form
                     _input.Text = clip;
             }
             catch (Exception) { }
-            _input.Focus();
+            _input.Box.Focus();
         };
     }
 
@@ -158,19 +151,30 @@ public class ImportDialog : Form
     {
         _summary.Text = text;
         _summary.ForeColor = isError ? Theme.Bad : Theme.Text;
+        _summary.Visible = text != "";
         _import.Enabled = Result != null;
         _preview.Invalidate();
     }
 
     private void DrawPreview(object? sender, PaintEventArgs e)
     {
-        if (Result == null) return;
-        var info = _db.Find(Result.DefIndex, Result.Skin.Paint);
-        var accent = Theme.Parse(info?.RarityColor, Theme.Border);
+        var g = e.Graphics;
+        Theme.Smooth(g);
         var r = _preview.ClientRectangle;
-        using (var stripe = new SolidBrush(accent)) e.Graphics.FillRectangle(stripe, r.Left, r.Bottom - 3, r.Width, 3);
-
+        if (Result == null)
+        {
+            Theme.DrawText(g, "The item appears here", Theme.Heading, r, Theme.Tertiary, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            return;
+        }
+        var info = _db.Find(Result.DefIndex, Result.Skin.Paint);
+        var accent = Theme.Parse(info?.RarityColor, Theme.Tertiary);
+        using (var path = new System.Drawing.Drawing2D.GraphicsPath())
+        {
+            path.AddEllipse(RectangleF.Inflate(r, -r.Width * 0.15f, -r.Height * 0.05f));
+            using var glow = new System.Drawing.Drawing2D.PathGradientBrush(path) { CenterColor = Color.FromArgb(80, accent), SurroundColors = [Color.FromArgb(0, accent)] };
+            g.FillPath(glow, path);
+        }
         var img = _images.Get(info?.Image ?? _db.Weapon(Result.DefIndex)?.Image ?? "", 512, () => { if (IsHandleCreated) BeginInvoke(_preview.Invalidate); });
-        if (img != null) e.Graphics.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(r, -12, -12)));
+        if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(r, -16, -14)));
     }
 }

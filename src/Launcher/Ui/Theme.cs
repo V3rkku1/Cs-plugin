@@ -1,27 +1,56 @@
+using System.Drawing.Drawing2D;
+using System.Drawing.Text;
+using System.Runtime.InteropServices;
+
 namespace LanSkinTester.Launcher.Ui;
 
-/// <summary>Dark, CS2-inventory-like colours and helpers for styling WinForms controls.</summary>
+/// <summary>
+/// macOS-style dark appearance: system colours, Segoe UI Variable (the closest thing to SF Pro on Windows),
+/// rounded shapes. All custom controls draw themselves with these values.
+/// </summary>
 public static class Theme
 {
-    public static readonly Color Background = Color.FromArgb(17, 19, 24);
-    public static readonly Color Surface = Color.FromArgb(25, 28, 35);
-    public static readonly Color Card = Color.FromArgb(33, 37, 46);
-    public static readonly Color CardHover = Color.FromArgb(43, 48, 60);
-    public static readonly Color Border = Color.FromArgb(52, 58, 72);
-    public static readonly Color Text = Color.FromArgb(232, 235, 241);
-    public static readonly Color Muted = Color.FromArgb(139, 148, 165);
-    public static readonly Color Accent = Color.FromArgb(235, 164, 52);
-    public static readonly Color AccentDark = Color.FromArgb(190, 128, 30);
-    public static readonly Color Good = Color.FromArgb(92, 196, 120);
-    public static readonly Color Bad = Color.FromArgb(232, 96, 96);
-    public static readonly Color Input = Color.FromArgb(14, 16, 20);
+    // Backgrounds (window → sidebar → grouped content → controls)
+    public static readonly Color Background = Color.FromArgb(22, 22, 24);
+    public static readonly Color Sidebar = Color.FromArgb(30, 30, 33);
+    public static readonly Color Surface = Color.FromArgb(22, 22, 24);
+    public static readonly Color Card = Color.FromArgb(37, 37, 40);
+    public static readonly Color CardHover = Color.FromArgb(46, 46, 50);
+    public static readonly Color Fill = Color.FromArgb(58, 58, 61);
+    public static readonly Color FillHover = Color.FromArgb(72, 72, 76);
+    public static readonly Color Input = Color.FromArgb(28, 28, 30);
+    public static readonly Color Separator = Color.FromArgb(56, 56, 58);
+    public static readonly Color Border = Separator;
 
-    public static readonly Font Body = new("Segoe UI", 9.5f);
-    public static readonly Font Small = new("Segoe UI", 8.5f);
-    public static readonly Font Bold = new("Segoe UI Semibold", 9.5f);
-    public static readonly Font Heading = new("Segoe UI Semibold", 11.5f);
-    public static readonly Font Title = new("Segoe UI Semibold", 15f);
-    public static readonly Font Big = new("Segoe UI Semibold", 12f);
+    // Text
+    public static readonly Color Text = Color.FromArgb(245, 245, 247);
+    public static readonly Color Muted = Color.FromArgb(152, 152, 159);
+    public static readonly Color Tertiary = Color.FromArgb(99, 99, 102);
+
+    // System colours
+    public static readonly Color Accent = Color.FromArgb(10, 132, 255);
+    public static readonly Color AccentHover = Color.FromArgb(64, 156, 255);
+    public static readonly Color Good = Color.FromArgb(48, 209, 88);
+    public static readonly Color Bad = Color.FromArgb(255, 69, 58);
+    public static readonly Color Warning = Color.FromArgb(255, 159, 10);
+
+    private static readonly string Family = Pick("Segoe UI Variable Text", "Segoe UI");
+    private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
+
+    public static readonly Font Body = new(Family, 10f);
+    public static readonly Font Small = new(Family, 8.75f);
+    public static readonly Font Bold = new(Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"), 10f);
+    public static readonly Font Heading = new(Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"), 12f);
+    public static readonly Font Big = new(Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"), 14f);
+    public static readonly Font Title = new(Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"), 24f);
+    public static readonly Font Mono = new(Pick("Cascadia Mono", "Consolas"), 8.75f);
+
+    private static string Pick(params string[] names)
+    {
+        using var fonts = new InstalledFontCollection();
+        var installed = fonts.Families.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return names.FirstOrDefault(installed.Contains) ?? names[^1];
+    }
 
     public static Color Parse(string? hex, Color fallback)
     {
@@ -30,109 +59,130 @@ public static class Theme
         catch (Exception) { return fallback; }
     }
 
-    /// <summary>Styles a control tree. Call after building it.</summary>
-    public static void Apply(Control root)
+    public static Color WithAlpha(Color c, int alpha) => Color.FromArgb(alpha, c);
+
+    public static Color Blend(Color a, Color b, float amount) => Color.FromArgb(
+        (int)(a.R + (b.R - a.R) * amount), (int)(a.G + (b.G - a.G) * amount), (int)(a.B + (b.B - a.B) * amount));
+
+    public static GraphicsPath Rounded(RectangleF r, float radius)
     {
-        Style(root);
-        foreach (Control c in root.Controls) Apply(c);
+        var d = Math.Min(radius * 2, Math.Min(r.Width, r.Height));
+        var path = new GraphicsPath();
+        if (d <= 0)
+        {
+            path.AddRectangle(r);
+            return path;
+        }
+        path.AddArc(r.Left, r.Top, d, d, 180, 90);
+        path.AddArc(r.Right - d, r.Top, d, d, 270, 90);
+        path.AddArc(r.Right - d, r.Bottom - d, d, d, 0, 90);
+        path.AddArc(r.Left, r.Bottom - d, d, d, 90, 90);
+        path.CloseFigure();
+        return path;
     }
 
-    private static void Style(Control c)
+    public static void Smooth(Graphics g)
     {
-        switch (c)
-        {
-            case Button b when b.Tag is ButtonKind:
-                break; // styled when created
-            case Button b:
-                StyleButton(b, ButtonKind.Normal);
-                break;
-            case TextBox t:
-                t.BackColor = Input;
-                t.ForeColor = Text;
-                t.BorderStyle = BorderStyle.FixedSingle;
-                break;
-            case ComboBox cb:
-                cb.FlatStyle = FlatStyle.Flat;
-                cb.BackColor = Input;
-                cb.ForeColor = Text;
-                break;
-            case NumericUpDown n:
-                n.BackColor = Input;
-                n.ForeColor = Text;
-                n.BorderStyle = BorderStyle.FixedSingle;
-                break;
-            case CheckBox ch:
-                ch.ForeColor = Text;
-                ch.FlatStyle = FlatStyle.Flat;
-                ch.FlatAppearance.BorderColor = Border;
-                ch.FlatAppearance.CheckedBackColor = Accent;
-                break;
-            case LinkLabel l:
-                l.LinkColor = Accent;
-                l.ActiveLinkColor = Text;
-                l.VisitedLinkColor = Accent;
-                break;
-            case TrackBar tb:
-                tb.BackColor = c.Parent?.BackColor ?? Surface;
-                break;
-            case Label l when l.ForeColor == SystemColors.ControlText:
-                l.ForeColor = Text;
-                break;
-        }
+        g.SmoothingMode = SmoothingMode.AntiAlias;
+        g.PixelOffsetMode = PixelOffsetMode.HighQuality;
+        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
+        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
     }
+
+    public static void FillRounded(Graphics g, Color color, RectangleF r, float radius)
+    {
+        using var path = Rounded(r, radius);
+        using var brush = new SolidBrush(color);
+        g.FillPath(brush, path);
+    }
+
+    public static void DrawText(Graphics g, string text, Font font, Rectangle r, Color color,
+        TextFormatFlags flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter)
+    {
+        TextRenderer.DrawText(g, text, font, r, color, flags | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+    }
+
+    /// <summary>Plain text label in the theme colours.</summary>
+    public static Label Label(string text, Font? font = null, Color? color = null) => new()
+    {
+        Text = text, AutoSize = true, Font = font ?? Body, ForeColor = color ?? Text, BackColor = Color.Transparent,
+        Margin = new Padding(0, 4, 8, 4),
+    };
+
+    /// <summary>Small grey caption above a group, like macOS settings section headers.</summary>
+    public static Label Caption(string text) => new()
+    {
+        Text = text, AutoSize = true, Font = Small, ForeColor = Muted, BackColor = Color.Transparent,
+        Margin = new Padding(14, 18, 0, 6),
+    };
+
+    // ---------------------------------------------------------------------------------------------
+    // Windows: dark title bar + rounded corners (Windows 11). Ignored where unsupported.
+    // ---------------------------------------------------------------------------------------------
+
+    [DllImport("dwmapi.dll")]
+    private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
+
+    public static void StyleWindow(Form form)
+    {
+        form.BackColor = Background;
+        form.ForeColor = Text;
+        form.Font = Body;
+        form.HandleCreated += (_, _) =>
+        {
+            try
+            {
+                var on = 1;
+                DwmSetWindowAttribute(form.Handle, 20, ref on, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+                var round = 2;
+                DwmSetWindowAttribute(form.Handle, 33, ref round, sizeof(int)); // DWMWA_WINDOW_CORNER_PREFERENCE = ROUND
+                var caption = ColorTranslator.ToWin32(Background);
+                DwmSetWindowAttribute(form.Handle, 35, ref caption, sizeof(int)); // DWMWA_CAPTION_COLOR
+            }
+            catch (Exception)
+            {
+                // Older Windows / Wine: keep the default frame.
+            }
+        };
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Compatibility helpers used by older code paths
+    // ---------------------------------------------------------------------------------------------
 
     public enum ButtonKind { Normal, Primary, Danger, Ghost }
 
-    public static Button MakeButton(string text, ButtonKind kind = ButtonKind.Normal, int width = 0)
+    public static PillButton MakeButton(string text, ButtonKind kind = ButtonKind.Normal, int width = 0)
     {
-        var b = new Button { Text = text, AutoSize = width == 0, Height = 34, Padding = new Padding(10, 0, 10, 0), Cursor = Cursors.Hand };
+        var style = kind switch
+        {
+            ButtonKind.Primary => PillButton.Style.Primary,
+            ButtonKind.Danger => PillButton.Style.Destructive,
+            ButtonKind.Ghost => PillButton.Style.Plain,
+            _ => PillButton.Style.Secondary,
+        };
+        var b = new PillButton(text, style);
         if (width > 0) b.Width = width;
-        StyleButton(b, kind);
         return b;
     }
 
-    public static void StyleButton(Button b, ButtonKind kind)
+    /// <summary>Recursively sets theme colours on stock controls that are still used (labels, list boxes).</summary>
+    public static void Apply(Control root)
     {
-        b.Tag ??= kind;
-        b.FlatStyle = FlatStyle.Flat;
-        b.UseVisualStyleBackColor = false;
-        b.Font = kind == ButtonKind.Primary ? Big : Bold;
-        b.FlatAppearance.BorderSize = kind == ButtonKind.Ghost ? 0 : 1;
-        (b.BackColor, b.ForeColor, b.FlatAppearance.BorderColor, b.FlatAppearance.MouseOverBackColor) = kind switch
+        foreach (Control c in root.Controls)
         {
-            ButtonKind.Primary => (Accent, Color.FromArgb(20, 16, 8), Accent, Color.FromArgb(247, 184, 82)),
-            ButtonKind.Danger => (Card, Bad, Bad, Color.FromArgb(70, 36, 40)),
-            ButtonKind.Ghost => (Surface, Muted, Surface, Card),
-            _ => (Card, Text, Border, CardHover),
-        };
-        b.EnabledChanged -= GreyOut;
-        b.EnabledChanged += GreyOut;
-    }
-
-    // Flat WinForms buttons keep their colours when disabled; dim them so the state is visible.
-    private static void GreyOut(object? sender, EventArgs e)
-    {
-        if (sender is not Button b || b.Tag is not ButtonKind kind) return;
-        if (b.Enabled) StyleButton(b, kind);
-        else
-        {
-            b.BackColor = Surface;
-            b.ForeColor = Color.FromArgb(80, 86, 100);
-            b.FlatAppearance.BorderColor = Card;
+            switch (c)
+            {
+                case Label l when l.ForeColor == SystemColors.ControlText:
+                    l.ForeColor = Text;
+                    break;
+                case LinkLabel ll:
+                    ll.LinkColor = ll.VisitedLinkColor = Accent;
+                    ll.ActiveLinkColor = AccentHover;
+                    ll.LinkBehavior = LinkBehavior.HoverUnderline;
+                    break;
+            }
+            Apply(c);
         }
-    }
-
-    public static Label Label(string text, Font? font = null, Color? color = null) =>
-        new() { Text = text, AutoSize = true, Font = font ?? Body, ForeColor = color ?? Text, Margin = new Padding(0, 6, 6, 0) };
-
-    /// <summary>A rounded "card" panel with a heading.</summary>
-    public static Panel Section(string title, Control content)
-    {
-        var panel = new Panel { BackColor = Surface, Padding = new Padding(16, 12, 16, 14), Margin = new Padding(0, 0, 0, 12) };
-        var heading = new Label { Text = title.ToUpperInvariant(), Font = Bold, ForeColor = Accent, Dock = DockStyle.Top, Height = 26 };
-        content.Dock = DockStyle.Fill;
-        panel.Controls.Add(content);
-        panel.Controls.Add(heading);
-        return panel;
     }
 }

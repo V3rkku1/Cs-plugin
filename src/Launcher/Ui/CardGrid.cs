@@ -25,8 +25,8 @@ public class CardGrid : Panel
     private ImageCache? _images;
     private string _emptyText = "";
 
-    public Size CardSize { get; set; } = new(172, 150);
-    public int Gap { get; set; } = 10;
+    public Size CardSize { get; set; } = new(176, 156);
+    public int Gap { get; set; } = 12;
 
     public event EventHandler? SelectedChanged;
     public event EventHandler? ItemActivated;
@@ -164,13 +164,11 @@ public class CardGrid : Panel
     {
         var g = e.Graphics;
         g.Clear(BackColor);
-        g.SmoothingMode = SmoothingMode.AntiAlias;
-        g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        g.TextRenderingHint = System.Drawing.Text.TextRenderingHint.ClearTypeGridFit;
+        Theme.Smooth(g);
 
         if (_items.Count == 0)
         {
-            TextRenderer.DrawText(g, _emptyText, Theme.Body, ClientRectangle, Theme.Muted,
+            TextRenderer.DrawText(g, _emptyText, Theme.Heading, ClientRectangle, Theme.Muted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
             return;
         }
@@ -186,46 +184,50 @@ public class CardGrid : Panel
 
     private void DrawCard(Graphics g, CardItem item, Rectangle r, bool selected, bool hover)
     {
-        using (var path = Rounded(r, 6))
-        {
-            // Background: card colour with a soft glow of the rarity colour at the bottom.
-            using var bg = new LinearGradientBrush(r, hover ? Theme.CardHover : Theme.Card,
-                Blend(hover ? Theme.CardHover : Theme.Card, item.Accent, 0.22f), LinearGradientMode.Vertical);
-            g.FillPath(bg, path);
+        var rf = new RectangleF(r.X + 0.5f, r.Y + 0.5f, r.Width - 1, r.Height - 1);
+        Theme.FillRounded(g, hover ? Theme.CardHover : Theme.Card, rf, 12);
 
-            using var border = new Pen(selected ? Theme.Accent : hover ? Theme.Border : Theme.Card, selected ? 2 : 1);
-            g.DrawPath(border, path);
+        // Soft spotlight in the rarity colour behind the picture.
+        var imageRect = new Rectangle(r.Left + 12, r.Top + 10, r.Width - 24, r.Height - 58);
+        using (var glowPath = new GraphicsPath())
+        {
+            var glow = RectangleF.Inflate(imageRect, -imageRect.Width * 0.12f, -imageRect.Height * 0.05f);
+            glowPath.AddEllipse(glow);
+            using var brush = new PathGradientBrush(glowPath)
+            {
+                CenterColor = Color.FromArgb(hover ? 70 : 45, item.Accent),
+                SurroundColors = [Color.FromArgb(0, item.Accent)],
+            };
+            g.FillPath(brush, glowPath);
         }
 
-        // Rarity stripe
-        using (var stripe = new SolidBrush(item.Accent))
-            g.FillRectangle(stripe, r.Left + 6, r.Bottom - 4, r.Width - 12, 3);
-
-        var imageRect = new Rectangle(r.Left + 10, r.Top + 6, r.Width - 20, r.Height - 52);
         var img = _images?.Get(item.ImageUrl, 256, () => { if (IsHandleCreated) BeginInvoke(Invalidate); });
         if (img != null) g.DrawImage(img, Fit(img.Size, imageRect));
         else
         {
-            using var ph = new SolidBrush(Color.FromArgb(40, item.Accent));
-            g.FillEllipse(ph, imageRect.Left + imageRect.Width / 2 - 26, imageRect.Top + imageRect.Height / 2 - 26, 52, 52);
+            using var ph = new SolidBrush(Color.FromArgb(30, item.Accent));
+            g.FillEllipse(ph, imageRect.Left + imageRect.Width / 2 - 24, imageRect.Top + imageRect.Height / 2 - 24, 48, 48);
         }
 
-        var titleRect = new Rectangle(r.Left + 8, r.Bottom - 46, r.Width - 16, 20);
-        TextRenderer.DrawText(g, item.Title, Theme.Bold, titleRect, Theme.Text,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter);
-        var subRect = new Rectangle(r.Left + 8, r.Bottom - 27, r.Width - 16, 18);
-        TextRenderer.DrawText(g, item.Subtitle, Theme.Small, subRect, Theme.Muted,
-            TextFormatFlags.EndEllipsis | TextFormatFlags.NoPrefix | TextFormatFlags.HorizontalCenter);
+        Theme.DrawText(g, item.Title, Theme.Bold, new Rectangle(r.Left + 12, r.Bottom - 46, r.Width - 24, 20), Theme.Text);
+
+        // Rarity: small dot + name, like a tag.
+        using (var dot = new SolidBrush(item.Accent)) g.FillEllipse(dot, r.Left + 13, r.Bottom - 20, 7, 7);
+        Theme.DrawText(g, item.Subtitle, Theme.Small, new Rectangle(r.Left + 25, r.Bottom - 26, r.Width - 37, 18), Theme.Muted);
+
+        if (selected)
+        {
+            using var path = Theme.Rounded(RectangleF.Inflate(rf, -1, -1), 11);
+            using var ring = new Pen(Theme.Accent, 2.5f);
+            g.DrawPath(ring, path);
+        }
 
         if (item.Badge != "")
         {
             var size = TextRenderer.MeasureText(item.Badge, Theme.Small);
-            var badge = new Rectangle(r.Right - size.Width - 12, r.Top + 6, size.Width + 6, 18);
-            using var path = Rounded(badge, 4);
-            using var brush = new SolidBrush(Theme.Accent);
-            g.FillPath(brush, path);
-            TextRenderer.DrawText(g, item.Badge, Theme.Small, badge, Color.FromArgb(20, 16, 8),
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.NoPrefix);
+            var badge = new RectangleF(r.Right - size.Width - 18, r.Top + 9, size.Width + 8, 20);
+            Theme.FillRounded(g, Theme.Accent, badge, 10);
+            Theme.DrawText(g, item.Badge, Theme.Small, Rectangle.Round(badge), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
         }
     }
 

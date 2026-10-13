@@ -4,7 +4,7 @@ using Microsoft.Win32;
 
 namespace LanSkinTester.Launcher;
 
-/// <summary>Window shell: top bar with PLAY / SKINS / SETUP and the test-mode badge.</summary>
+/// <summary>Window shell: macOS-style sidebar (Play / Skins / Setup + status) and the page area.</summary>
 public class MainForm : Form
 {
     private readonly AppState _app = new();
@@ -12,20 +12,18 @@ public class MainForm : Form
     private readonly PlayPage _play;
     private readonly SkinsPage _skins;
     private readonly SetupPage _setup;
-    private readonly Button _navPlay = Theme.MakeButton("PLAY", Theme.ButtonKind.Ghost, 110);
-    private readonly Button _navSkins = Theme.MakeButton("SKINS", Theme.ButtonKind.Ghost, 110);
-    private readonly Button _navSetup = Theme.MakeButton("SETUP", Theme.ButtonKind.Ghost, 110);
-    private readonly Label _modePill = new() { AutoSize = true, Font = Theme.Bold, Padding = new Padding(10, 5, 10, 5), Margin = new Padding(0, 12, 16, 0) };
+    private readonly SidebarItem _navPlay = new("Play", SidebarItem.Icon.Play);
+    private readonly SidebarItem _navSkins = new("Skins", SidebarItem.Icon.Skins);
+    private readonly SidebarItem _navSetup = new("Setup", SidebarItem.Icon.Setup);
+    private readonly StatusBadge _status = new();
 
     public MainForm()
     {
         Text = "LAN Skin Tester";
-        Font = Theme.Body;
-        BackColor = Theme.Background;
-        ForeColor = Theme.Text;
-        Size = new Size(1320, 900);
-        MinimumSize = new Size(1100, 720);
+        Size = new Size(1400, 920);
+        MinimumSize = new Size(1180, 740);
         StartPosition = FormStartPosition.CenterScreen;
+        Theme.StyleWindow(this);
 
         _play = new PlayPage(_app) { Dock = DockStyle.Fill };
         _skins = new SkinsPage(_app.Images) { Dock = DockStyle.Fill };
@@ -33,7 +31,7 @@ public class MainForm : Form
         _pages.Controls.AddRange([_play, _skins, _setup]);
 
         Controls.Add(_pages);
-        Controls.Add(BuildTopBar());
+        Controls.Add(BuildSidebar());
         Theme.Apply(this);
 
         _app.Changed += OnChanged;
@@ -42,30 +40,31 @@ public class MainForm : Form
             _app.SetGame(GameFolder.IsValid(_app.Settings.GamePath)
                 ? _app.Settings.GamePath
                 : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
-            // First run (or something missing): start on SETUP.
+            // First run (or something missing): start on Setup.
             ShowPage(_app.Ready && !_app.Db.IsEmpty ? _play : _setup);
-            if (_app.Game == null) _app.Log("CS2 not found automatically - press Browse on the SETUP page.");
+            if (_app.Game == null) _app.Log("CS2 not found automatically - press Browse on the Setup page.");
         };
         FormClosing += OnClosing;
     }
 
-    private Control BuildTopBar()
+    private Control BuildSidebar()
     {
-        var bar = new Panel { Dock = DockStyle.Top, Height = 58, BackColor = Theme.Surface };
-        var title = new Label { Text = "LAN SKIN TESTER", Font = Theme.Title, ForeColor = Theme.Text, AutoSize = true, Location = new Point(20, 14) };
-        var nav = new FlowLayoutPanel { AutoSize = true, Location = new Point(260, 12), BackColor = Theme.Surface };
-        foreach (var b in new[] { _navPlay, _navSkins, _navSetup }) b.Height = 34;
-        nav.Controls.AddRange([_navPlay, _navSkins, _navSetup]);
+        var bar = new Panel { Dock = DockStyle.Left, Width = 236, BackColor = Theme.Sidebar, Padding = new Padding(16, 22, 16, 16) };
+
+        var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(18, 20) };
+        var sub = new Label { Text = "CS2 · LAN", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(19, 48) };
+
+        var nav = new VStack(_navPlay, _navSkins, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
         _navSkins.Click += (_, _) => ShowPage(_skins);
         _navSetup.Click += (_, _) => ShowPage(_setup);
 
-        var right = new FlowLayoutPanel { Dock = DockStyle.Right, AutoSize = true, BackColor = Theme.Surface, FlowDirection = FlowDirection.RightToLeft };
-        right.Controls.Add(_modePill);
+        _status.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
+        bar.Controls.AddRange([app, sub, nav, _status]);
+        bar.Layout += (_, _) => _status.Location = new Point(16, bar.Height - _status.Height - 18);
 
-        bar.Controls.Add(right);
-        bar.Controls.Add(nav);
-        bar.Controls.Add(title);
+        // hairline between sidebar and content
+        bar.Paint += (_, e) => { using var pen = new Pen(Theme.Separator); e.Graphics.DrawLine(pen, bar.Width - 1, 0, bar.Width - 1, bar.Height); };
         return bar;
     }
 
@@ -75,13 +74,9 @@ public class MainForm : Form
         page.BringToFront();
         foreach (Control other in _pages.Controls) if (other != page) other.Visible = false;
 
-        foreach (var (button, target) in new[] { (_navPlay, (Control)_play), (_navSkins, _skins), (_navSetup, _setup) })
-        {
-            var on = target == page;
-            button.ForeColor = on ? Theme.Accent : Theme.Muted;
-            button.FlatAppearance.BorderSize = 0;
-            button.BackColor = on ? Theme.Card : Theme.Surface;
-        }
+        _navPlay.Selected = page == _play;
+        _navSkins.Selected = page == _skins;
+        _navSetup.Selected = page == _setup;
         if (page == _skins) _skins.Reload();
     }
 
@@ -93,10 +88,9 @@ public class MainForm : Form
             return;
         }
 
-        var on = _app.TestModeOn;
-        _modePill.Text = on ? "TEST MODE ON" : _app.Ready ? "CS2 NORMAL" : "SETUP NEEDED";
-        _modePill.BackColor = on ? Theme.Accent : Theme.Card;
-        _modePill.ForeColor = on ? Color.FromArgb(20, 16, 8) : _app.Ready ? Theme.Good : Theme.Bad;
+        if (_app.TestModeOn) _status.Set(Theme.Warning, "Test mode on", "VAC off · use Stop when done");
+        else if (_app.Ready) _status.Set(Theme.Good, "Ready", "CS2 is normal");
+        else _status.Set(Theme.Bad, "Setup needed", "Open Setup to install");
         _skins.SetData(_app.Game, _app.Db);
     }
 

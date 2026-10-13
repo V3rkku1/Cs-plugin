@@ -8,12 +8,12 @@ public class StickerPicker : Form
     private static readonly string[] Effects = ["All", "Paper", "Holo", "Foil", "Glitter", "Gold", "Lenticular"];
 
     private readonly List<StickerInfo> _all;
-    private readonly CardGrid _grid = new() { Dock = DockStyle.Fill, CardSize = new Size(140, 140) };
-    private readonly TextBox _search = new() { PlaceholderText = "Search (team, player, tournament, name...)", Width = 360 };
+    private readonly CardGrid _grid = new() { Dock = DockStyle.Fill, CardSize = new Size(150, 146) };
+    private readonly TextField _search = new(380) { PlaceholderText = "Search team, player, tournament or name" };
     private readonly Segmented _effect = new(Effects);
-    private readonly TrackBar _scrape = new() { Minimum = 0, Maximum = 100, TickStyle = TickStyle.None, Width = 200, Height = 28 };
-    private readonly Label _scrapeLabel = new() { AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(4, 8, 0, 0) };
-    private readonly Label _count = new() { AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(10, 8, 0, 0) };
+    private readonly Slider _scrape = new() { Minimum = 0, Maximum = 100, Width = 200 };
+    private readonly Label _scrapeLabel = new() { AutoSize = false, Width = 110, Height = 28, ForeColor = Theme.Muted, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleLeft };
+    private readonly Label _count = new() { AutoSize = true, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(12, 8, 0, 0) };
 
     public int PickedId { get; private set; }
     public float PickedWear => _scrape.Value / 100f;
@@ -22,37 +22,37 @@ public class StickerPicker : Form
     {
         _all = items;
         Text = title;
-        Size = new Size(1000, 720);
+        Size = new Size(1040, 760);
         StartPosition = FormStartPosition.CenterParent;
-        BackColor = Theme.Background;
-        ForeColor = Theme.Text;
-        Font = Theme.Body;
+        Theme.StyleWindow(this);
         _grid.SetImageCache(images);
 
-        var top = new FlowLayoutPanel { Dock = DockStyle.Top, Height = isSticker ? 84 : 46, Padding = new Padding(10, 8, 10, 0), BackColor = Theme.Surface };
-        top.Controls.Add(_search);
-        top.Controls.Add(_count);
-        if (isSticker)
-        {
-            top.SetFlowBreak(_count, true);
-            top.Controls.Add(_effect);
-        }
+        var heading = new Label { Text = title, Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 10) };
+        var top = new Panel { Dock = DockStyle.Top, Height = isSticker ? 128 : 92, BackColor = Theme.Background, Padding = new Padding(24, 18, 24, 0) };
+        var stack = isSticker
+            ? new VStack(heading, new HStack(_search, _count), new HStack(_effect) { Margin = new Padding(0, 10, 0, 0) })
+            : new VStack(heading, new HStack(_search, _count));
+        stack.Location = new Point(24, 18);
+        top.Controls.Add(stack);
 
-        var use = Theme.MakeButton("Use", Theme.ButtonKind.Primary, 120);
-        var cancel = Theme.MakeButton("Cancel");
+        var use = new PillButton("Use", PillButton.Style.Primary) { AutoWidth = false };
+        use.Width = 110;
+        var cancel = new PillButton("Cancel") { DialogResult = DialogResult.Cancel };
         use.Click += (_, _) => Accept();
-        cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
-        var bottom = new FlowLayoutPanel { Dock = DockStyle.Bottom, Height = 54, Padding = new Padding(10, 8, 10, 0), BackColor = Theme.Surface };
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 64, BackColor = Theme.Sidebar };
+        var buttons = new HStack(cancel, use);
+        bottom.Controls.Add(buttons);
         if (isSticker)
         {
-            bottom.Controls.Add(new Label { Text = "Scrape:", AutoSize = true, ForeColor = Theme.Muted, Margin = new Padding(0, 8, 4, 0) });
-            bottom.Controls.Add(_scrape);
-            bottom.Controls.Add(_scrapeLabel);
+            var scrape = new HStack(new Label { Text = "Scrape", AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent, Margin = new Padding(0, 6, 12, 0) }, _scrape, _scrapeLabel);
+            scrape.Location = new Point(24, 18);
+            bottom.Controls.Add(scrape);
         }
-        bottom.Controls.Add(use);
-        bottom.Controls.Add(cancel);
+        bottom.Layout += (_, _) => buttons.Location = new Point(bottom.Width - buttons.Width - 24, 16);
 
-        Controls.Add(_grid);
+        var gridHost = new Panel { Dock = DockStyle.Fill, Padding = new Padding(14, 4, 14, 4), BackColor = Theme.Background };
+        gridHost.Controls.Add(_grid);
+        Controls.Add(gridHost);
         Controls.Add(top);
         Controls.Add(bottom);
         Theme.Apply(this);
@@ -68,10 +68,10 @@ public class StickerPicker : Form
 
         Filter();
         if (currentId != 0) _grid.Select(c => (int)c.Tag! == currentId);
-        Shown += (_, _) => _search.Focus();
+        Shown += (_, _) => _search.Box.Focus();
     }
 
-    private string ScrapeText() => _scrape.Value == 0 ? "new" : $"{_scrape.Value}% scraped";
+    private string ScrapeText() => _scrape.Value == 0 ? "  New" : $"  {_scrape.Value}%";
 
     private void Filter()
     {

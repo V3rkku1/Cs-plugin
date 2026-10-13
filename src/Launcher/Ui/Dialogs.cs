@@ -7,11 +7,11 @@ public class LoadoutsDialog : Form
 
     private readonly ListBox _list = new()
     {
-        Width = 300, Height = 220, BorderStyle = BorderStyle.None, BackColor = Theme.Input, ForeColor = Theme.Text,
-        IntegralHeight = false, Font = Theme.Body,
+        Width = 276, Height = 214, BorderStyle = BorderStyle.None, BackColor = Theme.Card, ForeColor = Theme.Text,
+        IntegralHeight = false, Font = Theme.Body, DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 34,
     };
-    private readonly Button _load = Theme.MakeButton("Load", Theme.ButtonKind.Primary, 120);
-    private readonly Button _delete = Theme.MakeButton("Delete", Theme.ButtonKind.Danger, 90);
+    private readonly PillButton _load = new("Load", PillButton.Style.Primary);
+    private readonly PillButton _delete = new("Delete", PillButton.Style.Destructive);
 
     public Choice Result { get; private set; }
     public string? SelectedName => _list.SelectedItem as string;
@@ -22,19 +22,28 @@ public class LoadoutsDialog : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        BackColor = Theme.Background;
-        ForeColor = Theme.Text;
-        Font = Theme.Body;
-        ClientSize = new Size(560, 340);
+        Theme.StyleWindow(this);
+        ClientSize = new Size(700, 390);
+        Padding = new Padding(24, 20, 24, 20);
 
         foreach (var n in names) _list.Items.Add(n);
         if (_list.Items.Count > 0) _list.SelectedIndex = 0;
+        _list.DrawItem += (_, e) =>
+        {
+            if (e.Index < 0) return;
+            var g = e.Graphics;
+            Theme.Smooth(g);
+            using (var bg = new SolidBrush(Theme.Card)) g.FillRectangle(bg, e.Bounds);
+            var selected = (e.State & DrawItemState.Selected) != 0;
+            if (selected) Theme.FillRounded(g, Theme.Accent, new RectangleF(e.Bounds.X + 2, e.Bounds.Y + 2, e.Bounds.Width - 4, e.Bounds.Height - 4), 7);
+            Theme.DrawText(g, (string)_list.Items[e.Index], Theme.Body, new Rectangle(e.Bounds.X + 12, e.Bounds.Y, e.Bounds.Width - 16, e.Bounds.Height),
+                selected ? Color.White : Theme.Text);
+        };
 
-        var save = Theme.MakeButton("Save current as...", Theme.ButtonKind.Normal, 200);
-        var random = Theme.MakeButton("Randomize everything", Theme.ButtonKind.Normal, 200);
-        var reset = Theme.MakeButton("Reset everything", Theme.ButtonKind.Danger, 200);
-        var close = Theme.MakeButton("Close", Theme.ButtonKind.Ghost, 200);
-        random.Enabled = canRandomize;
+        var save = Row("Save Current", "Keep it under a name", new PillButton("Save…"), Choice.SaveCurrent);
+        var random = Row("Randomize", "Random skins, knife and gloves", new PillButton("Shuffle"), Choice.Randomize);
+        var reset = Row("Reset All", "Back to default weapons", new PillButton("Reset", PillButton.Style.Destructive), Choice.Reset);
+        random.Accessory!.Enabled = canRandomize;
 
         _load.Click += (_, _) => Finish(Choice.Load);
         _list.DoubleClick += (_, _) => Finish(Choice.Load);
@@ -46,28 +55,31 @@ public class LoadoutsDialog : Form
             _list.Items.Remove(name);
             UpdateButtons();
         };
-        save.Click += (_, _) => Finish(Choice.SaveCurrent);
-        random.Click += (_, _) => Finish(Choice.Randomize);
-        reset.Click += (_, _) => Finish(Choice.Reset);
-        close.Click += (_, _) => DialogResult = DialogResult.Cancel;
         _list.SelectedIndexChanged += (_, _) => UpdateButtons();
 
-        var left = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0, 0, 16, 0) };
-        var empty = Theme.Label(_list.Items.Count == 0 ? "No saved loadouts yet." : "Saved loadouts", Theme.Bold, Theme.Muted);
-        var row = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 8, 0, 0) };
-        row.Controls.AddRange([_load, _delete]);
-        left.Controls.AddRange([empty, _list, row]);
+        var savedGroup = new Group(300);
+        savedGroup.AddContent(_list, new Padding(12, 10, 12, 10));
+        var savedColumn = new VStack(
+            Theme.Caption(_list.Items.Count == 0 ? "NO SAVED LOADOUTS YET" : "SAVED LOADOUTS"), savedGroup,
+            new HStack(_load, _delete) { Margin = new Padding(0, 12, 0, 0) }) { Margin = new Padding(0, 0, 20, 0) };
 
-        var right = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0, 26, 0, 0) };
-        foreach (var b in new[] { save, random, reset, close }) b.Margin = new Padding(0, 0, 0, 8);
-        right.Controls.AddRange([save, random, reset, close]);
+        var actions = new Group(320);
+        actions.AddRaw(save);
+        actions.AddRaw(random);
+        actions.AddRaw(reset);
+        var close = new PillButton("Done", PillButton.Style.Primary) { DialogResult = DialogResult.Cancel, Margin = new Padding(0, 14, 0, 0) };
+        var actionColumn = new VStack(Theme.Caption("EVERYTHING"), actions, close);
 
-        var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, Padding = new Padding(18, 12, 18, 12), WrapContents = false };
-        layout.Controls.AddRange([left, right]);
-        Controls.Add(layout);
+        Controls.Add(new HStack(savedColumn, actionColumn) { Location = new Point(24, 8) });
         Theme.Apply(this);
         CancelButton = close;
         UpdateButtons();
+    }
+
+    private SettingRow Row(string title, string subtitle, PillButton button, Choice choice)
+    {
+        button.Click += (_, _) => Finish(choice);
+        return new SettingRow(title, button, subtitle) { Height = 62 };
     }
 
     private void UpdateButtons() => _load.Enabled = _delete.Enabled = SelectedName != null;
@@ -83,7 +95,7 @@ public class LoadoutsDialog : Form
 /// <summary>A one-line text prompt.</summary>
 public class Prompt : Form
 {
-    private readonly TextBox _text = new() { Width = 320 };
+    private readonly TextField _text = new(340);
 
     public string Value => _text.Text.Trim();
 
@@ -93,24 +105,20 @@ public class Prompt : Form
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = MinimizeBox = false;
         StartPosition = FormStartPosition.CenterParent;
-        BackColor = Theme.Background;
-        ForeColor = Theme.Text;
-        Font = Theme.Body;
-        ClientSize = new Size(360, 130);
+        Theme.StyleWindow(this);
+        ClientSize = new Size(390, 160);
 
-        var ok = Theme.MakeButton("Save", Theme.ButtonKind.Primary, 100);
-        var cancel = Theme.MakeButton("Cancel");
+        var ok = new PillButton("Save", PillButton.Style.Primary);
+        var cancel = new PillButton("Cancel") { DialogResult = DialogResult.Cancel };
         ok.Click += (_, _) => { if (Value != "") DialogResult = DialogResult.OK; };
-        cancel.Click += (_, _) => DialogResult = DialogResult.Cancel;
         _text.Text = initial;
 
-        var layout = new FlowLayoutPanel { Dock = DockStyle.Fill, FlowDirection = FlowDirection.TopDown, Padding = new Padding(18, 14, 18, 8) };
-        var buttons = new FlowLayoutPanel { AutoSize = true, Margin = new Padding(0, 10, 0, 0) };
-        buttons.Controls.AddRange([ok, cancel]);
-        layout.Controls.AddRange([Theme.Label(label), _text, buttons]);
+        var buttons = new HStack(cancel, ok) { Margin = new Padding(0, 18, 0, 0) };
+        var layout = new VStack(Theme.Label(label, Theme.Bold), _text, buttons) { Location = new Point(24, 20) };
         Controls.Add(layout);
         Theme.Apply(this);
         AcceptButton = ok;
         CancelButton = cancel;
+        Shown += (_, _) => { _text.Box.Focus(); _text.Box.SelectAll(); };
     }
 }

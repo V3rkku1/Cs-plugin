@@ -17,8 +17,8 @@ public class SlotTile : Control
     public SlotTile(string label)
     {
         _label = label;
-        Size = new Size(50, 50);
-        Margin = new Padding(0, 0, 5, 0);
+        Size = new Size(52, 52);
+        Margin = new Padding(0, 0, 6, 0);
         Cursor = Cursors.Hand;
         DoubleBuffered = true;
         BackColor = Theme.Card;
@@ -53,27 +53,32 @@ public class SlotTile : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
-        var r = new Rectangle(0, 0, Width - 1, Height - 1);
-        using (var path = CardGrid.Rounded(r, 5))
-        {
-            using var bg = new SolidBrush(_hover ? Theme.CardHover : Theme.Card);
-            g.FillPath(bg, path);
-            using var pen = new Pen(IsFilled ? Theme.Accent : Theme.Border) { DashStyle = IsFilled ? System.Drawing.Drawing2D.DashStyle.Solid : System.Drawing.Drawing2D.DashStyle.Dash };
-            g.DrawPath(pen, path);
-        }
+        using (var bg = new SolidBrush(Parent?.BackColor ?? Theme.Background)) g.FillRectangle(bg, ClientRectangle);
+        Theme.Smooth(g);
+        var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
+        Theme.FillRounded(g, _hover ? Theme.FillHover : TextField.FieldColor, r, 10);
 
         if (_image == null)
         {
-            TextRenderer.DrawText(g, "+", Theme.Heading, new Rectangle(0, 0, Width, Height - 12), Theme.Muted,
-                TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+            // Dashed outline + plus sign, like an empty slot.
+            using (var path = Theme.Rounded(RectangleF.Inflate(r, -2, -2), 9))
+            using (var pen = new Pen(Theme.Tertiary, 1.2f) { DashStyle = System.Drawing.Drawing2D.DashStyle.Dash })
+                g.DrawPath(pen, path);
+            using var plus = new Pen(_hover ? Theme.Accent : Theme.Muted, 1.8f);
+            var cx = Width / 2f;
+            var cy = Height / 2f - 5;
+            g.DrawLine(plus, cx - 6, cy, cx + 6, cy);
+            g.DrawLine(plus, cx, cy - 6, cx, cy + 6);
             TextRenderer.DrawText(g, _label, Theme.Small, new Rectangle(0, Height - 20, Width, 16), Theme.Muted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix);
             return;
         }
 
+        using (var path = Theme.Rounded(r, 10))
+        using (var ring = new Pen(Theme.Accent, 1.5f))
+            g.DrawPath(ring, path);
         var img = _images?.Get(_image, 128, () => { if (IsHandleCreated) BeginInvoke(Invalidate); });
-        if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(r, -4, -4)));
-        else TextRenderer.DrawText(g, _label, Theme.Small, r, Theme.Accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(Rectangle.Round(r), -5, -5)));
+        else TextRenderer.DrawText(g, _label, Theme.Small, Rectangle.Round(r), Theme.Accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 }

@@ -1,6 +1,5 @@
 using LanSkinTester.Launcher.Core;
 using LanSkinTester.Launcher.Ui;
-using static LanSkinTester.Launcher.SetupPage;
 
 namespace LanSkinTester.Launcher;
 
@@ -14,125 +13,152 @@ public class PlayPage : UserControl
     private string? _runningMap;
 
     // Server settings
-    private readonly ComboBox _modeBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
-    private readonly ComboBox _mapBox = new() { Width = 220 };
-    private readonly TrackBar _botsBar = new() { Minimum = 0, Maximum = 20, TickFrequency = 2, Width = 230, Height = 30 };
-    private readonly Label _botsLabel = Theme.Label("10 bots", Theme.Bold);
-    private readonly Segmented _difficulty = new(ServerSettings.Difficulties, 72);
-    private readonly ComboBox _botTeam = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
-    private readonly ComboBox _botWeapons = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 220 };
-    private readonly CheckBox _ffa = Check("Free-for-all (everyone is an enemy)");
-    private readonly CheckBox _maxMoney = Check("Max money + buy anywhere");
-    private readonly CheckBox _infiniteAmmo = Check("Infinite ammo");
-    private readonly CheckBox _noRoundEnd = Check("Practice: rounds never end, respawn on death");
-    private readonly CheckBox _botsDontShoot = Check("Bots don't shoot (look at your skins in peace)");
-    private readonly CheckBox _cheats = Check("Allow cheats (thirdperson, noclip)");
-
-    // More options
-    private readonly LinkLabel _moreToggle = new() { Text = "Show more options", AutoSize = true, Margin = new Padding(0, 8, 0, 4) };
-    private readonly NumericUpDown _roundTime = new() { Minimum = 0, Maximum = 60, Width = 70 };
-    private readonly CheckBox _friendlyFire = Check("Friendly fire");
-    private readonly TextBox _workshop = new() { Width = 460, PlaceholderText = "Workshop map id or link (optional, needs internet)" };
-    private readonly TextBox _gameArgs = new() { Width = 460, PlaceholderText = "-windowed -w 1920 -h 1080 -novid" };
-    private readonly CheckBox _autoStartGame = Check("Start CS2 and join automatically");
-    private readonly FlowLayoutPanel _more;
+    private readonly Picker _modeBox = new(200);
+    private readonly Picker _mapBox = new(200, editable: true);
+    private readonly Slider _botsBar = new() { Minimum = 0, Maximum = 20, Width = 200 };
+    private readonly Label _botsLabel = new() { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
+    private readonly Segmented _difficulty = new(ServerSettings.Difficulties, 70);
+    private readonly Picker _botTeam = new(200);
+    private readonly Picker _botWeapons = new(200);
+    private readonly Toggle _ffa = new();
+    private readonly Toggle _maxMoney = new();
+    private readonly Toggle _infiniteAmmo = new();
+    private readonly Toggle _noRoundEnd = new();
+    private readonly Toggle _botsDontShoot = new();
+    private readonly Toggle _cheats = new();
+    private readonly NumberField _roundTime = new(120) { Minimum = 0, Maximum = 60 };
+    private readonly Toggle _friendlyFire = new();
+    private readonly TextField _workshop = new(220) { PlaceholderText = "ID or link (optional)" };
+    private readonly TextField _gameArgs = new(220) { PlaceholderText = "-windowed -w 1920 -h 1080" };
+    private readonly Toggle _autoStartGame = new();
 
     // Play
-    private readonly Button _startButton = Theme.MakeButton("START", Theme.ButtonKind.Primary, 120);
-    private readonly Button _applyButton = Theme.MakeButton("Apply changes", Theme.ButtonKind.Normal, 128);
-    private readonly Button _gameButton = Theme.MakeButton("Open CS2", Theme.ButtonKind.Normal, 106);
-    private readonly Button _stopButton = Theme.MakeButton("Stop && restore", Theme.ButtonKind.Danger, 124);
-    private readonly Label _modeStatus = new() { AutoSize = true, MaximumSize = new Size(500, 0), Font = Theme.Bold, Margin = new Padding(0, 10, 0, 0) };
+    private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
+    private readonly PillButton _applyButton = new("Apply Changes");
+    private readonly PillButton _gameButton = new("Open CS2");
+    private readonly PillButton _stopButton = new("Stop", PillButton.Style.Destructive);
+    private readonly Label _modeTitle = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _modeStatus = new() { AutoSize = true, MaximumSize = new Size(440, 0), Font = Theme.Body, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 14) };
 
     // Live
-    private readonly Label _liveTitle = new() { AutoSize = true, Font = Theme.Big, Margin = new Padding(0, 0, 0, 2) };
-    private readonly Label _liveDetail = new() { AutoSize = true, ForeColor = Theme.Muted, MaximumSize = new Size(500, 0) };
+    private readonly SettingRow _liveRow;
     private readonly FlowLayoutPanel _actions;
-    private readonly ComboBox _giveBox = new() { DropDownStyle = ComboBoxStyle.DropDownList, Width = 200 };
-    private readonly TextBox _log = new() { Multiline = true, ReadOnly = true, ScrollBars = ScrollBars.Vertical, Width = 500, Height = 150, Font = Theme.Small };
+    private readonly Picker _giveBox = new(190);
+    private readonly PillButton _giveButton = new("Give");
+    private readonly TextField _log = new(476, multiline: true, height: 170) { ReadOnly = true };
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 2000 };
+
+    private static readonly Color[] PresetTints =
+    [
+        Theme.Accent, Color.FromArgb(191, 90, 242), Color.FromArgb(255, 55, 95),
+        Theme.Warning, Theme.Good, Color.FromArgb(100, 210, 255),
+    ];
 
     public PlayPage(AppState app)
     {
         _app = app;
         BackColor = Theme.Background;
         AutoScroll = true;
-        Padding = new Padding(18);
+        Padding = new Padding(36, 28, 24, 24);
 
         foreach (var m in ServerSettings.Modes) _modeBox.Items.Add(m);
-        _botTeam.Items.AddRange(ServerSettings.BotTeams);
-        _botWeapons.Items.AddRange(ServerSettings.BotWeaponChoices);
+        _botTeam.SetItems(ServerSettings.BotTeams);
+        _botWeapons.SetItems(ServerSettings.BotWeaponChoices);
         foreach (var (def, name) in ItemData.DisplayNames.OrderBy(d => d.Value)) _giveBox.Items.Add(new GiveItem(ItemData.Weapons[def], name));
-        _giveBox.Items.Add(new GiveItem("weapon_knife", "Knife (your equipped one)"));
+        _giveBox.Items.Add(new GiveItem("weapon_knife", "Knife (equipped)"));
         _giveBox.SelectedIndex = 0;
+        _log.Font = Theme.Mono;
 
-        // ---- Left: presets + server ----
-        var presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(530, 0), BackColor = Theme.Surface };
-        foreach (var preset in ServerSettings.Presets) presets.Controls.Add(PresetButton(preset));
+        const int left = 560;
+        const int right = 500;
 
-        _more = Stack(
-            Row(Theme.Label("Round time (minutes, 0 = mode default)"), _roundTime),
-            _friendlyFire,
-            Field("Workshop map", _workshop),
-            Field("CS2 launch options", _gameArgs),
-            _autoStartGame);
-        _more.Visible = false;
-        _moreToggle.LinkClicked += (_, _) =>
-        {
-            _more.Visible = !_more.Visible;
-            _moreToggle.Text = _more.Visible ? "Hide more options" : "Show more options";
-        };
+        // ---- Left column ----
+        var presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(left - 24, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
+        for (var i = 0; i < ServerSettings.Presets.Length; i++)
+            presets.Controls.Add(PresetButton(ServerSettings.Presets[i], PresetTints[i % PresetTints.Length]));
+        foreach (Control c in presets.Controls) c.Width = 168;
+        var quick = new Group(left);
+        quick.AddContent(presets, new Padding(12, 12, 2, 2));
 
-        var server = Stack(
-            Row(Field("Game mode", _modeBox), Field("Map", _mapBox)),
-            Field("Bots", Row(_botsBar, _botsLabel)),
-            Field("Bot skill", _difficulty),
-            Row(Field("Bot team", _botTeam), Field("Bot weapons", _botWeapons)),
-            Theme.Label("Options", Theme.Bold, Theme.Muted),
-            _ffa, _maxMoney, _infiniteAmmo, _noRoundEnd, _botsDontShoot, _cheats,
-            _moreToggle, _more);
+        var game = new Group(left);
+        game.AddRow("Game Mode", _modeBox);
+        game.AddRow("Map", _mapBox);
+        game.AddRow("Workshop Map", _workshop, "Overrides the map · needs internet");
 
-        var left = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true, Margin = new Padding(0, 0, 18, 0) };
-        left.Controls.Add(Card("Quick start  ·  one click to play", presets, 560));
-        left.Controls.Add(Card("Server", server, 560));
+        var bots = new Group(left);
+        bots.AddRow("Bots", new HStack(_botsBar, _botsLabel));
+        bots.AddRow("Skill", _difficulty);
+        bots.AddRow("Team", _botTeam);
+        bots.AddRow("Weapons", _botWeapons);
 
-        // ---- Right: play + live + log ----
-        foreach (var b in new[] { _startButton, _applyButton, _gameButton, _stopButton }) b.Height = 40;
+        var options = new Group(left);
+        options.AddRow("Free-for-All", _ffa, "Deathmatch: everyone is an enemy");
+        options.AddRow("Max Money", _maxMoney, "And buy anywhere");
+        options.AddRow("Infinite Ammo", _infiniteAmmo);
+        options.AddRow("Endless Rounds", _noRoundEnd, "Rounds never end, respawn on death");
+        options.AddRow("Peaceful Bots", _botsDontShoot, "Bots don't shoot - look at your skins in peace");
+        options.AddRow("Allow Cheats", _cheats, "Needed for third person and noclip");
+        options.AddRow("Friendly Fire", _friendlyFire);
+        options.AddRow("Round Time", _roundTime, "Minutes · 0 = game mode default");
+
+        var launch = new Group(left);
+        launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
+        launch.AddRow("Launch Options", _gameArgs, "Extra options for the game window");
+
+        var leftColumn = new VStack(
+            Theme.Caption("QUICK START"), quick,
+            Theme.Caption("GAME"), game,
+            Theme.Caption("BOTS"), bots,
+            Theme.Caption("OPTIONS"), options,
+            Theme.Caption("LAUNCH"), launch) { Margin = new Padding(0, 0, 28, 0) };
+
+        // ---- Right column ----
+        _startButton.Width = 120;
+        foreach (var b in new[] { _startButton, _applyButton, _gameButton, _stopButton }) b.Height = 36;
         _startButton.Click += (_, _) => StartTest();
         _applyButton.Click += (_, _) => ApplyToServer();
         _gameButton.Click += (_, _) => OpenGame();
         _stopButton.Click += (_, _) => StopTest();
-        var play = Stack(Row(_startButton, _applyButton, _gameButton, _stopButton), _modeStatus);
+        var control = new Group(right);
+        control.AddContent(new VStack(_modeTitle, _modeStatus, new HStack(_startButton, _applyButton, _gameButton, _stopButton)),
+            new Padding(18, 16, 18, 18));
 
-        var give = Theme.MakeButton("Give");
-        give.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
-        _actions = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(500, 0), BackColor = Theme.Surface };
+        _giveButton.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
+        _actions = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(right - 28, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
         _actions.Controls.AddRange([
             Action("Restart", "mp_restartgame 1"),
-            Action("End warmup", "mp_warmup_end"),
-            Action("Add bot", "bot_add"),
-            Action("Kick bots", "bot_kick"),
-            Action("Third person", "lst_view third"),
-            Action("First person", "lst_view first"),
-            Action("Respawn me", "lst_respawn"),
-            Action("Refresh skins", "lst_refresh"),
+            Action("End Warmup", "mp_warmup_end"),
+            Action("Add Bot", "bot_add"),
+            Action("Kick Bots", "bot_kick"),
+            Action("Third Person", "lst_view third"),
+            Action("First Person", "lst_view first"),
+            Action("Respawn Me", "lst_respawn"),
+            Action("Refresh Skins", "lst_refresh"),
         ]);
-        var live = Stack(_liveTitle, _liveDetail, Theme.Label("Quick actions", Theme.Bold, Theme.Muted), _actions,
-            Row(Theme.Label("Give weapon"), _giveBox, give));
+        var live = new Group(right);
+        _liveRow = live.AddRow("Server not running", null, "Press Start or pick a quick start.");
+        live.AddContent(_actions, new Padding(12, 12, 4, 6));
+        live.AddRow("Give Weapon", new HStack(_giveBox, _giveButton));
+        _giveBox.Margin = new Padding(0, 0, 8, 0);
 
-        var right = new FlowLayoutPanel { FlowDirection = FlowDirection.TopDown, WrapContents = false, AutoSize = true };
-        right.Controls.Add(Card("Play", play, 540));
-        right.Controls.Add(Card("Live server", live, 540));
-        right.Controls.Add(Card("Activity", _log, 540));
+        var activity = new Group(right);
+        activity.AddContent(_log, new Padding(12, 12, 12, 12));
 
-        var columns = new FlowLayoutPanel { AutoSize = true, WrapContents = false, BackColor = Theme.Background };
-        columns.Controls.AddRange([left, right]);
-        Controls.Add(columns);
+        var rightColumn = new VStack(
+            Theme.Caption("SERVER"), control,
+            Theme.Caption("LIVE"), live,
+            Theme.Caption("ACTIVITY"), activity);
+
+        var page = new VStack(Header("Play", "Start a local server with bots and try your skins."), new HStack(leftColumn, rightColumn))
+        {
+            Location = new Point(36, 26),
+        };
+        Controls.Add(page);
         Theme.Apply(this);
 
         LoadServerSettings();
         _modeBox.SelectedIndexChanged += (_, _) => OnModeChanged();
-        _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "No bots" : $"{_botsBar.Value} bots";
+        _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
 
         _app.Changed += Refresh;
         _app.Logged += line =>
@@ -142,6 +168,14 @@ public class PlayPage : UserControl
         };
         _poll.Tick += (_, _) => RefreshLive();
         _poll.Start();
+    }
+
+    /// <summary>Large page title + subtitle, like a macOS settings pane.</summary>
+    internal static Control Header(string title, string subtitle)
+    {
+        var t = new Label { Text = title, Font = Theme.Title, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
+        var s = new Label { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
+        return new VStack(t, s) { Height = 86 };
     }
 
     private record GiveItem(string Classname, string Name)
@@ -160,7 +194,7 @@ public class PlayPage : UserControl
         FillMaps();
         _mapBox.Text = s.Map;
         _botsBar.Value = Math.Clamp(s.Bots, 0, 20);
-        _botsLabel.Text = _botsBar.Value == 0 ? "No bots" : $"{_botsBar.Value} bots";
+        _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
         _difficulty.SelectedIndex = Math.Clamp(s.Difficulty, 0, 3);
         _botTeam.SelectedIndex = Math.Clamp(s.BotTeam, 0, 2);
         _botWeapons.SelectedIndex = Math.Clamp(s.BotWeapons, 0, 3);
@@ -213,8 +247,7 @@ public class PlayPage : UserControl
 
     private void FillMaps()
     {
-        _mapBox.Items.Clear();
-        _mapBox.Items.AddRange(((GameMode)_modeBox.SelectedItem!).Maps);
+        _mapBox.SetItems(((GameMode)_modeBox.SelectedItem!).Maps);
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -229,11 +262,12 @@ public class PlayPage : UserControl
         _applyButton.Enabled = _stopButton.Enabled = on;
         _gameButton.Enabled = on;
 
-        _modeStatus.ForeColor = on ? Theme.Accent : ready ? Theme.Good : Theme.Bad;
+        _modeTitle.Text = on ? "Test mode is on" : ready ? "Ready to play" : "Setup needed";
+        _modeTitle.ForeColor = on ? Theme.Warning : Theme.Text;
         _modeStatus.Text = on
-            ? "Test mode is ON. Only start CS2 from this launcher until you press Stop - starting it from Steam now could get you VAC-kicked."
-            : ready ? "Ready. Pick a quick start or press START."
-            : "Not installed yet - go to SETUP and press \"Install / update everything\".";
+            ? "VAC is off. Only start CS2 from this launcher until you press Stop - starting it from Steam now could get you VAC-kicked."
+            : ready ? "Pick a quick start or press Start. The server opens in its own window and CS2 joins it."
+            : "Open Setup and press \"Install Everything\" first.";
         RefreshLive();
     }
 
@@ -242,35 +276,34 @@ public class PlayPage : UserControl
         var status = _app.ReadServerStatus();
         var running = status != null;
         foreach (Control c in _actions.Controls) c.Enabled = running;
-        _giveBox.Enabled = running;
+        _giveBox.Enabled = _giveButton.Enabled = running;
 
         if (status == null)
         {
-            _liveTitle.Text = _app.TestModeOn ? "○  Server starting / not running" : "○  Server not running";
-            _liveTitle.ForeColor = Theme.Muted;
-            _liveDetail.Text = _app.TestModeOn
-                ? "The server can take a minute to load the map. Quick actions unlock when it's up."
-                : "Press START or pick a quick start.";
+            _liveRow.Title = _app.TestModeOn ? "Server starting…" : "Server not running";
+            _liveRow.Subtitle = _app.TestModeOn
+                ? "Loading the map can take a minute. Actions unlock when it's up."
+                : "Press Start or pick a quick start.";
+            _liveRow.SubtitleColor = Theme.Muted;
             return;
         }
 
         var mode = ServerSettings.Modes.FirstOrDefault(m => m.GameType == status.GameType && m.Mode == status.GameMode)?.Name
                    ?? $"mode {status.GameType}/{status.GameMode}";
-        _liveTitle.Text = $"●  {status.Map}  ·  {mode}";
-        _liveTitle.ForeColor = Theme.Good;
-        _liveDetail.Text = $"{status.Humans} player{(status.Humans == 1 ? "" : "s")} · {status.Bots} bot{(status.Bots == 1 ? "" : "s")} · plugin v{status.Version}" +
-                           (status.SkinsAllowed ? " · skins working" : $"\n⚠ {status.DisabledReason}");
-        if (!status.SkinsAllowed) _liveDetail.ForeColor = Theme.Accent;
-        else _liveDetail.ForeColor = Theme.Muted;
+        _liveRow.Title = $"{status.Map} · {mode}";
+        _liveRow.Subtitle = status.SkinsAllowed
+            ? $"{status.Humans} player{(status.Humans == 1 ? "" : "s")} · {status.Bots} bot{(status.Bots == 1 ? "" : "s")} · skins working · plugin {status.Version}"
+            : status.DisabledReason;
+        _liveRow.SubtitleColor = status.SkinsAllowed ? Theme.Muted : Theme.Warning;
     }
 
     // ---------------------------------------------------------------------------------------------
     // Actions
     // ---------------------------------------------------------------------------------------------
 
-    private Control PresetButton(ServerPreset preset)
+    private Control PresetButton(ServerPreset preset, Color tint)
     {
-        var card = new PresetCard(preset.Title, preset.Subtitle);
+        var card = new PresetCard(preset.Title, preset.Subtitle, tint);
         card.Click += (_, _) => RunPreset(preset);
         return card;
     }
@@ -283,7 +316,7 @@ public class PlayPage : UserControl
 
         if (_app.TestModeOn) ApplyToServer();
         else if (_app.Ready) StartTest();
-        else _app.Log("Install first (SETUP page), then pick the quick start again.");
+        else _app.Log("Install first (Setup page), then pick the quick start again.");
     }
 
     private void StartTest()
@@ -389,23 +422,12 @@ public class PlayPage : UserControl
         }
     }
 
-    private Button Action(string text, string command)
+    private Control Action(string text, string command)
     {
-        var b = Theme.MakeButton(text);
-        b.AutoSize = false;
-        b.Size = new Size(118, 32);
-        b.Margin = new Padding(0, 0, 4, 4);
+        var b = new PillButton(text) { AutoWidth = false };
+        b.Width = 112;
+        b.Margin = new Padding(0, 0, 8, 8);
         b.Click += (_, _) => Send(command);
         return b;
-    }
-
-    private static CheckBox Check(string text) => new() { Text = text, AutoSize = true, Margin = new Padding(0, 3, 0, 3) };
-
-    private static Control Field(string label, Control input)
-    {
-        var caption = new Label { Text = label, AutoSize = true, ForeColor = Theme.Muted, Font = Theme.Small, Margin = new Padding(0, 4, 0, 2) };
-        var panel = Stack(caption, input);
-        panel.Margin = new Padding(0, 0, 18, 6);
-        return panel;
     }
 }
