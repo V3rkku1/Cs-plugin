@@ -19,7 +19,11 @@ and its pattern seed before you buy it.
 
 ## Easiest: the launcher (Windows)
 
-`LanSkinTesterLauncher.exe` is one file. You don't need to install anything else to run it.
+Two versions, same app:
+- `LanSkinTesterLauncher.exe` (about 50 MB): one file, nothing else to install.
+- `LanSkinTesterLauncher-small.zip` (about 0.1 MB): extract it and run `LanSkinTesterLauncher.exe`.
+  It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+  If you don't have it, Windows offers a download link the first time you open it.
 
 1. **Setup & Play tab:** it finds your CS2 folder by itself (if not, press *Browse*).
    Press **Install / update everything**. It downloads Metamod, CounterStrikeSharp and the skin names
@@ -213,8 +217,8 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 ./build.sh
 ```
 
-This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`) and
-`build/LanSkinTesterLauncher.exe` (the launcher, with the plugin built in).
+This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
+`build/LanSkinTesterLauncher.exe` and `build/LanSkinTesterLauncher-small.zip` (the launcher, with the plugin built in).
 On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
 `LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
 

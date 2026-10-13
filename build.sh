@@ -2,6 +2,7 @@
 # Builds:
 #   build/LanSkinTester.zip            - the plugin, laid out as it goes into game/csgo/
 #   build/LanSkinTesterLauncher.exe    - Windows launcher (installer + skin picker), plugin included
+#   build/LanSkinTesterLauncher-small.zip - same, needs the .NET 10 Desktop Runtime installed
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -18,3 +19,10 @@ dotnet publish src/Launcher -c Release -r win-x64 --self-contained true \
   -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" -o build/launcher
 mv build/launcher/LanSkinTesterLauncher.exe build/ && rm -rf build/launcher
 echo "Built build/LanSkinTesterLauncher.exe"
+
+# Small variant (~0.3 MB zip) that uses the installed .NET 10 Desktop Runtime (Windows offers to download it).
+rm -rf src/Launcher/obj src/Launcher/bin  # don't reuse the self-contained build's intermediate files
+dotnet publish src/Launcher -c Release -r win-x64 --self-contained false \
+  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" -o build/LanSkinTesterLauncher-small
+(cd build && zip -qr LanSkinTesterLauncher-small.zip LanSkinTesterLauncher-small) && rm -rf build/LanSkinTesterLauncher-small
+echo "Built build/LanSkinTesterLauncher-small.zip"
