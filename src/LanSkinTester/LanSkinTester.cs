@@ -31,7 +31,7 @@ public class LanSkinTesterConfig : BasePluginConfig
 public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "1.0.0";
+    public override string ModuleVersion => "2.0.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 
@@ -62,6 +62,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
         AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
         AddTimer(1.0f, RunLauncherCommands, TimerFlags.REPEAT);
+        AddTimer(2.0f, WriteStatus, TimerFlags.REPEAT);
         RegisterListener<Listeners.OnMapStart>(_ => AddTimer(2.0f, ExecServerSettings, TimerFlags.STOP_ON_MAPCHANGE));
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
     }
@@ -124,7 +125,12 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     private void CheckLauncherChanges()
     {
         if (!SkinsAllowed() || !_store.ChangedOnDisk() || !_store.TryLoad()) return;
+        RefreshEveryone("Loadout updated from the launcher.");
+    }
 
+    /// <summary>Gives every living human fresh copies of their weapons so the current loadout shows.</summary>
+    private void RefreshEveryone(string message)
+    {
         foreach (var player in Utilities.GetPlayers().Where(p => IsHumanPlayer(p) && p.PawnIsAlive))
         {
             var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
@@ -138,8 +144,93 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 
             foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
             ApplyGloves(player);
-            Reply(player, "Loadout updated from the launcher.");
+            Reply(player, message);
         }
+    }
+
+    private void WriteStatus()
+    {
+        try
+        {
+            var players = Utilities.GetPlayers().Where(p => p.IsValid && !p.IsHLTV).ToList();
+            var status = new ServerStatus
+            {
+                Version = ModuleVersion,
+                Map = Server.MapName,
+                GameType = CvarInt("game_type"),
+                GameMode = CvarInt("game_mode"),
+                Humans = players.Count(p => !p.IsBot),
+                Bots = players.Count(p => p.IsBot),
+                SkinsAllowed = SkinsAllowed(),
+                DisabledReason = DisabledReason() ?? "",
+                Time = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            };
+
+            var path = Path.Combine(ModuleDirectory, ServerStatus.FileName);
+            File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(status));
+            File.Move(path + ".tmp", path, overwrite: true);
+        }
+        catch (IOException)
+        {
+            // The launcher is reading it; next write in 2 seconds.
+        }
+    }
+
+    private static int CvarInt(string name)
+    {
+        var cvar = ConVar.Find(name);
+        if (cvar == null) return 0;
+        try { return cvar.GetPrimitiveValue<int>(); }
+        catch { return int.TryParse(cvar.StringValue, out var v) ? v : 0; }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Quick actions (sent by the launcher through server_commands.txt, or typed in the server console)
+    // ---------------------------------------------------------------------------------------------
+
+    private IEnumerable<CCSPlayerController> Humans() => Utilities.GetPlayers().Where(IsHumanPlayer);
+
+    [ConsoleCommand("lst_give", "Give a weapon to every human player: lst_give weapon_ak47")]
+    [CommandHelper(minArgs: 1, usage: "<weapon_classname>", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnGiveCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var classname = cmd.GetArg(1);
+        if (!classname.StartsWith("weapon_")) classname = "weapon_" + classname;
+        var def = ItemData.Weapons.FirstOrDefault(w => w.Value == classname).Key;
+        if (def == 0 && !classname.StartsWith("weapon_knife"))
+        {
+            cmd.ReplyToCommand($"Unknown weapon {classname}");
+            return;
+        }
+
+        foreach (var player in Humans().Where(p => p.PawnIsAlive))
+            GiveOrRefresh(player, def, classname.StartsWith("weapon_knife"));
+    }
+
+    [ConsoleCommand("lst_view", "Switch human players to third or first person: lst_view third|first")]
+    [CommandHelper(minArgs: 1, usage: "third|first", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnViewCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var third = cmd.GetArg(1).StartsWith("t", StringComparison.OrdinalIgnoreCase);
+        // thirdperson is a cheat command: it needs sv_cheats 1 (the launcher's "Allow cheats").
+        if (third && ConVar.Find("sv_cheats")?.GetPrimitiveValue<bool>() != true) Server.ExecuteCommand("sv_cheats 1");
+        foreach (var player in Humans()) player.ExecuteClientCommandFromServer(third ? "thirdperson" : "firstperson");
+    }
+
+    [ConsoleCommand("lst_respawn", "Respawn dead human players")]
+    [CommandHelper(whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnRespawnCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        foreach (var player in Humans().Where(p => !p.PawnIsAlive && p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist))
+            player.Respawn();
+    }
+
+    [ConsoleCommand("lst_refresh", "Re-apply skins to every human player")]
+    [CommandHelper(whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnRefreshCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _store.TryLoad();
+        RefreshEveryone("Skins refreshed.");
     }
 
     // ---------------------------------------------------------------------------------------------

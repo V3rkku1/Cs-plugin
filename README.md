@@ -27,24 +27,46 @@ Two versions, same app:
   It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
+The launcher has three pages. On first start it opens on **SETUP**.
+
+**SETUP page**
+
+- **CS2 folder:** found automatically (or press *Browse* / *Find automatically*).
+- **What's installed:** a checklist of Metamod, CounterStrikeSharp, the plugin, the CounterStrikeSharp
+  skin setting and the skin/sticker/charm lists. Each row shows its state and version, has its own
+  Install/Update button, and shows a progress bar while downloading.
+- **INSTALL / UPDATE EVERYTHING** does all of it in one go.
+- **Check for updates** shows the latest Metamod and CounterStrikeSharp versions next to yours. The
+  plugin row says when this launcher has a newer plugin.
+- **Install from zip...** is for when an automatic download fails. Get the zip from the *Metamod
+  downloads* / *CounterStrikeSharp downloads* links.
+- **Repair** reinstalls the plugin and fixes settings and leftovers after a crash.
+- **Uninstall everything** removes Metamod, CounterStrikeSharp, the plugin and the server config from
+  your CS2 folder and restores `gameinfo.gi`. Your loadout is backed up first.
+- **Open folder** buttons for the CS2 folder, the plugin folder, the server configs and the launcher's data.
+
 **PLAY page**
 
-1. **Setup** (right side): it finds your CS2 folder by itself (if not, press *Browse*). Press
-   **Install / update everything**. It installs Metamod, CounterStrikeSharp and the plugin, and
-   downloads the skin, sticker and charm lists (with pictures and rarities). If a download fails,
-   use the *Metamod downloads* / *CounterStrikeSharp downloads* links to get the zip yourself, then
-   press **Install from zip...**.
-2. **Server** (left side): pick a game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race)
-   and a map, then set:
-   - the number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
+1. **Quick start:** one click sets everything up and starts (or switches the running server):
+   *DM vs Expert bots*, *Free-for-all*, *Skin showcase* (peaceful bots, third person),
+   *Aim practice*, *Competitive 5v5*, *Arms Race*.
+2. **Server:** or pick everything yourself:
+   - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race) and map
+   - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
    - which team the bots join, and whether they use any weapons, pistols only, snipers only or knives only
-   - options: free-for-all deathmatch, max money with buy anywhere, infinite ammo, rounds that never
-     end with respawn, bots that don't shoot, and cheats (for `thirdperson`)
-3. Press **START**. A server window opens, and CS2 starts with VAC off and joins it. You can change
-   bots or options any time and press **Apply changes**. Changing the mode or map switches the map;
-   anything else applies without a restart.
-4. When you're done, press **Stop & restore CS2**. It closes the game and the server and puts CS2
-   back to normal for matchmaking. If you close the launcher while test mode is on, it asks you first.
+   - options: free-for-all, max money with buy anywhere, infinite ammo, rounds that never end with
+     respawn, bots that don't shoot, and cheats
+   - **Show more options:** round time, friendly fire, a **Workshop map** (id or link; the server
+     downloads it, so you need internet), your own **CS2 launch options** (e.g. `-windowed -w 1920 -h 1080`),
+     and whether CS2 starts and joins automatically.
+3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
+   and option settings to the running server; changing the mode or map switches the map. **Open CS2**
+   starts the game again if you closed it.
+4. **Live server** shows the map, mode, players and bots, and whether skins are working, updated
+   every 2 seconds. Quick actions: *Restart*, *End warmup*, *Add bot*, *Kick bots*, *Third person*,
+   *First person*, *Respawn me*, *Refresh skins*, and *Give weapon* (any gun, or your knife).
+5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
+   If you close the launcher while test mode is on, it asks you first.
 
 **SKINS page**
 
@@ -61,6 +83,9 @@ Two versions, same app:
 - **EQUIP** (or double-click a card) saves it, and your weapon changes in game about a second later.
 - **Copy !gen** / **Copy inspect link** copy your creation so you can share it.
 - **Import real item...** opens the import window (see [Importing real items](#importing-real-items)).
+- **Loadouts...**: save your whole loadout under a name and load it again later, **Randomize
+  everything** (a random skin on every weapon plus a random knife and gloves, with realistic floats),
+  or **Reset everything**.
 
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
@@ -208,6 +233,17 @@ Some common paint IDs: Redline 282, Vulcan 302, Fire Serpent 180 (AK) · Dragon 
 Asiimov 279 (AWP) · Howl 309 (M4A4) · Printstream 984 (M4A1-S) · Kill Confirmed 504 (USP-S) ·
 Blaze 37 (Deagle) · Fade 38, Case Hardened 44, Doppler 415–421, Marble Fade 413 (knives).
 To find more, use `!skinsearch` or look up the "Finish Catalog" / paint index on sites like csgostash.
+
+### Server console commands
+
+The launcher's quick actions use these. You can also type them in the server window:
+
+| Command | What it does |
+| --- | --- |
+| `lst_give weapon_ak47` | Give a weapon to every player (with your skin on it) |
+| `lst_view third` / `lst_view first` | Switch players to third or first person |
+| `lst_respawn` | Respawn dead players |
+| `lst_refresh` | Re-apply skins to everyone |
 
 ## Importing real items
 

@@ -7,6 +7,9 @@ public record GameMode(string Name, int GameType, int Mode, string[] Maps)
     public override string ToString() => Name;
 }
 
+/// <summary>A one-click setup on the PLAY page.</summary>
+public record ServerPreset(string Title, string Subtitle, Action<ServerSettings> Apply);
+
 /// <summary>
 /// Game mode, bots and practice options for the local server. Turned into csgo\cfg\lanskintester_server.cfg,
 /// which the plugin runs after every map start (after the game mode's own config, so these win).
@@ -42,6 +45,78 @@ public class ServerSettings
     public bool NoRoundEnd { get; set; }
     public bool AllowCheats { get; set; } = true;
 
+    /// <summary>Round length in minutes; 0 = the game mode's default.</summary>
+    public int RoundTime { get; set; }
+    public bool FriendlyFire { get; set; }
+
+    /// <summary>Steam Workshop map id (overrides Map). Needs internet: the server downloads it.</summary>
+    public string WorkshopMap { get; set; } = "";
+
+    /// <summary>Extra CS2 launch options for the game window, e.g. "-windowed -w 1920 -h 1080 -novid".</summary>
+    public string GameArgs { get; set; } = "-novid";
+
+    /// <summary>Start CS2 and join automatically (off = only the server starts).</summary>
+    public bool AutoStartGame { get; set; } = true;
+
+    public static readonly ServerPreset[] Presets =
+    [
+        new("DM vs Expert bots", "Deathmatch · 12 expert bots · max money", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 12;
+            s.Difficulty = 3;
+        }),
+        new("Free-for-all", "Everyone vs everyone · 10 hard bots", s =>
+        {
+            s.Reset("Deathmatch", "de_mirage");
+            s.Bots = 10;
+            s.Difficulty = 2;
+            s.FreeForAll = true;
+        }),
+        new("Skin showcase", "Peaceful bots · third person allowed", s =>
+        {
+            s.Reset("Casual", "de_inferno");
+            s.Bots = 4;
+            s.Difficulty = 0;
+            s.BotsDontShoot = true;
+            s.InfiniteAmmo = true;
+            s.NoRoundEnd = true;
+        }),
+        new("Aim practice", "Pistol bots · infinite ammo · respawn", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 16;
+            s.Difficulty = 1;
+            s.BotWeapons = 1;
+            s.InfiniteAmmo = true;
+        }),
+        new("Competitive 5v5", "9 hard bots · normal rules", s =>
+        {
+            s.Reset("Competitive", "de_mirage");
+            s.Bots = 9;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
+        }),
+        new("Arms Race", "Gun game · 9 bots", s =>
+        {
+            s.Reset("Arms Race", "ar_shoots");
+            s.Bots = 9;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
+        }),
+    ];
+
+    /// <summary>Back to plain defaults for a mode (keeps launch options and auto-start).</summary>
+    private void Reset(string mode, string map)
+    {
+        Mode = mode;
+        Map = map;
+        WorkshopMap = "";
+        BotTeam = BotWeapons = RoundTime = 0;
+        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
+        MaxMoney = AllowCheats = true;
+    }
+
     public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
 
     private bool NeedsCheats => AllowCheats || InfiniteAmmo || BotsDontShoot;
@@ -49,7 +124,24 @@ public class ServerSettings
     public string StartArguments()
     {
         var mode = GetMode();
-        return $"-dedicated -insecure +sv_lan 1 +game_type {mode.GameType} +game_mode {mode.Mode} +map {Map}";
+        var map = WorkshopMapId != null ? $"+host_workshop_map {WorkshopMapId}" : $"+map {Map}";
+        return $"-dedicated -insecure +sv_lan 1 +game_type {mode.GameType} +game_mode {mode.Mode} {map}";
+    }
+
+    /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
+    public string? WorkshopMapId
+    {
+        get
+        {
+            var m = System.Text.RegularExpressions.Regex.Match(WorkshopMap ?? "", @"(\d{6,})");
+            return m.Success ? m.Groups[1].Value : null;
+        }
+    }
+
+    public string GameArguments()
+    {
+        var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
+        return $"-insecure {extra} +connect localhost".Replace("  ", " ");
     }
 
     public string ToCfg()
@@ -99,6 +191,14 @@ public class ServerSettings
             sb.AppendLine("mp_respawn_on_death_ct 1");
         }
 
+        if (RoundTime > 0)
+        {
+            sb.AppendLine($"mp_roundtime {RoundTime}");
+            sb.AppendLine($"mp_roundtime_defuse {RoundTime}");
+            sb.AppendLine($"mp_roundtime_hostage {RoundTime}");
+        }
+        if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
+
         sb.AppendLine("mp_warmup_end");
         return sb.ToString();
     }
@@ -118,13 +218,23 @@ public class ServerSettings
     {
         WriteCfg(game);
         var mode = GetMode();
-        var commands = mapOrModeChanged
-            ? $"game_type {mode.GameType}\ngame_mode {mode.Mode}\nchangelevel {Map}\n"
-            : "exec lanskintester_server.cfg\n";
+        if (mapOrModeChanged)
+            SendCommands(game, $"game_type {mode.GameType}", $"game_mode {mode.Mode}",
+                WorkshopMapId != null ? $"host_workshop_map {WorkshopMapId}" : $"changelevel {Map}");
+        else
+            SendCommands(game, "exec lanskintester_server.cfg");
+    }
 
+    /// <summary>
+    /// Queues server console commands; the plugin runs them within a second. Appends, so two quick
+    /// clicks don't overwrite each other.
+    /// </summary>
+    public static void SendCommands(GameFolder game, params string[] commands)
+    {
         var file = Path.Combine(game.PluginDir, "server_commands.txt");
+        var existing = File.Exists(file) ? File.ReadAllText(file) : "";
         var temp = file + ".tmp";
-        File.WriteAllText(temp, commands);
+        File.WriteAllText(temp, existing + string.Join("\n", commands) + "\n");
         File.Move(temp, file, overwrite: true);
     }
 }

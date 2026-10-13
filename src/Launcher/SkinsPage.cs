@@ -34,8 +34,9 @@ public class SkinsPage : UserControl
         DrawMode = DrawMode.OwnerDrawFixed, ItemHeight = 58, BorderStyle = BorderStyle.None, Dock = DockStyle.Fill,
         BackColor = Theme.Surface, IntegralHeight = false,
     };
-    private readonly TextBox _search = new() { PlaceholderText = "Search skins...", Width = 300 };
+    private readonly TextBox _search = new() { PlaceholderText = "Search skins...", Width = 200 };
     private readonly Button _importButton = Theme.MakeButton("Import real item...", Theme.ButtonKind.Normal);
+    private readonly Button _loadoutsButton = Theme.MakeButton("Loadouts...", Theme.ButtonKind.Normal);
     private readonly Label _gridTitle = new() { AutoSize = true, Font = Theme.Heading, ForeColor = Theme.Text, Margin = new Padding(0, 6, 16, 0) };
     private readonly CardGrid _grid = new() { Dock = DockStyle.Fill };
 
@@ -81,6 +82,7 @@ public class SkinsPage : UserControl
         _grid.SelectedChanged += (_, _) => OnCardPicked();
         _grid.ItemActivated += (_, _) => Equip();
         _importButton.Click += (_, _) => Import();
+        _loadoutsButton.Click += (_, _) => ShowLoadoutMenu();
 
         _wearBar.Scroll += (_, _) => { if (!_loading) _wear.Value = _wearBar.Value / 1000m; };
         _wear.ValueChanged += (_, _) => OnWearChanged();
@@ -146,7 +148,7 @@ public class SkinsPage : UserControl
         var panel = new Panel { Dock = DockStyle.Fill, BackColor = Theme.Background, Padding = new Padding(14, 12, 14, 12) };
         var toolbar = new FlowLayoutPanel { Dock = DockStyle.Top, Height = 46, BackColor = Theme.Background, WrapContents = false };
         _search.Margin = new Padding(0, 6, 10, 0);
-        toolbar.Controls.AddRange([_gridTitle, _search, _importButton]);
+        toolbar.Controls.AddRange([_gridTitle, _search, _importButton, _loadoutsButton]);
         panel.Controls.Add(_grid);
         panel.Controls.Add(toolbar);
         return panel;
@@ -584,6 +586,71 @@ public class SkinsPage : UserControl
         Save(item.DefIndex, item.Skin);
         SelectWeapon(item.DefIndex);
         SetStatus("Imported and equipped.", false);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Whole-loadout actions: saved loadouts, randomize, reset
+    // ---------------------------------------------------------------------------------------------
+
+    private void ShowLoadoutMenu()
+    {
+        if (_game?.PluginInstalled != true)
+        {
+            SetStatus("Install the plugin first (SETUP page).", true);
+            return;
+        }
+
+        using var dialog = new LoadoutsDialog(LoadoutPresets.Names(), LoadoutPresets.Delete, !_db.IsEmpty);
+        if (dialog.ShowDialog(this) != DialogResult.OK) return;
+
+        switch (dialog.Result)
+        {
+            case LoadoutsDialog.Choice.Load: LoadLoadout(dialog.SelectedName!); break;
+            case LoadoutsDialog.Choice.SaveCurrent: SaveLoadoutAs(); break;
+            case LoadoutsDialog.Choice.Randomize: RandomizeAll(); break;
+            case LoadoutsDialog.Choice.Reset: ResetAll(); break;
+        }
+    }
+
+    private void SaveLoadoutAs()
+    {
+        using var prompt = new Prompt("Save loadout", "Name for this loadout:", $"Loadout {DateTime.Now:yyyy-MM-dd HH.mm}");
+        if (prompt.ShowDialog(this) != DialogResult.OK) return;
+        LoadoutPresets.Save(prompt.Value, ReadLoadout());
+        SetStatus($"Saved \"{LoadoutPresets.SafeName(prompt.Value)}\".", false);
+    }
+
+    private void LoadLoadout(string name)
+    {
+        var loadout = LoadoutPresets.Load(name);
+        if (loadout == null || _game == null) return;
+        LoadoutPresets.Apply(_game, loadout);
+        AfterWholeLoadoutChange($"Loaded \"{name}\".");
+    }
+
+    private void RandomizeAll()
+    {
+        if (_game == null) return;
+        LoadoutPresets.Apply(_game, LoadoutPresets.Random(_db));
+        AfterWholeLoadoutChange("Random skins on everything! (Save it from this menu if you like it.)");
+    }
+
+    private void ResetAll()
+    {
+        if (_game == null) return;
+        if (MessageBox.Show(this, "Remove every skin, the knife and the gloves? (Save the loadout first if you want to keep it.)",
+                "Reset everything", MessageBoxButtons.OKCancel, MessageBoxIcon.Warning) != DialogResult.OK)
+            return;
+        LoadoutPresets.Apply(_game, new PlayerLoadout());
+        AfterWholeLoadoutChange("Everything is back to default.");
+    }
+
+    private void AfterWholeLoadoutChange(string message)
+    {
+        _cachedLoadout = null;
+        _def = 0;
+        FillWeapons(); // re-selects what is equipped now (e.g. the new random knife)
+        SetStatus(message + (TestSession.Cs2Running() ? " Changes in game in about a second." : ""), false);
     }
 
     private void Copy(string text, string message)

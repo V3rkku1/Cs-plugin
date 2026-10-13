@@ -27,9 +27,15 @@ public class TestSession
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
+        if (settings.AutoStartGame) StartGame(settings);
+    }
+
+    /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>
+    public void StartGame(ServerSettings settings)
+    {
         Process.Start(new ProcessStartInfo(_game.Exe)
         {
-            Arguments = "-insecure +connect localhost",
+            Arguments = settings.GameArguments(),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
