@@ -2,7 +2,7 @@ using System.Text.Json;
 
 namespace LanSkinTester;
 
-public record CatalogEntry(ushort DefIndex, int Paint, string Name, bool Legacy);
+public record CatalogEntry(ushort DefIndex, int Paint, string Name, bool Legacy, string Image);
 
 /// <summary>
 /// Optional list of skin names. Drop JSON files in the cs2-WeaponPaints website/data format
@@ -33,9 +33,12 @@ public class SkinCatalog
 
             var name = el.TryGetProperty("paint_name", out var n) ? n.GetString() ?? "" : "";
             var legacy = el.TryGetProperty("legacy_model", out var l) && l.ValueKind == JsonValueKind.True;
-            _entries.Add(new CatalogEntry((ushort)def, paint, name, legacy));
+            var image = el.TryGetProperty("image", out var i) ? i.GetString() ?? "" : "";
+            _entries.Add(new CatalogEntry((ushort)def, paint, name, legacy, image));
         }
     }
+
+    public IEnumerable<CatalogEntry> ForItem(ushort defIndex) => _entries.Where(e => e.DefIndex == defIndex);
 
     public CatalogEntry? Find(ushort defIndex, int paint) =>
         _entries.FirstOrDefault(e => e.DefIndex == defIndex && e.Paint == paint);
@@ -55,8 +58,22 @@ public class SkinCatalog
         return exact.Count > 0 ? exact : matches;
     }
 
+    // All Doppler phases share one name in the item files; the paint kit tells them apart.
+    private static readonly Dictionary<int, string> Phases = new()
+    {
+        [415] = "Ruby", [416] = "Sapphire", [417] = "Black Pearl", [418] = "Phase 1", [419] = "Phase 2",
+        [420] = "Phase 3", [421] = "Phase 4", [568] = "Emerald", [569] = "Phase 1", [570] = "Phase 2",
+        [571] = "Phase 3", [572] = "Phase 4",
+    };
+
+    /// <summary>"Doppler" -> "Doppler (Ruby)"; other finishes unchanged.</summary>
+    public static string DisplayName(CatalogEntry entry) =>
+        Phases.TryGetValue(entry.Paint, out var phase) && entry.Name.Contains("Doppler")
+            ? $"{FinishName(entry.Name)} ({phase})"
+            : FinishName(entry.Name);
+
     // "★ Karambit | Fade" -> "Fade"
-    private static string FinishName(string name)
+    public static string FinishName(string name)
     {
         var bar = name.IndexOf('|');
         return bar < 0 ? name.Trim() : name[(bar + 1)..].Trim();

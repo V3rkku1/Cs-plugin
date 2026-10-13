@@ -17,6 +17,28 @@ and its pattern seed before you buy it.
 
 ---
 
+## Easiest: the launcher (Windows)
+
+`LanSkinTesterLauncher.exe` is one file. You don't need to install anything else to run it.
+
+1. **Setup & Play tab:** it finds your CS2 folder by itself (if not, press *Browse*).
+   Press **Install / update everything**. It downloads Metamod, CounterStrikeSharp and the skin names
+   and installs the plugin. If a download fails, use the *Metamod downloads* /
+   *CounterStrikeSharp downloads* links to get the zip yourself, then press **Install from zip file...**.
+2. Pick a map and press **Start skin test**. A server window opens, and CS2 starts with VAC off and
+   joins it.
+3. **Skins tab:** pick a weapon, Knife or Gloves on the left, then a skin (with a picture), wear,
+   pattern seed, StatTrak and name tag. Press **Save** and your weapons change in game about a second later.
+4. When you're done, press **Stop and restore CS2**. It closes the game and server and puts CS2 back to
+   normal for matchmaking. If you close the launcher while test mode is on, it asks you first.
+
+While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
+(without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
+
+The rest of this README is for doing everything by hand.
+
+---
+
 ## 1. Set up a local CS2 server
 
 The cleanest way is a separate CS2 server install (below). If you want to use your normal game
@@ -160,9 +182,13 @@ When the plugin loads for the first time, CounterStrikeSharp creates
 {
   "RequireSvLan": true,
   "ChatPrefix": "[Skins]",
+  "SingleLoadout": true,
   "ConfigVersion": 1
 }
 ```
+
+With `SingleLoadout` on (the default), everyone on the server shares one loadout, which is the one
+the launcher edits. Turn it off if friends join your LAN server and each should have their own skins.
 
 Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 
@@ -187,7 +213,8 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 ./build.sh
 ```
 
-This creates `build/LanSkinTester.zip`, ready to extract into `game/csgo/`.
+This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`) and
+`build/LanSkinTesterLauncher.exe` (the launcher, with the plugin built in).
 On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
 `LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
 

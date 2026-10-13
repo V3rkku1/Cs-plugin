@@ -93,6 +93,26 @@ public static class ItemData
     public static bool IsKnifeClassname(string? designerName) =>
         designerName != null && (designerName.Contains("knife") || designerName.Contains("bayonet"));
 
+    /// <summary>Weapon definition index -> name as shown in game.</summary>
+    public static readonly Dictionary<ushort, string> DisplayNames = new()
+    {
+        [1] = "Desert Eagle", [2] = "Dual Berettas", [3] = "Five-SeveN", [4] = "Glock-18", [7] = "AK-47",
+        [8] = "AUG", [9] = "AWP", [10] = "FAMAS", [11] = "G3SG1", [13] = "Galil AR", [14] = "M249",
+        [16] = "M4A4", [17] = "MAC-10", [19] = "P90", [23] = "MP5-SD", [24] = "UMP-45", [25] = "XM1014",
+        [26] = "PP-Bizon", [27] = "MAG-7", [28] = "Negev", [29] = "Sawed-Off", [30] = "Tec-9", [31] = "Zeus x27",
+        [32] = "P2000", [33] = "MP7", [34] = "MP9", [35] = "Nova", [36] = "P250", [38] = "SCAR-20",
+        [39] = "SG 553", [40] = "SSG 08", [60] = "M4A1-S", [61] = "USP-S", [63] = "CZ75-Auto", [64] = "R8 Revolver",
+    };
+
+    public static string WearName(float wear) => wear switch
+    {
+        < 0.07f => "Factory New",
+        < 0.15f => "Minimal Wear",
+        < 0.38f => "Field-Tested",
+        < 0.45f => "Well-Worn",
+        _ => "Battle-Scarred",
+    };
+
     public static string NameOf(ushort defIndex)
     {
         if (Weapons.TryGetValue(defIndex, out var cls)) return cls.Replace("weapon_", "");

@@ -20,6 +20,12 @@ public class LanSkinTesterConfig : BasePluginConfig
     public bool RequireSvLan { get; set; } = true;
 
     public string ChatPrefix { get; set; } = "[Skins]";
+
+    /// <summary>
+    /// Everyone on the server shares one loadout (the one the launcher edits). Turn off to give
+    /// each player their own loadout, saved by SteamID.
+    /// </summary>
+    public bool SingleLoadout { get; set; } = true;
 }
 
 public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
@@ -50,6 +56,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         Logger.LogInformation("Loaded {Count} skin names from the skins folder", _catalog.Count);
 
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
+        AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
     }
 
@@ -105,6 +112,28 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
                 Logger.LogDebug(ex, "Entity spawn handler failed");
             }
         });
+    }
+
+    // The launcher edits loadouts.json while the server runs; pick up its changes and re-skin everyone.
+    private void CheckLauncherChanges()
+    {
+        if (!SkinsAllowed() || !_store.ChangedOnDisk() || !_store.TryLoad()) return;
+
+        foreach (var player in Utilities.GetPlayers().Where(p => IsHumanPlayer(p) && p.PawnIsAlive))
+        {
+            var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
+            if (weapons == null) continue;
+
+            var skinnable = weapons
+                .Select(h => h.Value)
+                .Where(w => w != null && w.IsValid &&
+                            (ItemData.Weapons.ContainsKey(w.AttributeManager.Item.ItemDefinitionIndex) || ItemData.IsKnifeClassname(w.DesignerName)))
+                .ToList();
+
+            foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
+            ApplyGloves(player);
+            Reply(player, "Loadout updated from the launcher.");
+        }
     }
 
     [GameEventHandler]
@@ -341,7 +370,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
             return;
         }
         skin.Wear = wear;
-        SaveAndRefresh(player!, weapon, $"Wear set to {wear.ToString(CultureInfo.InvariantCulture)} ({WearName(wear)})");
+        SaveAndRefresh(player!, weapon, $"Wear set to {wear.ToString(CultureInfo.InvariantCulture)} ({ItemData.WearName(wear)})");
     }
 
     [ConsoleCommand("css_seed", "Change the pattern seed (0 - 1000) of the held weapon's skin")]
@@ -616,8 +645,11 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         player.IsValid && !player.IsBot && !player.IsHLTV;
 
     // LAN clients without Steam have SteamID 0, so fall back to the player name.
-    private PlayerLoadout GetLoadout(CCSPlayerController player) =>
-        _store.Get(player.SteamID != 0 ? player.SteamID.ToString() : "name:" + player.PlayerName);
+    private PlayerLoadout GetLoadout(CCSPlayerController player)
+    {
+        if (Config.SingleLoadout) return _store.Get(LoadoutStore.LocalKey);
+        return _store.Get(player.SteamID != 0 ? player.SteamID.ToString() : "name:" + player.PlayerName);
+    }
 
     private void SaveAndRefresh(CCSPlayerController player, CBasePlayerWeapon weapon, string message)
     {
@@ -632,7 +664,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     private string DescribeSkin(ushort defIndex, SkinSettings skin)
     {
         var name = _catalog.Find(defIndex, skin.Paint)?.Name;
-        var details = $"(wear {skin.Wear.ToString(CultureInfo.InvariantCulture)} {WearName(skin.Wear)}, seed {skin.Seed})";
+        var details = $"(wear {skin.Wear.ToString(CultureInfo.InvariantCulture)} {ItemData.WearName(skin.Wear)}, seed {skin.Seed})";
         return name != null ? $"[{name}] {details}" : details;
     }
 
@@ -655,15 +687,6 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         }
         return false;
     }
-
-    private static string WearName(float wear) => wear switch
-    {
-        < 0.07f => "Factory New",
-        < 0.15f => "Minimal Wear",
-        < 0.38f => "Field-Tested",
-        < 0.45f => "Well-Worn",
-        _ => "Battle-Scarred",
-    };
 
     /// <summary>
     /// CAttributeList::SetOrAddAttributeValueByName is not part of CounterStrikeSharp's gamedata,

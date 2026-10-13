@@ -51,20 +51,37 @@ public class LoadoutStore
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
     };
 
+    /// <summary>Key used for everyone when the plugin runs in single-loadout mode (also what the launcher edits).</summary>
+    public const string LocalKey = "local";
+
     private readonly string _path;
     private Dictionary<string, PlayerLoadout> _loadouts = new();
+    private DateTime _lastWriteUtc;
 
     public LoadoutStore(string path)
     {
         _path = path;
         if (!File.Exists(_path)) return;
+        if (!TryLoad())
+            File.Move(_path, _path + ".broken", overwrite: true);
+    }
+
+    /// <summary>True when another program (the launcher) changed the file since we last read or wrote it.</summary>
+    public bool ChangedOnDisk() => File.Exists(_path) && File.GetLastWriteTimeUtc(_path) != _lastWriteUtc;
+
+    /// <summary>Re-reads the file. Keeps the current loadouts if the file can't be parsed.</summary>
+    public bool TryLoad()
+    {
         try
         {
+            var stamp = File.GetLastWriteTimeUtc(_path);
             _loadouts = JsonSerializer.Deserialize<Dictionary<string, PlayerLoadout>>(File.ReadAllText(_path), JsonOptions) ?? new();
+            _lastWriteUtc = stamp;
+            return true;
         }
-        catch (JsonException)
+        catch (Exception e) when (e is JsonException or IOException)
         {
-            File.Move(_path, _path + ".broken", overwrite: true);
+            return false;
         }
     }
 
@@ -78,5 +95,12 @@ public class LoadoutStore
         return loadout;
     }
 
-    public void Save() => File.WriteAllText(_path, JsonSerializer.Serialize(_loadouts, JsonOptions));
+    // Write to a temp file and swap it in, so the other side never reads a half-written file.
+    public void Save()
+    {
+        var temp = _path + ".tmp";
+        File.WriteAllText(temp, JsonSerializer.Serialize(_loadouts, JsonOptions));
+        File.Move(temp, _path, overwrite: true);
+        _lastWriteUtc = File.GetLastWriteTimeUtc(_path);
+    }
 }

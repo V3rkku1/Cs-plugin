@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>LanSkinTesterLauncher</AssemblyName>
+    <RootNamespace>LanSkinTester.Launcher</RootNamespace>
+    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+  </PropertyGroup>
+
+  <!-- Same item tables / loadout format as the plugin. -->
+  <ItemGroup>
+    <Compile Include="..\LanSkinTester\ItemData.cs" Link="Shared\ItemData.cs" />
+    <Compile Include="..\LanSkinTester\Loadout.cs" Link="Shared\Loadout.cs" />
+    <Compile Include="..\LanSkinTester\SkinCatalog.cs" Link="Shared\SkinCatalog.cs" />
+  </ItemGroup>
+
+  <!-- The built plugin ships inside the exe (build.sh builds the plugin first). -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(PluginOutput)LanSkinTester.dll" LogicalName="plugin/LanSkinTester.dll" Condition="'$(PluginOutput)' != ''" />
+    <EmbeddedResource Include="$(PluginOutput)gamedata\lanskintester.json" LogicalName="plugin/gamedata/lanskintester.json" Condition="'$(PluginOutput)' != ''" />
+  </ItemGroup>
+
+</Project>
