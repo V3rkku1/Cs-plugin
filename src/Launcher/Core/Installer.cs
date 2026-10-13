@@ -14,8 +14,6 @@ public class Installer
     private const string MetamodLatest = "https://mms.alliedmods.net/mmsdrop/2.0/mmsource-latest-windows";
     private const string MetamodDrop = "https://mms.alliedmods.net/mmsdrop/2.0/";
     private const string CounterStrikeSharpApi = "https://api.github.com/repos/roflmuffin/CounterStrikeSharp/releases/latest";
-    private const string SkinNamesBase = "https://raw.githubusercontent.com/Nereziel/cs2-WeaponPaints/main/website/data/";
-    private static readonly string[] SkinNameFiles = ["skins_en.json", "gloves_en.json"];
 
     private readonly GameFolder _game;
     private readonly HttpClient _http;
@@ -52,18 +50,6 @@ public class Installer
         _log($"Downloading {asset.Name}...");
         await InstallZipAsync(await DownloadAsync(asset.Url));
         _log("CounterStrikeSharp installed.");
-    }
-
-    public async Task InstallSkinNamesAsync()
-    {
-        Directory.CreateDirectory(_game.SkinNamesDir);
-        foreach (var file in SkinNameFiles)
-        {
-            _log($"Downloading {file}...");
-            var bytes = await _http.GetByteArrayAsync(SkinNamesBase + file);
-            await File.WriteAllBytesAsync(Path.Combine(_game.SkinNamesDir, file), bytes);
-        }
-        _log("Skin names installed.");
     }
 
     /// <summary>The plugin itself ships inside the launcher exe.</summary>

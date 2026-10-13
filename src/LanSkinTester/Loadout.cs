@@ -16,6 +16,42 @@ public class SkinSettings
     /// Older finishes are made for the "legacy" weapon mesh. Null = use the skins catalog (or false if unknown).
     /// </summary>
     public bool? Legacy { get; set; }
+
+    /// <summary>Up to 5 stickers (slot 0-4).</summary>
+    public List<StickerSettings> Stickers { get; set; } = new();
+
+    /// <summary>Weapon charm, or null for none.</summary>
+    public KeychainSettings? Keychain { get; set; }
+
+    /// <summary>True when there is anything to put on the weapon besides the plain default look.</summary>
+    [JsonIgnore]
+    public bool HasCustomization =>
+        Paint != 0 || Stickers.Count > 0 || Keychain != null || StatTrak || Nametag != "";
+}
+
+public class StickerSettings
+{
+    public int Slot { get; set; }
+    public int Id { get; set; }
+
+    /// <summary>0 = brand new, 1 = scraped away.</summary>
+    public float Wear { get; set; }
+
+    public float Scale { get; set; } = 1f;
+    public float Rotation { get; set; }
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+}
+
+public class KeychainSettings
+{
+    public int Id { get; set; }
+    public float OffsetX { get; set; }
+    public float OffsetY { get; set; }
+    public float OffsetZ { get; set; }
+
+    /// <summary>Charm pattern ("Highlight" charms use it to pick the clip).</summary>
+    public int Seed { get; set; }
 }
 
 public class PlayerLoadout

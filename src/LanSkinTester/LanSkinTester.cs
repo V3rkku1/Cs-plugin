@@ -61,6 +61,8 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
         AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
+        AddTimer(1.0f, RunLauncherCommands, TimerFlags.REPEAT);
+        RegisterListener<Listeners.OnMapStart>(_ => AddTimer(2.0f, ExecServerSettings, TimerFlags.STOP_ON_MAPCHANGE));
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
     }
 
@@ -140,6 +142,47 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         }
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Server settings from the launcher (game mode, bots, practice options)
+    // ---------------------------------------------------------------------------------------------
+
+    private const string ServerSettingsCfg = "lanskintester_server.cfg";
+
+    private string CommandsFile => Path.Combine(ModuleDirectory, "server_commands.txt");
+
+    // plugins/LanSkinTester -> csgo/cfg
+    private string ServerSettingsPath =>
+        Path.GetFullPath(Path.Combine(ModuleDirectory, "..", "..", "..", "..", "cfg", ServerSettingsCfg));
+
+    // Runs after the game mode's own config, so the launcher's bot/practice settings win.
+    private void ExecServerSettings()
+    {
+        if (File.Exists(ServerSettingsPath)) Server.ExecuteCommand($"exec {ServerSettingsCfg}");
+    }
+
+    // The launcher drops one-off commands here ("Apply to running server").
+    private void RunLauncherCommands()
+    {
+        if (!File.Exists(CommandsFile)) return;
+
+        string[] lines;
+        try
+        {
+            lines = File.ReadAllLines(CommandsFile);
+            File.Delete(CommandsFile);
+        }
+        catch (IOException)
+        {
+            return; // launcher is still writing it; try again next second
+        }
+
+        foreach (var line in lines.Select(l => l.Trim()).Where(l => l != "" && !l.StartsWith("//")))
+        {
+            Logger.LogInformation("Launcher command: {Command}", line);
+            Server.ExecuteCommand(line);
+        }
+    }
+
     [GameEventHandler]
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
@@ -180,7 +223,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         }
 
         var defIndex = item.ItemDefinitionIndex;
-        if (!loadout.Skins.TryGetValue(defIndex, out var skin) || skin.Paint == 0)
+        if (!loadout.Skins.TryGetValue(defIndex, out var skin) || !skin.HasCustomization)
         {
             if (isKnife && loadout.Knife != 0)
             {
@@ -199,11 +242,16 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         item.CustomName = skin.Nametag;
         if (!isKnife) item.EntityQuality = 0;
 
-        weapon.FallbackPaintKit = skin.Paint;
-        weapon.FallbackSeed = skin.Seed;
-        weapon.FallbackWear = skin.Wear;
+        if (skin.Paint != 0)
+        {
+            weapon.FallbackPaintKit = skin.Paint;
+            weapon.FallbackSeed = skin.Seed;
+            weapon.FallbackWear = skin.Wear;
+            SetPaintAttributes(item, skin);
+        }
 
-        SetPaintAttributes(item, skin);
+        SetStickers(item, skin);
+        SetKeychain(item, skin);
 
         if (skin.StatTrak)
         {
@@ -264,6 +312,37 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
             SetAttribute(list, "set item texture seed", skin.Seed);
             SetAttribute(list, "set item texture wear", skin.Wear);
         }
+    }
+
+    // Ids are stored as raw integer bits inside the float attribute value.
+    private static float IdBits(int id) => BitConverter.Int32BitsToSingle(id);
+
+    private void SetStickers(CEconItemView item, SkinSettings skin)
+    {
+        foreach (var st in skin.Stickers.Where(st => st.Slot is >= 0 and < 5 && st.Id != 0))
+        {
+            var prefix = $"sticker slot {st.Slot}";
+            var list = item.NetworkedDynamicAttributes;
+            SetAttribute(list, $"{prefix} id", IdBits(st.Id));
+            if (st.OffsetX != 0 || st.OffsetY != 0) SetAttribute(list, $"{prefix} schema", 0);
+            SetAttribute(list, $"{prefix} offset x", st.OffsetX);
+            SetAttribute(list, $"{prefix} offset y", st.OffsetY);
+            SetAttribute(list, $"{prefix} wear", st.Wear);
+            SetAttribute(list, $"{prefix} scale", st.Scale == 0 ? 1 : st.Scale);
+            SetAttribute(list, $"{prefix} rotation", st.Rotation);
+        }
+    }
+
+    private void SetKeychain(CEconItemView item, SkinSettings skin)
+    {
+        if (skin.Keychain is not { Id: not 0 } charm) return;
+
+        var list = item.NetworkedDynamicAttributes;
+        SetAttribute(list, "keychain slot 0 id", IdBits(charm.Id));
+        SetAttribute(list, "keychain slot 0 offset x", charm.OffsetX);
+        SetAttribute(list, "keychain slot 0 offset y", charm.OffsetY);
+        SetAttribute(list, "keychain slot 0 offset z", charm.OffsetZ);
+        SetAttribute(list, "keychain slot 0 seed", IdBits(charm.Seed));
     }
 
     private void SetAttribute(CAttributeList list, string name, float value) =>
@@ -447,6 +526,80 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         SaveAndRefresh(player!, weapon, $"{ItemData.NameOf(defIndex)} reset to default");
     }
 
+    [ConsoleCommand("css_gen", "Import a real item from a gen code: !gen <defindex> <paint> <seed> <float> [stickers...]")]
+    [ConsoleCommand("css_inspect", "Import a real item from an inspect link: !inspect <link>")]
+    [CommandHelper(minArgs: 1, usage: "<gen code | inspect link>", whoCanExecute: CommandUsage.CLIENT_ONLY)]
+    public void OnImportCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!CheckAllowed(player) || !player!.PawnIsAlive)
+        {
+            if (player is { IsValid: true, PawnIsAlive: false }) Reply(player, "You must be alive.");
+            return;
+        }
+
+        // "!gen 7 282 ..." arrives as css_gen with the numbers as arguments.
+        var text = cmd.GetCommandString.StartsWith("css_gen", StringComparison.OrdinalIgnoreCase)
+            ? "!gen " + cmd.ArgString
+            : cmd.ArgString.Trim('"');
+
+        if (!ItemImport.TryParse(text, out var imported, out var error))
+        {
+            Reply(player, error);
+            return;
+        }
+
+        var def = imported.DefIndex;
+        var isKnife = ItemData.Knives.ContainsValue(def);
+        var isGloves = ItemData.Gloves.ContainsValue(def);
+        if (!isKnife && !isGloves && !ItemData.Weapons.ContainsKey(def))
+        {
+            Reply(player, $"Item {def} is not a weapon, knife or gloves this plugin can skin.");
+            return;
+        }
+
+        var loadout = GetLoadout(player);
+        if (isKnife) loadout.Knife = def;
+        if (isGloves) loadout.Gloves = def;
+        loadout.Skins[def] = imported.Skin;
+        _store.Save();
+
+        var name = _catalog.Find(def, imported.Skin.Paint)?.Name ?? ItemData.NameOf(def);
+        Reply(player, $"Imported {name} (float {imported.Skin.Wear.ToString("0.########", CultureInfo.InvariantCulture)}, " +
+                      $"seed {imported.Skin.Seed}{(imported.Skin.Stickers.Count > 0 ? $", {imported.Skin.Stickers.Count} stickers" : "")}).");
+
+        if (isGloves)
+        {
+            ApplyGloves(player);
+            return;
+        }
+
+        GiveOrRefresh(player, def, isKnife);
+    }
+
+    /// <summary>Refreshes the weapon if the player has it, otherwise gives it (replacing whatever is in that slot).</summary>
+    private void GiveOrRefresh(CCSPlayerController player, ushort def, bool isKnife)
+    {
+        var existing = FindPlayerWeapon(player, w => isKnife
+            ? ItemData.IsKnifeClassname(w.DesignerName)
+            : w.AttributeManager.Item.ItemDefinitionIndex == def);
+        if (existing != null)
+        {
+            RefreshWeapon(player, existing);
+            return;
+        }
+
+        var classname = isKnife ? (player.Team == CsTeam.Terrorist ? "weapon_knife_t" : "weapon_knife") : ItemData.Weapons[def];
+        var slot = isKnife ? gear_slot_t.GEAR_SLOT_KNIFE : ItemData.Pistols.Contains(def) ? gear_slot_t.GEAR_SLOT_PISTOL : gear_slot_t.GEAR_SLOT_RIFLE;
+        FindPlayerWeapon(player, w => w.As<CCSWeaponBase>().VData?.GearSlot == slot)?.AddEntityIOEvent("Kill", null, null, "", 0.01f);
+
+        AddTimer(0.1f, () =>
+        {
+            if (!player.IsValid || !player.PawnIsAlive) return;
+            player.GiveNamedItem(classname);
+            player.ExecuteClientCommand($"slot{(slot == gear_slot_t.GEAR_SLOT_KNIFE ? 3 : slot == gear_slot_t.GEAR_SLOT_PISTOL ? 2 : 1)}");
+        }, TimerFlags.STOP_ON_MAPCHANGE);
+    }
+
     [ConsoleCommand("css_knife", "Pick a knife: !knife <name | default | list>")]
     [CommandHelper(minArgs: 1, usage: "<name | default | list>", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnKnifeCommand(CCSPlayerController? player, CommandInfo cmd)
@@ -566,6 +719,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
             "!legacy - toggle legacy model if a skin looks broken",
             "!knife <name|default|list>  !gloves <type> <id|name> [wear] [seed]",
             "!skinsearch <text>  !skinreset",
+            "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);
     }

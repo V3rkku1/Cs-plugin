@@ -1,12 +1,13 @@
 using System.Text.Json;
+using LanSkinTester.Launcher.Core;
 
 namespace LanSkinTester.Launcher;
 
-/// <summary>Remembers the CS2 folder and last map in %AppData%\LanSkinTester\launcher.json.</summary>
+/// <summary>Remembers the CS2 folder and server settings in %AppData%\LanSkinTester\launcher.json.</summary>
 public class LauncherSettings
 {
     public string? GamePath { get; set; }
-    public string Map { get; set; } = "de_dust2";
+    public ServerSettings Server { get; set; } = new();
 
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");

@@ -7,8 +7,10 @@ and its pattern seed before you buy it.
 - `!skin` any paint kit on the gun or knife in your hands, by ID or by name
 - Change wear (`!wear 0.15`) and pattern seed (`!seed 661`) live
 - Any knife (`!knife karambit`) and gloves (`!gloves sport 10037`)
-- StatTrak counter and name tags
+- StatTrak counter, name tags, **stickers (5 slots) and charms**
+- **Import real items** with their exact float, pattern and stickers from a `!gen` code or an inspect link
 - Your loadout is saved and comes back after map changes and restarts
+- Windows launcher: one-click install, game mode + bot settings, and an inventory-style skin picker
 
 > **Only for your own local server.** Skins are visible only on this server and nobody else sees
 > them. The plugin is off unless the server runs with `sv_lan 1`. Don't install it on a public
@@ -25,16 +27,40 @@ Two versions, same app:
   It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-1. **Setup & Play tab:** it finds your CS2 folder by itself (if not, press *Browse*).
-   Press **Install / update everything**. It downloads Metamod, CounterStrikeSharp and the skin names
-   and installs the plugin. If a download fails, use the *Metamod downloads* /
-   *CounterStrikeSharp downloads* links to get the zip yourself, then press **Install from zip file...**.
-2. Pick a map and press **Start skin test**. A server window opens, and CS2 starts with VAC off and
-   joins it.
-3. **Skins tab:** pick a weapon, Knife or Gloves on the left, then a skin (with a picture), wear,
-   pattern seed, StatTrak and name tag. Press **Save** and your weapons change in game about a second later.
-4. When you're done, press **Stop and restore CS2**. It closes the game and server and puts CS2 back to
-   normal for matchmaking. If you close the launcher while test mode is on, it asks you first.
+**PLAY page**
+
+1. **Setup** (right side): it finds your CS2 folder by itself (if not, press *Browse*). Press
+   **Install / update everything**. It installs Metamod, CounterStrikeSharp and the plugin, and
+   downloads the skin, sticker and charm lists (with pictures and rarities). If a download fails,
+   use the *Metamod downloads* / *CounterStrikeSharp downloads* links to get the zip yourself, then
+   press **Install from zip...**.
+2. **Server** (left side): pick a game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race)
+   and a map, then set:
+   - the number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
+   - which team the bots join, and whether they use any weapons, pistols only, snipers only or knives only
+   - options: free-for-all deathmatch, max money with buy anywhere, infinite ammo, rounds that never
+     end with respawn, bots that don't shoot, and cheats (for `thirdperson`)
+3. Press **START**. A server window opens, and CS2 starts with VAC off and joins it. You can change
+   bots or options any time and press **Apply changes**. Changing the mode or map switches the map;
+   anything else applies without a restart.
+4. When you're done, press **Stop & restore CS2**. It closes the game and the server and puts CS2
+   back to normal for matchmaking. If you close the launcher while test mode is on, it asks you first.
+
+**SKINS page**
+
+- On the left, pick a category (Knives, Gloves, Pistols, Rifles, SMGs, Heavy) and a weapon. Your
+  equipped knife and gloves are marked **EQUIPPED**.
+- In the middle, skin cards with pictures and rarity colours. Search by name or rarity.
+- On the right, the preview and settings:
+  - **Wear:** a slider plus FN / MW / FT / WW / BS buttons. Only conditions the skin really exists in
+    can be picked; a Karambit Fade only goes up to 0.08.
+  - **Pattern seed:** with a *Random* button.
+  - **StatTrak™** with a kill count, and a **name tag**.
+  - **5 sticker slots and a charm:** click a slot to search 11,000+ stickers (filter Holo, Foil,
+    Gold…, with a scrape amount); right-click a slot to remove it.
+- **EQUIP** (or double-click a card) saves it, and your weapon changes in game about a second later.
+- **Copy !gen** / **Copy inspect link** copy your creation so you can share it.
+- **Import real item...** opens the import window (see [Importing real items](#importing-real-items)).
 
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
@@ -162,6 +188,7 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!knife <name or default or list>` | Pick a knife: bayonet, classic, flip, gut, karambit, m9, huntsman, falchion, bowie, butterfly, daggers, paracord, survival, ursus, navaja, nomad, stiletto, talon, skeleton, kukri |
 | `!gloves <type> <id or name> [wear] [seed]` | Gloves: brokenfang, bloodhound, sport, driver, wraps, moto, specialist, hydra. `!gloves off` resets them |
 | `!skinsearch <text>` | Find paint IDs by name (needs the skin names from step 5) |
+| `!gen <code>` / `!inspect <link>` | Import a real item with its exact float, pattern and stickers (see [Importing real items](#importing-real-items)) |
 | `!skinhelp` | Show the command list in game |
 
 ### Examples
@@ -181,6 +208,33 @@ Some common paint IDs: Redline 282, Vulcan 302, Fire Serpent 180 (AK) · Dragon 
 Asiimov 279 (AWP) · Howl 309 (M4A4) · Printstream 984 (M4A1-S) · Kill Confirmed 504 (USP-S) ·
 Blaze 37 (Deagle) · Fade 38, Case Hardened 44, Doppler 415–421, Marble Fade 413 (knives).
 To find more, use `!skinsearch` or look up the "Finish Catalog" / paint index on sites like csgostash.
+
+## Importing real items
+
+You can copy a real item exactly: the same skin, float, pattern, StatTrak, name tag, stickers and charm.
+Use the launcher's **Import real item...** button or the chat commands `!gen` / `!inspect`. These
+formats work:
+
+| Paste this | Exact float + pattern + stickers? |
+| --- | --- |
+| **Inspect link with item data**: `steam://run/730//+csgo_econ_action_preview%2000180720...` (made by the game for previews, and by CSFloat and similar sites) | Yes |
+| **!gen code**: `!gen 7 282 661 0.15 4787 0 0 0 ...` (CSFloat: open a listing → *Copy !gen*) | Yes |
+| **Steam Market listing name or link**: `StatTrak™ AK-47 \| Redline (Field-Tested)` (launcher only) | No: picks a typical float for the condition |
+| **Old Steam Market "Inspect in Game" link** (`...M625254122282020305A6760596155D7629834065155301373`) | Not possible: see below |
+
+Old market inspect links only point to the item on Valve's servers; the skin data isn't in the link.
+Resolving them needs a logged-in Steam account running a bot that asks Valve's game coordinator, which
+is what sites like CSFloat do. So for a market listing, open it on CSFloat (or a similar site) and copy
+its **!gen** code or inspect link instead.
+
+In game:
+
+```
+!gen 9 344 661 0.0123 4787 0 0 0 5935 0.2 0 0 0 0     AWP Dragon Lore, float 0.0123, pattern 661, 2 stickers
+!inspect steam://run/730//+csgo_econ_action_preview%2000180720...
+```
+
+The item is equipped right away. If it's a weapon you don't have, you get it.
 
 ## 3. Config
 
@@ -232,5 +286,7 @@ On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out
 
 ## Credits
 
-The skin-applying technique (attribute lists, knife subclass change, glove refresh) and the
-function signature come from [cs2-WeaponPaints](https://github.com/Nereziel/cs2-WeaponPaints) by Nereziel.
+- Skin, sticker and charm data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
+- Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
+- The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms)
+  and the function signature come from [cs2-WeaponPaints](https://github.com/Nereziel/cs2-WeaponPaints) by Nereziel.

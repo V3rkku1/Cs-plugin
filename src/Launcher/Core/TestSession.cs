@@ -13,16 +13,17 @@ public class TestSession
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 
-    public void Start(string map)
+    public void Start(ServerSettings settings)
     {
         if (Cs2Running())
             throw new InvalidOperationException("Close CS2 first (it must restart with -insecure).");
 
         GameInfoPatcher.Enable(_game.GameInfo);
+        settings.WriteCfg(_game);
 
         Process.Start(new ProcessStartInfo(_game.Exe)
         {
-            Arguments = $"-dedicated -insecure +sv_lan 1 +map {map} +game_type 0 +game_mode 1",
+            Arguments = settings.StartArguments(),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });

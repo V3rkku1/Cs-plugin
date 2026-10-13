@@ -83,6 +83,8 @@ public static class ItemData
         ["hydra"] = 5035,
     };
 
+    public static readonly HashSet<ushort> Pistols = [1, 2, 3, 4, 30, 32, 36, 61, 63, 64];
+
     /// <summary>Default team knives (CT = 42, T = 59).</summary>
     public const ushort DefaultKnifeCt = 42;
     public const ushort DefaultKnifeT = 59;

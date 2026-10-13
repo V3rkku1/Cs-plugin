@@ -10,13 +10,15 @@
     <AssemblyName>LanSkinTesterLauncher</AssemblyName>
     <RootNamespace>LanSkinTester.Launcher</RootNamespace>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <!-- No designer files: controls are built in code. -->
+    <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
 
   <!-- Same item tables / loadout format as the plugin. -->
   <ItemGroup>
     <Compile Include="..\LanSkinTester\ItemData.cs" Link="Shared\ItemData.cs" />
     <Compile Include="..\LanSkinTester\Loadout.cs" Link="Shared\Loadout.cs" />
-    <Compile Include="..\LanSkinTester\SkinCatalog.cs" Link="Shared\SkinCatalog.cs" />
+    <Compile Include="..\LanSkinTester\ItemImport.cs" Link="Shared\ItemImport.cs" />
   </ItemGroup>
 
   <!-- The built plugin ships inside the exe (build.sh builds the plugin first). -->
