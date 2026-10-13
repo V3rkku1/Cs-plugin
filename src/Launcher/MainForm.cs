@@ -175,6 +175,7 @@ public class MainForm : Form
         await Step("CounterStrikeSharp", installer.InstallCounterStrikeSharpAsync,
             $"download the \"with-runtime\" Windows zip from {Installer.CounterStrikeSharpPage} and use \"Install from zip file\"");
         await Step("Plugin", () => { installer.InstallPlugin(); return Task.CompletedTask; }, "");
+        await Step("CounterStrikeSharp settings", () => { AllowSkinsInCss(); return Task.CompletedTask; }, "");
         await Step("Skin names", installer.InstallSkinNamesAsync, "skins can still be picked by ID");
         Log("Done.");
         SetBusy(false);
@@ -190,6 +191,7 @@ public class MainForm : Form
 
         SetBusy(true);
         await Step(Path.GetFileName(dialog.FileName), () => new Installer(_game, _http, Log).InstallZipAsync(dialog.FileName), "");
+        AllowSkinsInCss();
         SetBusy(false);
         RefreshStatus();
     }
@@ -215,6 +217,7 @@ public class MainForm : Form
 
         try
         {
+            AllowSkinsInCss();
             new TestSession(_game).Start(_settings.Map);
             Log($"Started server on {_settings.Map} and CS2 (-insecure). CS2 joins the server when it has loaded.");
             Log("If it doesn't: open the console (~) and type  connect localhost");
@@ -225,6 +228,12 @@ public class MainForm : Form
             MessageBox.Show(this, ex.Message, "Could not start", MessageBoxButtons.OK, MessageBoxIcon.Warning);
         }
         RefreshStatus();
+    }
+
+    private void AllowSkinsInCss()
+    {
+        if (_game?.CounterStrikeSharpInstalled == true && CssCoreConfig.AllowSkins(_game))
+            Log("Set FollowCS2ServerGuidelines to false in CounterStrikeSharp's core.json (otherwise only the knife model changes, not the skin).");
     }
 
     private void StopTest()

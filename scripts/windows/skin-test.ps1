@@ -86,6 +86,22 @@ if (-not ($lines | Where-Object { & $isMetamodLine $_ })) {
     Write-Host "Added Metamod to gameinfo.gi (backup: $backup)"
 }
 
+# CounterStrikeSharp's FollowCS2ServerGuidelines (on by default) blocks skins - only the knife model would change.
+$coreJson = Join-Path $csgo 'addons\counterstrikesharp\configs\core.json'
+if (-not (Test-Path $coreJson)) {
+    Set-Content -Path $coreJson -Value '{ "FollowCS2ServerGuidelines": false }' -Encoding ASCII
+    Write-Host 'Created core.json with FollowCS2ServerGuidelines = false'
+} else {
+    $text = Get-Content $coreJson -Raw
+    if ($text -match '"FollowCS2ServerGuidelines"\s*:\s*true') {
+        $text = $text -replace '("FollowCS2ServerGuidelines"\s*:\s*)true', '${1}false'
+        [System.IO.File]::WriteAllText($coreJson, $text)
+        Write-Host 'Set FollowCS2ServerGuidelines = false in core.json'
+    } elseif ($text -notmatch '"FollowCS2ServerGuidelines"\s*:\s*false') {
+        Write-Host 'Add  "FollowCS2ServerGuidelines": false  to core.json or skins will not apply.' -ForegroundColor Yellow
+    }
+}
+
 Write-Host 'Starting local LAN server...'
 Start-Process -FilePath $exe -ArgumentList @('-dedicated', '-insecure', '+sv_lan', '1', '+map', $Map, '+game_type', '0', '+game_mode', '1')
 

@@ -44,6 +44,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     private SkinCatalog _catalog = null!;
     private MemoryFunctionVoid<nint, string, float>? _setAttribute;
     private ulong _nextItemId = FirstCustomItemId;
+    private readonly HashSet<int> _warnedSlots = new();
 
     public void OnConfigParsed(LanSkinTesterConfig config) => Config = config;
 
@@ -54,6 +55,9 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         _setAttribute = LoadSetAttributeFunction();
 
         Logger.LogInformation("Loaded {Count} skin names from the skins folder", _catalog.Count);
+        if (CoreConfig.FollowCS2ServerGuidelines) Logger.LogError(GuidelinesMessage);
+
+        RegisterListener<Listeners.OnMapStart>(_ => _warnedSlots.Clear());
 
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
         AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
@@ -85,7 +89,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         }
         catch (Exception ex)
         {
-            Logger.LogDebug(ex, "GiveNamedItem hook failed");
+            Logger.LogWarning(ex, "Could not apply a skin (GiveNamedItem)");
         }
 
         return HookResult.Continue;
@@ -109,7 +113,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
             }
             catch (Exception ex)
             {
-                Logger.LogDebug(ex, "Entity spawn handler failed");
+                Logger.LogWarning(ex, "Could not apply a skin (entity spawn)");
             }
         });
     }
@@ -140,8 +144,17 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (player != null && IsHumanPlayer(player))
-            AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
+        if (player == null || !IsHumanPlayer(player)) return HookResult.Continue;
+
+        var reason = DisabledReason();
+        if (reason != null)
+        {
+            // Say it once per map so the player knows why nothing changes.
+            if (_warnedSlots.Add(player.Slot)) AddTimer(2.0f, () => { if (player.IsValid) Reply(player, reason); });
+            return HookResult.Continue;
+        }
+
+        AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
     }
 
@@ -561,21 +574,37 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     // Helpers
     // ---------------------------------------------------------------------------------------------
 
-    private bool SkinsAllowed()
+    private const string GuidelinesMessage =
+        "Skins are blocked by CounterStrikeSharp: set \"FollowCS2ServerGuidelines\": false in " +
+        "addons/counterstrikesharp/configs/core.json and restart the server (the launcher does this for you).";
+
+    /// <summary>Why skins can't be applied right now, or null if they can.</summary>
+    private string? DisabledReason()
     {
-        if (!Config.RequireSvLan) return true;
+        // With this CounterStrikeSharp option on, writing item IDs throws, so only the knife model would change.
+        if (CoreConfig.FollowCS2ServerGuidelines) return GuidelinesMessage;
+        if (!Config.RequireSvLan || IsLanServer()) return null;
+        return "Skins are disabled: this plugin only runs on LAN servers (sv_lan 1).";
+    }
+
+    private static bool IsLanServer()
+    {
         var cvar = ConVar.Find("sv_lan");
         if (cvar == null) return false;
         try { return cvar.GetPrimitiveValue<bool>(); }
         catch { return cvar.StringValue == "1"; }
     }
 
+    private bool SkinsAllowed() => DisabledReason() == null;
+
     private bool CheckAllowed(CCSPlayerController? player)
     {
         if (player == null || !player.IsValid) return false;
-        if (SkinsAllowed()) return true;
 
-        Reply(player, "Skins are disabled: this plugin only runs on LAN servers (sv_lan 1).");
+        var reason = DisabledReason();
+        if (reason == null) return true;
+
+        Reply(player, reason);
         return false;
     }
 

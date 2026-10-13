@@ -75,6 +75,11 @@ server folder, your game stays untouched and you just connect to `localhost`.
    <https://github.com/roflmuffin/CounterStrikeSharp/releases> and extract it into
    `C:\cs2-server\game\csgo\`.
 
+   Then open `C:\cs2-server\game\csgo\addons\counterstrikesharp\configs\core.json` and set
+   `"FollowCS2ServerGuidelines": false`. If `core.json` doesn't exist yet, create it with just
+   `{ "FollowCS2ServerGuidelines": false }`. **Without this, the knife model changes but skins don't**:
+   CounterStrikeSharp blocks the fields skins need. The launcher and `skin-test-ON.bat` do this for you.
+
 4. Install **this plugin**. Download `LanSkinTester.zip` (or build it, see below) and extract it
    into `C:\cs2-server\game\csgo\`, so that you get
    `csgo\addons\counterstrikesharp\plugins\LanSkinTester\LanSkinTester.dll`.
@@ -198,6 +203,9 @@ Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 
 ## 4. Troubleshooting
 
+- **The knife model changes but no skins show**, or chat says "Skins are blocked by CounterStrikeSharp":
+  set `"FollowCS2ServerGuidelines": false` in `addons/counterstrikesharp/configs/core.json` and
+  restart the server. The launcher does this when you press Start.
 - **Nothing happens / "Skins are disabled"**: start the server with `+sv_lan 1`.
 - **Gun skins work but gloves and StatTrak don't, and the server log says it could not load
   `CAttributeList_SetOrAddAttributeValueByName`**: a CS2 update changed the game code. Copy the
