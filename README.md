@@ -101,12 +101,16 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
   - *Infinite ammo.*
   - *Speedhack:* 35% faster.
 - **In-game cheat menu:** type `!cheats` (or bind a key once in the CS2 console: `bind F3 css_cheats`).
-  It opens on the center of the screen:
-  - **W / S** move, **D** or **E** switches, **A** switches back, **R** closes. You stand still
-    while it's open.
-  - Each player switches their own cheats: wallhack, aimbot, aim area (10° / 20° / 35°),
-    aim smoothing (strong / medium / light), enemy info, speedhack, bunnyhop, infinite ammo,
-    no flash, damage boost, third person, or everything off.
+  It appears as a board of world text in front of you, only visible to you (it doesn't use the
+  flickery center-screen panel):
+  - **W / S** move, **D** or **E** switches / turns a slider up, **A** turns it down, **R** closes.
+    You stand still while it's open.
+  - Each player switches their own cheats: wallhack, aimbot, **aggression** (a 1-10 slider),
+    enemy info, speedhack, bunnyhop, infinite ammo, no flash, damage boost, third person, or
+    everything off.
+- **Aim aggression** (1-10, also a slider on the Play page as the default): 1 is gentle and loose
+  (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 10 is a hard
+  head lock (36° area, fast pull, ~50 ms reaction, dead-centre head).
   - With hacker mode **off**, anyone can still open it to practise with cheats on their own
     (LAN / private servers only). With **One random**, only that round's hacker gets it.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
@@ -365,6 +369,7 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_refresh` | Re-apply skins to everyone |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
 | `lst_hack_powers wallhack,aimbot,onetap,ammo,speed,bhop,noflash,espinfo` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
 | `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |

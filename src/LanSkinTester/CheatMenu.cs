@@ -1,15 +1,20 @@
+using System.Drawing;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Cvars;
+using CounterStrikeSharp.API.Modules.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace LanSkinTester;
 
 /// <summary>
-/// In-game cheat menu on CS2's center-screen HTML panel, driven with the movement keys:
-/// W / S move, D or E switches, A switches back, R closes. Open it with !cheats
-/// (or bind a key: bind F3 css_cheats). You stand still while it's open.
+/// In-game cheat menu drawn with world text (point_worldtext): a board that appears in front of you,
+/// visible only to you. Unlike the center-screen HTML panel it doesn't fade or flicker, and it only
+/// changes when you press a key. Driven with the movement keys: W / S move, D or E switches (or turns
+/// a slider up), A turns it down, R closes. Open with !cheats (or bind a key: bind F3 css_cheats).
+/// You stand still while it's open.
 /// </summary>
 public partial class LanSkinTester
 {
@@ -18,8 +23,9 @@ public partial class LanSkinTester
         public int Cursor;
         public PlayerButtons LastButtons;
         public MoveType_t PreviousMoveType = MoveType_t.MOVETYPE_WALK;
-        public bool Dirty = true;
-        public string Html = "";
+        public CPointWorldText? Title;
+        public CPointWorldText? Body;
+        public string Shown = "";
     }
 
     private sealed record MenuItem(string Label, Func<CCSPlayerController, string> Value, Action<CCSPlayerController, bool> Activate);
@@ -28,11 +34,11 @@ public partial class LanSkinTester
     private readonly HashSet<int> _thirdPerson = new();
     private List<MenuItem> _menuItems = null!;
 
-    private static readonly float[] FovChoices = [10f, 20f, 35f];
-    private static readonly (string Name, float Value)[] SmoothChoices = [("Strong", 0.10f), ("Medium", 0.18f), ("Light", 0.35f)];
-    // CS2's center panel drops messages that are too long, so the menu stays short: a window of rows
-    // and as little markup as possible.
-    private const int MenuWindow = 5;
+    // Board placement and size (world units). The board stands MenuDistance in front of the eyes.
+    private const float MenuDistance = 48f;
+    private const float MenuUnitsPerPx = 0.065f;
+    private const float MenuFontSize = 26f;
+    private const int MenuWindow = 9;
 
     private void LoadCheatMenu()
     {
@@ -40,18 +46,8 @@ public partial class LanSkinTester
         [
             Toggle("Wallhack", Power.Wallhack),
             Toggle("Aimbot", Power.Aimbot),
-            new MenuItem("Aim area", p => $"{AimSettingsOf(p).Fov:0}°", (p, forward) =>
-            {
-                var a = AimSettingsOf(p);
-                var i = Array.IndexOf(FovChoices, a.Fov);
-                _aimSettings[p.Slot] = (FovChoices[Cycle(i, FovChoices.Length, forward)], a.Smooth);
-            }),
-            new MenuItem("Aim smoothing", p => SmoothChoices.FirstOrDefault(c => Math.Abs(c.Value - AimSettingsOf(p).Smooth) < 0.001f).Name ?? "Medium", (p, forward) =>
-            {
-                var a = AimSettingsOf(p);
-                var i = Array.FindIndex(SmoothChoices, c => Math.Abs(c.Value - a.Smooth) < 0.001f);
-                _aimSettings[p.Slot] = (a.Fov, SmoothChoices[Cycle(i, SmoothChoices.Length, forward)].Value);
-            }),
+            new MenuItem("Aggression", p => Bar(AggressionOf(p)), (p, up) =>
+                _aggression[p.Slot] = Math.Clamp(AggressionOf(p) + (up ? 1 : -1), 1, 10)),
             Toggle("Enemy info", Power.EspInfo),
             Toggle("Speedhack", Power.Speed),
             Toggle("Bunnyhop", Power.Bhop),
@@ -70,10 +66,10 @@ public partial class LanSkinTester
         ];
     }
 
-    private static int Cycle(int index, int count, bool forward) =>
-        index < 0 ? 0 : (index + (forward ? 1 : count - 1)) % count;
+    /// <summary>A text slider: [■■■■■□□□□□] 5</summary>
+    private static string Bar(int level) => "[" + new string('■', level) + new string('□', 10 - level) + $"] {level}";
 
-    private static string OnOff(bool on) => on ? "<font color='#3f3'>ON</font>" : "<font color='#f55'>off</font>";
+    private static string OnOff(bool on) => on ? "ON" : "off";
 
     private MenuItem Toggle(string label, Power power) =>
         new(label, p => OnOff(Has(p, power)), (p, _) => SetPowers(p, PowersOf(p) ^ power));
@@ -102,27 +98,34 @@ public partial class LanSkinTester
             return;
         }
         if (_hackMode == HackMode.Off && !PracticeAllowed(player)) return;
-        if (!player.PawnIsAlive)
+        if (!player.PawnIsAlive || player.PlayerPawn.Value is not { IsValid: true } pawn)
         {
             Reply(player, "Open the cheat menu while you're alive.");
             return;
         }
 
         var state = new CheatMenuState { LastButtons = player.Buttons };
-        if (player.PlayerPawn.Value is { IsValid: true } pawn)
-        {
-            // Stand still while the movement keys drive the menu.
-            state.PreviousMoveType = pawn.MoveType;
-            pawn.MoveType = pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
-            Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
-        }
+        // Stand still while the movement keys drive the menu (and so the board stays in front of you).
+        state.PreviousMoveType = pawn.MoveType;
+        pawn.MoveType = pawn.ActualMoveType = MoveType_t.MOVETYPE_NONE;
+        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
+        pawn.Teleport(null, null, new Vector(0, 0, 0));
+
         _cheatMenus[player.Slot] = state;
-        Reply(player, "Cheat menu open (center of the screen): W/S move, D switch, A back, R close.");
+        if (!CreateBoard(player, pawn, state))
+        {
+            CloseCheatMenu(player);
+            Reply(player, "Could not create the menu board on this map.");
+            return;
+        }
+        Reply(player, "Cheat menu open in front of you: W/S move, D switch / up, A down, R close.");
     }
 
     private void CloseCheatMenu(CCSPlayerController player)
     {
         if (!_cheatMenus.Remove(player.Slot, out var state)) return;
+        if (state.Title is { IsValid: true }) state.Title.Remove();
+        if (state.Body is { IsValid: true }) state.Body.Remove();
         if (player.IsValid && player.PlayerPawn.Value is { IsValid: true } pawn && pawn.MoveType == MoveType_t.MOVETYPE_NONE)
         {
             pawn.MoveType = pawn.ActualMoveType = state.PreviousMoveType == MoveType_t.MOVETYPE_NONE ? MoveType_t.MOVETYPE_WALK : state.PreviousMoveType;
@@ -130,13 +133,85 @@ public partial class LanSkinTester
         }
         if (player.IsValid)
         {
-            player.PrintToCenterHtml($"<font color='#39ff14'>Cheats:</font> <font color='#cccccc'>{DescribePowers(player)}</font>", 3);
+            Reply(player, $"Cheats: {DescribePowers(player)}");
             // Walls may have been switched on for someone who wasn't a hacker before.
             if (GlowsNeeded && _glows.Count == 0) RebuildGlows();
         }
     }
 
-    /// <summary>Called every tick from the hacker-mode tick.</summary>
+    // ---------------------------------------------------------------------------------------------
+    // The board
+    // ---------------------------------------------------------------------------------------------
+
+    private bool CreateBoard(CCSPlayerController player, CCSPlayerPawn pawn, CheatMenuState state)
+    {
+        if (pawn.AbsOrigin is not { } origin) return false;
+        try
+        {
+            // Straight ahead (ignoring up/down look), at eye height, facing the player.
+            var yaw = pawn.EyeAngles.Y;
+            var rad = yaw * Math.PI / 180;
+            var forward = new Vector((float)Math.Cos(rad), (float)Math.Sin(rad), 0);
+            var right = new Vector((float)Math.Sin(rad), (float)-Math.Cos(rad), 0);
+            var eyeZ = origin.Z + EyeHeight(pawn);
+            var left = new Vector(
+                origin.X + forward.X * MenuDistance - right.X * 16f,
+                origin.Y + forward.Y * MenuDistance - right.Y * 16f,
+                eyeZ);
+            var facing = new QAngle(0, yaw + 270, 90);
+
+            state.Title = CreateText("H4X MENU", Color.FromArgb(255, 57, 255, 20), MenuFontSize * 1.25f);
+            state.Body = CreateText(RenderBody(player, state), Color.FromArgb(255, 235, 235, 235), MenuFontSize);
+            if (state.Title == null || state.Body == null) return false;
+            state.Shown = state.Body.MessageText;
+
+            state.Title.Teleport(new Vector(left.X, left.Y, left.Z + 11f), facing, null);
+            state.Body.Teleport(new Vector(left.X, left.Y, left.Z + 7.5f), facing, null);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not create the cheat menu board");
+            return false;
+        }
+    }
+
+    private static CPointWorldText? CreateText(string text, Color color, float fontSize)
+    {
+        var entity = Utilities.CreateEntityByName<CPointWorldText>("point_worldtext");
+        if (entity == null) return null;
+        entity.MessageText = text;
+        entity.Enabled = true;
+        entity.FontSize = fontSize;
+        entity.FontName = "Arial Bold";
+        entity.Fullbright = true;
+        entity.WorldUnitsPerPx = MenuUnitsPerPx;
+        entity.Color = color;
+        entity.JustifyHorizontal = PointWorldTextJustifyHorizontal_t.POINT_WORLD_TEXT_JUSTIFY_HORIZONTAL_LEFT;
+        entity.JustifyVertical = PointWorldTextJustifyVertical_t.POINT_WORLD_TEXT_JUSTIFY_VERTICAL_TOP;
+        entity.ReorientMode = PointWorldTextReorientMode_t.POINT_WORLD_TEXT_REORIENT_NONE;
+        entity.DispatchSpawn();
+        return entity;
+    }
+
+    private string RenderBody(CCSPlayerController player, CheatMenuState state)
+    {
+        var lines = new List<string>();
+        var first = Math.Clamp(state.Cursor - MenuWindow / 2, 0, Math.Max(0, _menuItems.Count - MenuWindow));
+        var last = Math.Min(_menuItems.Count, first + MenuWindow);
+        lines.Add(first > 0 ? "    ▲" : " ");
+        for (var i = first; i < last; i++)
+        {
+            var item = _menuItems[i];
+            var value = item.Value(player);
+            lines.Add((i == state.Cursor ? "► " : "    ") + item.Label + (value != "" ? "   " + value : ""));
+        }
+        lines.Add(last < _menuItems.Count ? "    ▼" : " ");
+        lines.Add("W/S move · D/A change · R close");
+        return string.Join("\n", lines);
+    }
+
+    /// <summary>Called every tick from the hacker-mode tick: keys in, text out only when it changed.</summary>
     private void TickCheatMenus()
     {
         if (_cheatMenus.Count == 0) return;
@@ -146,7 +221,11 @@ public partial class LanSkinTester
             if (player == null || !player.IsValid || !player.PawnIsAlive)
             {
                 if (player != null) CloseCheatMenu(player);
-                else _cheatMenus.Remove(slot);
+                else if (_cheatMenus.Remove(slot, out var gone))
+                {
+                    if (gone.Title is { IsValid: true }) gone.Title.Remove();
+                    if (gone.Body is { IsValid: true }) gone.Body.Remove();
+                }
                 continue;
             }
 
@@ -154,59 +233,36 @@ public partial class LanSkinTester
             var buttons = player.Buttons;
             var pressed = buttons & ~state.LastButtons;
             state.LastButtons = buttons;
+            if (pressed == 0) continue;
 
             if ((pressed & PlayerButtons.Reload) != 0)
             {
                 CloseCheatMenu(player);
                 continue;
             }
-            if ((pressed & PlayerButtons.Forward) != 0) Move(state, -1);
-            if ((pressed & PlayerButtons.Back) != 0) Move(state, +1);
-            if ((pressed & (PlayerButtons.Moveright | PlayerButtons.Use)) != 0) Activate(player, state, forward: true);
-            else if ((pressed & PlayerButtons.Moveleft) != 0) Activate(player, state, forward: false);
+            if ((pressed & PlayerButtons.Forward) != 0) state.Cursor = (state.Cursor - 1 + _menuItems.Count) % _menuItems.Count;
+            if ((pressed & PlayerButtons.Back) != 0) state.Cursor = (state.Cursor + 1) % _menuItems.Count;
+            if ((pressed & (PlayerButtons.Moveright | PlayerButtons.Use)) != 0) _menuItems[state.Cursor].Activate(player, true);
+            else if ((pressed & PlayerButtons.Moveleft) != 0) _menuItems[state.Cursor].Activate(player, false);
             if (!_cheatMenus.ContainsKey(slot)) continue; // "Close" was picked
 
-            // Send the (unchanged) text every tick, like CounterStrikeSharp's own center menus: refreshing
-            // less often lets the panel fade out and back in, which flickers.
-            if (state.Dirty)
+            var text = RenderBody(player, state);
+            if (text != state.Shown && state.Body is { IsValid: true } body)
             {
-                state.Html = RenderMenu(player, state);
-                state.Dirty = false;
+                body.AcceptInput("SetMessage", body, body, text);
+                state.Shown = text;
             }
-            player.PrintToCenterHtml(state.Html, 1);
         }
     }
 
-    private void Move(CheatMenuState state, int delta)
+    /// <summary>Only the menu's owner receives its board.</summary>
+    private void HideOtherMenus(CCheckTransmitInfo info, CCSPlayerController? viewer)
     {
-        state.Cursor = (state.Cursor + delta + _menuItems.Count) % _menuItems.Count;
-        state.Dirty = true;
-    }
-
-    private void Activate(CCSPlayerController player, CheatMenuState state, bool forward)
-    {
-        _menuItems[state.Cursor].Activate(player, forward);
-        state.Dirty = true;
-    }
-
-    private string RenderMenu(CCSPlayerController player, CheatMenuState state)
-    {
-        var html = new System.Text.StringBuilder();
-        html.Append($"<font color='#3f3'>H4X MENU</font> {state.Cursor + 1}/{_menuItems.Count}<br>");
-
-        // A window of rows around the cursor.
-        var first = Math.Clamp(state.Cursor - MenuWindow / 2, 0, Math.Max(0, _menuItems.Count - MenuWindow));
-        var last = Math.Min(_menuItems.Count, first + MenuWindow);
-        for (var i = first; i < last; i++)
+        foreach (var (slot, state) in _cheatMenus)
         {
-            var item = _menuItems[i];
-            var value = item.Value(player);
-            html.Append(i == state.Cursor ? "<font color='#fff'>&gt; " : "<font color='#999'>");
-            html.Append(item.Label).Append("</font>");
-            if (value != "") html.Append(": ").Append(value);
-            html.Append("<br>");
+            if (viewer != null && viewer.Slot == slot) continue;
+            if (state.Title is { IsValid: true }) info.TransmitEntities.Remove(state.Title);
+            if (state.Body is { IsValid: true }) info.TransmitEntities.Remove(state.Body);
         }
-        html.Append("<font color='#888'>W/S D R</font>");
-        return html.ToString();
     }
 }

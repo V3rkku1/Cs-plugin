@@ -45,6 +45,8 @@ public class PlayPage : UserControl
     private readonly Toggle _hackBhop = new();
     private readonly Toggle _hackNoFlash = new();
     private readonly Toggle _hackEspInfo = new();
+    private readonly Slider _hackAggression = new() { Minimum = 1, Maximum = 10, Width = 200 };
+    private readonly Label _hackAggressionLabel = new() { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
 
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
@@ -122,6 +124,7 @@ public class PlayPage : UserControl
         hacker.AddRow("Who Hacks", _hackerMode, "One random: new hacker each round, glows green");
         hacker.AddRow("Wallhack", _hackWallhack, "See enemies glowing through walls");
         hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: smoothly pulls onto visible enemies near your crosshair");
+        hacker.AddRow("Aim Aggression", new HStack(_hackAggression, _hackAggressionLabel), "1 gentle and loose · 10 fast hard head lock");
         hacker.AddRow("Damage Boost", _hackOneTap, "2× damage");
         hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
         hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
@@ -185,6 +188,7 @@ public class PlayPage : UserControl
 
         LoadServerSettings();
         _modeBox.SelectedIndexChanged += (_, _) => OnModeChanged();
+        _hackAggression.ValueChanged += (_, _) => _hackAggressionLabel.Text = AggressionText(_hackAggression.Value);
         _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
 
         _app.Changed += Refresh;
@@ -209,6 +213,8 @@ public class PlayPage : UserControl
         var s = new Label { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
         return new VStack(t, s) { Height = 86 };
     }
+
+    private static string AggressionText(int level) => level switch { <= 3 => $"{level} legit", <= 7 => $"{level}", _ => $"{level} rage" };
 
     private record GiveItem(string Classname, string Name)
     {
@@ -251,6 +257,8 @@ public class PlayPage : UserControl
         _hackBhop.Checked = s.HackBhop;
         _hackNoFlash.Checked = s.HackNoFlash;
         _hackEspInfo.Checked = s.HackEspInfo;
+        _hackAggression.Value = Math.Clamp(s.HackAggression, 1, 10);
+        _hackAggressionLabel.Text = AggressionText(_hackAggression.Value);
     }
 
     private ServerSettings ReadServerSettings()
@@ -282,6 +290,7 @@ public class PlayPage : UserControl
         s.HackBhop = _hackBhop.Checked;
         s.HackNoFlash = _hackNoFlash.Checked;
         s.HackEspInfo = _hackEspInfo.Checked;
+        s.HackAggression = _hackAggression.Value;
         _app.Settings.Save();
         return s;
     }

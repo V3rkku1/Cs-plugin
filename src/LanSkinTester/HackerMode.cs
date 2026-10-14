@@ -32,7 +32,6 @@ public partial class LanSkinTester
     private const float AimbotFov = 20f;          // default lock-on area, degrees from the crosshair
     private const float AimSmoothing = 0.18f;      // default share of the remaining angle closed per tick
     private const float AimMaxStep = 3.5f;         // max degrees turned per tick
-    private const double ReactionMinMs = 110, ReactionMaxMs = 220;
     private const float OneTapMultiplier = 2f;     // "damage boost"
     private const float SpeedMultiplier = 1.35f;
 
@@ -73,7 +72,20 @@ public partial class LanSkinTester
     private readonly Dictionary<int, Power> _personal = new();
 
     /// <summary>Aimbot settings from the cheat menu, by slot.</summary>
-    private readonly Dictionary<int, (float Fov, float Smooth)> _aimSettings = new();
+    private readonly Dictionary<int, int> _aggression = new();
+
+    /// <summary>Aimbot aggression 1-10 when a player hasn't picked one (launcher: lst_aim_aggression).</summary>
+    private int _defaultAggression = 5;
+
+    private int AggressionOf(CCSPlayerController player) =>
+        _aggression.TryGetValue(player.Slot, out var a) ? a : _defaultAggression;
+
+    [ConsoleCommand("lst_aim_aggression", "Default aimbot aggression 1 (gentle) - 10 (hard head lock)")]
+    [CommandHelper(minArgs: 1, usage: "1-10", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnAimAggressionCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        if (int.TryParse(cmd.GetArg(1), out var level)) _defaultAggression = Math.Clamp(level, 1, 10);
+    }
     private readonly HashSet<int> _hackerSlots = new();
     private readonly Dictionary<int, (CCSPlayerController Owner, CDynamicProp Relay, CDynamicProp Glow)> _glows = new();
 
@@ -85,6 +97,7 @@ public partial class LanSkinTester
         {
             _glows.Clear();
             _hackerSlots.Clear();
+            _cheatMenus.Clear(); // their boards went with the old map
             _aimLocks.Clear();
         });
         RegisterListener<Listeners.OnClientDisconnect>(slot =>
@@ -92,7 +105,7 @@ public partial class LanSkinTester
             RemoveGlow(slot);
             _hackerSlots.Remove(slot);
             _personal.Remove(slot);
-            _aimSettings.Remove(slot);
+            _aggression.Remove(slot);
             _aimLocks.Remove(slot);
             _cheatMenus.Remove(slot);
             _espText.Remove(slot);
@@ -493,8 +506,24 @@ public partial class LanSkinTester
         hacker.PrintToCenterHtml(text, 1);
     }
 
-    private (float Fov, float Smooth) AimSettingsOf(CCSPlayerController player) =>
-        _aimSettings.TryGetValue(player.Slot, out var a) ? a : (AimbotFov, AimSmoothing);
+    /// <summary>
+    /// Aggression 1-10 sets everything: lock-on area (9-36 degrees), how hard it pulls (smoothing),
+    /// reaction time and how precisely it hits the head. 5 is about the old "legit" default.
+    /// </summary>
+    private (float Fov, float Smooth) AimSettingsOf(CCSPlayerController player)
+    {
+        var a = AggressionOf(player);
+        return (6f + 3f * a, 0.06f + 0.035f * a);
+    }
+
+    private (double Min, double Max) ReactionOf(CCSPlayerController player)
+    {
+        var min = 250.0 - 20.0 * AggressionOf(player);
+        return (min, min + 110.0);
+    }
+
+    /// <summary>1 at aggression 1 (loose: head/neck, a few units off), 0 at 10 (dead-centre head).</summary>
+    private float LoosenessOf(CCSPlayerController player) => (10 - AggressionOf(player)) / 9f;
 
     private void Aim(CCSPlayerController hacker, CCSPlayerPawn pawn)
     {
@@ -538,10 +567,10 @@ public partial class LanSkinTester
             {
                 TargetSlot = best.Slot,
                 AcquiredAt = DateTime.UtcNow,
-                ReactionMs = ReactionMinMs + Random.Shared.NextDouble() * (ReactionMaxMs - ReactionMinMs),
+                ReactionMs = ReactionOf(hacker).Min + Random.Shared.NextDouble() * (ReactionOf(hacker).Max - ReactionOf(hacker).Min),
                 // Mostly the head, sometimes the neck - never pixel-perfect.
-                OffsetZ = 1f + (float)Random.Shared.NextDouble() * (Random.Shared.Next(4) == 0 ? 9f : 4f),
-                OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5),
+                OffsetZ = 1f + (float)Random.Shared.NextDouble() * (Random.Shared.Next(4) == 0 ? 9f : 4f) * LoosenessOf(hacker),
+                OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5) * LoosenessOf(hacker),
             };
             _aimLocks[hacker.Slot] = aim;
         }
@@ -668,9 +697,10 @@ public partial class LanSkinTester
 
     private void OnHackCheckTransmit(CCheckTransmitInfoList infoList)
     {
-        if (_glows.Count == 0) return;
+        if (_glows.Count == 0 && _cheatMenus.Count == 0) return;
         foreach (var (info, viewer) in infoList)
         {
+            if (_cheatMenus.Count > 0) HideOtherMenus(info, viewer);
             foreach (var (_, (owner, _, glow)) in _glows)
             {
                 if (!glow.IsValid) continue;

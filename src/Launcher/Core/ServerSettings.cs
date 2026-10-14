@@ -121,6 +121,9 @@ public class ServerSettings
     public bool HackNoFlash { get; set; }
     public bool HackEspInfo { get; set; }
 
+    /// <summary>Aimbot aggression 1 (gentle, slow, loose) - 10 (fast hard head lock).</summary>
+    public int HackAggression { get; set; } = 5;
+
     /// <summary>Start CS2 and join automatically (off = only the server starts).</summary>
     public bool AutoStartGame { get; set; } = true;
 
@@ -177,6 +180,7 @@ public class ServerSettings
             s.Difficulty = 3;
             s.HackerMode = 1;
             s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = true;
+            s.HackAggression = 7;
         }),
         new("Catch the hacker", "Friends: one random hacker per round", s =>
         {
@@ -199,6 +203,7 @@ public class ServerSettings
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
         HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = false;
+        HackAggression = 5;
     }
 
     public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
@@ -330,6 +335,7 @@ public class ServerSettings
         if (HackNoFlash) powers.Add("noflash");
         if (HackEspInfo) powers.Add("espinfo");
         sb.AppendLine($"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}");
+        sb.AppendLine($"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}");
         sb.AppendLine($"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}");
 
         sb.AppendLine("mp_warmup_end");
