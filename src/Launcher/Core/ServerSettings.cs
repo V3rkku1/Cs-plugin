@@ -64,8 +64,43 @@ public class ServerSettings
     /// </summary>
     public FriendsNetwork Friends { get; set; }
 
+    /// <summary>
+    /// sv_lan 0: friends over Radmin / the internet, or the server has to download a Workshop map
+    /// itself (an sv_lan 1 server is offline from Steam and can't).
+    /// </summary>
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool PrivateServer => Friends != FriendsNetwork.Lan;
+    public bool PrivateServer => Friends != FriendsNetwork.Lan || WorkshopNeedsDownload;
+
+    /// <summary>The Workshop map copied into csgo\maps for this session (see <see cref="WorkshopMaps"/>), or null.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? LocalWorkshopMap { get; private set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool WorkshopNeedsDownload => WorkshopMapId != null && LocalWorkshopMap == null;
+
+    /// <summary>
+    /// Picks how the Workshop map is loaded: the copy Steam already downloaded (instant, offline), or
+    /// a server download. With friends joining, always the download, so their games fetch it too.
+    /// </summary>
+    public void PrepareWorkshopMap(GameFolder game, bool forFriends)
+    {
+        LocalWorkshopMap = null;
+        if (WorkshopMapId == null || forFriends) return;
+        try
+        {
+            LocalWorkshopMap = WorkshopMaps.Prepare(game, WorkshopMapId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            LocalWorkshopMap = null; // fall back to the download
+        }
+    }
+
+    /// <summary>The console command that loads the map (without "+").</summary>
+    private string MapCommand(bool running) =>
+        LocalWorkshopMap != null ? $"{(running ? "changelevel" : "map")} {LocalWorkshopMap}"
+        : WorkshopMapId != null ? $"host_workshop_map {WorkshopMapId}"
+        : $"{(running ? "changelevel" : "map")} {Map}";
 
     /// <summary>Everyone uses the launcher's loadout (off = each friend picks skins in chat; the host keeps the launcher's).</summary>
     public bool SharedSkins { get; set; } = true;
@@ -170,8 +205,7 @@ public class ServerSettings
     public string StartArguments()
     {
         var mode = GetMode();
-        var map = WorkshopMapId != null ? $"+host_workshop_map {WorkshopMapId}" : $"+map {Map}";
-        return $"-dedicated -insecure +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} {map}";
+        return $"-dedicated -insecure +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
@@ -291,17 +325,23 @@ public class ServerSettings
 
     /// <summary>
     /// Applies the settings to a running server through the plugin. Changing mode or map reloads the map
-    /// (the plugin then runs the cfg again); otherwise the cfg is just re-run.
+    /// (the plugin then runs the cfg again); otherwise the cfg is just re-run. Returns a warning when
+    /// the new Workshop map can't load on this server, else null.
     /// </summary>
-    public void ApplyToRunningServer(GameFolder game, bool mapOrModeChanged)
+    public string? ApplyToRunningServer(GameFolder game, bool mapOrModeChanged, bool serverOnline, bool forFriends)
     {
+        if (mapOrModeChanged) PrepareWorkshopMap(game, forFriends);
+        if (WorkshopNeedsDownload && !serverOnline)
+            return "This Workshop map isn't downloaded and the server is in offline LAN mode, so it can't fetch it. " +
+                   "Press Subscribe (Steam downloads it, then Apply again), or Stop and Start so the server goes online to download it.";
+
         WriteCfg(game);
         var mode = GetMode();
         if (mapOrModeChanged)
-            SendCommands(game, $"game_type {mode.GameType}", $"game_mode {mode.Mode}",
-                WorkshopMapId != null ? $"host_workshop_map {WorkshopMapId}" : $"changelevel {Map}");
+            SendCommands(game, $"game_type {mode.GameType}", $"game_mode {mode.Mode}", MapCommand(running: true));
         else
             SendCommands(game, "exec lanskintester_server.cfg");
+        return null;
     }
 
     /// <summary>

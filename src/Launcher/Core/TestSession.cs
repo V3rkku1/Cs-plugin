@@ -13,11 +13,12 @@ public class TestSession
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 
-    public void Start(ServerSettings settings)
+    public void Start(ServerSettings settings, bool forFriends = false)
     {
         if (Cs2Running())
             throw new InvalidOperationException("Close CS2 first (it must restart with -insecure).");
 
+        settings.PrepareWorkshopMap(_game, forFriends);
         GameInfoPatcher.Enable(_game.GameInfo);
         settings.WriteCfg(_game);
 
@@ -54,6 +55,8 @@ public class TestSession
             catch (Exception) { /* already gone */ }
         }
         GameInfoPatcher.Disable(_game.GameInfo);
-        Upnp.RemoveMapping(); // close the router port again (internet mode)
+        Upnp.RemoveMapping();
+        try { WorkshopMaps.RemoveCopies(_game); }
+        catch (Exception) { /* removed on the next Stop */ } // close the router port again (internet mode)
     }
 }

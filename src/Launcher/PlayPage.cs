@@ -11,6 +11,8 @@ public class PlayPage : UserControl
     // What the running server was started with, to know if "Apply" needs a map change.
     private string? _runningMode;
     private string? _runningMap;
+    private bool _runningOnline;   // started with sv_lan 0 (can download Workshop maps)
+    private bool _runningForFriends;
 
     // Server settings
     private readonly Picker _modeBox = new(200);
@@ -28,7 +30,9 @@ public class PlayPage : UserControl
     private readonly Toggle _cheats = new();
     private readonly NumberField _roundTime = new(120) { Minimum = 0, Maximum = 60 };
     private readonly Toggle _friendlyFire = new();
-    private readonly TextField _workshop = new(220) { PlaceholderText = "ID or link (optional)" };
+    private readonly TextField _workshop = new(170) { PlaceholderText = "ID or link (optional)" };
+    private readonly PillButton _subscribe = new("Subscribe");
+    private SettingRow _workshopRow = null!;
     private readonly TextField _gameArgs = new(220) { PlaceholderText = "-windowed -w 1920 -h 1080" };
     private readonly Toggle _autoStartGame = new();
     private readonly Segmented _hackerMode = new(ServerSettings.HackerModes, 100);
@@ -89,7 +93,10 @@ public class PlayPage : UserControl
         var game = new Group(left);
         game.AddRow("Game Mode", _modeBox);
         game.AddRow("Map", _mapBox);
-        game.AddRow("Workshop Map", _workshop, "Overrides the map · needs internet");
+        _workshop.Margin = new Padding(0, 0, 8, 0);
+        _workshopRow = game.AddRow("Workshop Map", new HStack(_workshop, _subscribe), "Overrides the map");
+        _workshop.TextChanged += (_, _) => UpdateWorkshopRow();
+        _subscribe.Click += (_, _) => SubscribeWorkshop();
 
         var bots = new Group(left);
         bots.AddRow("Bots", new HStack(_botsBar, _botsLabel));
@@ -178,7 +185,11 @@ public class PlayPage : UserControl
             if (IsHandleCreated && InvokeRequired) BeginInvoke(() => _log.AppendText(line + Environment.NewLine));
             else _log.AppendText(line + Environment.NewLine);
         };
-        _poll.Tick += (_, _) => RefreshLive();
+        _poll.Tick += (_, _) =>
+        {
+            RefreshLive();
+            if (Visible && WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
+        };
         _poll.Start();
     }
 
@@ -275,6 +286,45 @@ public class PlayPage : UserControl
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Workshop map
+    // ---------------------------------------------------------------------------------------------
+
+    private string? WorkshopId()
+    {
+        var m = System.Text.RegularExpressions.Regex.Match(_workshop.Text, @"(\d{6,})");
+        return m.Success ? m.Groups[1].Value : null;
+    }
+
+    private void UpdateWorkshopRow()
+    {
+        var id = WorkshopId();
+        _subscribe.Enabled = id != null;
+        if (id == null)
+        {
+            _workshopRow.Subtitle = _workshop.Text.Trim() == "" ? "Overrides the map" : "Paste the map's ID or Workshop link";
+            _workshopRow.SubtitleColor = _workshop.Text.Trim() == "" ? Theme.Muted : Theme.Warning;
+            return;
+        }
+        var downloaded = _app.Game != null && WorkshopMaps.FindDownloaded(_app.Game, id) != null;
+        _workshopRow.Subtitle = downloaded ? "On this PC · loads instantly" : "Not downloaded · Subscribe, or the server downloads it";
+        _workshopRow.SubtitleColor = downloaded ? Theme.Good : Theme.Warning;
+    }
+
+    private void SubscribeWorkshop()
+    {
+        if (WorkshopId() is not { } id) return;
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(WorkshopMaps.SubscribeUrl(id)) { UseShellExecute = true });
+            _app.Log("Opened the map in Steam: press Subscribe there, wait for the download, then Start (or Apply).");
+        }
+        catch (Exception ex)
+        {
+            _app.Log("Could not open Steam: " + ex.Message);
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Status
     // ---------------------------------------------------------------------------------------------
 
@@ -293,6 +343,7 @@ public class PlayPage : UserControl
             : ready ? "Pick a quick start or press Start. The server opens in its own window and CS2 joins it."
             : "Open Setup and press \"Install Everything\" first.";
         RefreshLive();
+        UpdateWorkshopRow();
     }
 
     private void RefreshLive()
@@ -343,20 +394,28 @@ public class PlayPage : UserControl
         else _app.Log("Install first (Setup page), then pick the quick start again.");
     }
 
-    private void StartTest()
+    private void StartTest(bool forFriends = false)
     {
         if (_app.Game == null) return;
         var server = ReadServerSettings();
         try
         {
             _app.AllowSkinsInCss();
-            new TestSession(_app.Game).Start(server);
+            new TestSession(_app.Game).Start(server, forFriends);
             _runningMode = server.Mode;
             _runningMap = server.WorkshopMapId ?? server.Map;
+            _runningOnline = server.PrivateServer;
+            _runningForFriends = forFriends;
             var map = server.WorkshopMapId != null ? $"Workshop map {server.WorkshopMapId}" : server.Map;
+            if (server.LocalWorkshopMap != null)
+                _app.Log($"Workshop map found on this PC ({server.LocalWorkshopMap}) - loading it directly, no download needed.");
+            else if (server.WorkshopNeedsDownload)
+                _app.Log(forFriends
+                    ? "Workshop map: the server downloads it, and friends' games fetch it automatically when they join."
+                    : "Workshop map isn't downloaded yet: the server goes online (unlisted) to download it. Loading takes longer the first time.");
             _app.Log($"Started {server.Mode} on {map} with {server.Bots} {ServerSettings.Difficulties[server.Difficulty].ToLowerInvariant()} bots.");
             Toast.Show($"Starting {server.Mode} on {map}…", Toast.Kind.Info);
-            if (server.PrivateServer) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
+            if (server.Friends != ServerSettings.FriendsNetwork.Lan) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             _app.Log(server.AutoStartGame
                 ? "CS2 joins when the server has loaded. If it doesn't: console (~) → connect localhost"
                 : "Server only - press \"Open CS2\" when you want to join.");
@@ -378,7 +437,14 @@ public class PlayPage : UserControl
 
         try
         {
-            server.ApplyToRunningServer(_app.Game, reload);
+            var warning = server.ApplyToRunningServer(_app.Game, reload, _runningOnline, _runningForFriends);
+            if (warning != null)
+            {
+                _app.Log(warning);
+                Toast.Show("Workshop map not downloaded - see Activity.", Toast.Kind.Warning);
+                return;
+            }
+            if (reload && server.LocalWorkshopMap != null) _app.Log($"Workshop map found on this PC ({server.LocalWorkshopMap}).");
             _runningMode = server.Mode;
             _runningMap = map;
             _app.Log(reload ? $"Switching to {server.Mode} on {map}..." : "Applied bots and options to the running server.");
@@ -429,7 +495,7 @@ public class PlayPage : UserControl
     }
 
     /// <summary>Start / Stop from the Friends page (uses the game settings from this page).</summary>
-    public void StartServer() => StartTest();
+    public void StartServer(bool forFriends = false) => StartTest(forFriends);
 
     /// <summary>F5: start, or apply the settings to the running server.</summary>
     public void StartOrApply()

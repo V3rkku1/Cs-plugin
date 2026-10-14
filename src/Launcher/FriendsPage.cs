@@ -332,7 +332,7 @@ public class FriendsPage : UserControl
                     "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
         }
-        _play.StartServer();
+        _play.StartServer(forFriends: true);
     }
 
     private void RefreshFirewall()
