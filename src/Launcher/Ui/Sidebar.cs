@@ -28,7 +28,12 @@ public class SidebarItem : DrawnControl
     protected override void Draw(Graphics g)
     {
         var r = new RectangleF(0, 0, Width - 1, Height - 1);
-        if (_selected) Theme.FillRounded(g, Theme.Fill, r, 8);
+        if (_selected)
+        {
+            Theme.FillRounded(g, Theme.Fill, r, 8);
+            // Accent bar on the left of the selected page.
+            Theme.FillRoundedGradient(g, Theme.GradientStart, Theme.GradientEnd, new RectangleF(3, 9, 3, Height - 19), 1.5f);
+        }
         else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 110), r, 8);
 
         DrawIcon(g, new RectangleF(12, 9, 18, 18), _selected ? Theme.Accent : Theme.Muted);
@@ -80,6 +85,16 @@ public class SidebarItem : DrawnControl
 /// <summary>"Update available" card above the status badge; click opens the download page.</summary>
 public class UpdateCard : DrawnControl
 {
+    private string _title = "Update available";
+    private string _detail = "Click to install";
+
+    public void Set(string title, string detail)
+    {
+        _title = title;
+        _detail = detail;
+        Invalidate();
+    }
+
     public UpdateCard()
     {
         Size = new Size(204, 52);
@@ -99,8 +114,8 @@ public class UpdateCard : DrawnControl
             g.DrawLine(pen, 17, Height / 2f, 21, Height / 2f + 4);
             g.DrawLine(pen, 25, Height / 2f, 21, Height / 2f + 4);
         }
-        Theme.DrawText(g, "Update available", Theme.Bold, new Rectangle(40, 8, Width - 44, 18), Color.White);
-        Theme.DrawText(g, "Click to download", Theme.Small, new Rectangle(40, 26, Width - 44, 18), Color.FromArgb(220, 235, 255));
+        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(40, 8, Width - 44, 18), Color.White);
+        Theme.DrawText(g, _detail, Theme.Small, new Rectangle(40, 26, Width - 44, 18), Color.FromArgb(220, 235, 255));
     }
 }
 

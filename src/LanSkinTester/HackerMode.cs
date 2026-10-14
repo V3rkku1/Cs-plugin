@@ -23,8 +23,8 @@ public partial class LanSkinTester
     private enum Power
     {
         None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16,
-        Bhop = 32, NoFlash = 64, EspInfo = 128,
-        All = 255,
+        Bhop = 32, NoFlash = 64, EspInfo = 128, AimWalls = 256,
+        All = 511,
     }
 
     // A "legit" aimbot: only enemies you can actually see, a small lock-on area, a human-like reaction
@@ -171,7 +171,7 @@ public partial class LanSkinTester
         {
             Reply(player, IsHacker(player)
                 ? $"Your cheats: {DescribePowers(player)}. !cheats opens the menu."
-                : "Hacker mode is off. Type !cheats to open the cheat menu for yourself.");
+                : "Hacker mode is off. The host turns it on in the launcher (Play page, Hacker Mode).");
             return;
         }
         Reply(player, IsHacker(player)
@@ -196,7 +196,7 @@ public partial class LanSkinTester
     {
         HackMode.Everyone => true,
         HackMode.OneRandom => _hackerSlots.Contains(player.Slot),
-        _ => _personal.TryGetValue(player.Slot, out var own) && own != Power.None,
+        _ => false, // cheats only exist in hacker mode
     };
 
     private IEnumerable<CCSPlayerController> Hackers() => Utilities.GetPlayers().Where(IsHacker);
@@ -219,7 +219,7 @@ public partial class LanSkinTester
     {
         var names = new List<string>();
         if (Has(player, Power.Wallhack)) names.Add("walls");
-        if (Has(player, Power.Aimbot)) names.Add("aimbot");
+        if (Has(player, Power.Aimbot)) names.Add(Has(player, Power.AimWalls) ? "aimbot (through walls)" : "aimbot");
         if (Has(player, Power.EspInfo)) names.Add("enemy info");
         if (Has(player, Power.OneTap)) names.Add("damage boost");
         if (Has(player, Power.Ammo)) names.Add("infinite ammo");
@@ -535,7 +535,7 @@ public partial class LanSkinTester
         // visible enemy closest to the crosshair.
         CCSPlayerPawn? targetPawn = null;
         if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
-            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && IsVisibleTo(lockedPawn, pawn)
+            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (Has(hacker, Power.AimWalls) || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
             && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
         {
@@ -553,7 +553,8 @@ public partial class LanSkinTester
                 if (enemyPawn == null || !enemyPawn.IsValid) continue;
                 if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
                 var delta = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
-                if (delta >= bestDelta || !IsVisibleTo(enemyPawn, pawn)) continue; // trace only the candidates
+                // Trace only the candidates; "aim through walls" skips the line-of-sight check.
+                if (delta >= bestDelta || (!Has(hacker, Power.AimWalls) && !IsVisibleTo(enemyPawn, pawn))) continue;
                 bestDelta = delta;
                 best = enemy;
                 targetPawn = enemyPawn;

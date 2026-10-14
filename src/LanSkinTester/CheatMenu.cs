@@ -46,6 +46,7 @@ public partial class LanSkinTester
         [
             Toggle("Wallhack", Power.Wallhack),
             Toggle("Aimbot", Power.Aimbot),
+            Toggle("Aim through walls", Power.AimWalls),
             new MenuItem("Aggression", p => Bar(AggressionOf(p)), (p, up) =>
                 _aggression[p.Slot] = Math.Clamp(AggressionOf(p) + (up ? 1 : -1), 1, 10)),
             Toggle("Enemy info", Power.EspInfo),
@@ -97,7 +98,11 @@ public partial class LanSkinTester
             Reply(player, "Only this round's hacker gets the cheat menu. Catch them!");
             return;
         }
-        if (_hackMode == HackMode.Off && !PracticeAllowed(player)) return;
+        if (_hackMode == HackMode.Off)
+        {
+            Reply(player, "The cheat menu only works in hacker mode. The host turns it on in the launcher (Play page, Hacker Mode).");
+            return;
+        }
         if (!player.PawnIsAlive || player.PlayerPawn.Value is not { IsValid: true } pawn)
         {
             Reply(player, "Open the cheat menu while you're alive.");

@@ -30,6 +30,8 @@ public class MainForm : Form
         MinimumSize = new Size(1180, 740);
         StartPosition = FormStartPosition.CenterScreen;
         Theme.StyleWindow(this);
+        try { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? Application.ExecutablePath); }
+        catch (Exception) { /* default icon */ }
 
         _play = new PlayPage(_app) { Dock = DockStyle.Fill };
         _skins = new SkinsPage(_app.Images) { Dock = DockStyle.Fill };
@@ -56,6 +58,10 @@ public class MainForm : Form
             _watch.Start();
             WatchGame();
             _ = CheckForUpdateAsync();
+            // Look again every few hours while the launcher stays open.
+            var updateTimer = new System.Windows.Forms.Timer { Interval = 4 * 60 * 60 * 1000 };
+            updateTimer.Tick += (_, _) => { if (!_update.Visible) _ = CheckForUpdateAsync(); };
+            updateTimer.Start();
             if (_app.Game == null) _app.Log("CS2 not found automatically - press Browse on the Setup page.");
         };
         FormClosing += OnClosing;
@@ -65,8 +71,11 @@ public class MainForm : Form
     {
         var bar = new Panel { Dock = DockStyle.Left, Width = 236, BackColor = Theme.Sidebar, Padding = new Padding(16, 22, 16, 16) };
 
-        var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(18, 20) };
-        var sub = new Label { Text = $"CS2 · LAN · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(19, 48) };
+        var logo = new PictureBox { Size = new Size(40, 40), Location = new Point(16, 20), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
+        using (var png = typeof(MainForm).Assembly.GetManifestResourceStream("app.png"))
+            if (png != null) logo.Image = Image.FromStream(png);
+        var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
+        var sub = new Label { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
 
         var nav = new VStack(_navPlay, _navSkins, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
@@ -75,8 +84,8 @@ public class MainForm : Form
         _navSetup.Click += (_, _) => ShowPage(_setup);
 
         _status.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
-        _update.Click += (_, _) => OpenUrl(UpdateCheck.ReleaseUrl);
-        bar.Controls.AddRange([app, sub, nav, _update, _status]);
+        _update.Click += async (_, _) => await InstallUpdateAsync();
+        bar.Controls.AddRange([logo, app, sub, nav, _update, _status]);
         bar.Layout += (_, _) =>
         {
             _status.Location = new Point(16, bar.Height - _status.Height - 18);
@@ -167,8 +176,50 @@ public class MainForm : Form
     {
         if (!await UpdateCheck.NewerAvailableAsync(_app.Http)) return;
         _update.Visible = true;
-        _app.Log("A newer launcher build is on GitHub - click \"Update available\" in the sidebar.");
+        _app.Log("A newer launcher build is on GitHub - click \"Update available\" in the sidebar to install it.");
+        Toast.Show("Update available - click the blue card in the sidebar.", Toast.Kind.Info);
     }
+
+    private bool _updating;
+
+    /// <summary>Downloads the new launcher, swaps it in after closing, and restarts.</summary>
+    private async Task InstallUpdateAsync()
+    {
+        if (_updating) return;
+        if (_app.TestModeOn)
+        {
+            MessageBox.Show(this, "Press Stop first (test mode is on), then update.", "Update", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
+        if (!Updater.CanSelfUpdate())
+        {
+            _app.Log("This folder isn't writable, so the launcher can't update itself - opening the download page.");
+            OpenUrl(UpdateCheck.ReleaseUrl);
+            return;
+        }
+
+        _updating = true;
+        _update.Set("Updating…", "Downloading 0%");
+        try
+        {
+            var file = await Updater.DownloadAsync(_app.Http, p => BeginInvoke(() => _update.Set("Updating…", $"Downloading {p:P0}")));
+            _update.Set("Updating…", "Restarting");
+            _app.Log("Update downloaded - restarting the launcher.");
+            Updater.ReplaceAfterExit(file);
+            Close();
+        }
+        catch (Exception ex)
+        {
+            _app.Log("Update failed: " + ex.Message + " - opening the download page instead.");
+            _update.Set("Update available", "Click to try again");
+            OpenUrl(UpdateCheck.ReleaseUrl);
+        }
+        finally
+        {
+            _updating = false;
+        }
+    }
+
 
     private static void OpenUrl(string url)
     {

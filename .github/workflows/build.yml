@@ -28,7 +28,10 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Build plugin and launcher
+      - name: Install NSIS (for the installer)
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+
+      - name: Build plugin, launcher and installer
         run: ./build.sh
 
       - name: Upload build files
@@ -36,6 +39,7 @@ jobs:
         with:
           name: LanSkinTester-${{ github.sha }}
           path: |
+            build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
             build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip
@@ -57,10 +61,12 @@ jobs:
           body: |
             Newest build of `${{ github.ref_name }}` (commit ${{ github.sha }}).
 
+            - **LanSkinTesterSetup.exe**: the installer (Start menu / desktop shortcut, uninstaller, updates itself). Easiest.
             - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install (about 50 MB).
             - **LanSkinTesterLauncher-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
             - **LanSkinTester.zip**: only the plugin, for installing by hand (extract into `game/csgo/`).
           files: |
+            build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
             build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip
@@ -70,6 +76,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: |
+            build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
             build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip

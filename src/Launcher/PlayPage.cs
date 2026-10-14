@@ -45,6 +45,9 @@ public class PlayPage : UserControl
     private readonly Toggle _hackBhop = new();
     private readonly Toggle _hackNoFlash = new();
     private readonly Toggle _hackEspInfo = new();
+    private readonly Toggle _hackAimWalls = new();
+    private readonly Toggle _hackNoRecoil = new();
+    private readonly Toggle _hackNoSpread = new();
     private readonly Slider _hackAggression = new() { Minimum = 1, Maximum = 10, Width = 200 };
     private readonly Label _hackAggressionLabel = new() { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
 
@@ -53,6 +56,9 @@ public class PlayPage : UserControl
     private readonly PillButton _applyButton = new("Apply Changes");
     private readonly PillButton _gameButton = new("Open CS2");
     private readonly PillButton _stopButton = new("Stop", PillButton.Style.Destructive);
+    private readonly PillButton _copyIp = new("Copy IP");
+    private readonly PillButton _copyInvite = new("Copy Invite", PillButton.Style.Primary);
+    private SettingRow _inviteRow = null!;
     private readonly Label _modeTitle = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _modeStatus = new() { AutoSize = true, MaximumSize = new Size(440, 0), Font = Theme.Body, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 14) };
 
@@ -124,14 +130,17 @@ public class PlayPage : UserControl
         hacker.AddRow("Who Hacks", _hackerMode, "One random: new hacker each round, glows green");
         hacker.AddRow("Wallhack", _hackWallhack, "See enemies glowing through walls");
         hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: smoothly pulls onto visible enemies near your crosshair");
+        hacker.AddRow("Aim Through Walls", _hackAimWalls, "Aimbot also locks onto enemies behind walls (rage)");
         hacker.AddRow("Aim Aggression", new HStack(_hackAggression, _hackAggressionLabel), "1 gentle and loose · 10 fast hard head lock");
         hacker.AddRow("Damage Boost", _hackOneTap, "2× damage");
         hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
         hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
         hacker.AddRow("Bunnyhop", _hackBhop, "Hold jump to bhop perfectly");
         hacker.AddRow("No Flash", _hackNoFlash, "Flashbangs don't blind you");
+        hacker.AddRow("Zero Recoil", _hackNoRecoil, "No recoil at all · applies to the whole server");
+        hacker.AddRow("Zero Spread", _hackNoSpread, "Every bullet goes where you aim · whole server");
         hacker.AddRow("Enemy Info", _hackEspInfo, "Nearest enemy's name, HP, distance and direction on screen");
-        hacker.AddRow("In-Game Cheat Menu", null, "Type !cheats in game, or bind a key: bind F3 css_cheats");
+        hacker.AddRow("In-Game Cheat Menu", null, "In hacker mode: type !cheats in game, or bind a key: bind F3 css_cheats");
 
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
@@ -155,6 +164,13 @@ public class PlayPage : UserControl
         var control = new Group(right);
         control.AddContent(new VStack(_modeTitle, _modeStatus, new HStack(_startButton, _applyButton, _gameButton, _stopButton)),
             new Padding(18, 16, 18, 18));
+        _inviteRow = control.AddRow("Invite Friends", new HStack(_copyIp, _copyInvite), "");
+        _copyIp.Click += (_, _) => CopyToClipboard(FriendsInvite.HostAddress(_app.Settings.Server), "Address copied - send it to your friend.");
+        _copyInvite.Click += (_, _) =>
+        {
+            var address = FriendsInvite.HostAddress(_app.Settings.Server);
+            if (address != null) CopyToClipboard(FriendsInvite.InviteText(_app.Settings.Server, address), "Invite copied - paste it to your friend.");
+        };
 
         _giveButton.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
         _actions = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(right - 28, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
@@ -257,6 +273,9 @@ public class PlayPage : UserControl
         _hackBhop.Checked = s.HackBhop;
         _hackNoFlash.Checked = s.HackNoFlash;
         _hackEspInfo.Checked = s.HackEspInfo;
+        _hackAimWalls.Checked = s.HackAimWalls;
+        _hackNoRecoil.Checked = s.HackNoRecoil;
+        _hackNoSpread.Checked = s.HackNoSpread;
         _hackAggression.Value = Math.Clamp(s.HackAggression, 1, 10);
         _hackAggressionLabel.Text = AggressionText(_hackAggression.Value);
     }
@@ -290,6 +309,9 @@ public class PlayPage : UserControl
         s.HackBhop = _hackBhop.Checked;
         s.HackNoFlash = _hackNoFlash.Checked;
         s.HackEspInfo = _hackEspInfo.Checked;
+        s.HackAimWalls = _hackAimWalls.Checked;
+        s.HackNoRecoil = _hackNoRecoil.Checked;
+        s.HackNoSpread = _hackNoSpread.Checked;
         s.HackAggression = _hackAggression.Value;
         _app.Settings.Save();
         return s;
@@ -462,8 +484,39 @@ public class PlayPage : UserControl
         UpdateWorkshopRow();
     }
 
+    private void RefreshInviteRow()
+    {
+        var s = _app.Settings.Server;
+        var address = FriendsInvite.HostAddress(s);
+        _copyIp.Enabled = _copyInvite.Enabled = address != null;
+        var how = s.Friends switch
+        {
+            ServerSettings.FriendsNetwork.Internet => "Internet",
+            ServerSettings.FriendsNetwork.Vpn => "Radmin VPN",
+            _ => "same Wi-Fi",
+        };
+        _inviteRow.Subtitle = address != null ? $"{address} · {how} · change on the Friends page"
+            : s.Friends == ServerSettings.FriendsNetwork.Internet ? "Router address appears after Start (or open the Friends page)"
+            : $"No {how} address found · see the Friends page";
+    }
+
+    private void CopyToClipboard(string? text, string message)
+    {
+        if (string.IsNullOrEmpty(text)) return;
+        try
+        {
+            Clipboard.SetText(text);
+            Toast.Show(message);
+        }
+        catch (Exception ex)
+        {
+            _app.Log("Could not copy: " + ex.Message);
+        }
+    }
+
     private void RefreshLive()
     {
+        RefreshInviteRow();
         var status = _app.ReadServerStatus();
         HandleWorkshopStartup(status);
         var running = status != null;

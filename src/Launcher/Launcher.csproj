@@ -10,6 +10,8 @@
     <AssemblyName>LanSkinTesterLauncher</AssemblyName>
     <RootNamespace>LanSkinTester.Launcher</RootNamespace>
     <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <ApplicationIcon>app.ico</ApplicationIcon>
+    <Product>LAN Skin Tester</Product>
     <!-- No designer files: controls are built in code. -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
@@ -20,6 +22,11 @@
     <Compile Include="..\LanSkinTester\Loadout.cs" Link="Shared\Loadout.cs" />
     <Compile Include="..\LanSkinTester\ItemImport.cs" Link="Shared\ItemImport.cs" />
     <Compile Include="..\LanSkinTester\ServerStatus.cs" Link="Shared\ServerStatus.cs" />
+  </ItemGroup>
+
+  <!-- App logo for the sidebar (the same art as app.ico, from assets/make_icon.py). -->
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\assets\app.png" LogicalName="app.png" />
   </ItemGroup>
 
   <!-- The built plugin ships inside the exe (build.sh builds the plugin first). -->

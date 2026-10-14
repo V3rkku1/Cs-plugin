@@ -8,7 +8,6 @@ namespace LanSkinTester.Launcher;
 /// <summary>Play with friends: host (address, firewall, skins mode, invite) or join a friend's server.</summary>
 public class FriendsPage : UserControl
 {
-    private const string DownloadUrl = "https://github.com/V3rkku1/Cs-plugin/releases/tag/latest";
 
     private readonly AppState _app;
     private readonly PlayPage _play;
@@ -28,7 +27,9 @@ public class FriendsPage : UserControl
     private readonly SettingRow _serverRow;
 
     // Join
-    private readonly TextField _joinAddress = new(200) { PlaceholderText = "26.12.34.56" };
+    private readonly TextField _joinAddress = new(200) { PlaceholderText = "Invite code or address" };
+    private Control _recentRow = null!;
+    private readonly FlowLayoutPanel _recent = new() { AutoSize = true, MaximumSize = new Size(470, 0), Margin = Padding.Empty };
     private readonly TextField _joinPassword = new(200) { PlaceholderText = "If they set one" };
     private readonly PillButton _joinButton = new("Join Game", PillButton.Style.Primary);
 
@@ -78,12 +79,13 @@ public class FriendsPage : UserControl
 
         // ---- Join ----
         var join = new Group(right);
-        join.AddRow("Friend's Address", _joinAddress);
+        join.AddRow("Invite Code or Address", _joinAddress, "Paste what your friend sent");
         join.AddRow("Password", _joinPassword);
         _joinButton.Height = 36;
+        _recentRow = join.AddContent(new VStack(Theme.Caption("RECENT"), _recent), new Padding(0, 0, 14, 0));
         join.AddContent(new VStack(_joinButton,
-            Hint("You don't need to install anything to join. CS2 starts with VAC off for this one game; " +
-                 "next time you start it from Steam it's completely normal.", right)),
+            Hint("Nothing to install. CS2 starts with VAC off for this one game (normal again next time). " +
+                 "If CS2 is already open, it just connects.", right)),
             new Padding(14, 12, 14, 12));
 
         var safe = new Group(right);
@@ -133,6 +135,8 @@ public class FriendsPage : UserControl
         _stopButton.Click += (_, _) => _play.StopServer();
         _inviteButton.Click += (_, _) => Copy(Invite(), "Invite copied - paste it to your friend.");
         _joinButton.Click += (_, _) => Join();
+        _joinAddress.Box.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Join(); } };
+        FillRecent();
 
         _app.Changed += Refresh;
         RouterPort.Changed += () =>
@@ -339,20 +343,7 @@ public class FriendsPage : UserControl
         }
     }
 
-    private string Invite()
-    {
-        var s = _app.Settings.Server;
-        var lines = new List<string>
-        {
-            "Join my CS2 skin server!",
-            $"1. Download LAN Skin Tester: {DownloadUrl}",
-            "2. Open it → Friends → Join a Friend",
-            $"3. Address: {SelectedAddress()}" + (s.Password != "" ? $"   Password: {s.Password}" : ""),
-        };
-        if (s.Friends == ServerSettings.FriendsNetwork.Vpn) lines.Insert(1, "0. Be in the same Radmin VPN network as me");
-        if (!s.SharedSkins) lines.Add("Pick skins in chat: !skin <name>, !knife <name>, !gen <code>");
-        return string.Join(Environment.NewLine, lines);
-    }
+    private string Invite() => FriendsInvite.InviteText(_app.Settings.Server, SelectedAddress());
 
     private void Copy(string text, string message)
     {
@@ -373,36 +364,70 @@ public class FriendsPage : UserControl
     // Joining
     // ---------------------------------------------------------------------------------------------
 
-    private void Join()
+    private void Join() => Join(FriendsInvite.Parse(_joinAddress.Text, _joinPassword.Text));
+
+    private void Join(JoinTarget? target)
     {
         if (_app.Game == null) return;
-        var address = _joinAddress.Text.Trim().Replace("connect ", "");
-        if (address == "")
+        if (target == null)
         {
-            MessageBox.Show(this, "Type your friend's address (they find it on their Friends page).", "Join", MessageBoxButtons.OK, MessageBoxIcon.Information);
-            return;
-        }
-        if (!address.Contains(':')) address += ":" + ServerSettings.Port;
-
-        if (TestSession.Cs2Running())
-        {
-            MessageBox.Show(this, "Close CS2 first - it has to restart to join with VAC off.", "Join", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            MessageBox.Show(this, "Paste the invite code your friend sent (LST-…), or type their address.", "Join",
+                MessageBoxButtons.OK, MessageBoxIcon.Information);
             return;
         }
 
         try
         {
-            Process.Start(new ProcessStartInfo(_app.Game.Exe)
+            if (TestSession.Cs2Running())
             {
-                Arguments = ServerSettings.JoinArguments(_app.Settings.Server.GameArgs, address, _joinPassword.Text),
-                UseShellExecute = true,
-                WorkingDirectory = Path.GetDirectoryName(_app.Game.Exe)!,
-            });
-            _app.Log($"Joining {address} (VAC off for this game). If it doesn't connect: console (~) → connect {address}");
+                // No restart: Steam hands the connect link to the open game.
+                Process.Start(new ProcessStartInfo(FriendsInvite.SteamConnectUrl(target)) { UseShellExecute = true });
+                _app.Log($"Joining {target.Address} in your open CS2... If it says the server is insecure, close CS2 and press Join again " +
+                         "(then it restarts with VAC off for this game).");
+            }
+            else
+            {
+                Process.Start(new ProcessStartInfo(_app.Game.Exe)
+                {
+                    Arguments = ServerSettings.JoinArguments(_app.Settings.Server.GameArgs, target.Address, target.Password),
+                    UseShellExecute = true,
+                    WorkingDirectory = Path.GetDirectoryName(_app.Game.Exe)!,
+                });
+                _app.Log($"Joining {target.Address} (VAC off for this game). If it doesn't connect: console (~) → connect {target.Address}");
+            }
+            Toast.Show($"Joining {target.Address}…", Toast.Kind.Info);
+            Remember(target);
         }
         catch (Exception ex)
         {
-            _app.Log("Could not start CS2: " + ex.Message);
+            _app.Log("Could not join: " + ex.Message);
         }
+    }
+
+    private void Remember(JoinTarget target)
+    {
+        var list = _app.Settings.RecentServers;
+        list.RemoveAll(r => r.Address == target.Address);
+        list.Insert(0, target);
+        if (list.Count > 4) list.RemoveRange(4, list.Count - 4);
+        _app.Settings.Save();
+        FillRecent();
+    }
+
+    /// <summary>One-click rejoin buttons for the last servers.</summary>
+    private void FillRecent()
+    {
+        _recent.SuspendLayout();
+        foreach (Control c in _recent.Controls.Cast<Control>().ToList()) c.Dispose();
+        _recent.Controls.Clear();
+        foreach (var server in _app.Settings.RecentServers)
+        {
+            var b = new PillButton(server.Address) { Margin = new Padding(0, 0, 8, 8) };
+            b.Click += (_, _) => Join(server);
+            _recent.Controls.Add(b);
+        }
+        _recentRow.Visible = _recent.Controls.Count > 0;
+        _recent.Margin = new Padding(14, 0, 0, 0);
+        _recent.ResumeLayout();
     }
 }

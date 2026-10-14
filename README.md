@@ -24,8 +24,12 @@ and its pattern seed before you buy it.
 **Download:** on GitHub, open **Releases → Latest build**. Every push builds the launcher and plugin
 automatically (see `.github/workflows/build.yml`).
 
-Two versions, same app:
-- `LanSkinTesterLauncher.exe` (about 50 MB): one file, nothing else to install.
+Pick one:
+- **`LanSkinTesterSetup.exe` (recommended):** the installer. It installs for your Windows user only
+  (no admin prompt) into `%LocalAppData%\Programs\LAN Skin Tester`, adds a Start menu shortcut and an
+  optional desktop shortcut, and appears in Windows' *Installed apps*, so it can be uninstalled
+  there. Uninstalling keeps your loadouts and settings.
+- `LanSkinTesterLauncher.exe` (about 50 MB): the same launcher as one portable file.
 - `LanSkinTesterLauncher-small.zip` (about 0.1 MB): extract it and run `LanSkinTesterLauncher.exe`.
   It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
@@ -93,7 +97,11 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
     your crosshair, after a human-like reaction delay, at the head or neck, not pixel-perfect. It only
     locks onto enemies you can actually see: a line-of-sight trace from your eyes to their head or
     chest, so walls, floors, props and glass block it (smokes don't).
+  - *Aim through walls:* the aimbot also locks onto enemies behind walls (off by default, "rage").
   - *Damage boost:* 2× damage (off by default).
+  - *Zero recoil* and *zero spread:* no recoil, and every bullet goes exactly where you aim. CS2 only
+    has these server-wide (`weapon_recoil_scale`, `weapon_accuracy_nospread`), so they apply to
+    everyone, bots included, while hacker mode is on.
   - *Bunnyhop:* hold jump to bhop perfectly.
   - *No flash:* flashbangs don't blind you.
   - *Enemy info:* the nearest enemy's name, HP, distance and direction (an arrow) in the middle of
@@ -111,8 +119,7 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 - **Aim aggression** (1-10, also a slider on the Play page as the default): 1 is gentle and loose
   (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 10 is a hard
   head lock (36° area, fast pull, ~50 ms reaction, dead-centre head).
-  - With hacker mode **off**, anyone can still open it to practise with cheats on their own
-    (LAN / private servers only). With **One random**, only that round's hacker gets it.
+  - It only works in hacker mode. With **One random**, only that round's hacker gets it.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
   chat shows who is hacking.
 - It all runs on your server: glowing copies of the player models that only some players receive,
@@ -150,7 +157,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
      A password is always used in this mode (one is made for you if you leave it empty).
 2. **Your address** is found automatically: your `192.168.x.x` address, your Radmin `26.x.x.x`
    address, or your internet address from the router. *Copy Invite* copies a short message with the
-   download link, the address and the password.
+   download link and an **invite code** (`LST-…`), which holds the address, port and password in one
+   piece. The Play page's Server card has the same **Copy IP** and **Copy Invite** buttons.
 3. **Options:**
    - **Skins:** *Everyone uses mine*, or *Each picks own*. With *Each picks own*, friends use `!skin`,
      `!knife`, `!gloves` and `!gen` in chat, and you keep the launcher's loadout.
@@ -158,7 +166,10 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
    - **Windows Firewall:** press *Allow* once (it asks for admin).
 4. **Start Hosting** uses the mode, map and bots from the Play page. The list underneath shows who joined.
 
-*Friend:* download the launcher, open **Friends → Join a Friend**, and type the address and password.
+*Friend:* download the launcher, open **Friends → Join a Friend**, paste the invite code (or the whole
+invite message, an address, `connect …` or a `steam://connect/…` link) and press **Join Game**.
+If CS2 is already open, it connects without restarting (through Steam); otherwise CS2 starts with VAC
+off for that game. The last servers you joined appear as **Recent** buttons for one-click rejoin.
 They don't need to install anything: the launcher only starts CS2 with `-insecure +connect <address>`.
 Next time they start CS2 from Steam it's completely normal.
 
@@ -185,8 +196,10 @@ runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`l
 - **Restores CS2 by itself.** When CS2 and the server are closed (with the X, after a crash, or
   even with the launcher closed in between), the launcher switches test mode off a few seconds
   later. You don't have to remember Stop before playing online.
-- **Update notice.** When GitHub has a newer build, a blue *Update available* card appears in the
-  sidebar. Click it to open the download page. The sidebar shows which build you have.
+- **Updates itself.** When GitHub has a newer build (checked at start and every few hours), a blue
+  *Update available* card appears in the sidebar. Click it: the launcher downloads the new version,
+  closes, swaps itself and starts again (not while test mode is on). If its folder isn't writable,
+  it opens the download page instead. The sidebar shows which build you have.
 - **Notifications.** Short pop-ups at the bottom confirm actions (equipped, copied, started, applied…).
 - **Remembers** the window size and position and the page you had open.
 - **Keyboard shortcuts:**

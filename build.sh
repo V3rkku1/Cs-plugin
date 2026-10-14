@@ -3,6 +3,7 @@
 #   build/LanSkinTester.zip            - the plugin, laid out as it goes into game/csgo/
 #   build/LanSkinTesterLauncher.exe    - Windows launcher (installer + skin picker), plugin included
 #   build/LanSkinTesterLauncher-small.zip - same, needs the .NET 10 Desktop Runtime installed
+#   build/LanSkinTesterSetup.exe       - installer (Start menu / desktop shortcuts, uninstaller), if NSIS is installed
 set -euo pipefail
 cd "$(dirname "$0")"
 
@@ -29,3 +30,13 @@ dotnet publish src/Launcher -c Release -r win-x64 --self-contained false \
   -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" -p:SourceRevisionId="$REV" -o build/LanSkinTesterLauncher-small
 (cd build && zip -qr LanSkinTesterLauncher-small.zip LanSkinTesterLauncher-small) && rm -rf build/LanSkinTesterLauncher-small
 echo "Built build/LanSkinTesterLauncher-small.zip"
+
+# Installer (needs NSIS: apt-get install nsis). Wraps the self-contained exe.
+if command -v makensis >/dev/null; then
+  VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/LanSkinTester/LanSkinTester.csproj | head -1)
+  makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$PWD/build/LanSkinTesterLauncher.exe" \
+    -DOUT="$PWD/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
+  echo "Built build/LanSkinTesterSetup.exe"
+else
+  echo "makensis not found - skipping the installer (apt-get install nsis)"
+fi

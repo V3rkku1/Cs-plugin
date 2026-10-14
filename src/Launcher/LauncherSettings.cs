@@ -14,6 +14,9 @@ public class LauncherSettings
     public bool Maximized { get; set; }
     public string? LastPage { get; set; }
 
+    /// <summary>Servers joined lately (newest first), for one-click rejoin on the Friends page.</summary>
+    public List<JoinTarget> RecentServers { get; set; } = new();
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 

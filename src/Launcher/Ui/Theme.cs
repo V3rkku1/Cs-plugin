@@ -89,6 +89,18 @@ public static class Theme
         g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
     }
 
+    /// <summary>Brand gradient (the app icon's blue → violet), used for primary buttons.</summary>
+    public static readonly Color GradientStart = Color.FromArgb(10, 132, 255);
+    public static readonly Color GradientEnd = Color.FromArgb(124, 77, 255);
+
+    public static void FillRoundedGradient(Graphics g, Color from, Color to, RectangleF r, float radius)
+    {
+        if (r.Width <= 0 || r.Height <= 0) return;
+        using var path = Rounded(r, radius);
+        using var brush = new System.Drawing.Drawing2D.LinearGradientBrush(r, from, to, System.Drawing.Drawing2D.LinearGradientMode.ForwardDiagonal);
+        g.FillPath(brush, path);
+    }
+
     public static void FillRounded(Graphics g, Color color, RectangleF r, float radius)
     {
         using var path = Rounded(r, radius);

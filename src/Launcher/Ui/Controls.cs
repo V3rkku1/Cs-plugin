@@ -93,7 +93,14 @@ public class PillButton : DrawnControl, IButtonControl
             fill = ButtonStyle == Style.Plain ? Color.Transparent : Theme.WithAlpha(Theme.Fill, 110);
             text = Theme.Tertiary;
         }
-        if (fill.A > 0) Theme.FillRounded(g, fill, r, Radius);
+        if (ButtonStyle == Style.Primary && Enabled)
+        {
+            // Primary buttons: the brand gradient, a bit brighter on hover, darker when pressed.
+            var shade = Pressed ? -0.15f : Hover ? 0.12f : 0f;
+            Color Shade(Color c) => shade >= 0 ? Theme.Blend(c, Color.White, shade) : Theme.Blend(c, Color.Black, -shade);
+            Theme.FillRoundedGradient(g, Shade(Theme.GradientStart), Shade(Theme.GradientEnd), r, Radius);
+        }
+        else if (fill.A > 0) Theme.FillRounded(g, fill, r, Radius);
         if (Focused && ShowFocusCues)
         {
             using var path = Theme.Rounded(r, Radius);
@@ -710,7 +717,14 @@ public class Group : Panel
     {
         using (var bg = new SolidBrush(Theme.BackdropOf(Parent))) e.Graphics.FillRectangle(bg, ClientRectangle);
         Theme.Smooth(e.Graphics);
-        Theme.FillRounded(e.Graphics, Theme.Card, new RectangleF(0, 0, Width - 0.5f, Height - 0.5f), 12);
+        var card = new RectangleF(0, 0, Width - 0.5f, Height - 0.5f);
+        Theme.FillRounded(e.Graphics, Theme.Card, card, 12);
+        // Glass edge: a faint lighter rim, strongest at the top (light from above).
+        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 12))
+        using (var rim = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(0, 0, Width, Math.Max(Height, 1)),
+                   Color.FromArgb(46, 255, 255, 255), Color.FromArgb(10, 255, 255, 255), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
+        using (var pen = new Pen(rim, 1f))
+            e.Graphics.DrawPath(pen, path);
     }
 
     protected override void OnPaint(PaintEventArgs e)

@@ -120,6 +120,12 @@ public class ServerSettings
     public bool HackBhop { get; set; }
     public bool HackNoFlash { get; set; }
     public bool HackEspInfo { get; set; }
+    public bool HackAimWalls { get; set; }
+
+    /// <summary>Hacker mode: no recoil / no spread. CS2 only has these server-wide (weapon_recoil_scale,
+    /// weapon_accuracy_nospread), so with "One random" they apply to everyone, bots included.</summary>
+    public bool HackNoRecoil { get; set; }
+    public bool HackNoSpread { get; set; }
 
     /// <summary>Aimbot aggression 1 (gentle, slow, loose) - 10 (fast hard head lock).</summary>
     public int HackAggression { get; set; } = 5;
@@ -202,13 +208,15 @@ public class ServerSettings
         MaxMoney = AllowCheats = true;
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
-        HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = false;
+        HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = false;
         HackAggression = 5;
     }
 
     public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
 
-    private bool NeedsCheats => AllowCheats || InfiniteAmmo || BotsDontShoot;
+    private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
+
+    private bool NeedsCheats => AllowCheats || InfiniteAmmo || BotsDontShoot || HackRecoilOrSpread;
 
     public string StartArguments()
     {
@@ -273,6 +281,9 @@ public class ServerSettings
         sb.AppendLine("sv_cheats 1");
         sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : 0)}");
         sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
+        // Hacker mode: zero recoil / zero spread (server-wide cheat cvars; 2 and 0 are CS2's defaults).
+        sb.AppendLine($"weapon_recoil_scale {(HackerMode != 0 && HackNoRecoil ? 0 : 2)}");
+        sb.AppendLine($"weapon_accuracy_nospread {(HackerMode != 0 && HackNoSpread ? 1 : 0)}");
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
 
         // Bots: difficulty only applies to newly added bots, so kick and re-add them.
@@ -334,6 +345,7 @@ public class ServerSettings
         if (HackBhop) powers.Add("bhop");
         if (HackNoFlash) powers.Add("noflash");
         if (HackEspInfo) powers.Add("espinfo");
+        if (HackAimWalls) powers.Add("aimwalls");
         sb.AppendLine($"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}");
         sb.AppendLine($"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}");
         sb.AppendLine($"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}");
