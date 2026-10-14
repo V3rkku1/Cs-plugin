@@ -19,7 +19,7 @@ public partial class LanSkinTester
         public PlayerButtons LastButtons;
         public MoveType_t PreviousMoveType = MoveType_t.MOVETYPE_WALK;
         public bool Dirty = true;
-        public int RedrawIn;
+        public string Html = "";
     }
 
     private sealed record MenuItem(string Label, Func<CCSPlayerController, string> Value, Action<CCSPlayerController, bool> Activate);
@@ -166,13 +166,14 @@ public partial class LanSkinTester
             else if ((pressed & PlayerButtons.Moveleft) != 0) Activate(player, state, forward: false);
             if (!_cheatMenus.ContainsKey(slot)) continue; // "Close" was picked
 
-            // Redraw on change, and every half second so the panel doesn't fade out.
-            if (state.Dirty || --state.RedrawIn <= 0)
+            // Send the (unchanged) text every tick, like CounterStrikeSharp's own center menus: refreshing
+            // less often lets the panel fade out and back in, which flickers.
+            if (state.Dirty)
             {
-                player.PrintToCenterHtml(RenderMenu(player, state), 1);
+                state.Html = RenderMenu(player, state);
                 state.Dirty = false;
-                state.RedrawIn = 32;
             }
+            player.PrintToCenterHtml(state.Html, 1);
         }
     }
 

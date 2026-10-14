@@ -95,6 +95,7 @@ public partial class LanSkinTester
             _aimSettings.Remove(slot);
             _aimLocks.Remove(slot);
             _cheatMenus.Remove(slot);
+            _espText.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnHackSpawn);
@@ -343,7 +344,7 @@ public partial class LanSkinTester
             if (pawn == null || !pawn.IsValid) continue;
 
             if (Has(hacker, Power.Bhop)) AutoBhop(hacker, pawn);
-            if (Has(hacker, Power.EspInfo) && _tick % 16 == 0) ShowEnemyInfo(hacker, pawn);
+            if (Has(hacker, Power.EspInfo)) ShowEnemyInfo(hacker, pawn, refresh: _tick % 8 == 0);
 
             if (Has(hacker, Power.Speed) && pawn.VelocityModifier < SpeedMultiplier)
             {
@@ -448,9 +449,21 @@ public partial class LanSkinTester
     private static readonly string[] Arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
 
     /// <summary>"ESP" line in the center of the screen: the nearest enemy's name, health, distance and direction.</summary>
-    private void ShowEnemyInfo(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    private readonly Dictionary<int, string> _espText = new();
+
+    /// <summary>
+    /// Recomputes the line every few ticks (refresh) but re-sends it every tick so the center panel
+    /// stays steady instead of fading in and out.
+    /// </summary>
+    private void ShowEnemyInfo(CCSPlayerController hacker, CCSPlayerPawn pawn, bool refresh)
     {
         if (_cheatMenus.ContainsKey(hacker.Slot) || DateTime.UtcNow < _quietUntil) return;
+        if (!refresh)
+        {
+            if (_espText.TryGetValue(hacker.Slot, out var cached) && cached != "") hacker.PrintToCenterHtml(cached, 1);
+            return;
+        }
+        _espText[hacker.Slot] = "";
         var origin = pawn.AbsOrigin;
         if (origin == null) return;
 
@@ -474,9 +487,10 @@ public partial class LanSkinTester
         var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
         var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
         var visible = IsVisibleTo(nearestPawn, pawn);
-        hacker.PrintToCenterHtml(
-            $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
-            $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>", 1);
+        var text = $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
+                   $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>";
+        _espText[hacker.Slot] = text;
+        hacker.PrintToCenterHtml(text, 1);
     }
 
     private (float Fov, float Smooth) AimSettingsOf(CCSPlayerController player) =>
