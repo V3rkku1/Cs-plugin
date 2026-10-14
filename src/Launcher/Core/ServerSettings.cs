@@ -205,7 +205,9 @@ public class ServerSettings
     {
         var mode = GetMode();
         // -condebug: the server writes csgo\console.log, which the launcher shows if the server crashes.
-        return $"-dedicated -insecure -condebug +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
+        // sv_hibernate_when_empty 0: an empty server otherwise sleeps after a few seconds, and then the
+        // plugin can't run the launcher's commands (e.g. switching to a Workshop map) until someone joins.
+        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
@@ -251,6 +253,7 @@ public class ServerSettings
         var cheats = NeedsCheats;
         var sb = new StringBuilder();
         sb.AppendLine("// Written by the LAN Skin Tester launcher - changes here are overwritten.");
+        sb.AppendLine("sv_hibernate_when_empty 0"); // keep running with nobody connected (launcher commands, bots)
         sb.AppendLine($"sv_lan {(PrivateServer ? 0 : 1)}");
         sb.AppendLine($"lst_private_server {(PrivateServer ? 1 : 0)}");
         sb.AppendLine($"lst_shared_loadout {(SharedSkins ? 1 : 0)}");
