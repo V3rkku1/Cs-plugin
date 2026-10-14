@@ -55,11 +55,17 @@ public class ServerSettings
     /// <summary>Extra CS2 launch options for the game window, e.g. "-windowed -w 1920 -h 1080 -novid".</summary>
     public string GameArgs { get; set; } = "-novid";
 
+    public enum FriendsNetwork { Lan, Vpn, Internet }
+
     /// <summary>
-    /// Friends join over Radmin VPN / Hamachi / ZeroTier: those addresses aren't "local" for sv_lan 1,
-    /// so the server runs with sv_lan 0 (still unlisted: no game server token) and the plugin is told it's private.
+    /// How friends reach the server. Radmin / Hamachi addresses and internet players (UPnP) aren't
+    /// "local" for sv_lan 1, so then the server runs with sv_lan 0 (still unlisted: no game server token)
+    /// and the plugin is told it's a private server.
     /// </summary>
-    public bool FriendsVpn { get; set; }
+    public FriendsNetwork Friends { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool PrivateServer => Friends != FriendsNetwork.Lan;
 
     /// <summary>Everyone uses the launcher's loadout (off = each friend picks skins in chat; the host keeps the launcher's).</summary>
     public bool SharedSkins { get; set; } = true;
@@ -137,7 +143,7 @@ public class ServerSettings
     {
         var mode = GetMode();
         var map = WorkshopMapId != null ? $"+host_workshop_map {WorkshopMapId}" : $"+map {Map}";
-        return $"-dedicated -insecure +sv_lan {(FriendsVpn ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} {map}";
+        return $"-dedicated -insecure +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} {map}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
@@ -182,8 +188,8 @@ public class ServerSettings
         var cheats = NeedsCheats;
         var sb = new StringBuilder();
         sb.AppendLine("// Written by the LAN Skin Tester launcher - changes here are overwritten.");
-        sb.AppendLine($"sv_lan {(FriendsVpn ? 0 : 1)}");
-        sb.AppendLine($"lst_private_server {(FriendsVpn ? 1 : 0)}");
+        sb.AppendLine($"sv_lan {(PrivateServer ? 0 : 1)}");
+        sb.AppendLine($"lst_private_server {(PrivateServer ? 1 : 0)}");
         sb.AppendLine($"lst_shared_loadout {(SharedSkins ? 1 : 0)}");
         sb.AppendLine($"lst_host_account {ActiveSteamAccount()}");
         sb.AppendLine($"sv_password \"{(Password ?? "").Replace("\"", "").Trim()}\"");

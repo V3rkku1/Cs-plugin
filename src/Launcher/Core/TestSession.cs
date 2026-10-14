@@ -54,5 +54,6 @@ public class TestSession
             catch (Exception) { /* already gone */ }
         }
         GameInfoPatcher.Disable(_game.GameInfo);
+        Upnp.RemoveMapping(); // close the router port again (internet mode)
     }
 }

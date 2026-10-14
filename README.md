@@ -93,11 +93,16 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 **FRIENDS page**: play together
 
 *Host (you):*
-1. **How are you connected?** Pick *Same Wi-Fi / LAN* (your friend is at your place) or
-   *Radmin VPN / Hamachi* (over the internet: install the free [Radmin VPN](https://www.radmin-vpn.com/)
-   and both join the same network).
-2. **Your address** is found automatically (your `192.168.x.x` or Radmin `26.x.x.x` address). *Copy
-   Invite* copies a short message with the download link, the address and the password.
+1. **How are you connected?**
+   - *Same Wi-Fi*: your friend is at your place.
+   - *Radmin / Hamachi*: over the internet with the free [Radmin VPN](https://www.radmin-vpn.com/).
+     You both join the same Radmin network first.
+   - *Internet (UPnP)*: over the internet with nothing else to install. The launcher asks your router
+     to open UDP port 27015 (UPnP) when you start hosting, and closes it again when you press Stop.
+     A password is always used in this mode (one is made for you if you leave it empty).
+2. **Your address** is found automatically: your `192.168.x.x` address, your Radmin `26.x.x.x`
+   address, or your internet address from the router. *Copy Invite* copies a short message with the
+   download link, the address and the password.
 3. **Options:**
    - **Skins:** *Everyone uses mine*, or *Each picks own*. With *Each picks own*, friends use `!skin`,
      `!knife`, `!gloves` and `!gen` in chat, and you keep the launcher's loadout.
@@ -117,8 +122,15 @@ Next time they start CS2 from Steam it's completely normal.
 - The server has no game server token and isn't listed in the server browser. Don't run this plugin on
   a public server: that's against Valve's server rules.
 
-Radmin and Hamachi addresses aren't "local" for CS2's `sv_lan 1`, so in that mode the server runs with
-`sv_lan 0` and the launcher tells the plugin it's a private server (`lst_private_server 1`).
+Radmin, Hamachi and internet players aren't "local" for CS2's `sv_lan 1`, so in those modes the server
+runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`lst_private_server 1`).
+
+*If Internet (UPnP) doesn't work:*
+- "No UPnP router found": turn on UPnP in your router's settings (often under *Advanced* or *NAT*), then press *Retry*.
+- "Your provider shares one address (CGNAT)": your internet provider doesn't give you your own
+  address, so nobody can connect in. This is common on mobile internet and some fiber. Use Radmin instead.
+- "Port 27015 is already forwarded to another PC": remove that rule in your router, or host from that PC.
+- You can also forward UDP port 27015 to your PC in the router by hand and press *Start anyway*.
 
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.

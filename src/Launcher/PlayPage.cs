@@ -327,7 +327,7 @@ public class PlayPage : UserControl
             _runningMap = server.WorkshopMapId ?? server.Map;
             var map = server.WorkshopMapId != null ? $"Workshop map {server.WorkshopMapId}" : server.Map;
             _app.Log($"Started {server.Mode} on {map} with {server.Bots} {ServerSettings.Difficulties[server.Difficulty].ToLowerInvariant()} bots.");
-            if (server.FriendsVpn) _app.Log("Friends mode: Radmin / VPN (sv_lan 0, unlisted, VAC off).");
+            if (server.PrivateServer) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             _app.Log(server.AutoStartGame
                 ? "CS2 joins when the server has loaded. If it doesn't: console (~) → connect localhost"
                 : "Server only - press \"Open CS2\" when you want to join.");

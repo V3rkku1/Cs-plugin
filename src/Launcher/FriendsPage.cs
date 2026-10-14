@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Net;
 using LanSkinTester.Launcher.Core;
 using LanSkinTester.Launcher.Ui;
 
@@ -13,7 +14,7 @@ public class FriendsPage : UserControl
     private readonly PlayPage _play;
 
     // Host
-    private readonly Segmented _network = new(["Same Wi-Fi / LAN", "Radmin VPN / Hamachi"], 170);
+    private readonly Segmented _network = new(["Same Wi-Fi", "Radmin / Hamachi", "Internet (UPnP)"], 152);
     private readonly SettingRow _addressRow;
     private readonly Picker _address = new(170);
     private readonly PillButton _copyAddress = new("Copy");
@@ -34,6 +35,12 @@ public class FriendsPage : UserControl
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 2000 };
     private List<LocalAddress> _addresses = new();
 
+    // Internet mode: the router found with UPnP and its internet address.
+    private UpnpRouter? _router;
+    private IPAddress? _external;
+    private bool _searching;
+    private bool _routerChecked;
+
     public FriendsPage(AppState app, PlayPage play)
     {
         _app = app;
@@ -46,7 +53,8 @@ public class FriendsPage : UserControl
         // ---- Host ----
         var connection = new Group(left);
         connection.AddContent(new VStack(_network,
-            Hint("Same Wi-Fi: your friend is at your place.  Radmin VPN: free, both join the same Radmin network first.", left)),
+            Hint("Same Wi-Fi: your friend is at your place.  Radmin: free VPN, both join the same Radmin network first.  " +
+                 "Internet: the launcher opens the port on your router (UPnP), nothing else to install.", left)),
             new Padding(14, 14, 14, 10));
 
         var address = new Group(left);
@@ -100,26 +108,41 @@ public class FriendsPage : UserControl
             Theme.Caption("STAYING SAFE"), safe,
             Theme.Caption("FRIENDS PICK SKINS IN CHAT"), skins);
 
-        var page = new VStack(PlayPage.Header("Friends", "Play together on the same Wi-Fi or over Radmin VPN."),
+        var page = new VStack(PlayPage.Header("Friends", "Play together on the same Wi-Fi, over Radmin VPN or over the internet."),
             new HStack(leftColumn, rightColumn));
         Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
         LoadSettings();
-        _network.SelectedChanged += (_, _) => { SaveSettings(); FillAddresses(); NoteRestart(); };
+        _network.SelectedChanged += (_, _) =>
+        {
+            SaveSettings();
+            if (Mode != ServerSettings.FriendsNetwork.Internet && Upnp.Active != null) _ = CloseRouterPortAsync();
+            _routerChecked = false; // look again when Internet is picked
+            FillAddresses();
+            NoteRestart();
+        };
         _skins.SelectedChanged += (_, _) => { SaveSettings(); SendIfRunning($"lst_shared_loadout {(_skins.SelectedIndex == 0 ? 1 : 0)}"); };
         _password.Box.Leave += (_, _) => { SaveSettings(); SendIfRunning($"sv_password \"{_app.Settings.Server.Password}\""); };
         _address.SelectedIndexChanged += (_, _) => UpdateAddressRow();
-        _copyAddress.Click += (_, _) => Copy(SelectedAddress(), "Address copied.");
+        _copyAddress.Click += (_, _) =>
+        {
+            if (_address.SelectedItem == null && Mode == ServerSettings.FriendsNetwork.Internet) _ = FindRouterAsync();
+            else Copy(SelectedAddress(), "Address copied.");
+        };
         _firewallButton.Click += (_, _) => AllowFirewall();
-        _hostButton.Click += (_, _) => { SaveSettings(); _play.StartServer(); };
+        _hostButton.Click += async (_, _) => await StartHostingAsync();
         _stopButton.Click += (_, _) => _play.StopServer();
         _inviteButton.Click += (_, _) => Copy(Invite(), "Invite copied - paste it to your friend.");
         _joinButton.Click += (_, _) => Join();
 
         _app.Changed += Refresh;
         VisibleChanged += (_, _) => { if (Visible) { FillAddresses(); RefreshFirewall(); } };
-        _poll.Tick += (_, _) => { if (Visible) RefreshServer(); };
+        _poll.Tick += (_, _) =>
+        {
+            if (Visible) RefreshServer();
+            _ = RenewRouterPortAsync();
+        };
         _poll.Start();
     }
 
@@ -138,7 +161,7 @@ public class FriendsPage : UserControl
     private void LoadSettings()
     {
         var s = _app.Settings.Server;
-        _network.SelectedIndex = s.FriendsVpn ? 1 : 0;
+        _network.SelectedIndex = (int)s.Friends;
         _skins.SelectedIndex = s.SharedSkins ? 0 : 1;
         _password.Text = s.Password;
         FillAddresses();
@@ -147,7 +170,7 @@ public class FriendsPage : UserControl
     private void SaveSettings()
     {
         var s = _app.Settings.Server;
-        s.FriendsVpn = _network.SelectedIndex == 1;
+        s.Friends = Mode;
         s.SharedSkins = _skins.SelectedIndex == 0;
         s.Password = _password.Text.Replace("\"", "").Trim();
         _app.Settings.Save();
@@ -157,10 +180,21 @@ public class FriendsPage : UserControl
     // Address + firewall
     // ---------------------------------------------------------------------------------------------
 
+    private ServerSettings.FriendsNetwork Mode => (ServerSettings.FriendsNetwork)Math.Max(_network.SelectedIndex, 0);
+
     private void FillAddresses()
     {
+        if (Mode == ServerSettings.FriendsNetwork.Internet)
+        {
+            _address.SetItems(_external != null ? [new LocalAddress(_external, "Internet", _router?.Name ?? "router")] : []);
+            if (_address.Items.Count > 0) _address.SelectedIndex = 0;
+            UpdateAddressRow();
+            if (!_routerChecked && !_searching) _ = FindRouterAsync();
+            return;
+        }
+
         _addresses = Network.Addresses();
-        var vpn = _network.SelectedIndex == 1;
+        var vpn = Mode == ServerSettings.FriendsNetwork.Vpn;
         var matching = _addresses.Where(a => a.IsVpn == vpn).ToList();
         _address.SetItems(matching.Count > 0 ? matching : _addresses);
         if (_address.Items.Count > 0) _address.SelectedIndex = 0;
@@ -169,29 +203,136 @@ public class FriendsPage : UserControl
 
     private string SelectedAddress() => _address.SelectedItem?.ToString() ?? "";
 
+    private void SetAddressNote(string text, Color color)
+    {
+        _addressRow.Subtitle = text;
+        _addressRow.SubtitleColor = color;
+    }
+
     private void UpdateAddressRow()
     {
-        var vpn = _network.SelectedIndex == 1;
         var selected = _address.SelectedItem as LocalAddress;
-        _address.Enabled = _copyAddress.Enabled = _inviteButton.Enabled = selected != null;
+        var internet = Mode == ServerSettings.FriendsNetwork.Internet;
+        _address.Enabled = _inviteButton.Enabled = selected != null;
+        _copyAddress.Text = internet && selected == null ? "Retry" : "Copy";
+        _copyAddress.Enabled = selected != null || (internet && !_searching);
 
+        if (Mode == ServerSettings.FriendsNetwork.Internet)
+        {
+            if (_searching) SetAddressNote("Looking for your router…", Theme.Muted);
+            else if (_router == null) SetAddressNote("No UPnP router found - turn on UPnP in your router, or use Radmin", Theme.Warning);
+            else if (_external == null) SetAddressNote($"{_router.Name} didn't say its internet address", Theme.Warning);
+            else if (Upnp.IsBehindAnotherNat(_external))
+                SetAddressNote("Your provider shares one address between homes (CGNAT): friends can't reach you - use Radmin", Theme.Warning);
+            else if (Upnp.Active != null) SetAddressNote($"Port {ServerSettings.Port} is open on {_router.Name}", Theme.Good);
+            else SetAddressNote($"{_router.Name} · the port opens when you start hosting", Theme.Muted);
+            return;
+        }
+
+        var vpn = Mode == ServerSettings.FriendsNetwork.Vpn;
         if (selected == null)
-        {
-            _addressRow.Subtitle = vpn ? "No Radmin address yet - open Radmin VPN and join a network" : "No network found - connect to Wi-Fi";
-            _addressRow.SubtitleColor = Theme.Warning;
-        }
+            SetAddressNote(vpn ? "No Radmin address yet - open Radmin VPN and join a network" : "No network found - connect to Wi-Fi", Theme.Warning);
         else if (selected.IsVpn != vpn)
-        {
-            _addressRow.Subtitle = vpn
+            SetAddressNote(vpn
                 ? "No Radmin address yet - open Radmin VPN and join a network with your friend"
-                : $"Only a {selected.Kind} address found - switch to Radmin above";
-            _addressRow.SubtitleColor = Theme.Warning;
-        }
+                : $"Only a {selected.Kind} address found - switch to Radmin above", Theme.Warning);
         else
+            SetAddressNote($"{selected.Kind} · {selected.Adapter}", Theme.Muted);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Internet (UPnP)
+    // ---------------------------------------------------------------------------------------------
+
+    private async Task FindRouterAsync()
+    {
+        _searching = true;
+        UpdateAddressRow();
+        try
         {
-            _addressRow.Subtitle = $"{selected.Kind} · {selected.Adapter}";
-            _addressRow.SubtitleColor = Theme.Muted;
+            _router = await Task.Run(() => Upnp.DiscoverAsync());
+            _external = _router == null ? null : await Upnp.ExternalAddressAsync(_router);
         }
+        catch (Exception ex)
+        {
+            _app.Log("UPnP: " + (ex is UpnpException u ? u.Friendly : ex.Message));
+        }
+        _searching = false;
+        _routerChecked = true;
+        if (_router != null) _app.Log($"UPnP router: {_router.Name}, internet address {_external?.ToString() ?? "unknown"}.");
+        if (Mode == ServerSettings.FriendsNetwork.Internet) FillAddresses();
+    }
+
+    /// <summary>Opens the port on the router. Returns an error message, or null when it's open.</summary>
+    private async Task<string?> OpenRouterPortAsync()
+    {
+        if (_router == null || _external == null) await FindRouterAsync();
+        if (_router == null) return "No UPnP router answered. Turn on UPnP in your router's settings, or use Radmin.";
+        if (_external != null && Upnp.IsBehindAnotherNat(_external))
+            return $"Your router's internet address ({_external}) is a shared/private one (CGNAT or a second router), so friends can't reach it. Use Radmin instead.";
+        try
+        {
+            await Upnp.AddMappingAsync(_router, ServerSettings.Port);
+            _app.Log($"UPnP: opened UDP port {ServerSettings.Port} on {_router.Name}. It closes again when you press Stop.");
+            return null;
+        }
+        catch (UpnpException ex)
+        {
+            return ex.Friendly;
+        }
+        catch (Exception ex)
+        {
+            return "The router didn't answer: " + ex.Message;
+        }
+        finally
+        {
+            UpdateAddressRow();
+        }
+    }
+
+    private async Task CloseRouterPortAsync()
+    {
+        try
+        {
+            await Upnp.RemoveMappingAsync();
+            _app.Log("UPnP: closed the router port.");
+        }
+        catch (Exception)
+        {
+            // It expires by itself.
+        }
+        UpdateAddressRow();
+    }
+
+    private async Task RenewRouterPortAsync()
+    {
+        try { await Upnp.RenewIfNeededAsync(); }
+        catch (Exception) { /* try again on the next tick */ }
+    }
+
+    private async Task StartHostingAsync()
+    {
+        SaveSettings();
+        if (Mode == ServerSettings.FriendsNetwork.Internet)
+        {
+            // Open to the whole internet: always use a password.
+            if (_app.Settings.Server.Password == "")
+            {
+                _password.Text = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
+                SaveSettings();
+                _app.Log($"Internet mode: set password \"{_password.Text}\" (it's in the invite).");
+            }
+
+            _hostButton.Enabled = false;
+            var error = await OpenRouterPortAsync();
+            _hostButton.Enabled = true;
+            if (error != null &&
+                MessageBox.Show(this, error + "\n\nStart the server anyway? (Friends can only join if you forward UDP port " +
+                                      $"{ServerSettings.Port} to this PC in your router yourself.)",
+                    "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+        }
+        _play.StartServer();
     }
 
     private void RefreshFirewall()
@@ -224,6 +365,7 @@ public class FriendsPage : UserControl
         _hostButton.Enabled = _app.Ready && !on;
         _stopButton.Enabled = on;
         _joinButton.Enabled = _app.Game != null;
+        UpdateAddressRow();
         RefreshServer();
     }
 
@@ -274,7 +416,7 @@ public class FriendsPage : UserControl
             "2. Open it → Friends → Join a Friend",
             $"3. Address: {SelectedAddress()}" + (s.Password != "" ? $"   Password: {s.Password}" : ""),
         };
-        if (s.FriendsVpn) lines.Insert(1, "0. Be in the same Radmin VPN network as me");
+        if (s.Friends == ServerSettings.FriendsNetwork.Vpn) lines.Insert(1, "0. Be in the same Radmin VPN network as me");
         if (!s.SharedSkins) lines.Add("Pick skins in chat: !skin <name>, !knife <name>, !gen <code>");
         return string.Join(Environment.NewLine, lines);
     }
