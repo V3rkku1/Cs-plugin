@@ -65,6 +65,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
      game server token) and loads it from the Workshop with `host_workshop_map`, so you need internet
      and the first start takes longer while it downloads. Players' games fetch the map automatically
      when they join. **Subscribe** opens the map in Steam, so your own game already has it.
+     CS2 waits until the server has downloaded and loaded the map, then starts and joins by itself
+     (joining earlier fails with "unable to establish a connection").
    - **If the server crashes or closes by itself**, the Activity log shows its last console lines
      (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
      you report a problem.

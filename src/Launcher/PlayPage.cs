@@ -289,6 +289,38 @@ public class PlayPage : UserControl
 
     private Process? _reportedServer;
 
+    /// <summary>Set while waiting for a Workshop map download before starting CS2.</summary>
+    private DateTime? _gameWaitSince;
+
+    private void StartGameWhenServerReady(ServerStatus? status)
+    {
+        if (_gameWaitSince is not { } since || _app.Game == null) return;
+        if (!_app.TestModeOn)
+        {
+            _gameWaitSince = null; // stopped meanwhile
+            return;
+        }
+        if (status != null)
+        {
+            _gameWaitSince = null;
+            try
+            {
+                new TestSession(_app.Game).StartGame(_app.Settings.Server);
+                _app.Log("Server is up - starting CS2 and joining.");
+                Toast.Show("Map loaded - starting CS2…", Toast.Kind.Info);
+            }
+            catch (Exception ex)
+            {
+                _app.Log("Could not start CS2: " + ex.Message);
+            }
+        }
+        else if (DateTime.UtcNow - since > TimeSpan.FromMinutes(15))
+        {
+            _gameWaitSince = null;
+            _app.Log("The server still hasn't loaded the map after 15 minutes. Check the server window, or press \"Open CS2\" to try anyway.");
+        }
+    }
+
     /// <summary>The server we started is gone without Stop: say so and show its last console lines.</summary>
     private void CheckServerCrash()
     {
@@ -373,16 +405,18 @@ public class PlayPage : UserControl
     private void RefreshLive()
     {
         var status = _app.ReadServerStatus();
+        StartGameWhenServerReady(status);
         var running = status != null;
         foreach (Control c in _actions.Controls) c.Enabled = running;
         _giveBox.Enabled = _giveButton.Enabled = running;
 
         if (status == null)
         {
-            _liveRow.Title = _app.TestModeOn ? "Server starting…" : "Server not running";
-            _liveRow.Subtitle = _app.TestModeOn
-                ? "Loading the map can take a minute. Actions unlock when it's up."
-                : "Press Start or pick a quick start.";
+            _liveRow.Title = !_app.TestModeOn ? "Server not running"
+                : _gameWaitSince != null ? "Downloading the Workshop map…" : "Server starting…";
+            _liveRow.Subtitle = !_app.TestModeOn ? "Press Start or pick a quick start."
+                : _gameWaitSince != null ? "CS2 starts by itself when the map has loaded."
+                : "Loading the map can take a minute. Actions unlock when it's up.";
             _liveRow.SubtitleColor = Theme.Muted;
             return;
         }
@@ -425,7 +459,8 @@ public class PlayPage : UserControl
         try
         {
             _app.AllowSkinsInCss();
-            new TestSession(_app.Game).Start(server, forFriends);
+            var gameStarted = new TestSession(_app.Game).Start(server, forFriends);
+            _gameWaitSince = !gameStarted && server.AutoStartGame ? DateTime.UtcNow : null;
             _runningMode = server.Mode;
             _runningMap = server.WorkshopMapId ?? server.Map;
             _runningOnline = server.PrivateServer;
@@ -437,9 +472,9 @@ public class PlayPage : UserControl
             _app.Log($"Started {server.Mode} on {map} with {server.Bots} {ServerSettings.Difficulties[server.Difficulty].ToLowerInvariant()} bots.");
             Toast.Show($"Starting {server.Mode} on {map}…", Toast.Kind.Info);
             if (server.Friends != ServerSettings.FriendsNetwork.Lan) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
-            _app.Log(server.AutoStartGame
-                ? "CS2 joins when the server has loaded. If it doesn't: console (~) → connect localhost"
-                : "Server only - press \"Open CS2\" when you want to join.");
+            _app.Log(!server.AutoStartGame ? "Server only - press \"Open CS2\" when you want to join."
+                : gameStarted ? $"CS2 joins when the server has loaded. If it doesn't: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
+                : "CS2 starts by itself as soon as the server has downloaded and loaded the Workshop map.");
         }
         catch (Exception ex)
         {

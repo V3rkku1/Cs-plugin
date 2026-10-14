@@ -215,7 +215,8 @@ public class ServerSettings
 
     public const int Port = 27015;
 
-    public string GameArguments() => JoinArguments(GameArgs, "localhost", Password);
+    /// <summary>127.0.0.1, not "localhost": that can resolve to IPv6 (::1), where the server doesn't listen.</summary>
+    public string GameArguments() => JoinArguments(GameArgs, $"127.0.0.1:{Port}", Password);
 
     /// <summary>CS2 with VAC off for this run only (nothing is saved in Steam), joining a server.</summary>
     public static string JoinArguments(string? extraArgs, string address, string? password)

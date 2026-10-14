@@ -13,7 +13,12 @@ public class TestSession
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 
-    public void Start(ServerSettings settings, bool forFriends = false)
+    /// <summary>
+    /// Starts the server, and CS2 too unless the server first has to download a Workshop map: joining
+    /// before it's loaded fails with "unable to establish a connection", so then the caller starts the
+    /// game once the server reports it's up. Returns whether CS2 was started.
+    /// </summary>
+    public bool Start(ServerSettings settings, bool forFriends = false)
     {
         if (Cs2Running())
             throw new InvalidOperationException("Close CS2 first (it must restart with -insecure).");
@@ -30,7 +35,9 @@ public class TestSession
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
         StoppedOnPurpose = false;
-        if (settings.AutoStartGame) StartGame(settings);
+        if (!settings.AutoStartGame || settings.WorkshopNeedsDownload) return false;
+        StartGame(settings);
+        return true;
     }
 
     /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>
