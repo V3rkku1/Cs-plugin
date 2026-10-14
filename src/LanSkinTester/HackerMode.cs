@@ -357,20 +357,40 @@ public partial class LanSkinTester
         }
     }
 
-    /// <summary>
-    /// True when the game itself says <paramref name="viewer"/> can see this enemy: CS2's spotting system
-    /// (what lights up enemies on the radar) does real line-of-sight checks, so walls and smokes block it.
-    /// </summary>
-    private static bool IsVisibleTo(CCSPlayerPawn enemyPawn, CCSPlayerController viewer)
+    // Line-of-sight traces hit the world only (walls, floors, props, glass), not players.
+    private static readonly TraceOptions SightTrace = new()
     {
+        InteractsAs = Contents.Player,
+        InteractsWith = Contents.Solid | Contents.WorldGeometry | Contents.Window | Contents.BlockLos | Contents.PhysicsProp,
+        InteractsExclude = Contents.Player | Contents.Hitbox | Contents.Debris,
+    };
+
+    private bool _traceBroken;
+
+    /// <summary>
+    /// True when there's a clear line from the viewer's eyes to the enemy's head or chest. (CS2's own
+    /// "spotted" flag can't be used: shooting reveals you on the radar, so in deathmatch it is almost
+    /// always on, walls or not.)
+    /// </summary>
+    private bool IsVisibleTo(CCSPlayerPawn enemyPawn, CCSPlayerPawn viewerPawn)
+    {
+        if (_traceBroken || viewerPawn.AbsOrigin is not { } from || enemyPawn.AbsOrigin is not { } to) return false;
+        var eye = new Vector(from.X, from.Y, from.Z + EyeHeight(viewerPawn));
+        var enemyEyes = to.Z + EyeHeight(enemyPawn);
         try
         {
-            var mask = enemyPawn.EntitySpottedState.SpottedByMask;
-            var slot = viewer.Slot;
-            return slot >= 0 && slot / 32 < mask.Length && (mask[slot / 32] & (1u << (slot % 32))) != 0;
+            foreach (var z in new[] { enemyEyes - 2f, enemyEyes - 20f }) // head, then chest
+            {
+                var result = Trace.TraceEndShape(eye, new Vector(to.X, to.Y, z), viewerPawn, SightTrace);
+                if (!result.DidHit() || result.Fraction >= 0.97f) return true;
+            }
+            return false;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            // Missing gamedata after a CS2 update: never aim through walls, just stop aiming.
+            _traceBroken = true;
+            Logger.LogError(ex, "Line-of-sight trace failed - the aimbot is disabled until the plugin/CounterStrikeSharp is updated");
             return false;
         }
     }
@@ -453,7 +473,7 @@ public partial class LanSkinTester
         var yaw = Math.Atan2(target.Y - origin.Y, target.X - origin.X) * 180 / Math.PI;
         var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
         var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
-        var visible = IsVisibleTo(nearestPawn, hacker);
+        var visible = IsVisibleTo(nearestPawn, pawn);
         hacker.PrintToCenterHtml(
             $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
             $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>", 1);
@@ -472,7 +492,7 @@ public partial class LanSkinTester
         // visible enemy closest to the crosshair.
         CCSPlayerPawn? targetPawn = null;
         if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
-            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && IsVisibleTo(lockedPawn, hacker)
+            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && IsVisibleTo(lockedPawn, pawn)
             && AnglesTo(pawn, lockedPawn, aim) is { } a
             && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
         {
@@ -487,10 +507,10 @@ public partial class LanSkinTester
             {
                 if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
                 var enemyPawn = enemy.PlayerPawn.Value;
-                if (enemyPawn == null || !enemyPawn.IsValid || !IsVisibleTo(enemyPawn, hacker)) continue;
+                if (enemyPawn == null || !enemyPawn.IsValid) continue;
                 if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
                 var delta = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
-                if (delta >= bestDelta) continue;
+                if (delta >= bestDelta || !IsVisibleTo(enemyPawn, pawn)) continue; // trace only the candidates
                 bestDelta = delta;
                 best = enemy;
                 targetPawn = enemyPawn;

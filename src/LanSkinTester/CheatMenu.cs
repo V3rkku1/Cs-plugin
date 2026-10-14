@@ -30,7 +30,9 @@ public partial class LanSkinTester
 
     private static readonly float[] FovChoices = [10f, 20f, 35f];
     private static readonly (string Name, float Value)[] SmoothChoices = [("Strong", 0.10f), ("Medium", 0.18f), ("Light", 0.35f)];
-    private const int MenuWindow = 7;
+    // CS2's center panel drops messages that are too long, so the menu stays short: a window of rows
+    // and as little markup as possible.
+    private const int MenuWindow = 5;
 
     private void LoadCheatMenu()
     {
@@ -71,7 +73,7 @@ public partial class LanSkinTester
     private static int Cycle(int index, int count, bool forward) =>
         index < 0 ? 0 : (index + (forward ? 1 : count - 1)) % count;
 
-    private static string OnOff(bool on) => on ? "<font color='#39ff14'>ON</font>" : "<font color='#ff5050'>OFF</font>";
+    private static string OnOff(bool on) => on ? "<font color='#3f3'>ON</font>" : "<font color='#f55'>off</font>";
 
     private MenuItem Toggle(string label, Power power) =>
         new(label, p => OnOff(Has(p, power)), (p, _) => SetPowers(p, PowersOf(p) ^ power));
@@ -115,6 +117,7 @@ public partial class LanSkinTester
             Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
         }
         _cheatMenus[player.Slot] = state;
+        Reply(player, "Cheat menu open (center of the screen): W/S move, D switch, A back, R close.");
     }
 
     private void CloseCheatMenu(CCSPlayerController player)
@@ -188,25 +191,21 @@ public partial class LanSkinTester
     private string RenderMenu(CCSPlayerController player, CheatMenuState state)
     {
         var html = new System.Text.StringBuilder();
-        html.Append("<font class='fontSize-m' color='#39ff14'>H4X MENU</font>");
-        html.Append(_hackMode == HackMode.Off ? "<font class='fontSize-s' color='#888888'> practice</font><br>" : "<br>");
+        html.Append($"<font color='#3f3'>H4X MENU</font> {state.Cursor + 1}/{_menuItems.Count}<br>");
 
-        // A window of rows around the cursor (the panel only fits so much).
+        // A window of rows around the cursor.
         var first = Math.Clamp(state.Cursor - MenuWindow / 2, 0, Math.Max(0, _menuItems.Count - MenuWindow));
         var last = Math.Min(_menuItems.Count, first + MenuWindow);
-        if (first > 0) html.Append("<font class='fontSize-s' color='#666666'>▲</font><br>");
         for (var i = first; i < last; i++)
         {
             var item = _menuItems[i];
             var value = item.Value(player);
-            var selected = i == state.Cursor;
-            html.Append(selected ? "<font color='#ffffff'>▶ " : "<font color='#9a9a9a'>&nbsp;&nbsp;&nbsp;");
+            html.Append(i == state.Cursor ? "<font color='#fff'>&gt; " : "<font color='#999'>");
             html.Append(item.Label).Append("</font>");
-            if (value != "") html.Append(" <font color='#666666'>·</font> ").Append(value);
+            if (value != "") html.Append(": ").Append(value);
             html.Append("<br>");
         }
-        if (last < _menuItems.Count) html.Append("<font class='fontSize-s' color='#666666'>▼</font><br>");
-        html.Append("<font class='fontSize-s' color='#888888'>W/S move · D switch · R close</font>");
+        html.Append("<font color='#888'>W/S D R</font>");
         return html.ToString();
     }
 }

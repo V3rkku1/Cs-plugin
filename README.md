@@ -91,8 +91,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
   - *Wallhack:* enemies glow through walls, and only hackers see it.
   - *Aimbot:* a "legit" one. Hold fire and your aim pulls smoothly onto a visible enemy near
     your crosshair, after a human-like reaction delay, at the head or neck, not pixel-perfect. It only
-    locks onto enemies you can actually see: CS2's own spotting (the radar's line-of-sight check)
-    decides, so walls and smokes block it.
+    locks onto enemies you can actually see: a line-of-sight trace from your eyes to their head or
+    chest, so walls, floors, props and glass block it (smokes don't).
   - *Damage boost:* 2× damage (off by default).
   - *Bunnyhop:* hold jump to bhop perfectly.
   - *No flash:* flashbangs don't blind you.
@@ -193,6 +193,10 @@ runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`l
   | `Ctrl+F` | Search skins |
   | `F5` | Start, or apply changes to the running server |
   | `Shift+F5` | Stop |
+
+**The plugin updates itself:** every launcher build carries the matching plugin. When you press
+Start, the launcher compares the installed plugin with its own and replaces it if they differ, so
+new features and fixes work without pressing Update on the Setup page.
 
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.

@@ -516,6 +516,12 @@ public class PlayPage : UserControl
         try
         {
             _app.AllowSkinsInCss();
+            // A newer launcher carries a newer plugin: put it in before the server loads it.
+            if (!Installer.PluginMatchesBundled(_app.Game))
+            {
+                new Installer(_app.Game, _app.Http, _app.Log).InstallPlugin();
+                _app.Log($"Updated the plugin to v{Installer.BundledPluginVersion()?.ToString(3) ?? "?"} (the one in this launcher).");
+            }
             var gameStarted = new TestSession(_app.Game).Start(server, forFriends);
             ClearWorkshopWait();
             if (server.WorkshopNeedsDownload)

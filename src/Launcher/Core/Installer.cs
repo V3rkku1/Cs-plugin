@@ -59,6 +59,21 @@ public class Installer
         _log("CounterStrikeSharp installed.");
     }
 
+    /// <summary>
+    /// True when the installed plugin is exactly the one inside this launcher. Compares the files, not
+    /// version numbers, so any newer launcher build updates the plugin.
+    /// </summary>
+    public static bool PluginMatchesBundled(GameFolder game)
+    {
+        using var bundled = Assembly.GetExecutingAssembly().GetManifestResourceStream("plugin/LanSkinTester.dll");
+        if (bundled == null) return true; // launcher built without the plugin: nothing to compare
+        var installed = Path.Combine(game.PluginDir, "LanSkinTester.dll");
+        if (!File.Exists(installed)) return false;
+        using var copy = new MemoryStream();
+        bundled.CopyTo(copy);
+        return copy.ToArray().AsSpan().SequenceEqual(File.ReadAllBytes(installed));
+    }
+
     /// <summary>The plugin itself ships inside the launcher exe.</summary>
     public void InstallPlugin()
     {
