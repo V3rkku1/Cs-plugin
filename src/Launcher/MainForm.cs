@@ -11,9 +11,11 @@ public class MainForm : Form
     private readonly Panel _pages = new() { Dock = DockStyle.Fill, BackColor = Theme.Background };
     private readonly PlayPage _play;
     private readonly SkinsPage _skins;
+    private readonly FriendsPage _friends;
     private readonly SetupPage _setup;
     private readonly SidebarItem _navPlay = new("Play", SidebarItem.Icon.Play);
     private readonly SidebarItem _navSkins = new("Skins", SidebarItem.Icon.Skins);
+    private readonly SidebarItem _navFriends = new("Friends", SidebarItem.Icon.Friends);
     private readonly SidebarItem _navSetup = new("Setup", SidebarItem.Icon.Setup);
     private readonly StatusBadge _status = new();
 
@@ -27,8 +29,9 @@ public class MainForm : Form
 
         _play = new PlayPage(_app) { Dock = DockStyle.Fill };
         _skins = new SkinsPage(_app.Images) { Dock = DockStyle.Fill };
+        _friends = new FriendsPage(_app, _play) { Dock = DockStyle.Fill };
         _setup = new SetupPage(_app) { Dock = DockStyle.Fill };
-        _pages.Controls.AddRange([_play, _skins, _setup]);
+        _pages.Controls.AddRange([_play, _skins, _friends, _setup]);
 
         Controls.Add(_pages);
         Controls.Add(BuildSidebar());
@@ -54,9 +57,10 @@ public class MainForm : Form
         var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(18, 20) };
         var sub = new Label { Text = "CS2 · LAN", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(19, 48) };
 
-        var nav = new VStack(_navPlay, _navSkins, _navSetup) { Location = new Point(16, 92) };
+        var nav = new VStack(_navPlay, _navSkins, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
         _navSkins.Click += (_, _) => ShowPage(_skins);
+        _navFriends.Click += (_, _) => ShowPage(_friends);
         _navSetup.Click += (_, _) => ShowPage(_setup);
 
         _status.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
@@ -76,6 +80,7 @@ public class MainForm : Form
 
         _navPlay.Selected = page == _play;
         _navSkins.Selected = page == _skins;
+        _navFriends.Selected = page == _friends;
         _navSetup.Selected = page == _setup;
         if (page == _skins) _skins.Reload();
     }

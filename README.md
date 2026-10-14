@@ -30,7 +30,7 @@ Two versions, same app:
   It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-The launcher has three pages. On first start it opens on **SETUP**.
+The launcher has four pages: Play, Skins, Friends and Setup. On first start it opens on **SETUP**.
 
 **SETUP page**
 
@@ -89,6 +89,36 @@ The launcher has three pages. On first start it opens on **SETUP**.
 - **Loadouts...**: save your whole loadout under a name and load it again later, **Randomize
   everything** (a random skin on every weapon plus a random knife and gloves, with realistic floats),
   or **Reset everything**.
+
+**FRIENDS page**: play together
+
+*Host (you):*
+1. **How are you connected?** Pick *Same Wi-Fi / LAN* (your friend is at your place) or
+   *Radmin VPN / Hamachi* (over the internet: install the free [Radmin VPN](https://www.radmin-vpn.com/)
+   and both join the same network).
+2. **Your address** is found automatically (your `192.168.x.x` or Radmin `26.x.x.x` address). *Copy
+   Invite* copies a short message with the download link, the address and the password.
+3. **Options:**
+   - **Skins:** *Everyone uses mine*, or *Each picks own*. With *Each picks own*, friends use `!skin`,
+     `!knife`, `!gloves` and `!gen` in chat, and you keep the launcher's loadout.
+   - **Password** is optional.
+   - **Windows Firewall:** press *Allow* once (it asks for admin).
+4. **Start Hosting** uses the mode, map and bots from the Play page. The list underneath shows who joined.
+
+*Friend:* download the launcher, open **Friends → Join a Friend**, and type the address and password.
+They don't need to install anything: the launcher only starts CS2 with `-insecure +connect <address>`.
+Next time they start CS2 from Steam it's completely normal.
+
+*Why this won't get you banned:*
+- `-insecure` is Valve's own switch: VAC simply doesn't run for that game. Nothing is hidden or bypassed.
+- Your Steam inventory is never touched. Skins only exist on this server.
+- Your friend's game files are not changed at all. Yours only change while test mode is on, and **Stop**
+  puts them back.
+- The server has no game server token and isn't listed in the server browser. Don't run this plugin on
+  a public server: that's against Valve's server rules.
+
+Radmin and Hamachi addresses aren't "local" for CS2's `sv_lan 1`, so in that mode the server runs with
+`sv_lan 0` and the launcher tells the plugin it's a private server (`lst_private_server 1`).
 
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
@@ -247,6 +277,9 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_view third` / `lst_view first` | Switch players to third or first person |
 | `lst_respawn` | Respawn dead players |
 | `lst_refresh` | Re-apply skins to everyone |
+| `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
+| `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |
+| `lst_host_account <id>` | The host's Steam account id: the host always gets the launcher's loadout |
 
 ## Importing real items
 
@@ -291,6 +324,8 @@ When the plugin loads for the first time, CounterStrikeSharp creates
 
 With `SingleLoadout` on (the default), everyone on the server shares one loadout, which is the one
 the launcher edits. Turn it off if friends join your LAN server and each should have their own skins.
+The launcher's Friends page overrides this setting with `lst_shared_loadout`. The host (the player on
+the server's PC) always uses the launcher's loadout.
 
 Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 

@@ -31,7 +31,7 @@ public class LanSkinTesterConfig : BasePluginConfig
 public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "2.0.0";
+    public override string ModuleVersion => "2.1.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 
@@ -45,6 +45,13 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     private MemoryFunctionVoid<nint, string, float>? _setAttribute;
     private ulong _nextItemId = FirstCustomItemId;
     private readonly HashSet<int> _warnedSlots = new();
+
+    // Set by the launcher's Friends page through lanskintester_server.cfg (server console only).
+    private bool? _sharedLoadout;
+    private bool _privateServer;
+    private uint _hostAccountId;
+
+    private bool SharedLoadout => _sharedLoadout ?? Config.SingleLoadout;
 
     public void OnConfigParsed(LanSkinTesterConfig config) => Config = config;
 
@@ -161,6 +168,9 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
                 GameMode = CvarInt("game_mode"),
                 Humans = players.Count(p => !p.IsBot),
                 Bots = players.Count(p => p.IsBot),
+                Players = players.Where(p => !p.IsBot).Select(p => p.PlayerName).ToList(),
+                SharedLoadout = SharedLoadout,
+                PrivateServer = _privateServer,
                 SkinsAllowed = SkinsAllowed(),
                 DisabledReason = DisabledReason() ?? "",
                 Time = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
@@ -232,6 +242,26 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         _store.TryLoad();
         RefreshEveryone("Skins refreshed.");
     }
+
+    [ConsoleCommand("lst_shared_loadout", "1 = everyone uses the launcher's skins, 0 = each player picks their own")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnSharedLoadoutCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var shared = cmd.GetArg(1) != "0";
+        var changed = SharedLoadout != shared;
+        _sharedLoadout = shared;
+        if (!changed) return;
+        RefreshEveryone(shared ? "Everyone now uses the host's skins." : "Pick your own skins: !skinhelp");
+    }
+
+    [ConsoleCommand("lst_private_server", "1 = allow skins with sv_lan 0 (friends over Radmin / a VPN). Only for your own private server.")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnPrivateServerCommand(CCSPlayerController? caller, CommandInfo cmd) => _privateServer = cmd.GetArg(1) == "1";
+
+    [ConsoleCommand("lst_host_account", "Steam account id of the host, who always gets the launcher's loadout")]
+    [CommandHelper(minArgs: 1, usage: "<account id>", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnHostAccountCommand(CCSPlayerController? caller, CommandInfo cmd) =>
+        _hostAccountId = uint.TryParse(cmd.GetArg(1), out var id) ? id : 0;
 
     // ---------------------------------------------------------------------------------------------
     // Server settings from the launcher (game mode, bots, practice options)
@@ -828,8 +858,8 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
     {
         // With this CounterStrikeSharp option on, writing item IDs throws, so only the knife model would change.
         if (CoreConfig.FollowCS2ServerGuidelines) return GuidelinesMessage;
-        if (!Config.RequireSvLan || IsLanServer()) return null;
-        return "Skins are disabled: this plugin only runs on LAN servers (sv_lan 1).";
+        if (!Config.RequireSvLan || IsLanServer() || _privateServer) return null;
+        return "Skins are disabled: this plugin only runs on LAN servers (sv_lan 1) or a private friends server.";
     }
 
     private static bool IsLanServer()
@@ -919,10 +949,18 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         player.IsValid && !player.IsBot && !player.IsHLTV;
 
     // LAN clients without Steam have SteamID 0, so fall back to the player name.
+    // The host (on this PC, or the launcher's Steam account) always gets the launcher's loadout.
     private PlayerLoadout GetLoadout(CCSPlayerController player)
     {
-        if (Config.SingleLoadout) return _store.Get(LoadoutStore.LocalKey);
+        if (SharedLoadout || IsHost(player)) return _store.Get(LoadoutStore.LocalKey);
         return _store.Get(player.SteamID != 0 ? player.SteamID.ToString() : "name:" + player.PlayerName);
+    }
+
+    private bool IsHost(CCSPlayerController player)
+    {
+        if (_hostAccountId != 0 && (uint)player.SteamID == _hostAccountId) return true;
+        var ip = player.IpAddress ?? "";
+        return ip.StartsWith("loopback", StringComparison.OrdinalIgnoreCase) || ip.StartsWith("127.");
     }
 
     private void SaveAndRefresh(CCSPlayerController player, CBasePlayerWeapon weapon, string message)
