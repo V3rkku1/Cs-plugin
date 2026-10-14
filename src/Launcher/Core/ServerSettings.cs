@@ -90,10 +90,15 @@ public class ServerSettings
         catch (Exception) { /* not important */ }
     }
 
-    /// <summary>The console command that loads the map (without "+").</summary>
+    /// <summary>
+    /// The console command that loads the map (without "+"). At startup a Workshop map is NOT asked
+    /// for on the command line: that runs before the server has logged on to Steam, and it then sits
+    /// idle with no map. It boots on the normal map and the launcher sends host_workshop_map once the
+    /// server is up (PlayPage).
+    /// </summary>
     private string MapCommand(bool running) =>
         LocalWorkshopMap != null ? $"{(running ? "changelevel" : "map")} {LocalWorkshopMap}"
-        : WorkshopMapId != null ? $"host_workshop_map {WorkshopMapId}"
+        : WorkshopMapId != null && running ? $"host_workshop_map {WorkshopMapId}"
         : $"{(running ? "changelevel" : "map")} {Map}";
 
     /// <summary>Everyone uses the launcher's loadout (off = each friend picks skins in chat; the host keeps the launcher's).</summary>

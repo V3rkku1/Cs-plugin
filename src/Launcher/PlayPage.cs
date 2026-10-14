@@ -289,35 +289,73 @@ public class PlayPage : UserControl
 
     private Process? _reportedServer;
 
-    /// <summary>Set while waiting for a Workshop map download before starting CS2.</summary>
-    private DateTime? _gameWaitSince;
+    // Workshop start: the server boots on a normal map, and once it's up (and logged on to Steam) it
+    // is switched to the Workshop map. Asking for it on the command line happens before Steam is
+    // ready, and the server then sits idle with no map ("Host activate: Idle"). CS2 starts once the
+    // Workshop map is actually loaded.
+    private string? _pendingWorkshopId;
+    private string? _bootstrapMap;
+    private bool _startGameAfterWorkshop;
+    private DateTime? _serverUpSince;
+    private DateTime? _workshopSentAt;
 
-    private void StartGameWhenServerReady(ServerStatus? status)
+    private bool WaitingForWorkshop => _pendingWorkshopId != null;
+
+    private void ClearWorkshopWait()
     {
-        if (_gameWaitSince is not { } since || _app.Game == null) return;
+        _pendingWorkshopId = _bootstrapMap = null;
+        _serverUpSince = _workshopSentAt = null;
+    }
+
+    private void HandleWorkshopStartup(ServerStatus? status)
+    {
+        if (_pendingWorkshopId is not { } id || _app.Game == null) return;
         if (!_app.TestModeOn)
         {
-            _gameWaitSince = null; // stopped meanwhile
+            ClearWorkshopWait(); // stopped meanwhile
             return;
         }
-        if (status != null)
+
+        var now = DateTime.UtcNow;
+        if (_workshopSentAt == null)
         {
-            _gameWaitSince = null;
+            if (status == null)
+            {
+                _serverUpSince = null;
+                return;
+            }
+            // Give it a few seconds on the first map to finish logging on to Steam.
+            _serverUpSince ??= now;
+            if (now - _serverUpSince < TimeSpan.FromSeconds(6)) return;
             try
             {
-                new TestSession(_app.Game).StartGame(_app.Settings.Server);
-                _app.Log("Server is up - starting CS2 and joining.");
-                Toast.Show("Map loaded - starting CS2…", Toast.Kind.Info);
+                ServerSettings.SendCommands(_app.Game, $"host_workshop_map {id}");
+                _workshopSentAt = now;
+                _app.Log($"Server is up - loading Workshop map {id} (it downloads first, this can take a while)...");
             }
-            catch (Exception ex)
+            catch (IOException ex)
             {
-                _app.Log("Could not start CS2: " + ex.Message);
+                _app.Log("Could not send the Workshop map command: " + ex.Message);
             }
+            return;
         }
-        else if (DateTime.UtcNow - since > TimeSpan.FromMinutes(15))
+
+        if (status != null && !string.Equals(status.Map, _bootstrapMap, StringComparison.OrdinalIgnoreCase))
         {
-            _gameWaitSince = null;
-            _app.Log("The server still hasn't loaded the map after 15 minutes. Check the server window, or press \"Open CS2\" to try anyway.");
+            _app.Log($"Workshop map loaded: {status.Map}.");
+            Toast.Show($"{status.Map} loaded" + (_startGameAfterWorkshop ? " - starting CS2…" : "."), Toast.Kind.Info);
+            if (_startGameAfterWorkshop)
+            {
+                try { new TestSession(_app.Game).StartGame(_app.Settings.Server); }
+                catch (Exception ex) { _app.Log("Could not start CS2: " + ex.Message); }
+            }
+            ClearWorkshopWait();
+        }
+        else if (now - _workshopSentAt > TimeSpan.FromMinutes(15))
+        {
+            ClearWorkshopWait();
+            _app.Log("The Workshop map still hasn't loaded after 15 minutes. Check the server window (is it downloading?), " +
+                     "or press \"Open CS2\" to join the server on its first map.");
         }
     }
 
@@ -405,7 +443,7 @@ public class PlayPage : UserControl
     private void RefreshLive()
     {
         var status = _app.ReadServerStatus();
-        StartGameWhenServerReady(status);
+        HandleWorkshopStartup(status);
         var running = status != null;
         foreach (Control c in _actions.Controls) c.Enabled = running;
         _giveBox.Enabled = _giveButton.Enabled = running;
@@ -413,9 +451,9 @@ public class PlayPage : UserControl
         if (status == null)
         {
             _liveRow.Title = !_app.TestModeOn ? "Server not running"
-                : _gameWaitSince != null ? "Downloading the Workshop map…" : "Server starting…";
+                : WaitingForWorkshop ? "Starting the server for the Workshop map…" : "Server starting…";
             _liveRow.Subtitle = !_app.TestModeOn ? "Press Start or pick a quick start."
-                : _gameWaitSince != null ? "CS2 starts by itself when the map has loaded."
+                : WaitingForWorkshop ? "Then it downloads the map. CS2 starts by itself when it's loaded."
                 : "Loading the map can take a minute. Actions unlock when it's up.";
             _liveRow.SubtitleColor = Theme.Muted;
             return;
@@ -428,6 +466,12 @@ public class PlayPage : UserControl
             ? $"{status.Humans} player{(status.Humans == 1 ? "" : "s")} · {status.Bots} bot{(status.Bots == 1 ? "" : "s")} · skins working · plugin {status.Version}"
             : status.DisabledReason;
         _liveRow.SubtitleColor = status.SkinsAllowed ? Theme.Muted : Theme.Warning;
+        if (WaitingForWorkshop)
+        {
+            _liveRow.Subtitle = _workshopSentAt == null ? "Server is up - loading the Workshop map next…"
+                : "Downloading and loading the Workshop map… CS2 starts by itself when it's ready.";
+            _liveRow.SubtitleColor = Theme.Accent;
+        }
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -460,7 +504,13 @@ public class PlayPage : UserControl
         {
             _app.AllowSkinsInCss();
             var gameStarted = new TestSession(_app.Game).Start(server, forFriends);
-            _gameWaitSince = !gameStarted && server.AutoStartGame ? DateTime.UtcNow : null;
+            ClearWorkshopWait();
+            if (server.WorkshopNeedsDownload)
+            {
+                _pendingWorkshopId = server.WorkshopMapId;
+                _bootstrapMap = server.Map;
+                _startGameAfterWorkshop = server.AutoStartGame;
+            }
             _runningMode = server.Mode;
             _runningMap = server.WorkshopMapId ?? server.Map;
             _runningOnline = server.PrivateServer;
