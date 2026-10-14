@@ -166,8 +166,43 @@ public static class Theme
         return b;
     }
 
+    /// <summary>
+    /// The solid colour actually painted behind <paramref name="control"/>: inside a rounded group
+    /// that's the card colour, otherwise the first ancestor with a real (non-transparent) colour.
+    /// </summary>
+    public static Color BackdropOf(Control? control)
+    {
+        for (var c = control; c != null; c = c.Parent)
+        {
+            if (c is Group) return Card;
+            if (c.BackColor.A == 255) return c.BackColor;
+        }
+        return Background;
+    }
+
+    /// <summary>
+    /// Gives transparent layout containers (stacks, rows, panels) the solid colour they sit on.
+    /// WinForms "transparency" repaints through every parent and leaves smears and odd corners
+    /// behind; self-drawn controls and labels stay transparent on top of the solid containers.
+    /// </summary>
+    public static void SolidifyContainers(Control root)
+    {
+        foreach (Control c in root.Controls)
+        {
+            if (c is not DrawnControl and not System.Windows.Forms.Label and not Group && c.BackColor.A < 255)
+                c.BackColor = BackdropOf(c.Parent);
+            SolidifyContainers(c);
+        }
+    }
+
     /// <summary>Recursively sets theme colours on stock controls that are still used (labels, list boxes).</summary>
     public static void Apply(Control root)
+    {
+        if (root.BackColor.A == 255 || root.Parent != null) SolidifyContainers(root);
+        ApplyColors(root);
+    }
+
+    private static void ApplyColors(Control root)
     {
         foreach (Control c in root.Controls)
         {
@@ -182,7 +217,7 @@ public static class Theme
                     ll.LinkBehavior = LinkBehavior.HoverUnderline;
                     break;
             }
-            Apply(c);
+            ApplyColors(c);
         }
     }
 }

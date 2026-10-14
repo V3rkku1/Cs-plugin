@@ -19,7 +19,7 @@ public class ImportDialog : Form
     private readonly ItemDatabase _db;
     private readonly ImageCache _images;
     private readonly TextField _input = new(612, multiline: true, height: 84) { PlaceholderText = "Paste a !gen code or inspect link…" };
-    private readonly Panel _preview = new() { Width = 612, Height = 200 };
+    private readonly Canvas _preview = new() { Width = 612, Height = 200 };
     private readonly Label _summary = new() { AutoSize = true, MaximumSize = new Size(584, 0), ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly PillButton _import = new("Import and Equip", PillButton.Style.Primary);
 

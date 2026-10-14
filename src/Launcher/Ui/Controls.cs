@@ -670,6 +670,9 @@ public class Group : Panel
     {
         _rows.Add(row);
         Controls.Add(row);
+        // Rows are solid card colour; the group's rounded clip shapes their corners.
+        if (row.BackColor.A < 255) row.BackColor = Theme.Card;
+        Theme.SolidifyContainers(row);
         row.VisibleChanged += (_, _) => Relayout();
         row.SizeChanged += (_, _) => Relayout();
         Relayout();
@@ -684,8 +687,8 @@ public class Group : Panel
         var y = 0;
         foreach (var row in _rows)
         {
-            if (!row.Visible && row.Parent == this && Created) continue;
             if (!row.Visible) continue;
+            if (y > 0) y += 1; // 1px gap: the hairline between rows is drawn there
             row.SetBounds(0, y, Width, row.Height);
             y += row.Height;
         }
@@ -698,11 +701,14 @@ public class Group : Panel
     {
         base.OnSizeChanged(e);
         foreach (var row in _rows) row.Width = Width;
+        // Clip the group and its rows to the rounded card, so no square or garbage corners show.
+        using var path = Theme.Rounded(new RectangleF(0, 0, Width, Height), 12);
+        Region = new Region(path);
     }
 
     protected override void OnPaintBackground(PaintEventArgs e)
     {
-        using (var bg = new SolidBrush(Parent?.BackColor ?? Theme.Background)) e.Graphics.FillRectangle(bg, ClientRectangle);
+        using (var bg = new SolidBrush(Theme.BackdropOf(Parent))) e.Graphics.FillRectangle(bg, ClientRectangle);
         Theme.Smooth(e.Graphics);
         Theme.FillRounded(e.Graphics, Theme.Card, new RectangleF(0, 0, Width - 0.5f, Height - 0.5f), 12);
     }
@@ -713,7 +719,7 @@ public class Group : Panel
         Control? previous = null;
         foreach (var row in _rows.Where(r => r.Visible))
         {
-            if (previous != null) e.Graphics.DrawLine(pen, 14, row.Top, Width - 14, row.Top);
+            if (previous != null) e.Graphics.DrawLine(pen, 14, row.Top - 1, Width - 14, row.Top - 1);
             previous = row;
         }
     }
@@ -787,6 +793,16 @@ public class SettingRow : Panel
             _title.MaximumSize = new Size(Math.Max(room, 40), 0);
             if (_subtitle != null) _subtitle.MaximumSize = new Size(Math.Max(room, 40), 0);
         }
+    }
+}
+
+/// <summary>A double-buffered panel for custom painting (no light flash, no flicker).</summary>
+public class Canvas : Panel
+{
+    public Canvas()
+    {
+        SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer | ControlStyles.ResizeRedraw, true);
+        BackColor = Theme.Background;
     }
 }
 

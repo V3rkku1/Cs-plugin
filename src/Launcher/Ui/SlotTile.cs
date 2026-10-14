@@ -53,7 +53,7 @@ public class SlotTile : Control
     protected override void OnPaint(PaintEventArgs e)
     {
         var g = e.Graphics;
-        using (var bg = new SolidBrush(Parent?.BackColor ?? Theme.Background)) g.FillRectangle(bg, ClientRectangle);
+        using (var bg = new SolidBrush(Theme.BackdropOf(Parent))) g.FillRectangle(bg, ClientRectangle);
         Theme.Smooth(g);
         var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         Theme.FillRounded(g, _hover ? Theme.FillHover : TextField.FieldColor, r, 10);

@@ -38,7 +38,7 @@ public class SkinsPage : UserControl
     private readonly CardGrid _grid = new() { Dock = DockStyle.Fill };
 
     // Details
-    private readonly Panel _preview = new() { Height = 210, Dock = DockStyle.Top };
+    private readonly Canvas _preview = new() { Height = 210, Dock = DockStyle.Top };
     private readonly Label _title = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, MaximumSize = new Size(340, 0), BackColor = Color.Transparent, Margin = new Padding(2, 14, 0, 2) };
     private readonly Label _rarity = new() { AutoSize = true, Font = Theme.Body, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
     private readonly Label _range = new() { AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(2, 2, 0, 0) };
