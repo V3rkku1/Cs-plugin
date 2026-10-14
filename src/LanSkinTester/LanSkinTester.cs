@@ -245,6 +245,92 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         RefreshEveryone("Skins refreshed.");
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Practice commands for players (chat). Same rule as skins: only on a LAN / private server.
+    // ---------------------------------------------------------------------------------------------
+
+    private bool PracticeAllowed(CCSPlayerController? player)
+    {
+        if (player == null || !player.IsValid) return false;
+        if (!Config.RequireSvLan || IsLanServer() || _privateServer) return true;
+        Reply(player, "Practice commands only work on a LAN / private server.");
+        return false;
+    }
+
+    [ConsoleCommand("css_give", "Give yourself a weapon: !give ak47")]
+    [CommandHelper(minArgs: 1, usage: "<weapon>")]
+    public void OnGiveChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        if (!player!.PawnIsAlive)
+        {
+            Reply(player, "You must be alive.");
+            return;
+        }
+
+        var query = cmd.GetArg(1).ToLowerInvariant().Replace("weapon_", "").Replace("-", "").Replace(" ", "");
+        if (query.StartsWith("knife"))
+        {
+            GiveOrRefresh(player, 0, true);
+            return;
+        }
+        // Classname ("ak47") or display name ("AK-47", "deagle" → Desert Eagle).
+        var match = ItemData.Weapons.FirstOrDefault(w => w.Value == "weapon_" + query);
+        if (match.Key == 0)
+            match = ItemData.Weapons.FirstOrDefault(w =>
+                ItemData.DisplayNames.TryGetValue(w.Key, out var name) && name.ToLowerInvariant().Replace("-", "").Replace(" ", "").Contains(query));
+        if (match.Key == 0)
+        {
+            Reply(player, $"Unknown weapon \"{cmd.GetArg(1)}\". Try ak47, awp, deagle, m4a1_silencer, usp_silencer...");
+            return;
+        }
+        GiveOrRefresh(player, match.Key, false);
+        Reply(player, $"Here's your {ItemData.NameOf(match.Key)}.");
+    }
+
+    [ConsoleCommand("css_3p", "Third person view")]
+    public void OnThirdPersonChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        if (ConVar.Find("sv_cheats")?.GetPrimitiveValue<bool>() != true) Server.ExecuteCommand("sv_cheats 1");
+        player!.ExecuteClientCommandFromServer("thirdperson");
+    }
+
+    [ConsoleCommand("css_fp", "First person view")]
+    public void OnFirstPersonChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        player!.ExecuteClientCommandFromServer("firstperson");
+    }
+
+    [ConsoleCommand("css_respawn", "Respawn yourself")]
+    public void OnRespawnChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        if (player!.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist))
+        {
+            Reply(player, "Join a team first.");
+            return;
+        }
+        player.Respawn();
+    }
+
+    [ConsoleCommand("css_noclip", "Fly through walls (toggle)")]
+    public void OnNoclipChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        var pawn = player!.PlayerPawn.Value;
+        if (!player.PawnIsAlive || pawn == null || !pawn.IsValid)
+        {
+            Reply(player, "You must be alive.");
+            return;
+        }
+        var flying = pawn.MoveType == MoveType_t.MOVETYPE_NOCLIP;
+        pawn.MoveType = pawn.ActualMoveType = flying ? MoveType_t.MOVETYPE_WALK : MoveType_t.MOVETYPE_NOCLIP;
+        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
+        Reply(player, flying ? "Noclip off." : "Noclip on - type !noclip again to land.");
+    }
+
     [ConsoleCommand("lst_shared_loadout", "1 = everyone uses the launcher's skins, 0 = each player picks their own")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnSharedLoadoutCommand(CCSPlayerController? caller, CommandInfo cmd)
@@ -843,6 +929,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!knife <name|default|list>  !gloves <type> <id|name> [wear] [seed]",
             "!skinsearch <text>  !skinreset",
             "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
+            "!give <weapon>  !3p / !fp  !respawn  !noclip - practice",
             "!hacks - hacker mode status",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);

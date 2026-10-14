@@ -355,6 +355,7 @@ public class PlayPage : UserControl
             _runningMap = server.WorkshopMapId ?? server.Map;
             var map = server.WorkshopMapId != null ? $"Workshop map {server.WorkshopMapId}" : server.Map;
             _app.Log($"Started {server.Mode} on {map} with {server.Bots} {ServerSettings.Difficulties[server.Difficulty].ToLowerInvariant()} bots.");
+            Toast.Show($"Starting {server.Mode} on {map}…", Toast.Kind.Info);
             if (server.PrivateServer) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             _app.Log(server.AutoStartGame
                 ? "CS2 joins when the server has loaded. If it doesn't: console (~) → connect localhost"
@@ -381,6 +382,7 @@ public class PlayPage : UserControl
             _runningMode = server.Mode;
             _runningMap = map;
             _app.Log(reload ? $"Switching to {server.Mode} on {map}..." : "Applied bots and options to the running server.");
+            Toast.Show(reload ? $"Switching to {server.Mode} on {map}…" : "Applied to the running server.");
         }
         catch (IOException ex)
         {
@@ -416,6 +418,7 @@ public class PlayPage : UserControl
             _runningMode = _runningMap = null;
             File.Delete(Path.Combine(_app.Game.PluginDir, ServerStatus.FileName));
             _app.Log("Stopped. CS2 is back to normal - you can play online again.");
+            Toast.Show("Stopped. CS2 is back to normal.");
         }
         catch (Exception ex)
         {
@@ -427,6 +430,26 @@ public class PlayPage : UserControl
 
     /// <summary>Start / Stop from the Friends page (uses the game settings from this page).</summary>
     public void StartServer() => StartTest();
+
+    /// <summary>F5: start, or apply the settings to the running server.</summary>
+    public void StartOrApply()
+    {
+        if (_app.TestModeOn) ApplyToServer();
+        else if (_app.Ready) StartTest();
+        else Toast.Show("Install first (Setup page).", Toast.Kind.Warning);
+    }
+
+    /// <summary>CS2 and the server were closed without Stop: restore quietly.</summary>
+    public void AutoRestore()
+    {
+        if (_app.Game == null) return;
+        new TestSession(_app.Game).Stop();
+        _runningMode = _runningMap = null;
+        try { File.Delete(Path.Combine(_app.Game.PluginDir, ServerStatus.FileName)); }
+        catch (IOException) { /* stale file is ignored anyway */ }
+        _app.Log("CS2 was closed - restored gameinfo.gi automatically. You can play online again.");
+        _app.NotifyChanged();
+    }
     public void StopServer() => StopTest();
 
     /// <summary>Called when the window closes while test mode is on.</summary>
@@ -444,6 +467,7 @@ public class PlayPage : UserControl
         {
             ServerSettings.SendCommands(_app.Game, command);
             _app.Log($"> {command}");
+            Toast.Show("Sent to the server.", Toast.Kind.Info);
         }
         catch (IOException ex)
         {

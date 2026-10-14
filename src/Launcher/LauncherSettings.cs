@@ -9,6 +9,11 @@ public class LauncherSettings
     public string? GamePath { get; set; }
     public ServerSettings Server { get; set; } = new();
 
+    /// <summary>Window position/size and the page that was open, restored on the next start.</summary>
+    public int[]? Window { get; set; } // x, y, width, height
+    public bool Maximized { get; set; }
+    public string? LastPage { get; set; }
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 

@@ -421,7 +421,7 @@ public class SkinsPage : UserControl
 
         ShowAttachments();
         _preview.Invalidate();
-        SetStatus(_game?.PluginInstalled == true ? "" : "Install the plugin first (PLAY page).", false);
+        SetStatus(_game?.PluginInstalled == true ? "" : "Install the plugin first (Setup page).", false, toast: false);
     }
 
     private void ShowAttachments()
@@ -502,7 +502,7 @@ public class SkinsPage : UserControl
     {
         if (_db.Stickers.Count == 0)
         {
-            SetStatus("Sticker list not downloaded yet (PLAY > Install / update everything).", true);
+            SetStatus("Sticker list not downloaded yet (Setup > Install Everything).", true);
             return;
         }
 
@@ -519,7 +519,7 @@ public class SkinsPage : UserControl
     {
         if (_db.Charms.Count == 0)
         {
-            SetStatus("Charm list not downloaded yet (PLAY > Install / update everything).", true);
+            SetStatus("Charm list not downloaded yet (Setup > Install Everything).", true);
             return;
         }
 
@@ -595,7 +595,7 @@ public class SkinsPage : UserControl
         var item = dialog.Result;
         if (_game == null || !_game.PluginInstalled)
         {
-            SetStatus("Install the plugin first (PLAY page).", true);
+            SetStatus("Install the plugin first (Setup page).", true);
             return;
         }
 
@@ -683,10 +683,18 @@ public class SkinsPage : UserControl
         }
     }
 
-    private void SetStatus(string text, bool error)
+    private void SetStatus(string text, bool error, bool toast = true)
     {
         _status.ForeColor = error ? Theme.Bad : Theme.Good;
         _status.Text = text;
+        if (toast) Toast.Show(text, error ? Toast.Kind.Error : Toast.Kind.Success);
+    }
+
+    /// <summary>Ctrl+F.</summary>
+    public void FocusSearch()
+    {
+        _search.Box.Focus();
+        _search.Box.SelectAll();
     }
 
     private static SkinSettings Clone(SkinSettings s) => new()

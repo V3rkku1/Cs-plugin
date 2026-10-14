@@ -428,6 +428,7 @@ public class FriendsPage : UserControl
         {
             Clipboard.SetText(text);
             _app.Log(message);
+            Toast.Show(message);
         }
         catch (Exception ex)
         {

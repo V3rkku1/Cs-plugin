@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
 using LanSkinTester.Launcher.Ui;
 using Microsoft.Win32;
@@ -18,6 +19,9 @@ public class MainForm : Form
     private readonly SidebarItem _navFriends = new("Friends", SidebarItem.Icon.Friends);
     private readonly SidebarItem _navSetup = new("Setup", SidebarItem.Icon.Setup);
     private readonly StatusBadge _status = new();
+    private readonly UpdateCard _update = new();
+    private readonly System.Windows.Forms.Timer _watch = new() { Interval = 5000 };
+    private int _cs2GoneTicks;
 
     public MainForm()
     {
@@ -36,6 +40,9 @@ public class MainForm : Form
         Controls.Add(_pages);
         Controls.Add(BuildSidebar());
         Theme.Apply(this);
+        Toast.Attach(_pages);
+        KeyPreview = true;
+        RestoreWindow();
 
         _app.Changed += OnChanged;
         Load += (_, _) =>
@@ -43,8 +50,12 @@ public class MainForm : Form
             _app.SetGame(GameFolder.IsValid(_app.Settings.GamePath)
                 ? _app.Settings.GamePath
                 : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
-            // First run (or something missing): start on Setup.
-            ShowPage(_app.Ready && !_app.Db.IsEmpty ? _play : _setup);
+            // First run (or something missing): start on Setup; otherwise where you left off.
+            ShowPage(!_app.Ready || _app.Db.IsEmpty ? _setup : PageByName(_app.Settings.LastPage) ?? _play);
+            _watch.Tick += (_, _) => WatchGame();
+            _watch.Start();
+            WatchGame();
+            _ = CheckForUpdateAsync();
             if (_app.Game == null) _app.Log("CS2 not found automatically - press Browse on the Setup page.");
         };
         FormClosing += OnClosing;
@@ -55,7 +66,7 @@ public class MainForm : Form
         var bar = new Panel { Dock = DockStyle.Left, Width = 236, BackColor = Theme.Sidebar, Padding = new Padding(16, 22, 16, 16) };
 
         var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(18, 20) };
-        var sub = new Label { Text = "CS2 · LAN", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(19, 48) };
+        var sub = new Label { Text = $"CS2 · LAN · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(19, 48) };
 
         var nav = new VStack(_navPlay, _navSkins, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
@@ -64,8 +75,13 @@ public class MainForm : Form
         _navSetup.Click += (_, _) => ShowPage(_setup);
 
         _status.Anchor = AnchorStyles.Left | AnchorStyles.Bottom;
-        bar.Controls.AddRange([app, sub, nav, _status]);
-        bar.Layout += (_, _) => _status.Location = new Point(16, bar.Height - _status.Height - 18);
+        _update.Click += (_, _) => OpenUrl(UpdateCheck.ReleaseUrl);
+        bar.Controls.AddRange([app, sub, nav, _update, _status]);
+        bar.Layout += (_, _) =>
+        {
+            _status.Location = new Point(16, bar.Height - _status.Height - 18);
+            _update.Location = new Point(16, _status.Top - _update.Height - 8);
+        };
 
         // hairline between sidebar and content
         bar.Paint += (_, e) => { using var pen = new Pen(Theme.Separator); e.Graphics.DrawLine(pen, bar.Width - 1, 0, bar.Width - 1, bar.Height); };
@@ -83,6 +99,106 @@ public class MainForm : Form
         _navFriends.Selected = page == _friends;
         _navSetup.Selected = page == _setup;
         if (page == _skins) _skins.Reload();
+        _app.Settings.LastPage = page == _play ? "play" : page == _skins ? "skins" : page == _friends ? "friends" : "setup";
+        try { _app.Settings.Save(); }
+        catch (IOException) { /* not important */ }
+    }
+
+    private Control? PageByName(string? name) => name switch
+    {
+        "play" => _play,
+        "skins" => _skins,
+        "friends" => _friends,
+        "setup" => _setup,
+        _ => null,
+    };
+
+    // ---------------------------------------------------------------------------------------------
+    // Keyboard shortcuts
+    // ---------------------------------------------------------------------------------------------
+
+    protected override bool ProcessCmdKey(ref Message msg, Keys keyData)
+    {
+        switch (keyData)
+        {
+            case Keys.Control | Keys.D1: ShowPage(_play); return true;
+            case Keys.Control | Keys.D2: ShowPage(_skins); return true;
+            case Keys.Control | Keys.D3: ShowPage(_friends); return true;
+            case Keys.Control | Keys.D4: ShowPage(_setup); return true;
+            case Keys.Control | Keys.F:
+                ShowPage(_skins);
+                _skins.FocusSearch();
+                return true;
+            case Keys.F5:
+                _play.StartOrApply();
+                return true;
+            case Keys.Shift | Keys.F5:
+                if (_app.TestModeOn) _play.StopServer();
+                return true;
+        }
+        return base.ProcessCmdKey(ref msg, keyData);
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Window position, update check, auto-restore
+    // ---------------------------------------------------------------------------------------------
+
+    private void RestoreWindow()
+    {
+        if (_app.Settings.Window is not [var x, var y, var w, var h]) return;
+        var bounds = new Rectangle(x, y, w, h);
+        // Only if it's still on a connected screen (monitors change).
+        if (!Screen.AllScreens.Any(s => s.WorkingArea.IntersectsWith(bounds) && s.WorkingArea.Contains(bounds.Location + new Size(40, 20)))) return;
+        StartPosition = FormStartPosition.Manual;
+        Bounds = new Rectangle(bounds.Location, new Size(Math.Max(bounds.Width, MinimumSize.Width), Math.Max(bounds.Height, MinimumSize.Height)));
+        if (_app.Settings.Maximized) WindowState = FormWindowState.Maximized;
+    }
+
+    private void SaveWindow()
+    {
+        _app.Settings.Maximized = WindowState == FormWindowState.Maximized;
+        var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
+        _app.Settings.Window = [b.X, b.Y, b.Width, b.Height];
+        try { _app.Settings.Save(); }
+        catch (IOException) { /* not important */ }
+    }
+
+    private async Task CheckForUpdateAsync()
+    {
+        if (!await UpdateCheck.NewerAvailableAsync(_app.Http)) return;
+        _update.Visible = true;
+        _app.Log("A newer launcher build is on GitHub - click \"Update available\" in the sidebar.");
+    }
+
+    private static void OpenUrl(string url)
+    {
+        try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); }
+        catch (Exception) { /* no browser */ }
+    }
+
+    /// <summary>
+    /// When CS2 and the test server are both closed but test mode is still on (game closed with the
+    /// X, a crash, or a previous launcher session), put CS2 back to normal automatically.
+    /// </summary>
+    private void WatchGame()
+    {
+        if (!_app.TestModeOn || TestSession.Cs2Running())
+        {
+            _cs2GoneTicks = 0;
+            return;
+        }
+        // Two checks in a row (about 5 seconds), so a restarting game isn't caught in between.
+        if (++_cs2GoneTicks < 2) return;
+        _cs2GoneTicks = 0;
+        try
+        {
+            _play.AutoRestore();
+            Toast.Show("CS2 closed - restored to normal. You can play online again.", Toast.Kind.Info);
+        }
+        catch (Exception ex)
+        {
+            _app.Log("Could not restore gameinfo.gi automatically: " + ex.Message);
+        }
     }
 
     private void OnChanged()
@@ -101,6 +217,7 @@ public class MainForm : Form
 
     private void OnClosing(object? sender, FormClosingEventArgs e)
     {
+        SaveWindow();
         if (!_app.TestModeOn) return;
 
         var answer = MessageBox.Show(this,

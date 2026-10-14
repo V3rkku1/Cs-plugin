@@ -148,6 +148,24 @@ runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`l
 - "Port 27015 is already forwarded to another PC": remove that rule in your router, or host from that PC.
 - You can also forward UDP port 27015 to your PC in the router by hand and press *Start anyway*.
 
+**Handy extras**
+
+- **Restores CS2 by itself.** When CS2 and the server are closed (with the X, after a crash, or
+  even with the launcher closed in between), the launcher switches test mode off a few seconds
+  later. You don't have to remember Stop before playing online.
+- **Update notice.** When GitHub has a newer build, a blue *Update available* card appears in the
+  sidebar. Click it to open the download page. The sidebar shows which build you have.
+- **Notifications.** Short pop-ups at the bottom confirm actions (equipped, copied, started, applied…).
+- **Remembers** the window size and position and the page you had open.
+- **Keyboard shortcuts:**
+
+  | Keys | Does |
+  | --- | --- |
+  | `Ctrl+1` … `Ctrl+4` | Play, Skins, Friends, Setup |
+  | `Ctrl+F` | Search skins |
+  | `F5` | Start, or apply changes to the running server |
+  | `Shift+F5` | Stop |
+
 While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
 (without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
 
@@ -276,6 +294,13 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!skinsearch <text>` | Find paint IDs by name (needs the skin names from step 5) |
 | `!gen <code>` / `!inspect <link>` | Import a real item with its exact float, pattern and stickers (see [Importing real items](#importing-real-items)) |
 | `!skinhelp` | Show the command list in game |
+| `!give <weapon>` | Give yourself a weapon: `!give ak47`, `!give awp`, `!give deagle`, `!give knife` |
+| `!3p` / `!fp` | Third person / first person, to look at your skins |
+| `!respawn` | Respawn yourself |
+| `!noclip` | Fly through walls (type it again to land) |
+| `!hacks` | Who is hacking in hacker mode |
+
+The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`) only work on a LAN or private server, like the skins.
 
 ### Examples
 

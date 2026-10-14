@@ -77,6 +77,33 @@ public class SidebarItem : DrawnControl
     }
 }
 
+/// <summary>"Update available" card above the status badge; click opens the download page.</summary>
+public class UpdateCard : DrawnControl
+{
+    public UpdateCard()
+    {
+        Size = new Size(204, 52);
+        Cursor = Cursors.Hand;
+        Visible = false;
+    }
+
+    protected override void Draw(Graphics g)
+    {
+        var r = new RectangleF(0, 0, Width - 1, Height - 1);
+        Theme.FillRounded(g, Hover ? Theme.AccentHover : Theme.Accent, r, 10);
+        // arrow.down.circle
+        using (var pen = new Pen(Color.White, 1.7f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round })
+        {
+            g.DrawEllipse(pen, 12, Height / 2f - 9, 18, 18);
+            g.DrawLine(pen, 21, Height / 2f - 5, 21, Height / 2f + 4);
+            g.DrawLine(pen, 17, Height / 2f, 21, Height / 2f + 4);
+            g.DrawLine(pen, 25, Height / 2f, 21, Height / 2f + 4);
+        }
+        Theme.DrawText(g, "Update available", Theme.Bold, new Rectangle(40, 8, Width - 44, 18), Color.White);
+        Theme.DrawText(g, "Click to download", Theme.Small, new Rectangle(40, 26, Width - 44, 18), Color.FromArgb(220, 235, 255));
+    }
+}
+
 /// <summary>Status capsule at the bottom of the sidebar.</summary>
 public class StatusBadge : DrawnControl
 {
