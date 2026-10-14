@@ -56,7 +56,9 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 2. **Server:** or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
-   - which team the bots join, and whether they use any weapons, pistols only, snipers only or knives only
+   - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
+     machine guns, and any sniper a bot still gets is swapped for an AK-47 / M4A4), pistols only,
+     snipers only, knives only, or any weapons
    - options: free-for-all, max money with buy anywhere, infinite ammo, rounds that never end with
      respawn, bots that don't shoot, and cheats
    - **Show more options:** round time, friendly fire, a **Workshop map**, your own **CS2 launch
@@ -87,8 +89,11 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
   random player gets the hacks each round and glows green for everyone else, so the rest hunt them.
 - **Powers** (each can be turned off):
   - *Wallhack:* enemies glow through walls, and only hackers see it.
-  - *Aimbot:* hold fire and your view snaps to the enemy nearest your crosshair.
-  - *One-tap:* 5× damage.
+  - *Aimbot:* a "legit" one. Hold fire and your aim pulls smoothly onto a visible enemy near
+    your crosshair, after a human-like reaction delay, at the head or neck, not pixel-perfect. It only
+    locks onto enemies you can actually see: CS2's own spotting (the radar's line-of-sight check)
+    decides, so walls and smokes block it.
+  - *Damage boost:* 2× damage (off by default).
   - *Infinite ammo.*
   - *Speedhack:* 35% faster.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
@@ -341,7 +346,8 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_respawn` | Respawn dead players |
 | `lst_refresh` | Re-apply skins to everyone |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
-| `lst_hack_powers wallhack,aimbot,onetap,ammo,speed` | Which hacker powers are on (`all` or `none` also work) |
+| `lst_hack_powers wallhack,aimbot,onetap,ammo,speed` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |
 | `lst_host_account <id>` | The host's Steam account id: the host always gets the launcher's loadout |

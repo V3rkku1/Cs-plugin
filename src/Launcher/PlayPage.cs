@@ -118,8 +118,8 @@ public class PlayPage : UserControl
         var hacker = new Group(left);
         hacker.AddRow("Who Hacks", _hackerMode, "One random: new hacker each round, glows green");
         hacker.AddRow("Wallhack", _hackWallhack, "See enemies glowing through walls");
-        hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: locks onto the enemy nearest your crosshair");
-        hacker.AddRow("One-Tap", _hackOneTap, "5× damage");
+        hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: smoothly pulls onto visible enemies near your crosshair");
+        hacker.AddRow("Damage Boost", _hackOneTap, "2× damage");
         hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
         hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
 
@@ -222,7 +222,7 @@ public class PlayPage : UserControl
         _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
         _difficulty.SelectedIndex = Math.Clamp(s.Difficulty, 0, 3);
         _botTeam.SelectedIndex = Math.Clamp(s.BotTeam, 0, 2);
-        _botWeapons.SelectedIndex = Math.Clamp(s.BotWeapons, 0, 3);
+        _botWeapons.SelectedIndex = Math.Clamp(s.BotWeapons, 0, ServerSettings.BotWeaponChoices.Length - 1);
         _ffa.Checked = s.FreeForAll;
         _maxMoney.Checked = s.MaxMoney;
         _infiniteAmmo.Checked = s.InfiniteAmmo;

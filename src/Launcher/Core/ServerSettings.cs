@@ -29,7 +29,8 @@ public class ServerSettings
     ];
 
     public static readonly string[] Difficulties = ["Easy", "Normal", "Hard", "Expert"];
-    public static readonly string[] BotWeaponChoices = ["Any weapons", "Pistols only", "Snipers only", "Knives only"];
+    /// <summary>Index 0 "Rifles" (no snipers, shotguns, SMGs or machine guns: with max money bots otherwise buy AWPs).</summary>
+    public static readonly string[] BotWeaponChoices = ["Rifles", "Pistols only", "Snipers only", "Knives only", "Any weapons"];
     public static readonly string[] BotTeams = ["Both teams", "Terrorists", "Counter-Terrorists"];
 
     public string Mode { get; set; } = "Deathmatch";
@@ -113,7 +114,7 @@ public class ServerSettings
     public int HackerMode { get; set; }
     public bool HackWallhack { get; set; } = true;
     public bool HackAimbot { get; set; } = true;
-    public bool HackOneTap { get; set; } = true;
+    public bool HackOneTap { get; set; }
     public bool HackAmmo { get; set; } = true;
     public bool HackSpeed { get; set; }
 
@@ -193,8 +194,8 @@ public class ServerSettings
         FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
         MaxMoney = AllowCheats = true;
         HackerMode = 0;
-        HackWallhack = HackAimbot = HackOneTap = HackAmmo = true;
-        HackSpeed = false;
+        HackWallhack = HackAimbot = HackAmmo = true;
+        HackOneTap = HackSpeed = false;
     }
 
     public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
@@ -274,6 +275,15 @@ public class ServerSettings
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 ? 1 : 0)}");
         sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 ? 1 : 0)}");
         sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 ? 1 : 0)}");
+        // Which weapon types bots may buy. "Rifles": rifles (+ pistols) only.
+        var rifles = BotWeapons == 0;
+        sb.AppendLine($"bot_allow_snipers {(rifles ? 0 : 1)}");
+        sb.AppendLine($"bot_allow_shotguns {(rifles ? 0 : 1)}");
+        sb.AppendLine($"bot_allow_sub_machine_guns {(rifles ? 0 : 1)}");
+        sb.AppendLine($"bot_allow_machine_guns {(rifles ? 0 : 1)}");
+        sb.AppendLine("bot_allow_rifles 1");
+        sb.AppendLine("bot_allow_pistols 1");
+        sb.AppendLine($"lst_bot_no_snipers {(rifles ? 1 : 0)}"); // plugin safety net: swaps snipers for AK/M4
         sb.AppendLine("bot_kick");
         sb.AppendLine($"bot_quota {Math.Clamp(Bots, 0, 31)}");
 

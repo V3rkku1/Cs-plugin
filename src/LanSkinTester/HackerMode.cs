@@ -22,8 +22,13 @@ public partial class LanSkinTester
     [Flags]
     private enum Power { None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16, All = 31 }
 
-    private const float AimbotFov = 35f;
-    private const float OneTapMultiplier = 5f;
+    // A "legit" aimbot: only enemies you can actually see, a small lock-on area, a human-like reaction
+    // delay, smooth movement and a slightly imperfect aim point - not an instant snap through walls.
+    private const float AimbotFov = 20f;          // degrees from the crosshair
+    private const float AimSmoothing = 0.18f;      // share of the remaining angle closed per tick
+    private const float AimMaxStep = 3.5f;         // max degrees turned per tick
+    private const double ReactionMinMs = 110, ReactionMaxMs = 220;
+    private const float OneTapMultiplier = 2f;     // "damage boost"
     private const float SpeedMultiplier = 1.35f;
 
     private static readonly Color HackerGlow = Color.FromArgb(255, 57, 255, 20);
@@ -45,7 +50,19 @@ public partial class LanSkinTester
     ];
 
     private HackMode _hackMode;
-    private Power _powers = Power.Wallhack | Power.Aimbot | Power.OneTap | Power.Ammo;
+    private Power _powers = Power.Wallhack | Power.Aimbot | Power.Ammo;
+
+    /// <summary>Aimbot state per hacker: who it's locked on, since when, and where on the target it aims.</summary>
+    private sealed class AimLock
+    {
+        public int TargetSlot = -1;
+        public DateTime AcquiredAt;
+        public double ReactionMs;
+        public float OffsetZ;   // below the eyes: head / neck
+        public float OffsetSide; // a few units left/right
+    }
+
+    private readonly Dictionary<int, AimLock> _aimLocks = new();
     private readonly HashSet<int> _hackerSlots = new();
     private readonly Dictionary<int, (CCSPlayerController Owner, CDynamicProp Relay, CDynamicProp Glow)> _glows = new();
 
@@ -57,6 +74,7 @@ public partial class LanSkinTester
         {
             _glows.Clear();
             _hackerSlots.Clear();
+            _aimLocks.Clear();
         });
         RegisterListener<Listeners.OnClientDisconnect>(slot =>
         {
@@ -161,7 +179,7 @@ public partial class LanSkinTester
         var names = new List<string>();
         if (Has(Power.Wallhack)) names.Add("walls");
         if (Has(Power.Aimbot)) names.Add("aimbot");
-        if (Has(Power.OneTap)) names.Add("one-taps");
+        if (Has(Power.OneTap)) names.Add("damage boost");
         if (Has(Power.Ammo)) names.Add("infinite ammo");
         if (Has(Power.Speed)) names.Add("speed");
         return names.Count == 0 ? "nothing (all powers off)" : string.Join(" · ", names);
@@ -290,41 +308,115 @@ public partial class LanSkinTester
                 Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
             }
 
-            if (Has(Power.Aimbot) && (hacker.Buttons & PlayerButtons.Attack) != 0)
-                AimAtClosestEnemy(hacker, pawn);
+            if (Has(Power.Aimbot) && (hacker.Buttons & PlayerButtons.Attack) != 0) Aim(hacker, pawn);
+            else _aimLocks.Remove(hacker.Slot);
         }
     }
 
-    /// <summary>Snaps the view to the head of the enemy closest to the crosshair (within the FOV). Through walls, obviously.</summary>
-    private void AimAtClosestEnemy(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    /// <summary>
+    /// True when the game itself says <paramref name="viewer"/> can see this enemy: CS2's spotting system
+    /// (what lights up enemies on the radar) does real line-of-sight checks, so walls and smokes block it.
+    /// </summary>
+    private static bool IsVisibleTo(CCSPlayerPawn enemyPawn, CCSPlayerController viewer)
+    {
+        try
+        {
+            var mask = enemyPawn.EntitySpottedState.SpottedByMask;
+            var slot = viewer.Slot;
+            return slot >= 0 && slot / 32 < mask.Length && (mask[slot / 32] & (1u << (slot % 32))) != 0;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Angles from the hacker's eyes to a point on the enemy (head/neck with a small offset).</summary>
+    private static (float Pitch, float Yaw)? AnglesTo(CCSPlayerPawn pawn, CCSPlayerPawn enemyPawn, AimLock? aim)
     {
         var origin = pawn.AbsOrigin;
-        if (origin == null) return;
-        var eyeZ = origin.Z + EyeHeight(pawn);
-        var current = pawn.EyeAngles;
+        var target = enemyPawn.AbsOrigin;
+        if (origin == null || target == null) return null;
 
-        QAngle? best = null;
-        var bestDelta = AimbotFov;
-        foreach (var enemy in Utilities.GetPlayers())
+        var dx = target.X - origin.X;
+        var dy = target.Y - origin.Y;
+        var yaw = (float)(Math.Atan2(dy, dx) * 180 / Math.PI);
+        if (aim != null)
         {
-            if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
-            var enemyPawn = enemy.PlayerPawn.Value;
-            var target = enemyPawn?.AbsOrigin;
-            if (enemyPawn == null || target == null) continue;
+            // Sideways offset, perpendicular to the line of sight.
+            var rad = (yaw + 90) * Math.PI / 180;
+            dx += (float)Math.Cos(rad) * aim.OffsetSide;
+            dy += (float)Math.Sin(rad) * aim.OffsetSide;
+            yaw = (float)(Math.Atan2(dy, dx) * 180 / Math.PI);
+        }
+        var dz = target.Z + EyeHeight(enemyPawn) - (aim?.OffsetZ ?? 2f) - (origin.Z + EyeHeight(pawn));
+        var pitch = (float)(-Math.Atan2(dz, Math.Sqrt(dx * dx + dy * dy)) * 180 / Math.PI);
+        return (pitch, yaw);
+    }
 
-            var dx = target.X - origin.X;
-            var dy = target.Y - origin.Y;
-            var dz = target.Z + EyeHeight(enemyPawn) - 2f - eyeZ;
-            var yaw = (float)(Math.Atan2(dy, dx) * 180 / Math.PI);
-            var pitch = (float)(-Math.Atan2(dz, Math.Sqrt(dx * dx + dy * dy)) * 180 / Math.PI);
+    private void Aim(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    {
+        var current = pawn.EyeAngles;
+        _aimLocks.TryGetValue(hacker.Slot, out var aim);
 
-            var delta = Math.Max(Math.Abs(AngleDiff(yaw, current.Y)), Math.Abs(AngleDiff(pitch, current.X)));
-            if (delta >= bestDelta) continue;
-            bestDelta = delta;
-            best = new QAngle(pitch, yaw, 0);
+        // Keep the current target while it stays visible and near the crosshair; otherwise pick the
+        // visible enemy closest to the crosshair.
+        CCSPlayerPawn? targetPawn = null;
+        if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
+            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && IsVisibleTo(lockedPawn, hacker)
+            && AnglesTo(pawn, lockedPawn, aim) is { } a
+            && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < AimbotFov * 1.5f)
+        {
+            targetPawn = lockedPawn;
+        }
+        else
+        {
+            aim = null;
+            var bestDelta = AimbotFov;
+            CCSPlayerController? best = null;
+            foreach (var enemy in Utilities.GetPlayers())
+            {
+                if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
+                var enemyPawn = enemy.PlayerPawn.Value;
+                if (enemyPawn == null || !enemyPawn.IsValid || !IsVisibleTo(enemyPawn, hacker)) continue;
+                if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
+                var delta = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
+                if (delta >= bestDelta) continue;
+                bestDelta = delta;
+                best = enemy;
+                targetPawn = enemyPawn;
+            }
+            if (best == null)
+            {
+                _aimLocks.Remove(hacker.Slot);
+                return;
+            }
+            aim = new AimLock
+            {
+                TargetSlot = best.Slot,
+                AcquiredAt = DateTime.UtcNow,
+                ReactionMs = ReactionMinMs + Random.Shared.NextDouble() * (ReactionMaxMs - ReactionMinMs),
+                // Mostly the head, sometimes the neck - never pixel-perfect.
+                OffsetZ = 1f + (float)Random.Shared.NextDouble() * (Random.Shared.Next(4) == 0 ? 9f : 4f),
+                OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5),
+            };
+            _aimLocks[hacker.Slot] = aim;
         }
 
-        if (best != null) pawn.Teleport(null, best, null);
+        // Human reaction time before the aim starts moving.
+        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs) return;
+        if (targetPawn == null || AnglesTo(pawn, targetPawn, aim) is not { } goal) return;
+
+        // Move part of the way each tick (smooth, capped), like a hand, not a snap.
+        var dYaw = AngleDiff(goal.Yaw, current.Y);
+        var dPitch = AngleDiff(goal.Pitch, current.X);
+        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return;
+        var stepYaw = Math.Clamp(dYaw * AimSmoothing, -AimMaxStep, AimMaxStep);
+        var stepPitch = Math.Clamp(dPitch * AimSmoothing, -AimMaxStep, AimMaxStep);
+        // Close the last bit directly so it doesn't crawl forever.
+        if (Math.Abs(dYaw) < 0.4f) stepYaw = dYaw;
+        if (Math.Abs(dPitch) < 0.4f) stepPitch = dPitch;
+        pawn.Teleport(null, new QAngle(current.X + stepPitch, current.Y + stepYaw, 0), null);
     }
 
     private static float EyeHeight(CCSPlayerPawn pawn)
