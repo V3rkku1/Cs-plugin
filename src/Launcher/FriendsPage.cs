@@ -35,11 +35,9 @@ public class FriendsPage : UserControl
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 2000 };
     private List<LocalAddress> _addresses = new();
 
-    // Internet mode: the router found with UPnP and its internet address.
-    private UpnpRouter? _router;
-    private IPAddress? _external;
-    private bool _searching;
-    private bool _routerChecked;
+    // Internet mode: router search state lives in RouterPort (shared with the Play page's Start).
+    private static UpnpRouter? Router => RouterPort.Router;
+    private static IPAddress? External => RouterPort.External;
 
     public FriendsPage(AppState app, PlayPage play)
     {
@@ -118,7 +116,7 @@ public class FriendsPage : UserControl
         {
             SaveSettings();
             if (Mode != ServerSettings.FriendsNetwork.Internet && Upnp.Active != null) _ = CloseRouterPortAsync();
-            _routerChecked = false; // look again when Internet is picked
+            RouterPort.ForgetSearch(); // look again when Internet is picked
             FillAddresses();
             NoteRestart();
         };
@@ -137,6 +135,12 @@ public class FriendsPage : UserControl
         _joinButton.Click += (_, _) => Join();
 
         _app.Changed += Refresh;
+        RouterPort.Changed += () =>
+        {
+            if (IsDisposed) return;
+            if (Mode == ServerSettings.FriendsNetwork.Internet) FillAddresses();
+            else UpdateAddressRow();
+        };
         VisibleChanged += (_, _) => { if (Visible) { FillAddresses(); RefreshFirewall(); } };
         _poll.Tick += (_, _) =>
         {
@@ -186,10 +190,10 @@ public class FriendsPage : UserControl
     {
         if (Mode == ServerSettings.FriendsNetwork.Internet)
         {
-            _address.SetItems(_external != null ? [new LocalAddress(_external, "Internet", _router?.Name ?? "router")] : []);
+            _address.SetItems(External != null ? [new LocalAddress(External, "Internet", Router?.Name ?? "router")] : []);
             if (_address.Items.Count > 0) _address.SelectedIndex = 0;
             UpdateAddressRow();
-            if (!_routerChecked && !_searching) _ = FindRouterAsync();
+            if (!RouterPort.Checked && !RouterPort.Searching) _ = FindRouterAsync();
             return;
         }
 
@@ -215,17 +219,17 @@ public class FriendsPage : UserControl
         var internet = Mode == ServerSettings.FriendsNetwork.Internet;
         _address.Enabled = _inviteButton.Enabled = selected != null;
         _copyAddress.Text = internet && selected == null ? "Retry" : "Copy";
-        _copyAddress.Enabled = selected != null || (internet && !_searching);
+        _copyAddress.Enabled = selected != null || (internet && !RouterPort.Searching);
 
         if (Mode == ServerSettings.FriendsNetwork.Internet)
         {
-            if (_searching) SetAddressNote("Looking for your router…", Theme.Muted);
-            else if (_router == null) SetAddressNote("No UPnP router found - turn on UPnP in your router, or use Radmin", Theme.Warning);
-            else if (_external == null) SetAddressNote($"{_router.Name} didn't say its internet address", Theme.Warning);
-            else if (Upnp.IsBehindAnotherNat(_external))
+            if (RouterPort.Searching) SetAddressNote("Looking for your router…", Theme.Muted);
+            else if (Router == null) SetAddressNote("No UPnP router found - turn on UPnP in your router, or use Radmin", Theme.Warning);
+            else if (External == null) SetAddressNote($"{Router.Name} didn't say its internet address", Theme.Warning);
+            else if (Upnp.IsBehindAnotherNat(External))
                 SetAddressNote("Your provider shares one address between homes (CGNAT): friends can't reach you - use Radmin", Theme.Warning);
-            else if (Upnp.Active != null) SetAddressNote($"Port {ServerSettings.Port} is open on {_router.Name}", Theme.Good);
-            else SetAddressNote($"{_router.Name} · the port opens when you start hosting", Theme.Muted);
+            else if (Upnp.Active != null) SetAddressNote($"Port {ServerSettings.Port} is open on {Router.Name}", Theme.Good);
+            else SetAddressNote($"{Router.Name} · the port opens when you start hosting", Theme.Muted);
             return;
         }
 
@@ -244,65 +248,9 @@ public class FriendsPage : UserControl
     // Internet (UPnP)
     // ---------------------------------------------------------------------------------------------
 
-    private async Task FindRouterAsync()
-    {
-        _searching = true;
-        UpdateAddressRow();
-        try
-        {
-            _router = await Task.Run(() => Upnp.DiscoverAsync());
-            _external = _router == null ? null : await Upnp.ExternalAddressAsync(_router);
-        }
-        catch (Exception ex)
-        {
-            _app.Log("UPnP: " + (ex is UpnpException u ? u.Friendly : ex.Message));
-        }
-        _searching = false;
-        _routerChecked = true;
-        if (_router != null) _app.Log($"UPnP router: {_router.Name}, internet address {_external?.ToString() ?? "unknown"}.");
-        if (Mode == ServerSettings.FriendsNetwork.Internet) FillAddresses();
-    }
+    private Task FindRouterAsync() => RouterPort.FindAsync(_app.Log);
 
-    /// <summary>Opens the port on the router. Returns an error message, or null when it's open.</summary>
-    private async Task<string?> OpenRouterPortAsync()
-    {
-        if (_router == null || _external == null) await FindRouterAsync();
-        if (_router == null) return "No UPnP router answered. Turn on UPnP in your router's settings, or use Radmin.";
-        if (_external != null && Upnp.IsBehindAnotherNat(_external))
-            return $"Your router's internet address ({_external}) is a shared/private one (CGNAT or a second router), so friends can't reach it. Use Radmin instead.";
-        try
-        {
-            await Upnp.AddMappingAsync(_router, ServerSettings.Port);
-            _app.Log($"UPnP: opened UDP port {ServerSettings.Port} on {_router.Name}. It closes again when you press Stop.");
-            return null;
-        }
-        catch (UpnpException ex)
-        {
-            return ex.Friendly;
-        }
-        catch (Exception ex)
-        {
-            return "The router didn't answer: " + ex.Message;
-        }
-        finally
-        {
-            UpdateAddressRow();
-        }
-    }
-
-    private async Task CloseRouterPortAsync()
-    {
-        try
-        {
-            await Upnp.RemoveMappingAsync();
-            _app.Log("UPnP: closed the router port.");
-        }
-        catch (Exception)
-        {
-            // It expires by itself.
-        }
-        UpdateAddressRow();
-    }
+    private Task CloseRouterPortAsync() => RouterPort.CloseAsync(_app.Log);
 
     private async Task RenewRouterPortAsync()
     {
@@ -313,26 +261,10 @@ public class FriendsPage : UserControl
     private async Task StartHostingAsync()
     {
         SaveSettings();
-        if (Mode == ServerSettings.FriendsNetwork.Internet)
-        {
-            // Open to the whole internet: always use a password.
-            if (_app.Settings.Server.Password == "")
-            {
-                _password.Text = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
-                SaveSettings();
-                _app.Log($"Internet mode: set password \"{_password.Text}\" (it's in the invite).");
-            }
-
-            _hostButton.Enabled = false;
-            var error = await OpenRouterPortAsync();
-            _hostButton.Enabled = true;
-            if (error != null &&
-                MessageBox.Show(this, error + "\n\nStart the server anyway? (Friends can only join if you forward UDP port " +
-                                      $"{ServerSettings.Port} to this PC in your router yourself.)",
-                    "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
-                return;
-        }
-        _play.StartServer(forFriends: true);
+        _hostButton.Enabled = false;
+        // Same start as the Play page's: opens the router port in Internet mode, sets a password...
+        await _play.StartServerAsync(forFriends: true);
+        _hostButton.Enabled = !_app.TestModeOn && _app.Ready;
     }
 
     private void RefreshFirewall()
@@ -363,6 +295,7 @@ public class FriendsPage : UserControl
         }
         var on = _app.TestModeOn;
         _hostButton.Enabled = _app.Ready && !on;
+        if (!_password.Box.Focused && _password.Text != _app.Settings.Server.Password) _password.Text = _app.Settings.Server.Password;
         _stopButton.Enabled = on;
         _joinButton.Enabled = _app.Game != null;
         UpdateAddressRow();

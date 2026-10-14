@@ -148,7 +148,7 @@ public class PlayPage : UserControl
         // ---- Right column ----
         _startButton.Width = 120;
         foreach (var b in new[] { _startButton, _applyButton, _gameButton, _stopButton }) b.Height = 36;
-        _startButton.Click += (_, _) => StartTest();
+        _startButton.Click += async (_, _) => await StartServerAsync();
         _applyButton.Click += (_, _) => ApplyToServer();
         _gameButton.Click += (_, _) => OpenGame();
         _stopButton.Click += (_, _) => StopTest();
@@ -514,7 +514,7 @@ public class PlayPage : UserControl
         _app.Log($"Quick start: {preset.Title}");
 
         if (_app.TestModeOn) ApplyToServer();
-        else if (_app.Ready) StartTest();
+        else if (_app.Ready) _ = StartServerAsync();
         else _app.Log("Install first (Setup page), then pick the quick start again.");
     }
 
@@ -628,13 +628,45 @@ public class PlayPage : UserControl
     }
 
     /// <summary>Start / Stop from the Friends page (uses the game settings from this page).</summary>
-    public void StartServer(bool forFriends = false) => StartTest(forFriends);
+    /// <summary>
+    /// Every way of starting the server goes through here (Start, F5, quick starts, the Friends page).
+    /// In "Internet" friends mode it first opens the port on the router (UPnP) and makes sure there's a
+    /// password - before, only the Friends page's Start Hosting did that, so starting from here left
+    /// the router closed and friends couldn't connect. Any friends mode also counts as hosting friends.
+    /// </summary>
+    public async Task StartServerAsync(bool forFriends = false)
+    {
+        if (_app.Game == null) return;
+        var server = ReadServerSettings();
+        if (server.Friends != ServerSettings.FriendsNetwork.Lan) forFriends = true;
+
+        if (server.Friends == ServerSettings.FriendsNetwork.Internet)
+        {
+            // Open to the whole internet: always use a password.
+            if (string.IsNullOrWhiteSpace(server.Password))
+            {
+                server.Password = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
+                _app.Settings.Save();
+                _app.Log($"Internet mode: set password \"{server.Password}\" (it's in the Friends page invite).");
+            }
+
+            _startButton.Enabled = false;
+            var error = await RouterPort.OpenAsync(_app.Log);
+            _startButton.Enabled = true;
+            if (error != null &&
+                MessageBox.Show(this, error + "\n\nStart the server anyway? (Friends can only join if you forward UDP port " +
+                                      $"{ServerSettings.Port} to this PC in your router yourself.)",
+                    "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
+                return;
+        }
+        StartTest(forFriends);
+    }
 
     /// <summary>F5: start, or apply the settings to the running server.</summary>
     public void StartOrApply()
     {
         if (_app.TestModeOn) ApplyToServer();
-        else if (_app.Ready) StartTest();
+        else if (_app.Ready) _ = StartServerAsync();
         else Toast.Show("Install first (Setup page).", Toast.Kind.Warning);
     }
 
