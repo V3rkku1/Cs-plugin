@@ -31,6 +31,12 @@ public class PlayPage : UserControl
     private readonly TextField _workshop = new(220) { PlaceholderText = "ID or link (optional)" };
     private readonly TextField _gameArgs = new(220) { PlaceholderText = "-windowed -w 1920 -h 1080" };
     private readonly Toggle _autoStartGame = new();
+    private readonly Segmented _hackerMode = new(ServerSettings.HackerModes, 100);
+    private readonly Toggle _hackWallhack = new();
+    private readonly Toggle _hackAimbot = new();
+    private readonly Toggle _hackOneTap = new();
+    private readonly Toggle _hackAmmo = new();
+    private readonly Toggle _hackSpeed = new();
 
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
@@ -52,6 +58,7 @@ public class PlayPage : UserControl
     [
         Theme.Accent, Color.FromArgb(191, 90, 242), Color.FromArgb(255, 55, 95),
         Theme.Warning, Theme.Good, Color.FromArgb(100, 210, 255),
+        Color.FromArgb(57, 255, 20), Color.FromArgb(255, 214, 10),
     ];
 
     public PlayPage(AppState app)
@@ -100,6 +107,14 @@ public class PlayPage : UserControl
         options.AddRow("Friendly Fire", _friendlyFire);
         options.AddRow("Round Time", _roundTime, "Minutes · 0 = game mode default");
 
+        var hacker = new Group(left);
+        hacker.AddRow("Who Hacks", _hackerMode, "One random: new hacker each round, glows green");
+        hacker.AddRow("Wallhack", _hackWallhack, "See enemies glowing through walls");
+        hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: locks onto the enemy nearest your crosshair");
+        hacker.AddRow("One-Tap", _hackOneTap, "5× damage");
+        hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
+        hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
+
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
         launch.AddRow("Launch Options", _gameArgs, "Extra options for the game window");
@@ -109,6 +124,7 @@ public class PlayPage : UserControl
             Theme.Caption("GAME"), game,
             Theme.Caption("BOTS"), bots,
             Theme.Caption("OPTIONS"), options,
+            Theme.Caption("HACKER MODE (FUN)"), hacker,
             Theme.Caption("LAUNCH"), launch) { Margin = new Padding(0, 0, 28, 0) };
 
         // ---- Right column ----
@@ -206,6 +222,12 @@ public class PlayPage : UserControl
         _gameArgs.Text = s.GameArgs;
         _autoStartGame.Checked = s.AutoStartGame;
         _ffa.Enabled = s.GetMode().Name == "Deathmatch";
+        _hackerMode.SelectedIndex = Math.Clamp(s.HackerMode, 0, 2);
+        _hackWallhack.Checked = s.HackWallhack;
+        _hackAimbot.Checked = s.HackAimbot;
+        _hackOneTap.Checked = s.HackOneTap;
+        _hackAmmo.Checked = s.HackAmmo;
+        _hackSpeed.Checked = s.HackSpeed;
     }
 
     private ServerSettings ReadServerSettings()
@@ -228,6 +250,12 @@ public class PlayPage : UserControl
         s.WorkshopMap = _workshop.Text.Trim();
         s.GameArgs = _gameArgs.Text.Trim();
         s.AutoStartGame = _autoStartGame.Checked;
+        s.HackerMode = _hackerMode.SelectedIndex;
+        s.HackWallhack = _hackWallhack.Checked;
+        s.HackAimbot = _hackAimbot.Checked;
+        s.HackOneTap = _hackOneTap.Checked;
+        s.HackAmmo = _hackAmmo.Checked;
+        s.HackSpeed = _hackSpeed.Checked;
         _app.Settings.Save();
         return s;
     }

@@ -28,10 +28,10 @@ public class LanSkinTesterConfig : BasePluginConfig
     public bool SingleLoadout { get; set; } = true;
 }
 
-public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
+public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "2.1.0";
+    public override string ModuleVersion => "2.2.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 
@@ -72,11 +72,13 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
         AddTimer(2.0f, WriteStatus, TimerFlags.REPEAT);
         RegisterListener<Listeners.OnMapStart>(_ => AddTimer(2.0f, ExecServerSettings, TimerFlags.STOP_ON_MAPCHANGE));
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
+        LoadHackerMode();
     }
 
     public override void Unload(bool hotReload)
     {
         VirtualFunctions.GiveNamedItemFunc.Unhook(OnGiveNamedItemPost, HookMode.Post);
+        UnloadHackerMode();
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -841,6 +843,7 @@ public class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
             "!knife <name|default|list>  !gloves <type> <id|name> [wear] [seed]",
             "!skinsearch <text>  !skinreset",
             "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
+            "!hacks - hacker mode status",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);
     }

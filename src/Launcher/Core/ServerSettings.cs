@@ -73,6 +73,16 @@ public class ServerSettings
     /// <summary>Optional server password for friends.</summary>
     public string Password { get; set; } = "";
 
+    public static readonly string[] HackerModes = ["Off", "Everyone", "One random"];
+
+    /// <summary>Hacker mode: 0 off, 1 every player hacks (great vs bots), 2 one random hacker per round ("catch the hacker").</summary>
+    public int HackerMode { get; set; }
+    public bool HackWallhack { get; set; } = true;
+    public bool HackAimbot { get; set; } = true;
+    public bool HackOneTap { get; set; } = true;
+    public bool HackAmmo { get; set; } = true;
+    public bool HackSpeed { get; set; }
+
     /// <summary>Start CS2 and join automatically (off = only the server starts).</summary>
     public bool AutoStartGame { get; set; } = true;
 
@@ -122,6 +132,21 @@ public class ServerSettings
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
+        new("Hacker vs bots", "You: walls + aimbot · 16 expert bots", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 16;
+            s.Difficulty = 3;
+            s.HackerMode = 1;
+            s.HackSpeed = true;
+        }),
+        new("Catch the hacker", "Friends: one random hacker per round", s =>
+        {
+            s.Reset("Casual", "de_mirage");
+            s.Bots = 0;
+            s.HackerMode = 2;
+            s.FriendlyFire = false;
+        }),
     ];
 
     /// <summary>Back to plain defaults for a mode (keeps launch options and auto-start).</summary>
@@ -133,6 +158,9 @@ public class ServerSettings
         BotTeam = BotWeapons = RoundTime = 0;
         FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
         MaxMoney = AllowCheats = true;
+        HackerMode = 0;
+        HackWallhack = HackAimbot = HackOneTap = HackAmmo = true;
+        HackSpeed = false;
     }
 
     public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
@@ -240,6 +268,15 @@ public class ServerSettings
             sb.AppendLine($"mp_roundtime_hostage {RoundTime}");
         }
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
+
+        var powers = new List<string>();
+        if (HackWallhack) powers.Add("wallhack");
+        if (HackAimbot) powers.Add("aimbot");
+        if (HackOneTap) powers.Add("onetap");
+        if (HackAmmo) powers.Add("ammo");
+        if (HackSpeed) powers.Add("speed");
+        sb.AppendLine($"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}");
+        sb.AppendLine($"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}");
 
         sb.AppendLine("mp_warmup_end");
         return sb.ToString();
