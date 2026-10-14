@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
 using LanSkinTester.Launcher.Ui;
 
@@ -188,6 +189,7 @@ public class PlayPage : UserControl
         _poll.Tick += (_, _) =>
         {
             RefreshLive();
+            CheckServerCrash();
             if (Visible && WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
         };
         _poll.Start();
@@ -285,6 +287,28 @@ public class PlayPage : UserControl
         _mapBox.SetItems(((GameMode)_modeBox.SelectedItem!).Maps);
     }
 
+    private Process? _reportedServer;
+
+    /// <summary>The server we started is gone without Stop: say so and show its last console lines.</summary>
+    private void CheckServerCrash()
+    {
+        var server = TestSession.Server;
+        if (_app.Game == null || server == null || TestSession.StoppedOnPurpose || server == _reportedServer) return;
+        bool exited;
+        try { exited = server.HasExited; }
+        catch (Exception) { return; }
+        if (!exited) return;
+
+        _reportedServer = server;
+        int? code = null;
+        try { code = server.ExitCode; } catch (Exception) { /* unknown */ }
+        _app.Log($"The server closed unexpectedly{(code is { } c && c != 0 ? $" (exit code 0x{c:X8})" : "")}. Its last console lines:");
+        var tail = new TestSession(_app.Game).ConsoleTail();
+        if (tail.Length == 0) _app.Log("   (no console log - it closed before writing one)");
+        foreach (var line in tail) _app.Log("   " + line);
+        Toast.Show("The server closed unexpectedly - see Activity on the Play page.", Toast.Kind.Error);
+    }
+
     // ---------------------------------------------------------------------------------------------
     // Workshop map
     // ---------------------------------------------------------------------------------------------
@@ -305,9 +329,9 @@ public class PlayPage : UserControl
             _workshopRow.SubtitleColor = _workshop.Text.Trim() == "" ? Theme.Muted : Theme.Warning;
             return;
         }
-        var downloaded = _app.Game != null && WorkshopMaps.FindDownloaded(_app.Game, id) != null;
-        _workshopRow.Subtitle = downloaded ? "On this PC · loads instantly" : "Not downloaded · Subscribe, or the server downloads it";
-        _workshopRow.SubtitleColor = downloaded ? Theme.Good : Theme.Warning;
+        var subscribed = _app.Game != null && WorkshopMaps.FindDownloaded(_app.Game, id) != null;
+        _workshopRow.Subtitle = subscribed ? "Subscribed · the server loads it from the Workshop" : "The server downloads it (needs internet)";
+        _workshopRow.SubtitleColor = subscribed ? Theme.Good : Theme.Muted;
     }
 
     private void SubscribeWorkshop()
@@ -407,12 +431,9 @@ public class PlayPage : UserControl
             _runningOnline = server.PrivateServer;
             _runningForFriends = forFriends;
             var map = server.WorkshopMapId != null ? $"Workshop map {server.WorkshopMapId}" : server.Map;
-            if (server.LocalWorkshopMap != null)
-                _app.Log($"Workshop map found on this PC ({server.LocalWorkshopMap}) - loading it directly, no download needed.");
-            else if (server.WorkshopNeedsDownload)
-                _app.Log(forFriends
-                    ? "Workshop map: the server downloads it, and friends' games fetch it automatically when they join."
-                    : "Workshop map isn't downloaded yet: the server goes online (unlisted) to download it. Loading takes longer the first time.");
+            if (server.WorkshopNeedsDownload)
+                _app.Log("Workshop map: the server goes online (unlisted) and loads it from the Workshop - the first time takes " +
+                         "longer while it downloads. Players' games fetch it automatically when they join.");
             _app.Log($"Started {server.Mode} on {map} with {server.Bots} {ServerSettings.Difficulties[server.Difficulty].ToLowerInvariant()} bots.");
             Toast.Show($"Starting {server.Mode} on {map}…", Toast.Kind.Info);
             if (server.Friends != ServerSettings.FriendsNetwork.Lan) _app.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
@@ -444,7 +465,6 @@ public class PlayPage : UserControl
                 Toast.Show("Workshop map not downloaded - see Activity.", Toast.Kind.Warning);
                 return;
             }
-            if (reload && server.LocalWorkshopMap != null) _app.Log($"Workshop map found on this PC ({server.LocalWorkshopMap}).");
             _runningMode = server.Mode;
             _runningMap = map;
             _app.Log(reload ? $"Switching to {server.Mode} on {map}..." : "Applied bots and options to the running server.");

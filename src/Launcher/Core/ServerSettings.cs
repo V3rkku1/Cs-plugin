@@ -79,21 +79,15 @@ public class ServerSettings
     public bool WorkshopNeedsDownload => WorkshopMapId != null && LocalWorkshopMap == null;
 
     /// <summary>
-    /// Picks how the Workshop map is loaded: the copy Steam already downloaded (instant, offline), or
-    /// a server download. With friends joining, always the download, so their games fetch it too.
+    /// Workshop maps always load the official way (host_workshop_map, server online). Copying the
+    /// downloaded .vpk into csgo\maps broke maps that Steam stores as a split archive (_dir/_000)
+    /// and crashed the server, so that is no longer done; old copies are cleaned up.
     /// </summary>
     public void PrepareWorkshopMap(GameFolder game, bool forFriends)
     {
         LocalWorkshopMap = null;
-        if (WorkshopMapId == null || forFriends) return;
-        try
-        {
-            LocalWorkshopMap = WorkshopMaps.Prepare(game, WorkshopMapId);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            LocalWorkshopMap = null; // fall back to the download
-        }
+        try { WorkshopMaps.RemoveCopies(game); }
+        catch (Exception) { /* not important */ }
     }
 
     /// <summary>The console command that loads the map (without "+").</summary>
@@ -205,7 +199,8 @@ public class ServerSettings
     public string StartArguments()
     {
         var mode = GetMode();
-        return $"-dedicated -insecure +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
+        // -condebug: the server writes csgo\console.log, which the launcher shows if the server crashes.
+        return $"-dedicated -insecure -condebug +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>

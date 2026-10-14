@@ -22,12 +22,14 @@ public class TestSession
         GameInfoPatcher.Enable(_game.GameInfo);
         settings.WriteCfg(_game);
 
-        Process.Start(new ProcessStartInfo(_game.Exe)
+        try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
+        Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {
             Arguments = settings.StartArguments(),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
+        StoppedOnPurpose = false;
         if (settings.AutoStartGame) StartGame(settings);
     }
 
@@ -42,9 +44,34 @@ public class TestSession
         });
     }
 
+    /// <summary>The dedicated server process started by this launcher (null after a launcher restart).</summary>
+    public static Process? Server { get; private set; }
+
+    /// <summary>True after Stop, so a closed server isn't reported as a crash.</summary>
+    public static bool StoppedOnPurpose { get; private set; } = true;
+
+    /// <summary>The server's console output (it runs with -condebug).</summary>
+    public string ConsoleLog => Path.Combine(_game.Csgo, "console.log");
+
+    /// <summary>The last lines the server wrote, to show why it stopped.</summary>
+    public string[] ConsoleTail(int lines = 12)
+    {
+        try
+        {
+            using var stream = new FileStream(ConsoleLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var reader = new StreamReader(stream);
+            return reader.ReadToEnd().Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Trim() != "").TakeLast(lines).ToArray();
+        }
+        catch (Exception)
+        {
+            return [];
+        }
+    }
+
     /// <summary>Closes the test server and game, then puts gameinfo.gi back to normal.</summary>
     public void Stop()
     {
+        StoppedOnPurpose = true;
         foreach (var p in Process.GetProcessesByName("cs2"))
         {
             try

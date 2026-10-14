@@ -61,14 +61,13 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
      respawn, bots that don't shoot, and cheats
    - **Show more options:** round time, friendly fire, a **Workshop map**, your own **CS2 launch
      options** (e.g. `-windowed -w 1920 -h 1080`), and whether CS2 starts and joins automatically.
-   - **Workshop map:** paste the map's ID or its Workshop link. The line under it says whether
-     Steam already has it:
-     - *On this PC*: you subscribed to it, so the launcher loads it straight from Steam's download
-       (copied into `csgo\maps` for the session and removed on Stop). Instant, no internet needed.
-     - *Not downloaded*: press **Subscribe** to open it in Steam and subscribe (best), or just press
-       Start: the server then goes online, unlisted, to download it, so the first load takes longer.
-     - When you host from the Friends page, the server always downloads the map itself, so your
-       friends' games fetch it automatically when they join.
+   - **Workshop map:** paste the map's ID or its Workshop link. The server goes online (unlisted, no
+     game server token) and loads it from the Workshop with `host_workshop_map`, so you need internet
+     and the first start takes longer while it downloads. Players' games fetch the map automatically
+     when they join. **Subscribe** opens the map in Steam, so your own game already has it.
+   - **If the server crashes or closes by itself**, the Activity log shows its last console lines
+     (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
+     you report a problem.
 3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
    and option settings to the running server; changing the mode or map switches the map. **Open CS2**
    starts the game again if you closed it.
