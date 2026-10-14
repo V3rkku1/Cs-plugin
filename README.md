@@ -94,8 +94,21 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
     locks onto enemies you can actually see: CS2's own spotting (the radar's line-of-sight check)
     decides, so walls and smokes block it.
   - *Damage boost:* 2× damage (off by default).
+  - *Bunnyhop:* hold jump to bhop perfectly.
+  - *No flash:* flashbangs don't blind you.
+  - *Enemy info:* the nearest enemy's name, HP, distance and direction (an arrow) in the middle of
+    the screen, and whether you can see them.
   - *Infinite ammo.*
   - *Speedhack:* 35% faster.
+- **In-game cheat menu:** type `!cheats` (or bind a key once in the CS2 console: `bind F3 css_cheats`).
+  It opens on the center of the screen:
+  - **W / S** move, **D** or **E** switches, **A** switches back, **R** closes. You stand still
+    while it's open.
+  - Each player switches their own cheats: wallhack, aimbot, aim area (10° / 20° / 35°),
+    aim smoothing (strong / medium / light), enemy info, speedhack, bunnyhop, infinite ammo,
+    no flash, damage boost, third person, or everything off.
+  - With hacker mode **off**, anyone can still open it to practise with cheats on their own
+    (LAN / private servers only). With **One random**, only that round's hacker gets it.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
   chat shows who is hacking.
 - It all runs on your server: glowing copies of the player models that only some players receive,
@@ -314,6 +327,7 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!respawn` | Respawn yourself |
 | `!noclip` | Fly through walls (type it again to land) |
 | `!hacks` | Who is hacking in hacker mode |
+| `!cheats` | Open the cheat menu (W/S move, D switch, R close) |
 
 The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`) only work on a LAN or private server, like the skins.
 
@@ -346,7 +360,7 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_respawn` | Respawn dead players |
 | `lst_refresh` | Re-apply skins to everyone |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
-| `lst_hack_powers wallhack,aimbot,onetap,ammo,speed` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_hack_powers wallhack,aimbot,onetap,ammo,speed,bhop,noflash,espinfo` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
 | `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |

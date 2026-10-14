@@ -20,12 +20,17 @@ public partial class LanSkinTester
     private enum HackMode { Off, Everyone, OneRandom }
 
     [Flags]
-    private enum Power { None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16, All = 31 }
+    private enum Power
+    {
+        None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16,
+        Bhop = 32, NoFlash = 64, EspInfo = 128,
+        All = 255,
+    }
 
     // A "legit" aimbot: only enemies you can actually see, a small lock-on area, a human-like reaction
     // delay, smooth movement and a slightly imperfect aim point - not an instant snap through walls.
-    private const float AimbotFov = 20f;          // degrees from the crosshair
-    private const float AimSmoothing = 0.18f;      // share of the remaining angle closed per tick
+    private const float AimbotFov = 20f;          // default lock-on area, degrees from the crosshair
+    private const float AimSmoothing = 0.18f;      // default share of the remaining angle closed per tick
     private const float AimMaxStep = 3.5f;         // max degrees turned per tick
     private const double ReactionMinMs = 110, ReactionMaxMs = 220;
     private const float OneTapMultiplier = 2f;     // "damage boost"
@@ -63,6 +68,12 @@ public partial class LanSkinTester
     }
 
     private readonly Dictionary<int, AimLock> _aimLocks = new();
+
+    /// <summary>Powers a player picked in the cheat menu (overrides the server-wide set), by slot.</summary>
+    private readonly Dictionary<int, Power> _personal = new();
+
+    /// <summary>Aimbot settings from the cheat menu, by slot.</summary>
+    private readonly Dictionary<int, (float Fov, float Smooth)> _aimSettings = new();
     private readonly HashSet<int> _hackerSlots = new();
     private readonly Dictionary<int, (CCSPlayerController Owner, CDynamicProp Relay, CDynamicProp Glow)> _glows = new();
 
@@ -80,12 +91,18 @@ public partial class LanSkinTester
         {
             RemoveGlow(slot);
             _hackerSlots.Remove(slot);
+            _personal.Remove(slot);
+            _aimSettings.Remove(slot);
+            _aimLocks.Remove(slot);
+            _cheatMenus.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnHackSpawn);
         RegisterEventHandler<EventPlayerDeath>(OnHackDeath);
         RegisterEventHandler<EventWeaponFire>(OnHackWeaponFire);
         RegisterListener<Listeners.OnEntityTakeDamagePre>(OnHackTakeDamage);
+        RegisterEventHandler<EventPlayerBlind>(OnHackBlind);
+        LoadCheatMenu();
     }
 
     private void UnloadHackerMode()
@@ -111,6 +128,7 @@ public partial class LanSkinTester
 
         _hackMode = mode;
         _hackerSlots.Clear();
+        _personal.Clear(); // everyone starts from the server's powers again
         if (mode == HackMode.OneRandom) PickRandomHacker();
         ResetSpeed();
         RebuildGlows();
@@ -137,11 +155,13 @@ public partial class LanSkinTester
         if (player == null || !player.IsValid) return;
         if (_hackMode == HackMode.Off)
         {
-            Reply(player, "Hacker mode is off. (The host turns it on in the launcher's Play page.)");
+            Reply(player, IsHacker(player)
+                ? $"Your cheats: {DescribePowers(player)}. !cheats opens the menu."
+                : "Hacker mode is off. Type !cheats to open the cheat menu for yourself.");
             return;
         }
         Reply(player, IsHacker(player)
-            ? $"You are hacking: {DescribePowers()}{(Has(Power.Aimbot) ? " - hold fire to lock on" : "")}"
+            ? $"You are hacking: {DescribePowers(player)}{(Has(player, Power.Aimbot) ? " - hold fire to lock on" : "")}. !cheats opens the menu."
             : $"{string.Join(", ", Hackers().Select(h => h.PlayerName))} is hacking. Look for the green glow!");
     }
 
@@ -149,13 +169,20 @@ public partial class LanSkinTester
     // Who hacks
     // ---------------------------------------------------------------------------------------------
 
-    private bool Has(Power power) => (_powers & power) != 0;
+    private Power PowersOf(CCSPlayerController player) =>
+        _personal.TryGetValue(player.Slot, out var own) ? own : _hackMode != HackMode.Off ? _powers : Power.None;
 
+    private bool Has(CCSPlayerController player, Power power) => (PowersOf(player) & power) != 0;
+
+    /// <summary>
+    /// Everyone mode: every human. One random: the chosen one. Off: whoever turned cheats on for
+    /// themselves in the cheat menu (practice, LAN / private servers only).
+    /// </summary>
     private bool IsHacker(CCSPlayerController? player) => player != null && player.IsValid && !player.IsBot && !player.IsHLTV && _hackMode switch
     {
         HackMode.Everyone => true,
         HackMode.OneRandom => _hackerSlots.Contains(player.Slot),
-        _ => false,
+        _ => _personal.TryGetValue(player.Slot, out var own) && own != Power.None,
     };
 
     private IEnumerable<CCSPlayerController> Hackers() => Utilities.GetPlayers().Where(IsHacker);
@@ -174,19 +201,26 @@ public partial class LanSkinTester
         return a.Team != b.Team || ConVar.Find("mp_teammates_are_enemies")?.GetPrimitiveValue<bool>() == true;
     }
 
-    private string DescribePowers()
+    private string DescribePowers(CCSPlayerController player)
     {
         var names = new List<string>();
-        if (Has(Power.Wallhack)) names.Add("walls");
-        if (Has(Power.Aimbot)) names.Add("aimbot");
-        if (Has(Power.OneTap)) names.Add("damage boost");
-        if (Has(Power.Ammo)) names.Add("infinite ammo");
-        if (Has(Power.Speed)) names.Add("speed");
+        if (Has(player, Power.Wallhack)) names.Add("walls");
+        if (Has(player, Power.Aimbot)) names.Add("aimbot");
+        if (Has(player, Power.EspInfo)) names.Add("enemy info");
+        if (Has(player, Power.OneTap)) names.Add("damage boost");
+        if (Has(player, Power.Ammo)) names.Add("infinite ammo");
+        if (Has(player, Power.Speed)) names.Add("speed");
+        if (Has(player, Power.Bhop)) names.Add("bhop");
+        if (Has(player, Power.NoFlash)) names.Add("no flash");
         return names.Count == 0 ? "nothing (all powers off)" : string.Join(" · ", names);
     }
 
+    /// <summary>Center-screen ESP waits while an announcement is showing.</summary>
+    private DateTime _quietUntil;
+
     private void Announce()
     {
+        _quietUntil = DateTime.UtcNow.AddSeconds(6);
         foreach (var player in Humans())
         {
             if (_hackMode == HackMode.Off)
@@ -198,7 +232,7 @@ public partial class LanSkinTester
             if (IsHacker(player))
                 player.PrintToCenterHtml(
                     $"<font color='#39ff14' class='fontSize-l'>YOU ARE {(_hackMode == HackMode.Everyone ? "A" : "THE")} HACKER</font><br>" +
-                    $"<font color='#aaaaaa'>{DescribePowers()}{(Has(Power.Aimbot) ? " · hold fire to lock on" : "")}</font>", 6);
+                    $"<font color='#aaaaaa'>{DescribePowers(player)}<br>!cheats opens the cheat menu</font>", 6);
             else
                 player.PrintToCenterHtml(
                     $"<font color='#ff4040' class='fontSize-l'>{string.Join(", ", Hackers().Select(h => h.PlayerName))} IS HACKING</font><br>" +
@@ -212,7 +246,11 @@ public partial class LanSkinTester
 
     private HookResult OnHackRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        if (_hackMode == HackMode.Off) return HookResult.Continue;
+        if (_hackMode == HackMode.Off)
+        {
+            if (GlowsNeeded) AddTimer(0.5f, RebuildGlows); // someone has walls from the cheat menu
+            return HookResult.Continue;
+        }
         if (_hackMode == HackMode.OneRandom) PickRandomHacker();
         // Players respawn right after round_start: build the glows once they exist.
         AddTimer(0.5f, () =>
@@ -226,7 +264,7 @@ public partial class LanSkinTester
     private HookResult OnHackSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (_hackMode == HackMode.Off || player == null || !player.IsValid) return HookResult.Continue;
+        if (!GlowsNeeded || player == null || !player.IsValid) return HookResult.Continue;
         // Deathmatch respawns: give the new pawn its glow.
         AddTimer(0.2f, () =>
         {
@@ -241,7 +279,7 @@ public partial class LanSkinTester
         if (victim != null && victim.IsValid) RemoveGlow(victim.Slot);
 
         var attacker = @event.Attacker;
-        if (_hackMode == HackMode.Off || victim == null || !IsHacker(attacker) || attacker!.Slot == victim.Slot)
+        if (victim == null || !IsHacker(attacker) || attacker!.Slot == victim.Slot)
             return HookResult.Continue;
 
         var line = KillLines[Random.Shared.Next(KillLines.Length)]
@@ -254,7 +292,7 @@ public partial class LanSkinTester
     private HookResult OnHackWeaponFire(EventWeaponFire @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (!Has(Power.Ammo) || !IsHacker(player)) return HookResult.Continue;
+        if (!IsHacker(player) || !Has(player!, Power.Ammo)) return HookResult.Continue;
 
         Server.NextFrame(() =>
         {
@@ -270,7 +308,7 @@ public partial class LanSkinTester
 
     private HookResult OnHackTakeDamage(CBaseEntity victim, CTakeDamageInfo damage)
     {
-        if (_hackMode == HackMode.Off || !Has(Power.OneTap)) return HookResult.Continue;
+        if (_hackMode == HackMode.Off && _personal.Count == 0) return HookResult.Continue;
         try
         {
             if (victim.DesignerName != "player") return HookResult.Continue;
@@ -278,7 +316,7 @@ public partial class LanSkinTester
             var attackerPawn = damage.Attacker.Value?.As<CCSPlayerPawn>();
             var attacker = attackerPawn is { IsValid: true } ? attackerPawn.Controller.Value?.As<CCSPlayerController>() : null;
             var target = new CCSPlayerPawn(victim.Handle).Controller.Value?.As<CCSPlayerController>();
-            if (IsHacker(attacker) && target != null && IsEnemy(attacker!, target))
+            if (IsHacker(attacker) && Has(attacker!, Power.OneTap) && target != null && IsEnemy(attacker!, target))
                 damage.Damage *= OneTapMultiplier;
         }
         catch (Exception ex)
@@ -294,7 +332,9 @@ public partial class LanSkinTester
 
     private void OnHackTick()
     {
-        if (_hackMode == HackMode.Off || !Has(Power.Aimbot | Power.Speed)) return;
+        TickCheatMenus();
+        if (_hackMode == HackMode.Off && _personal.Count == 0) return;
+        _tick++;
 
         foreach (var hacker in Hackers())
         {
@@ -302,13 +342,17 @@ public partial class LanSkinTester
             var pawn = hacker.PlayerPawn.Value;
             if (pawn == null || !pawn.IsValid) continue;
 
-            if (Has(Power.Speed) && pawn.VelocityModifier < SpeedMultiplier)
+            if (Has(hacker, Power.Bhop)) AutoBhop(hacker, pawn);
+            if (Has(hacker, Power.EspInfo) && _tick % 16 == 0) ShowEnemyInfo(hacker, pawn);
+
+            if (Has(hacker, Power.Speed) && pawn.VelocityModifier < SpeedMultiplier)
             {
                 pawn.VelocityModifier = SpeedMultiplier;
                 Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
             }
 
-            if (Has(Power.Aimbot) && (hacker.Buttons & PlayerButtons.Attack) != 0) Aim(hacker, pawn);
+            if (Has(hacker, Power.Aimbot) && (hacker.Buttons & PlayerButtons.Attack) != 0 && !_cheatMenus.ContainsKey(hacker.Slot))
+                Aim(hacker, pawn);
             else _aimLocks.Remove(hacker.Slot);
         }
     }
@@ -354,8 +398,73 @@ public partial class LanSkinTester
         return (pitch, yaw);
     }
 
+    private int _tick;
+
+    /// <summary>Holding jump keeps jumping the moment you land (perfect bunnyhops).</summary>
+    private static void AutoBhop(CCSPlayerController player, CCSPlayerPawn pawn)
+    {
+        if ((player.Buttons & PlayerButtons.Jump) == 0 || (pawn.Flags & (uint)PlayerFlags.FL_ONGROUND) == 0) return;
+        if (pawn.MoveType == MoveType_t.MOVETYPE_NOCLIP) return;
+        var v = pawn.AbsVelocity;
+        pawn.Teleport(null, null, new Vector(v.X, v.Y, 301.99f));
+    }
+
+    private HookResult OnHackBlind(EventPlayerBlind @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (!IsHacker(player) || !Has(player!, Power.NoFlash)) return HookResult.Continue;
+        Server.NextFrame(() =>
+        {
+            var pawn = player!.IsValid ? player.PlayerPawn.Value : null;
+            if (pawn == null || !pawn.IsValid) return;
+            pawn.FlashDuration = 0;
+            pawn.FlashMaxAlpha = 0;
+            Utilities.SetStateChanged(pawn, "CCSPlayerPawnBase", "m_flFlashDuration");
+            Utilities.SetStateChanged(pawn, "CCSPlayerPawnBase", "m_flFlashMaxAlpha");
+        });
+        return HookResult.Continue;
+    }
+
+    private static readonly string[] Arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
+
+    /// <summary>"ESP" line in the center of the screen: the nearest enemy's name, health, distance and direction.</summary>
+    private void ShowEnemyInfo(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    {
+        if (_cheatMenus.ContainsKey(hacker.Slot) || DateTime.UtcNow < _quietUntil) return;
+        var origin = pawn.AbsOrigin;
+        if (origin == null) return;
+
+        CCSPlayerController? nearest = null;
+        CCSPlayerPawn? nearestPawn = null;
+        var best = double.MaxValue;
+        foreach (var enemy in Utilities.GetPlayers())
+        {
+            if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
+            var p = enemy.PlayerPawn.Value;
+            if (p?.AbsOrigin is not { } o) continue;
+            var d = Math.Sqrt(Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2) + Math.Pow(o.Z - origin.Z, 2));
+            if (d >= best) continue;
+            best = d;
+            nearest = enemy;
+            nearestPawn = p;
+        }
+        if (nearest == null || nearestPawn?.AbsOrigin is not { } target) return;
+
+        var yaw = Math.Atan2(target.Y - origin.Y, target.X - origin.X) * 180 / Math.PI;
+        var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
+        var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
+        var visible = IsVisibleTo(nearestPawn, hacker);
+        hacker.PrintToCenterHtml(
+            $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
+            $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>", 1);
+    }
+
+    private (float Fov, float Smooth) AimSettingsOf(CCSPlayerController player) =>
+        _aimSettings.TryGetValue(player.Slot, out var a) ? a : (AimbotFov, AimSmoothing);
+
     private void Aim(CCSPlayerController hacker, CCSPlayerPawn pawn)
     {
+        var (fov, smoothing) = AimSettingsOf(hacker);
         var current = pawn.EyeAngles;
         _aimLocks.TryGetValue(hacker.Slot, out var aim);
 
@@ -365,14 +474,14 @@ public partial class LanSkinTester
         if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
             && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && IsVisibleTo(lockedPawn, hacker)
             && AnglesTo(pawn, lockedPawn, aim) is { } a
-            && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < AimbotFov * 1.5f)
+            && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
         {
             targetPawn = lockedPawn;
         }
         else
         {
             aim = null;
-            var bestDelta = AimbotFov;
+            var bestDelta = fov;
             CCSPlayerController? best = null;
             foreach (var enemy in Utilities.GetPlayers())
             {
@@ -411,8 +520,9 @@ public partial class LanSkinTester
         var dYaw = AngleDiff(goal.Yaw, current.Y);
         var dPitch = AngleDiff(goal.Pitch, current.X);
         if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return;
-        var stepYaw = Math.Clamp(dYaw * AimSmoothing, -AimMaxStep, AimMaxStep);
-        var stepPitch = Math.Clamp(dPitch * AimSmoothing, -AimMaxStep, AimMaxStep);
+        var maxStep = AimMaxStep * smoothing / AimSmoothing; // lighter smoothing turns faster too
+        var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
+        var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
         // Close the last bit directly so it doesn't crawl forever.
         if (Math.Abs(dYaw) < 0.4f) stepYaw = dYaw;
         if (Math.Abs(dPitch) < 0.4f) stepPitch = dPitch;
@@ -435,9 +545,9 @@ public partial class LanSkinTester
 
     private void ResetSpeed()
     {
-        if (_hackMode != HackMode.Off && Has(Power.Speed)) return;
         foreach (var player in Humans().Where(p => p.PawnIsAlive))
         {
+            if (IsHacker(player) && Has(player, Power.Speed)) continue;
             var pawn = player.PlayerPawn.Value;
             if (pawn == null || !pawn.IsValid || pawn.VelocityModifier <= 1f) continue;
             pawn.VelocityModifier = 1f;
@@ -449,7 +559,7 @@ public partial class LanSkinTester
     // Wallhack: a glowing copy of each player model, only sent to the players allowed to see it
     // ---------------------------------------------------------------------------------------------
 
-    private bool GlowsNeeded => _hackMode == HackMode.OneRandom || (_hackMode == HackMode.Everyone && Has(Power.Wallhack));
+    private bool GlowsNeeded => _hackMode == HackMode.OneRandom || Hackers().Any(h => Has(h, Power.Wallhack));
 
     private void RebuildGlows()
     {
@@ -519,7 +629,7 @@ public partial class LanSkinTester
     {
         if (!viewer.IsValid || !owner.IsValid || viewer.Slot == owner.Slot) return false;
         if (_hackMode == HackMode.OneRandom && IsHacker(owner)) return true;
-        return Has(Power.Wallhack) && IsHacker(viewer) && IsEnemy(viewer, owner);
+        return IsHacker(viewer) && Has(viewer, Power.Wallhack) && IsEnemy(viewer, owner);
     }
 
     private void OnHackCheckTransmit(CCheckTransmitInfoList infoList)

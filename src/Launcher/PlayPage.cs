@@ -42,6 +42,9 @@ public class PlayPage : UserControl
     private readonly Toggle _hackOneTap = new();
     private readonly Toggle _hackAmmo = new();
     private readonly Toggle _hackSpeed = new();
+    private readonly Toggle _hackBhop = new();
+    private readonly Toggle _hackNoFlash = new();
+    private readonly Toggle _hackEspInfo = new();
 
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
@@ -122,6 +125,10 @@ public class PlayPage : UserControl
         hacker.AddRow("Damage Boost", _hackOneTap, "2× damage");
         hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
         hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
+        hacker.AddRow("Bunnyhop", _hackBhop, "Hold jump to bhop perfectly");
+        hacker.AddRow("No Flash", _hackNoFlash, "Flashbangs don't blind you");
+        hacker.AddRow("Enemy Info", _hackEspInfo, "Nearest enemy's name, HP, distance and direction on screen");
+        hacker.AddRow("In-Game Cheat Menu", null, "Type !cheats in game, or bind a key: bind F3 css_cheats");
 
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
@@ -241,6 +248,9 @@ public class PlayPage : UserControl
         _hackOneTap.Checked = s.HackOneTap;
         _hackAmmo.Checked = s.HackAmmo;
         _hackSpeed.Checked = s.HackSpeed;
+        _hackBhop.Checked = s.HackBhop;
+        _hackNoFlash.Checked = s.HackNoFlash;
+        _hackEspInfo.Checked = s.HackEspInfo;
     }
 
     private ServerSettings ReadServerSettings()
@@ -269,6 +279,9 @@ public class PlayPage : UserControl
         s.HackOneTap = _hackOneTap.Checked;
         s.HackAmmo = _hackAmmo.Checked;
         s.HackSpeed = _hackSpeed.Checked;
+        s.HackBhop = _hackBhop.Checked;
+        s.HackNoFlash = _hackNoFlash.Checked;
+        s.HackEspInfo = _hackEspInfo.Checked;
         _app.Settings.Save();
         return s;
     }
