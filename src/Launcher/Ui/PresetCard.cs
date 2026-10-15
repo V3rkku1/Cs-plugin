@@ -12,7 +12,7 @@ public class PresetCard : DrawnControl
         _title = title;
         _subtitle = subtitle;
         _tint = tint;
-        Size = new Size(176, 92);
+        Size = new Size(176, 104);
         Margin = new Padding(0, 0, 10, 10);
         Cursor = Cursors.Hand;
     }
@@ -36,6 +36,6 @@ public class PresetCard : DrawnControl
             g.FillPolygon(white, [new PointF(icon.Left + Theme.S(10f), icon.Top + Theme.S(7.5f)), new PointF(icon.Left + Theme.S(10f), icon.Bottom - Theme.S(7.5f)), new PointF(icon.Right - Theme.S(7f), icon.Top + Theme.S(13f))]);
 
         Theme.DrawText(g, _title, Theme.Bold, new Rectangle(Theme.S(14), Theme.S(46), Width - Theme.S(22), Theme.S(20)), Enabled ? Theme.Text : Theme.Muted);
-        Theme.DrawText(g, _subtitle, Theme.Small, new Rectangle(Theme.S(14), Theme.S(64), Width - Theme.S(20), Theme.S(22)), Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top);
+        Theme.DrawText(g, _subtitle, Theme.Small, new Rectangle(Theme.S(14), Theme.S(65), Width - Theme.S(22), Theme.S(34)), Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top | TextFormatFlags.WordBreak);
     }
 }

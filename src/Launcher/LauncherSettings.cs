@@ -14,6 +14,14 @@ public class LauncherSettings
     public bool Maximized { get; set; }
     public string? LastPage { get; set; }
 
+    /// <summary>Text look (applied at start): font "inter" or "segoe", "sharp" (ClearType) or "smooth", size "normal" or "large".</summary>
+    public string TextFont { get; set; } = "inter";
+    public string TextRendering { get; set; } = "sharp";
+    public string TextSize { get; set; } = "normal";
+
+    /// <summary>The settings tab last open on the Play page.</summary>
+    public int PlayTab { get; set; }
+
     /// <summary>Servers joined lately (newest first), for one-click rejoin on the Friends page.</summary>
     public List<JoinTarget> RecentServers { get; set; } = new();
 

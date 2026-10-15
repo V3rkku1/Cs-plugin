@@ -84,7 +84,7 @@ public class SetupPage : UserControl
 
         var log = new Group(right);
         log.AddContent(_log, new Padding(12, 12, 12, 12));
-        var rightColumn = new VStack(Theme.Caption("LOG"), log);
+        var rightColumn = new VStack(Theme.Caption("APPEARANCE"), Appearance(right), Theme.Caption("LOG"), log);
 
         var page = new VStack(PlayPage.Header("Setup", "Install, update or remove everything the skin test needs."), new HStack(leftColumn, rightColumn));
         Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
@@ -345,5 +345,44 @@ public class SetupPage : UserControl
         var b = new PillButton("Open in Browser", PillButton.Style.Plain);
         b.Click += (_, _) => Process.Start(new ProcessStartInfo(url) { UseShellExecute = true });
         return b;
+    }
+
+    /// <summary>Font, sharp/smooth text and text size. Fonts are made once, so a change needs a restart.</summary>
+    private Group Appearance(int width)
+    {
+        var s = _app.Settings;
+        var font = new Segmented(["Inter", "Segoe UI"], 100) { SelectedIndex = s.TextFont == "segoe" ? 1 : 0 };
+        var look = new Segmented(["Sharp", "Smooth"], 100) { SelectedIndex = s.TextRendering == "smooth" ? 1 : 0 };
+        var size = new Segmented(["Normal", "Large"], 100) { SelectedIndex = s.TextSize == "large" ? 1 : 0 };
+        var restart = new PillButton("Restart Now", PillButton.Style.Primary);
+        var group = new Group(width);
+        group.AddRow("Font", font, "Inter, or Windows' Segoe UI");
+        group.AddRow("Text", look, "Sharp = ClearType · Smooth = softer");
+        group.AddRow("Text Size", size);
+        var restartRow = group.AddRow("Restart to apply", restart, "The new text style shows after a restart");
+        restartRow.Visible = false;
+
+        void Changed()
+        {
+            s.TextFont = font.SelectedIndex == 1 ? "segoe" : "inter";
+            s.TextRendering = look.SelectedIndex == 1 ? "smooth" : "sharp";
+            s.TextSize = size.SelectedIndex == 1 ? "large" : "normal";
+            try { s.Save(); }
+            catch (IOException) { /* saved next time */ }
+            restartRow.Visible = true;
+        }
+        font.SelectedChanged += (_, _) => Changed();
+        look.SelectedChanged += (_, _) => Changed();
+        size.SelectedChanged += (_, _) => Changed();
+        restart.Click += (_, _) =>
+        {
+            if (_app.TestModeOn)
+            {
+                Toast.Show("Stop the server first, then restart.", Toast.Kind.Warning);
+                return;
+            }
+            Application.Restart();
+        };
+        return group;
     }
 }

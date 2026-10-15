@@ -54,6 +54,8 @@ public partial class LanSkinTester
                 var count = AimKeyNames.Length;
                 _aimKeys[p.Slot] = (AimKey)(((int)AimKeyOf(p) + (up ? 1 : -1) + count) % count);
             }),
+            new MenuItem("Aim target", p => AimTargetNames[(int)AimTargetOf(p)], (p, _) =>
+                _aimTargets[p.Slot] = AimTargetOf(p) == AimTarget.Closest ? AimTarget.Crosshair : AimTarget.Closest),
             Toggle("Zero recoil", Power.NoRecoil),
             Toggle("Enemy info", Power.EspInfo),
             Toggle("Radar", Power.Radar),

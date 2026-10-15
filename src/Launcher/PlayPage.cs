@@ -49,9 +49,14 @@ public class PlayPage : UserControl
     private readonly PillButton _stopButton = new("Stop", PillButton.Style.Destructive);
     private readonly PillButton _copyIp = new("Copy IP");
     private readonly PillButton _copyInvite = new("Copy Code", PillButton.Style.Primary);
-    private SettingRow _inviteRow = null!;
-    private readonly Label _modeTitle = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, BackColor = Color.Transparent };
-    private readonly Label _modeStatus = new() { AutoSize = true, MaximumSize = new Size(440, 0), Font = Theme.Body, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 14) };
+    private readonly Hero _hero = new(1088, 176);
+    private readonly Label _modeTitle = new SmoothLabel { AutoSize = true, Font = Theme.Title, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _modeStatus = new SmoothLabel { AutoSize = true, MaximumSize = new Size(600, 0), Font = Theme.Body, ForeColor = Color.FromArgb(200, 205, 225), BackColor = Color.Transparent };
+    private readonly Label _heroLive = new SmoothLabel { AutoSize = true, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _inviteTitle = new SmoothLabel { AutoSize = true, Text = "Invite Friends", Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
+    private readonly Label _inviteText = new SmoothLabel { AutoSize = true, MaximumSize = new Size(330, 0), Font = Theme.Small, ForeColor = Color.FromArgb(200, 205, 225), BackColor = Color.Transparent };
+    private readonly Segmented _tabs = new(["Game", "Bots", "Rules", "Launch"], 96);
+    private readonly ToolTip _tips = new();
 
     // Live
     private readonly SettingRow _liveRow;
@@ -65,7 +70,7 @@ public class PlayPage : UserControl
     [
         Theme.Accent, Color.FromArgb(191, 90, 242), Color.FromArgb(255, 55, 95),
         Theme.Warning, Theme.Good, Color.FromArgb(100, 210, 255),
-        Color.FromArgb(57, 255, 20), Color.FromArgb(255, 214, 10),
+        Color.FromArgb(57, 255, 20), Color.FromArgb(255, 100, 60), Color.FromArgb(255, 214, 10),
     ];
 
     public PlayPage(AppState app)
@@ -84,15 +89,41 @@ public class PlayPage : UserControl
 
         const int left = 560;
         const int right = 500;
+        const int full = left + 28 + right;
 
-        // ---- Left column ----
-        var presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(left - 24, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
+        // ---- Hero: status, start/stop and invite ----
+        _startButton.Width = 140;
+        _startButton.Height = 42;
+        foreach (var b in new[] { _applyButton, _gameButton, _stopButton }) b.Height = 42;
+        _startButton.Click += async (_, _) => await StartServerAsync();
+        _applyButton.Click += (_, _) => ApplyToServer();
+        _gameButton.Click += (_, _) => OpenGame();
+        _stopButton.Click += (_, _) => StopTest();
+        _tips.SetToolTip(_startButton, "Start the server and CS2 (F5)");
+        _tips.SetToolTip(_applyButton, "Send the settings below to the running server (F5)");
+        _tips.SetToolTip(_stopButton, "Close the server and CS2, back to normal (Shift+F5)");
+        _copyIp.Click += (_, _) => CopyToClipboard(FriendsInvite.HostAddress(_app.Settings.Server), "Address copied - send it to your friend.");
+        _copyInvite.Click += (_, _) =>
+        {
+            var address = FriendsInvite.HostAddress(_app.Settings.Server);
+            if (address != null) CopyToClipboard(FriendsInvite.Code(address, _app.Settings.Server.Password), "Code copied - your friend pastes it in Join a Friend.");
+        };
+        _hero.Controls.AddRange([_modeTitle, _modeStatus, _heroLive, _startButton, _applyButton, _gameButton, _stopButton, _inviteTitle, _inviteText, _copyIp, _copyInvite]);
+        _hero.Layout += (_, _) => LayoutHero();
+
+        // ---- Quick start: one wide row of tiles ----
+        var presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(full - 14, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
         for (var i = 0; i < ServerSettings.Presets.Length; i++)
-            presets.Controls.Add(PresetButton(ServerSettings.Presets[i], PresetTints[i % PresetTints.Length]));
-        foreach (Control c in presets.Controls) c.Width = 168;
-        var quick = new Group(left);
+        {
+            var card = PresetButton(ServerSettings.Presets[i], PresetTints[i % PresetTints.Length]);
+            card.Width = (full - 24 - 4 * 10) / 5;
+            _tips.SetToolTip(card, ServerSettings.Presets[i].Subtitle);
+            presets.Controls.Add(card);
+        }
+        var quick = new Group(full);
         quick.AddContent(presets, new Padding(12, 12, 2, 2));
 
+        // ---- Settings, one tab at a time ----
         var game = new Group(left);
         game.AddRow("Game Mode", _modeBox);
         game.AddRow("Map", _mapBox);
@@ -100,57 +131,49 @@ public class PlayPage : UserControl
         _workshopRow = game.AddRow("Workshop Map", new HStack(_workshop, _subscribe), "Overrides the map");
         _workshop.TextChanged += (_, _) => UpdateWorkshopRow();
         _subscribe.Click += (_, _) => SubscribeWorkshop();
+        _hackerRow = game.AddRow("Hacker Mode", _hackerButton, "");
+        _hackerButton.Click += (_, _) => OpenHackerPage?.Invoke();
 
         var bots = new Group(left);
         bots.AddRow("Bots", new HStack(_botsBar, _botsLabel));
         bots.AddRow("Skill", _difficulty);
-        bots.AddRow("Team", _botTeam);
+        bots.AddRow("Team", _botTeam, "Retakes: bots are always the terrorists");
         bots.AddRow("Weapons", _botWeapons);
+        bots.AddRow("Peaceful Bots", _botsDontShoot, "Bots don't shoot - look at your skins in peace");
 
         var options = new Group(left);
         options.AddRow("Free-for-All", _ffa, "Deathmatch: everyone is an enemy");
         options.AddRow("Max Money", _maxMoney, "And buy anywhere");
         options.AddRow("Infinite Ammo", _infiniteAmmo);
         options.AddRow("Endless Rounds", _noRoundEnd, "Rounds never end, respawn on death");
-        options.AddRow("Peaceful Bots", _botsDontShoot, "Bots don't shoot - look at your skins in peace");
         options.AddRow("Allow Cheats", _cheats, "Needed for third person and noclip");
         options.AddRow("Friendly Fire", _friendlyFire);
         options.AddRow("Round Time", _roundTime, "Minutes · 0 = game mode default");
 
-        var hacker = new Group(left);
-        _hackerRow = hacker.AddRow("Hacker Mode", _hackerButton, "");
-        _hackerButton.Click += (_, _) => OpenHackerPage?.Invoke();
-
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
         launch.AddRow("Launch Options", _gameArgs, "Extra options for the game window");
+        var reset = new PillButton("Reset");
+        reset.Click += (_, _) => ResetSettings();
+        launch.AddRow("Reset Settings", reset, "Back to the defaults (keeps friends and launch options)");
 
-        var leftColumn = new VStack(
-            Theme.Caption("QUICK START"), quick,
-            Theme.Caption("GAME"), game,
-            Theme.Caption("BOTS"), bots,
-            Theme.Caption("OPTIONS"), options,
-            Theme.Caption("HACKER MODE (FUN)"), hacker,
-            Theme.Caption("LAUNCH"), launch) { Margin = new Padding(0, 0, 28, 0) };
-
-        // ---- Right column ----
-        _startButton.Width = 120;
-        foreach (var b in new[] { _startButton, _applyButton, _gameButton, _stopButton }) b.Height = 36;
-        _startButton.Click += async (_, _) => await StartServerAsync();
-        _applyButton.Click += (_, _) => ApplyToServer();
-        _gameButton.Click += (_, _) => OpenGame();
-        _stopButton.Click += (_, _) => StopTest();
-        var control = new Group(right);
-        control.AddContent(new VStack(_modeTitle, _modeStatus, new HStack(_startButton, _applyButton, _gameButton, _stopButton)),
-            new Padding(18, 16, 18, 18));
-        _inviteRow = control.AddRow("Invite Friends", new HStack(_copyIp, _copyInvite), "");
-        _copyIp.Click += (_, _) => CopyToClipboard(FriendsInvite.HostAddress(_app.Settings.Server), "Address copied - send it to your friend.");
-        _copyInvite.Click += (_, _) =>
+        var tabPages = new Control[] { game, bots, options, launch };
+        void ShowTab(int index)
         {
-            var address = FriendsInvite.HostAddress(_app.Settings.Server);
-            if (address != null) CopyToClipboard(FriendsInvite.Code(address, _app.Settings.Server.Password), "Code copied - your friend pastes it in Join a Friend.");
+            for (var i = 0; i < tabPages.Length; i++) tabPages[i].Visible = i == index;
+        }
+        _tabs.SelectedIndex = Math.Clamp(_app.Settings.PlayTab, 0, tabPages.Length - 1);
+        ShowTab(_tabs.SelectedIndex);
+        _tabs.SelectedChanged += (_, _) =>
+        {
+            ShowTab(_tabs.SelectedIndex);
+            _app.Settings.PlayTab = _tabs.SelectedIndex;
         };
+        _tabs.Margin = new Padding(0, 0, 0, 10);
 
+        var leftColumn = new VStack(Theme.Caption("SETTINGS"), _tabs, new VStack(tabPages)) { Margin = new Padding(0, 0, 28, 0) };
+
+        // ---- Live server ----
         _giveButton.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
         _actions = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(right - 28, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
         _actions.Controls.AddRange([
@@ -173,11 +196,14 @@ public class PlayPage : UserControl
         activity.AddContent(_log, new Padding(12, 12, 12, 12));
 
         var rightColumn = new VStack(
-            Theme.Caption("SERVER"), control,
-            Theme.Caption("LIVE"), live,
+            Theme.Caption("LIVE SERVER"), live,
             Theme.Caption("ACTIVITY"), activity);
 
-        var page = new VStack(Header("Play", "Start a local server with bots and try your skins."), new HStack(leftColumn, rightColumn));
+        var page = new VStack(
+            Header("Play", "Start a local server with bots and try your skins."),
+            _hero,
+            Theme.Caption("QUICK START"), quick,
+            new HStack(leftColumn, rightColumn));
         Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
@@ -437,14 +463,60 @@ public class PlayPage : UserControl
         _applyButton.Enabled = _stopButton.Enabled = on;
         _gameButton.Enabled = on;
 
-        _modeTitle.Text = on ? "Test mode is on" : ready ? "Ready to play" : "Setup needed";
-        _modeTitle.ForeColor = on ? Theme.Warning : Theme.Text;
+        _modeTitle.Text = on ? "Server running" : ready ? "Ready to play" : "Setup needed";
+        _modeTitle.ForeColor = !ready ? Theme.Warning : Theme.Text;
+        if (_hero.Running != on)
+        {
+            _hero.Running = on;
+            _hero.Invalidate(true);
+        }
         _modeStatus.Text = on
-            ? "VAC is off. Only start CS2 from this launcher until you press Stop - starting it from Steam now could get you VAC-kicked."
+            ? "VAC is off until you press Stop. Only start CS2 from here until then - starting it from Steam could get you VAC-kicked."
             : ready ? "Pick a quick start or press Start. The server opens in its own window and CS2 joins it."
             : "Open Setup and press \"Install Everything\" first.";
         RefreshLive();
         UpdateWorkshopRow();
+    }
+
+    /// <summary>Places the hero's text and buttons (in real pixels, so it follows screen scaling).</summary>
+    private void LayoutHero()
+    {
+        int S(int v) => Theme.S(v);
+        var w = _hero.Width;
+        var rightX = w - S(352);
+        _modeTitle.Location = new Point(S(24), S(18));
+        _modeStatus.MaximumSize = new Size(Math.Max(S(200), rightX - S(48)), 0);
+        _modeStatus.Location = new Point(S(26), _modeTitle.Bottom + S(4));
+        _heroLive.Location = new Point(S(26), _modeStatus.Bottom + S(4));
+        var x = S(24);
+        var y = _hero.Height - _startButton.Height - S(20);
+        foreach (var b in new Control[] { _startButton, _applyButton, _gameButton, _stopButton })
+        {
+            b.Location = new Point(x, y);
+            x += b.Width + S(10);
+        }
+
+        // Invite, on the right.
+        _inviteTitle.Location = new Point(rightX, S(22));
+        _inviteText.MaximumSize = new Size(w - rightX - S(24), 0);
+        _inviteText.Location = new Point(rightX, _inviteTitle.Bottom + S(4));
+        _copyIp.Location = new Point(rightX, _hero.Height - _copyIp.Height - S(20));
+        _copyInvite.Location = new Point(_copyIp.Right + S(10), _copyIp.Top);
+    }
+
+    private void ResetSettings()
+    {
+        if (MessageBox.Show(this, "Put all game, bot and rule settings back to the defaults?", "Reset Settings",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        var old = _app.Settings.Server;
+        _app.Settings.Server = new ServerSettings
+        {
+            Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins,
+            GameArgs = old.GameArgs, AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey,
+        };
+        _app.Settings.Save();
+        LoadServerSettings();
+        Toast.Show("Settings reset.");
     }
 
     private void RefreshInviteRow()
@@ -458,7 +530,7 @@ public class PlayPage : UserControl
             ServerSettings.FriendsNetwork.Vpn => "Radmin VPN",
             _ => "same Wi-Fi",
         };
-        _inviteRow.Subtitle = address != null ? $"{address} · {how} · change on the Friends page"
+        _inviteText.Text = address != null ? $"{address} · {how} · change on the Friends page"
             : s.Friends == ServerSettings.FriendsNetwork.Internet ? "Router address shows after Start"
             : $"No {how} address found · see the Friends page";
     }
@@ -477,6 +549,12 @@ public class PlayPage : UserControl
         }
     }
 
+    private static string HeroLine(ServerStatus status)
+    {
+        var mode = ServerSettings.Modes.FirstOrDefault(m => m.GameType == status.GameType && m.Mode == status.GameMode)?.Name ?? "";
+        return $"● {status.Map}{(mode != "" ? " · " + mode : "")} · {status.Humans} player{(status.Humans == 1 ? "" : "s")} · {status.Bots} bot{(status.Bots == 1 ? "" : "s")}";
+    }
+
     private void RefreshLive()
     {
         RefreshInviteRow();
@@ -486,6 +564,7 @@ public class PlayPage : UserControl
         foreach (Control c in _actions.Controls) c.Enabled = running;
         _giveBox.Enabled = _giveButton.Enabled = running;
 
+        _heroLive.Text = status == null ? "" : HeroLine(status);
         if (status == null)
         {
             _liveRow.Title = !_app.TestModeOn ? "Server not running"

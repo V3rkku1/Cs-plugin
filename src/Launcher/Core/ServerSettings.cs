@@ -26,7 +26,14 @@ public class ServerSettings
         new("Casual", 0, 0, DefuseMaps),
         new("Wingman", 0, 2, ["de_inferno", "de_nuke", "de_vertigo", "de_overpass"]),
         new("Arms Race", 1, 0, ["ar_baggage", "ar_shoots", "ar_pool_day"]),
+        // Competitive rules; the plugin plants the bomb on a random site every round.
+        new(RetakesMode, 0, 1, ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo", "de_overpass", "de_train"]),
     ];
+
+    public const string RetakesMode = "Retakes";
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsRetakes => Mode == RetakesMode;
 
     public static readonly string[] Difficulties = ["Easy", "Normal", "Hard", "Expert"];
     /// <summary>Index 0 "Rifles" (no snipers, shotguns, SMGs or machine guns: with max money bots otherwise buy AWPs).</summary>
@@ -133,6 +140,11 @@ public class ServerSettings
     public static readonly string[] AimKeys = ["Hold fire (Mouse 1)", "Always on", "Hold right click", "Hold Shift", "Hold E", "Hold F", "Only my own key"];
     private static readonly string[] AimKeyCommands = ["fire", "always", "mouse2", "shift", "e", "f", "custom"];
 
+    public static readonly string[] AimTargets = ["Closest enemy", "Nearest crosshair"];
+
+    /// <summary>Who the aimbot goes for (index into <see cref="AimTargets"/>).</summary>
+    public int HackAimTarget { get; set; }
+
     /// <summary>When the aimbot works (index into <see cref="AimKeys"/>).</summary>
     public int HackAimKey { get; set; }
 
@@ -199,6 +211,13 @@ public class ServerSettings
             s.HackerMode = 1;
             s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
             s.HackAggression = 7;
+        }),
+        new("Retakes", "Bomb planted on A or B · retake it vs 4 bots", s =>
+        {
+            s.Reset(RetakesMode, "de_mirage");
+            s.Bots = 4;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
         }),
         new("Catch the hacker", "Friends: one random hacker per round", s =>
         {
@@ -338,7 +357,15 @@ public class ServerSettings
         sb.AppendLine($"bot_difficulty {Math.Clamp(Difficulty, 0, 3)}");
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
-        sb.AppendLine($"bot_join_team {BotTeam switch { 1 => "T", 2 => "CT", _ => "any" }}");
+        sb.AppendLine($"bot_join_team {(IsRetakes ? "T" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
+        if (IsRetakes)
+        {
+            // Players defend as CT, bots hold the site as T.
+            sb.AppendLine("mp_humanteam ct");
+            sb.AppendLine("mp_autoteambalance 0");
+            sb.AppendLine("mp_limitteams 0");
+        }
+        else sb.AppendLine("mp_humanteam any");
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 ? 1 : 0)}");
         sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 ? 1 : 0)}");
         sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 ? 1 : 0)}");
@@ -357,7 +384,7 @@ public class ServerSettings
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
 
-        if (MaxMoney)
+        if (MaxMoney && !IsRetakes)
         {
             sb.AppendLine("mp_maxmoney 65535");
             sb.AppendLine("mp_startmoney 65535");
@@ -366,7 +393,7 @@ public class ServerSettings
             sb.AppendLine("mp_buytime 9999");
         }
 
-        if (NoRoundEnd)
+        if (NoRoundEnd && !IsRetakes)
         {
             sb.AppendLine("mp_ignore_round_win_conditions 1");
             sb.AppendLine("mp_roundtime 60");
@@ -385,6 +412,36 @@ public class ServerSettings
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+
+        sb.AppendLine($"lst_retakes {(IsRetakes ? 1 : 0)}");
+        if (IsRetakes)
+        {
+            // Retakes: short rounds, no buying, everyone spawns with a rifle, armor and some utility.
+            foreach (var line in new[]
+            {
+                "mp_ignore_round_win_conditions 0", "mp_respawn_on_death_t 0", "mp_respawn_on_death_ct 0",
+                "mp_give_player_c4 0", "mp_freezetime 3", "mp_round_restart_delay 3", "mp_c4timer 40",
+                "mp_roundtime 1.5", "mp_roundtime_defuse 1.5", "mp_maxrounds 99", "mp_halftime 0", "mp_match_can_clinch 0",
+                "mp_buytime 0", "mp_buy_anywhere 0", "mp_startmoney 0", "mp_afterroundmoney 0", "mp_maxmoney 0",
+                "mp_free_armor 2", "mp_defuser_allocation 2", "mp_death_drop_gun 0",
+                "mp_ct_default_primary weapon_m4a1_silencer", "mp_t_default_primary weapon_ak47",
+                "mp_ct_default_secondary weapon_usp_silencer", "mp_t_default_secondary weapon_glock",
+                "mp_ct_default_grenades \"weapon_flashbang weapon_smokegrenade\"",
+                "mp_t_default_grenades \"weapon_flashbang weapon_molotov\"",
+            })
+                sb.AppendLine(line);
+        }
+        else
+        {
+            // Back to the game's own loadouts after Retakes (armor and defusers come back with the mode's config on the map change).
+            foreach (var line in new[]
+            {
+                "mp_give_player_c4 1", "mp_death_drop_gun 1",
+                "mp_ct_default_primary \"\"", "mp_t_default_primary \"\"", "mp_ct_default_grenades \"\"", "mp_t_default_grenades \"\"",
+                "mp_ct_default_secondary weapon_hkp2000", "mp_t_default_secondary weapon_glock",
+            })
+                sb.AppendLine(line);
+        }
 
         sb.AppendLine("mp_warmup_end");
         return sb.ToString();
@@ -424,6 +481,7 @@ public class ServerSettings
         if (HackRadar) powers.Add("radar");
         yield return $"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}";
         yield return $"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}";
+        yield return $"lst_aim_target {(HackAimTarget == 1 ? "crosshair" : "closest")}";
         yield return $"lst_aim_key {AimKeyCommands[Math.Clamp(HackAimKey, 0, AimKeyCommands.Length - 1)]}";
         yield return $"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}";
     }

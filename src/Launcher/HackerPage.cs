@@ -18,6 +18,7 @@ public class HackerPage : UserControl
     // Aimbot
     private readonly Toggle _aimbot = new();
     private readonly Picker _aimKey = new(200);
+    private readonly Segmented _aimTarget = new(ServerSettings.AimTargets, 130);
     private readonly TextField _bindKey = new(110) { PlaceholderText = "e.g. mouse4", MaxLength = 16 };
     private readonly Slider _aggression = new() { Minimum = 1, Maximum = 10, Width = 200 };
     private readonly Label _aggressionLabel = new SmoothLabel { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
@@ -112,6 +113,7 @@ public class HackerPage : UserControl
 
         var aim = new Group(left);
         aim.AddRow("Aimbot", _aimbot, "Pulls your crosshair onto enemies you can see");
+        aim.AddRow("Aim At", _aimTarget, "Closest: snaps to the nearest enemy anywhere");
         aim.AddRow("Aim Key", _aimKey, "When the aimbot works");
         _bindKey.Margin = Padding.Empty;
         aim.AddRow("Own Aim Key", _bindKey, "Any key: mouse4, mouse5, x, alt, f... · bound in CS2 on this PC");
@@ -162,6 +164,7 @@ public class HackerPage : UserControl
             toggle.CheckedChanged += (_, _) => Changed();
         _mode.SelectedChanged += (_, _) => Changed();
         _aimKey.SelectedIndexChanged += (_, _) => Changed();
+        _aimTarget.SelectedChanged += (_, _) => Changed();
         _aggression.ValueChanged += (_, _) =>
         {
             _aggressionLabel.Text = AggressionText(_aggression.Value);
@@ -192,6 +195,7 @@ public class HackerPage : UserControl
         _mode.SelectedIndex = Math.Clamp(s.HackerMode, 0, 2);
         _aimbot.Checked = s.HackAimbot;
         _aimKey.SelectedIndex = Math.Clamp(s.HackAimKey, 0, ServerSettings.AimKeys.Length - 1);
+        _aimTarget.SelectedIndex = Math.Clamp(s.HackAimTarget, 0, ServerSettings.AimTargets.Length - 1);
         _bindKey.Text = s.AimBindKey;
         _aggression.Value = Math.Clamp(s.HackAggression, 1, 10);
         _aggressionLabel.Text = AggressionText(_aggression.Value);
@@ -217,6 +221,7 @@ public class HackerPage : UserControl
         s.HackerMode = _mode.SelectedIndex;
         s.HackAimbot = _aimbot.Checked;
         s.HackAimKey = _aimKey.SelectedIndex;
+        s.HackAimTarget = _aimTarget.SelectedIndex;
         s.AimBindKey = _bindKey.Text.Trim();
         s.HackAggression = _aggression.Value;
         s.HackAimWalls = _aimWalls.Checked;
@@ -256,10 +261,10 @@ public class HackerPage : UserControl
         };
         var key = ServerSettings.CleanKey(_bindKey.Text);
         var enabled = _mode.SelectedIndex != 0;
-        foreach (var c in new Control[] { _aimbot, _aimKey, _bindKey, _aggression, _aimWalls, _wallhack, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
+        foreach (var c in new Control[] { _aimbot, _aimKey, _aimTarget, _bindKey, _aggression, _aimWalls, _wallhack, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
             c.Enabled = enabled;
         _bindKey.Enabled = enabled && _aimbot.Checked;
-        _aimKey.Enabled = _aggression.Enabled = _aimWalls.Enabled = enabled && _aimbot.Checked;
+        _aimKey.Enabled = _aimTarget.Enabled = _aggression.Enabled = _aimWalls.Enabled = enabled && _aimbot.Checked;
         if (_bindKey.Text.Trim() != "" && key == null) _bindKey.PlaceholderText = "letters/numbers only";
     }
 

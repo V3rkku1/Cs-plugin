@@ -38,13 +38,17 @@ public static class Theme
     private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
 
     // Inter (embedded), drawn anti-aliased: smooth like macOS instead of the blocky hinted look.
-    public static readonly Font Body = Fonts.Create("Inter-Regular.ttf", 10f, Family);
-    public static readonly Font Small = Fonts.Create("Inter-Regular.ttf", 8.75f, Family);
-    public static readonly Font Bold = Fonts.Create("Inter-SemiBold.ttf", 10f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
-    public static readonly Font Heading = Fonts.Create("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
-    public static readonly Font Big = Fonts.Create("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
-    public static readonly Font Title = Fonts.Create("Inter-SemiBold.ttf", 22f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
+    public static readonly Font Body = MakeFont("Inter-Regular.ttf", 10f, Family);
+    public static readonly Font Small = MakeFont("Inter-Regular.ttf", 8.75f, Family);
+    public static readonly Font Bold = MakeFont("Inter-SemiBold.ttf", 10f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
+    public static readonly Font Heading = MakeFont("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
+    public static readonly Font Big = MakeFont("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
+    public static readonly Font Title = MakeFont("Inter-SemiBold.ttf", 22f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
     public static readonly Font Mono = new(Pick("Cascadia Mono", "Consolas"), 8.75f);
+
+    /// <summary>A font in the chosen text style: embedded Inter, or Windows' Segoe UI.</summary>
+    private static Font MakeFont(string interFile, float size, string segoe) =>
+        TextStyle.UseSegoe ? new Font(segoe, size + TextStyle.SizeBoost) : Fonts.Create(interFile, size + TextStyle.SizeBoost, segoe);
 
     private static string Pick(params string[] names)
     {
@@ -108,7 +112,7 @@ public static class Theme
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.TextRenderingHint = TextStyle.Hint;
     }
 
     /// <summary>Brand gradient (the app icon's blue → violet), used for primary buttons.</summary>
@@ -139,7 +143,7 @@ public static class Theme
         var line = (int)Math.Ceiling(font.GetHeight(g)) + 1;
         if (r.Height < line && !flags.HasFlag(TextFormatFlags.WordBreak)) r = new Rectangle(r.X, r.Y + r.Height / 2 - line / 2, r.Width, line);
         var hint = g.TextRenderingHint;
-        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.TextRenderingHint = TextStyle.Hint;
         using var format = Format(flags);
         using var brush = new SolidBrush(color);
         g.DrawString(text, font, brush, r, format);
@@ -151,7 +155,7 @@ public static class Theme
     {
         using var bitmap = new Bitmap(1, 1);
         using var g = Graphics.FromImage(bitmap);
-        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        g.TextRenderingHint = TextStyle.Hint;
         var size = g.MeasureString(string.IsNullOrEmpty(text) ? " " : text, font, PointF.Empty, StringFormat.GenericTypographic);
         return new Size((int)Math.Ceiling(size.Width) + 4, (int)Math.Ceiling(font.GetHeight()) + 2);
     }
@@ -306,7 +310,7 @@ public class SmoothLabel : Label
 
     protected override void OnPaint(PaintEventArgs e)
     {
-        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        e.Graphics.TextRenderingHint = TextStyle.Hint;
         base.OnPaint(e);
     }
 }

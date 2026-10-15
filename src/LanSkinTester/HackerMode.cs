@@ -93,6 +93,22 @@ public partial class LanSkinTester
     private readonly HashSet<int> _aimHeld = new();
     private readonly HashSet<int> _aimToggled = new();
 
+    /// <summary>Who the aimbot goes for: the closest enemy anywhere around you, or the one nearest your crosshair.</summary>
+    private enum AimTarget { Closest, Crosshair }
+
+    private static readonly string[] AimTargetNames = ["Closest enemy", "Near crosshair"];
+    private AimTarget _defaultAimTarget = AimTarget.Closest;
+    private readonly Dictionary<int, AimTarget> _aimTargets = new();
+
+    private AimTarget AimTargetOf(CCSPlayerController player) => _aimTargets.TryGetValue(player.Slot, out var t) ? t : _defaultAimTarget;
+
+    [ConsoleCommand("lst_aim_target", "Aimbot target: closest (closest enemy anywhere) | crosshair (nearest the crosshair)")]
+    [CommandHelper(minArgs: 1, usage: "closest|crosshair", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnAimTargetCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _defaultAimTarget = cmd.GetArg(1).StartsWith("cross", StringComparison.OrdinalIgnoreCase) ? AimTarget.Crosshair : AimTarget.Closest;
+    }
+
     private AimKey AimKeyOf(CCSPlayerController player) => _aimKeys.TryGetValue(player.Slot, out var k) ? k : _defaultAimKey;
 
     private bool AimPressed(CCSPlayerController player)
@@ -204,6 +220,7 @@ public partial class LanSkinTester
             _aggression.Remove(slot);
             _aimLocks.Remove(slot);
             _aimKeys.Remove(slot);
+            _aimTargets.Remove(slot);
             _aimHeld.Remove(slot);
             _aimToggled.Remove(slot);
             _cheatMenus.Remove(slot);
@@ -689,47 +706,63 @@ public partial class LanSkinTester
     private void Aim(CCSPlayerController hacker, CCSPlayerPawn pawn)
     {
         var (fov, smoothing) = AimSettingsOf(hacker);
+        var closest = AimTargetOf(hacker) == AimTarget.Closest;
         var current = pawn.EyeAngles;
         _aimLocks.TryGetValue(hacker.Slot, out var aim);
 
-        // Keep the current target while it stays visible and near the crosshair; otherwise pick the
-        // visible enemy closest to the crosshair.
+        // "Closest": the nearest enemy you can see (or any, through walls), wherever they are around
+        // you, re-checked every tick. "Crosshair": keep the current target while it stays visible and
+        // near the crosshair; otherwise the visible enemy closest to the crosshair.
+        CCSPlayerController? best = null;
         CCSPlayerPawn? targetPawn = null;
-        if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
+        var bestScore = closest ? double.MaxValue : fov;
+        if (!closest && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
             && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (Has(hacker, Power.AimWalls) || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
             && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
         {
+            best = locked;
             targetPawn = lockedPawn;
         }
         else
         {
-            aim = null;
-            var bestDelta = fov;
-            CCSPlayerController? best = null;
+            var origin = pawn.AbsOrigin;
             foreach (var enemy in Utilities.GetPlayers())
             {
                 if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
                 var enemyPawn = enemy.PlayerPawn.Value;
-                if (enemyPawn == null || !enemyPawn.IsValid) continue;
-                if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
-                var delta = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
+                if (enemyPawn == null || !enemyPawn.IsValid || enemyPawn.AbsOrigin is not { } o || origin == null) continue;
+                double score;
+                if (closest)
+                {
+                    score = Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2) + Math.Pow(o.Z - origin.Z, 2);
+                }
+                else
+                {
+                    if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
+                    score = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
+                }
                 // Trace only the candidates; "aim through walls" skips the line-of-sight check.
-                if (delta >= bestDelta || (!Has(hacker, Power.AimWalls) && !IsVisibleTo(enemyPawn, pawn))) continue;
-                bestDelta = delta;
+                if (score >= bestScore || (!Has(hacker, Power.AimWalls) && !IsVisibleTo(enemyPawn, pawn))) continue;
+                bestScore = score;
                 best = enemy;
                 targetPawn = enemyPawn;
             }
-            if (best == null)
-            {
-                _aimLocks.Remove(hacker.Slot);
-                return;
-            }
+        }
+        if (best == null || targetPawn == null)
+        {
+            _aimLocks.Remove(hacker.Slot);
+            return;
+        }
+        if (aim == null || aim.TargetSlot != best.Slot)
+        {
+            var reaction = ReactionOf(hacker);
             aim = new AimLock
             {
                 TargetSlot = best.Slot,
                 AcquiredAt = DateTime.UtcNow,
-                ReactionMs = ReactionOf(hacker).Min + Random.Shared.NextDouble() * (ReactionOf(hacker).Max - ReactionOf(hacker).Min),
+                // Switching between close targets: quicker than a fresh reaction.
+                ReactionMs = (reaction.Min + Random.Shared.NextDouble() * (reaction.Max - reaction.Min)) * (closest && aim != null ? 0.4 : 1),
                 // Mostly the head, sometimes the neck - never pixel-perfect.
                 OffsetZ = 1f + (float)Random.Shared.NextDouble() * (Random.Shared.Next(4) == 0 ? 9f : 4f) * LoosenessOf(hacker),
                 OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5) * LoosenessOf(hacker),
@@ -746,6 +779,7 @@ public partial class LanSkinTester
         var dPitch = AngleDiff(goal.Pitch, current.X);
         if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return;
         var maxStep = AimMaxStep * smoothing / AimSmoothing; // lighter smoothing turns faster too
+        if (closest) maxStep *= 1.6f; // may have to turn around
         var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
         var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
         // Close the last bit directly so it doesn't crawl forever.
