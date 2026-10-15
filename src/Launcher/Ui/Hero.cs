@@ -29,24 +29,19 @@ public class Hero : Panel
         Theme.Smooth(g);
         g.Clear(Theme.Background);
         var r = new RectangleF(0, 0, Width, Height);
-        var from = Running ? Color.FromArgb(12, 40, 36) : Color.FromArgb(16, 24, 48);
-        var to = Running ? Color.FromArgb(14, 28, 42) : Color.FromArgb(32, 22, 58);
-        Theme.FillRoundedGradient(g, from, to, r, Theme.S(14f));
+        // iOS widget: a flat card with a soft status-coloured light in the corner (green while running).
+        Theme.FillRounded(g, Theme.Card, r, Theme.S(14f));
 
-        // A soft glow in the top-right corner and a thin rim, for depth.
         using (var glow = new System.Drawing.Drawing2D.GraphicsPath())
         {
             glow.AddEllipse(Width - Theme.S(360f), -Theme.S(180f), Theme.S(520f), Theme.S(360f));
             using var brush = new System.Drawing.Drawing2D.PathGradientBrush(glow)
             {
-                CenterColor = Color.FromArgb(Running ? 60 : 70, Running ? Theme.Good : Theme.GradientEnd),
+                CenterColor = Color.FromArgb(Running ? 55 : 45, Running ? Theme.Good : Theme.Accent),
                 SurroundColors = [Color.FromArgb(0, 0, 0, 0)],
             };
             g.FillPath(brush, glow);
         }
-        using var rim = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), Theme.S(14f));
-        using var pen = new Pen(Color.FromArgb(28, 255, 255, 255));
-        g.DrawPath(pen, rim);
     }
 
     protected override void OnPaint(PaintEventArgs e)

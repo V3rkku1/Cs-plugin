@@ -802,20 +802,30 @@ public class SettingRow : Panel
     {
         base.OnLayout(e);
         if (_title == null) return; // called by the base constructor before the labels exist
-        if (_subtitle == null) _title.Location = new Point(14, (Height - _title.Height) / 2);
-        else
-        {
-            _title.Location = new Point(14, Height / 2 - _title.Height + 1);
-            _subtitle.Location = new Point(14, Height / 2 + 1);
-        }
         if (Accessory != null)
         {
-            Accessory.Location = new Point(Width - Accessory.Width - 14, (Height - Accessory.Height) / 2);
-            var room = Accessory.Left - 24;
+            var room = Width - Accessory.Width - 14 - 24;
             _title.MaximumSize = new Size(Math.Max(room, 40), 0);
             if (_subtitle != null) _subtitle.MaximumSize = new Size(Math.Max(room, 40), 0);
         }
+
+        // Grow when a long subtitle wraps, instead of spilling into the next row.
+        var text = _title.Height + (_subtitle?.Height ?? 0);
+        // Only once the row has its real width: mid-layout it can be a few pixels wide and wrap every word.
+        var designed = (_subtitle == null ? 46 : 58) * DeviceDpi / 96;
+        var needed = Math.Max(designed, text + Theme.S(20));
+        if (Width > 200 && Height != needed)
+        {
+            Height = needed; // the group relayouts on SizeChanged and this runs again
+            return;
+        }
+
+        var top = (Height - text) / 2;
+        _title.Location = new Point(14, top);
+        _subtitle?.Location = new Point(14, top + _title.Height);
+        Accessory?.Location = new Point(Width - Accessory.Width - 14, (Height - Accessory.Height) / 2);
     }
+
 }
 
 /// <summary>A double-buffered panel for custom painting (no light flash, no flicker).</summary>

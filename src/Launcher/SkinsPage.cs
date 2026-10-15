@@ -153,6 +153,8 @@ public class SkinsPage : UserControl
         tools.Location = new Point(0, 66);
         _importButton.Margin = _loadoutsButton.Margin = new Padding(0, 0, 8, 0);
         header.Controls.AddRange([_gridTitle, _gridSubtitle, tools]);
+        // The search box takes what the two buttons leave, so they never run off a narrow window.
+        header.Resize += (_, _) => _search.Width = Math.Clamp(header.Width - _importButton.Width - _loadoutsButton.Width - 24, 120, 320);
         panel.Controls.Add(_grid);
         panel.Controls.Add(header);
         return panel;
