@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json.Nodes;
 
 namespace LanSkinTester.Launcher.Core;
 
@@ -49,6 +50,41 @@ public class ServerSettings
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsRetakes => Mode == RetakesMode;
+
+    /// <summary>0 = Valve's built-in retakes, 1 = B3none's cs2-retakes plugin.</summary>
+    public int RetakeStyle { get; set; }
+
+    public static readonly string[] RetakeStyles = ["Valve", "Plugin"];
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsPluginRetakes => IsRetakes && RetakeStyle == 1;
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool IsValveRetakes => IsRetakes && RetakeStyle != 1;
+
+    /// <summary>Plugin retakes: players in the match, including you (2-10).</summary>
+    public int RetakeMaxPlayers { get; set; } = 9;
+
+    /// <summary>Plugin retakes: percent of the players who are Terrorists.</summary>
+    public int RetakeTerroristPercent { get; set; } = 45;
+
+    public bool RetakeScramble { get; set; } = true;
+    public int RetakeScrambleRounds { get; set; } = 5;
+    public bool RetakeBalance { get; set; } = true;
+    public bool RetakeAutoPlant { get; set; } = true;
+    public bool RetakeAnnounce { get; set; } = true;
+
+    /// <summary>Plugin retakes: skip the team menu and put people straight into the match.</summary>
+    public bool RetakeAutoJoin { get; set; } = true;
+
+    /// <summary>Plugin retakes: freeze time is a buy period. The plugin's random guns are turned off.</summary>
+    public bool RetakeBuy { get; set; } = true;
+
+    /// <summary>Seconds of freeze time to buy, when <see cref="RetakeBuy"/> is on.</summary>
+    public int RetakeBuySeconds { get; set; } = 12;
+
+    /// <summary>Plugin retakes: bomb timer in seconds.</summary>
+    public int RetakeBombTimer { get; set; } = 40;
 
     public static readonly string[] Difficulties = ["Easy", "Normal", "Hard", "Expert"];
     /// <summary>Index 0 "Rifles" (no snipers, shotguns, SMGs or machine guns: with max money bots otherwise buy AWPs).</summary>
@@ -236,6 +272,17 @@ public class ServerSettings
             s.Bots = 6; // you + 6 bots fills the 3 T vs 4 CT match
             s.Difficulty = 2;
             s.MaxMoney = false;
+            s.RetakeStyle = 0;
+        }),
+        new("Plugin retakes", "cs2-retakes · buy your guns · 8 bots", s =>
+        {
+            s.Reset(RetakesMode, "de_mirage");
+            s.Bots = 8;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
+            s.RetakeStyle = 1;
+            s.RetakeBuy = true;
+            s.RetakeBuySeconds = 12;
         }),
         new("Rush 3v3", "Valve's tower mode · you + 2 bots vs 3", s =>
         {
@@ -264,13 +311,26 @@ public class ServerSettings
         FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
         MaxMoney = AllowCheats = true;
         ShowDamage = false;
+        RetakeStyle = 0;
+        RetakeMaxPlayers = 9;
+        RetakeTerroristPercent = 45;
+        RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeBuy = true;
+        RetakeScrambleRounds = 5;
+        RetakeBuySeconds = 12;
+        RetakeBombTimer = 40;
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
         HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = HackRadar = false;
         HackAggression = 5;
     }
 
-    public GameMode GetMode() => Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
+    public GameMode GetMode()
+    {
+        var mode = Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
+        // Plugin retakes runs on competitive rules. Valve's mode is game_type 0 / game_mode 5.
+        if (IsPluginRetakes) return mode with { GameType = 0, Mode = 1 };
+        return mode;
+    }
 
     private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
 
@@ -284,8 +344,8 @@ public class ServerSettings
         // plugin can't run the launcher's commands (e.g. switching to a Workshop map) until someone joins.
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes war game; every other mode clears it.
         // Retake team sizes have to be set before the map loads (they decide the slot count).
-        var skirmish = IsRetakes ? 12 : 0;
-        var retake = IsRetakes ? " +mp_retake_t_count 3 +mp_retake_ct_count 4" : "";
+        var skirmish = IsValveRetakes ? 12 : 0;
+        var retake = IsValveRetakes ? " +mp_retake_t_count 3 +mp_retake_ct_count 4" : "";
         return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake} +{MapCommand(running: false)}";
     }
 
@@ -389,7 +449,7 @@ public class ServerSettings
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
         sb.AppendLine($"bot_join_team {(IsRetakes ? "any" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
-        // Retakes hands out Valve's loadout cards, so weapon limits would strip the AWP / rifle the card picked.
+        // Both retake styles hand out their own guns (cards, or the plugin / the buy period).
         var rifles = !IsRetakes && BotWeapons == 0;
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 && !IsRetakes ? 1 : 0)}");
         sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 && !IsRetakes ? 1 : 0)}");
@@ -402,14 +462,27 @@ public class ServerSettings
         sb.AppendLine("bot_allow_pistols 1");
         sb.AppendLine($"lst_bot_no_snipers {(rifles ? 1 : 0)}"); // plugin safety net: swaps snipers for AK/M4
         sb.AppendLine("bot_kick");
-        sb.AppendLine($"bot_quota {Math.Clamp(Bots, 0, 31)}");
+        // Plugin retakes only has seats for MaxPlayers. Leave one for you when bots are on.
+        var quota = Math.Clamp(Bots, 0, 31);
+        if (IsPluginRetakes && quota > 0)
+            quota = Math.Min(quota, Math.Max(0, Math.Clamp(RetakeMaxPlayers, 2, 10) - 1));
+        sb.AppendLine($"bot_quota {quota}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
         else
             sb.AppendLine("mp_teammates_are_enemies 0");
 
-        if (MaxMoney && !IsRetakes)
+        if (IsPluginRetakes && RetakeBuy)
+        {
+            var seconds = Math.Clamp(RetakeBuySeconds, 4, 20);
+            sb.AppendLine("mp_maxmoney 16000");
+            sb.AppendLine("mp_startmoney 16000");
+            sb.AppendLine($"mp_freezetime {seconds}");
+            sb.AppendLine($"mp_buytime {seconds}");
+            sb.AppendLine("mp_buy_anywhere 1");
+        }
+        else if (MaxMoney && !IsRetakes)
         {
             sb.AppendLine("mp_maxmoney 65535");
             sb.AppendLine("mp_startmoney 65535");
@@ -438,22 +511,98 @@ public class ServerSettings
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
+        sb.AppendLine($"lst_retake_buy {(IsPluginRetakes && RetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
 
-        // Official Retakes (game_mode 5) already runs gamemode_retakecasual.cfg on map load, including
-        // the loadout-card warmup. sv_skirmish_id 12 turns on the same rules; it has to be 0 for every
-        // other mode because the cvar stays set across maps. Don't end warmup here: that skips the cards.
-        sb.AppendLine($"sv_skirmish_id {(IsRetakes ? 12 : 0)}");
-        if (IsRetakes)
+        // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
+        // plugin, clears it. Don't end warmup on either retake style: Valve's cards and the plugin's
+        // own round setup both need that warmup.
+        sb.AppendLine($"sv_skirmish_id {(IsValveRetakes ? 12 : 0)}");
+        if (IsValveRetakes)
         {
             sb.AppendLine("mp_retake_t_count 3");
             sb.AppendLine("mp_retake_ct_count 4");
         }
-        else sb.AppendLine("mp_warmup_end");
+        else if (IsPluginRetakes)
+        {
+            sb.AppendLine("retakes_enabled 1");
+            sb.AppendLine($"mp_c4timer {Math.Clamp(RetakeBombTimer, 15, 60)}");
+            if (!RetakeBuy) sb.AppendLine("mp_freezetime 1");
+        }
+        else
+        {
+            sb.AppendLine("retakes_enabled 0");
+            sb.AppendLine("mp_warmup_end");
+        }
         return sb.ToString();
     }
 
+    /// <summary>
+    /// What has to match for the running retakes plugin. The buy on/off switch, buy time and the bomb
+    /// timer are ordinary cvars and are not included: those apply on the next round or map.
+    /// </summary>
+    public string PluginRetakeKey()
+    {
+        if (!IsPluginRetakes) return IsValveRetakes ? "valve" : "off";
+        return string.Join('|', RetakeStyle, Math.Clamp(RetakeMaxPlayers, 2, 10), Math.Clamp(RetakeTerroristPercent, 10, 80),
+            RetakeScramble, Math.Clamp(RetakeScrambleRounds, 1, 30), RetakeBalance, RetakeAutoPlant, RetakeAnnounce, RetakeAutoJoin);
+    }
+
+    /// <summary>
+    /// Writes configs/plugins/RetakesPlugin/RetakesPlugin.json, keeping any keys this launcher doesn't
+    /// own (command permissions, a newer config version). The plugin reads this when it loads.
+    /// </summary>
+    public void WriteRetakesConfig(GameFolder game)
+    {
+        var path = Path.Combine(game.Addons, "counterstrikesharp", "configs", "plugins", "RetakesPlugin", "RetakesPlugin.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        JsonNode root;
+        try
+        {
+            root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) ?? new JsonObject() : new JsonObject();
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            root = new JsonObject();
+        }
+
+        var players = Math.Clamp(RetakeMaxPlayers, 2, 10);
+        var ratio = Math.Clamp(RetakeTerroristPercent, 10, 80) / 100.0;
+        Set(root, "GameSettings", "MaxPlayers", players);
+        Set(root, "GameSettings", "MinimumPlayers", 0);
+        Set(root, "GameSettings", "ShouldBreakBreakables", false);
+        Set(root, "GameSettings", "ShouldOpenDoors", false);
+        // Stay on so bots still get a rifle. The buy period strips humans after this hand-out.
+        Set(root, "GameSettings", "EnableFallbackAllocation", true);
+        Set(root, "TeamSettings", "TerroristRatio", ratio);
+        Set(root, "TeamSettings", "RoundsToScramble", Math.Clamp(RetakeScrambleRounds, 1, 30));
+        Set(root, "TeamSettings", "IsScrambleEnabled", RetakeScramble);
+        Set(root, "TeamSettings", "IsBalanceEnabled", RetakeBalance);
+        Set(root, "TeamSettings", "ShouldPreventTeamChangesMidRound", true);
+        Set(root, "MapConfigSettings", "EnableBombsiteAnnouncementCenter", RetakeAnnounce);
+        Set(root, "BombSettings", "IsAutoPlantEnabled", RetakeAutoPlant);
+        Set(root, "QueueSettings", "ShouldAutoJoinGame", RetakeAutoJoin);
+        Set(root, "QueueSettings", "ShouldAutoJoinSpectators", !RetakeAutoJoin);
+        if (root["ConfigVersion"] == null) root["ConfigVersion"] = 2;
+
+        File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static void Set(JsonNode root, string section, string key, JsonNode? value)
+    {
+        if (root[section] is not JsonObject obj)
+        {
+            obj = new JsonObject();
+            root[section] = obj;
+        }
+        obj[key] = value;
+    }
+
     /// <summary>One line for a saved quick-start tile.</summary>
-    public string Summary() => $"{Mode} · {Map} · {(Bots == 0 ? "no bots" : Bots + " bots")}";
+    public string Summary()
+    {
+        var mode = IsPluginRetakes ? "Plugin retakes" : Mode;
+        return $"{mode} · {Map} · {(Bots == 0 ? "no bots" : Bots + " bots")}";
+    }
 
     /// <summary>A detached copy (saved setups must not keep changing with the Play page).</summary>
     public ServerSettings Clone()
@@ -547,8 +696,8 @@ public class ServerSettings
         if (mapOrModeChanged)
         {
             // Skirmish id and retake sizes first: the map load reads them, and a later cfg exec is too late.
-            var beforeMap = new List<string> { $"sv_skirmish_id {(IsRetakes ? 12 : 0)}" };
-            if (IsRetakes) beforeMap.AddRange(["mp_retake_t_count 3", "mp_retake_ct_count 4"]);
+            var beforeMap = new List<string> { $"sv_skirmish_id {(IsValveRetakes ? 12 : 0)}" };
+            if (IsValveRetakes) beforeMap.AddRange(["mp_retake_t_count 3", "mp_retake_ct_count 4"]);
             beforeMap.Add($"game_type {mode.GameType}");
             beforeMap.Add($"game_mode {mode.Mode}");
             beforeMap.Add(MapCommand(running: true));

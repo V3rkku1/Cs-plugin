@@ -57,8 +57,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 1. **Quick start:** one click sets everything up and starts (or switches the running server):
    *DM vs Expert bots*, *Free-for-all*, *Skin showcase* (peaceful bots, third person),
    *Aim practice*, *Competitive 5v5*, *Arms Race*, *Retakes* (Valve's 3v4 loadout-card mode),
-   *Rush 3v3* when your CS2 has it, plus any setup you saved.
-2. **Server:** or pick everything yourself:
+   *Plugin retakes* (cs2-retakes, with a buy period), *Rush 3v3* when your CS2 has it, plus any setup you saved.
+2. **Server** settings sit on tabs: Game, Bots, Rules, Launch, Retakes, Live. Or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
    - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
@@ -82,19 +82,24 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
    and option settings to the running server; changing the mode or map switches the map. **Open CS2**
    starts the game again if you closed it.
-4. **Live server** shows the map, mode, players and bots, and whether skins are working, updated
-   every 2 seconds. Quick actions cover the round (restart, end warmup, pause, resume, swap, CT/T win), bots
-   (add CT, add T, kick), and practice (god, noclip, armor, nades, clear, save/load spot, rethrow,
-   damage report, third person, respawn, refresh skins, give weapon). **Command** sends anything
-   else to the server console.
+4. **Status** (right side) shows the map, mode, players and bots, and whether skins are working,
+   updated every 2 seconds. **Live** (its own tab) holds the server controls: round (restart, end warmup,
+   pause, resume, swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person,
+   noclip, armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
+   **Command** sends anything else to the server console. The buttons light up when the server is up.
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
 
-**Retakes** (game mode, or the *Retakes* quick start) is Valve's own mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`. No extra retakes plugin is downloaded. If an older launcher had installed B3none's cs2-retakes, the next Start removes it (a running server is restarted once, because that plugin would fight Valve's rules).
+**Retakes** has two styles, chosen on the Retakes tab (and only while the game mode is Retakes).
+
+- **Valve** (the *Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
+- **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks the plugin outside the plugins folder whenever another mode or Valve retakes is running, so the two never fight. Switching the plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
+
+On the Retakes tab, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu. **Buy before round** turns the freeze into a buy: after the plugin hands out rifles, humans are stripped (knife and bomb stay) and get $16000 to buy their own guns. Bots keep the rifles. Buy on/off, buy time (4–20 seconds) and the bomb timer apply without a restart. Max money, endless rounds and round time stay off for both styles, because retakes owns those rules.
 
 **Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
 
-**Live server** controls, besides restart, respawn, third person and giving a weapon:
+**Live tab** controls, besides restart, respawn, third person and giving a weapon:
 
 - *Pause* / *Resume*, *Swap* teams, *CT Win* / *T Win*, *End Warmup*
 - *Add CT*, *Add T*, *Kick Bots*
