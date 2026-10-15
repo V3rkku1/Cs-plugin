@@ -22,6 +22,8 @@ public partial class LanSkinTester
         public CEnvBeam?[] Bones = new CEnvBeam?[BoneEdges];
         public CPointWorldText? Tag;
         public string TagShown = "";
+        public Vector Anchor = new();
+        public bool Anchored;
     }
 
     private readonly Dictionary<int, PlayerEsp> _esp = new();
@@ -165,10 +167,21 @@ public partial class LanSkinTester
         var wantBones = Hackers().Any(h => Has(h, Power.BoneEsp));
         var wantTags = Hackers().Any(h => Has(h, Power.Tags));
 
+        // A beam that is dragged behind a running player keeps its old end on the client and draws a
+        // streak. Rebuild it once the body has actually moved, instead of stretching the old one.
+        var moved = !esp.Anchored || DistanceSquared(esp.Anchor, origin) > 4f * 4f;
+        if (moved)
+        {
+            HideOwnedBeams(esp.Box);
+            HideOwnedBeams(esp.Bones);
+            esp.Anchor = new Vector(origin.X, origin.Y, origin.Z);
+            esp.Anchored = true;
+        }
+
         if (wantBox) DrawBox(esp, origin, EyeHeight(pawn) > 55f ? 72f : 54f, color);
         else HideOwnedBeams(esp.Box);
 
-        if (wantBones) DrawSkeleton(esp, player, pawn, origin, color);
+        if (wantBones) DrawSkeleton(esp, pawn, origin, color);
         else HideOwnedBeams(esp.Bones);
 
         if (wantTags) DrawTag(esp, player, pawn, origin);
@@ -200,7 +213,7 @@ public partial class LanSkinTester
         }
     }
 
-    private void DrawSkeleton(PlayerEsp esp, CCSPlayerController player, CCSPlayerPawn pawn, Vector origin, Color color)
+    private void DrawSkeleton(PlayerEsp esp, CCSPlayerPawn pawn, Vector origin, Color color)
     {
         TryReadView(pawn, out _, out var yawDeg);
         var yaw = yawDeg * Math.PI / 180.0;
@@ -212,11 +225,8 @@ public partial class LanSkinTester
         var chestZ = headZ - 18f;
         var pelvisZ = duck ? 22f : 36f;
 
-        var velocity = pawn.AbsVelocity;
-        var speed = Math.Sqrt(velocity.X * velocity.X + velocity.Y * velocity.Y);
-        var swing = speed > 20 ? (float)Math.Sin(_tick * 0.45) * Math.Clamp((float)speed / 40f, 0f, 1f) * 10f : 0f;
-        var shooting = (player.Buttons & PlayerButtons.Attack) != 0;
-        var reach = shooting ? 16f : 4f;
+        // A fixed pose. A swinging walk cycle, moved every tick, is what turned the limbs into streaks.
+        const float reach = 5f;
 
         Vector At(float f, float r, float z) => new(
             origin.X + forward.X * f + right.X * r,
@@ -235,10 +245,10 @@ public partial class LanSkinTester
         var handR = At(reach + 4, -2, chestZ - 8);
         var hipL = At(0, 5, pelvisZ);
         var hipR = At(0, -5, pelvisZ);
-        var kneeL = At(swing, 5, pelvisZ * 0.45f);
-        var kneeR = At(-swing, -5, pelvisZ * 0.45f);
-        var footL = At(swing * 0.35f, 6, 2);
-        var footR = At(-swing * 0.35f, -6, 2);
+        var kneeL = At(2f, 5, pelvisZ * 0.45f);
+        var kneeR = At(-2f, -5, pelvisZ * 0.45f);
+        var footL = At(1f, 6, 2);
+        var footR = At(-1f, -6, 2);
 
         (Vector A, Vector B)[] bones =
         [
@@ -345,6 +355,8 @@ public partial class LanSkinTester
             beam.NumBeamEnts = 2;
             beam.Render = color;
             beam.RenderMode = RenderMode_t.kRenderNormal;
+            beam.NoInterpolate = true;
+            beam.Speed = 0;
             beam.FadeMinDist = 0;
             beam.FadeMaxDist = 20000;
             beam.DispatchSpawn();
@@ -367,6 +379,7 @@ public partial class LanSkinTester
     {
         if (!beam.IsValid) return;
         beam.Render = color;
+        beam.NoInterpolate = true;
         beam.Teleport(start, new QAngle(), new Vector());
         beam.EndPos.X = end.X;
         beam.EndPos.Y = end.Y;
@@ -374,6 +387,26 @@ public partial class LanSkinTester
         beam.EndPointWorld.X = end.X;
         beam.EndPointWorld.Y = end.Y;
         beam.EndPointWorld.Z = end.Z;
+        beam.EndPointRelative.X = 0;
+        beam.EndPointRelative.Y = 0;
+        beam.EndPointRelative.Z = 0;
+        try
+        {
+            Utilities.SetStateChanged(beam, "CBeam", "m_vecEndPos");
+            Utilities.SetStateChanged(beam, "CEnvBeam", "m_vecEndPointWorld");
+        }
+        catch (Exception)
+        {
+            // The network name moved. Rebuilding the beam after a move still drops the streak.
+        }
+    }
+
+    private static float DistanceSquared(Vector a, Vector b)
+    {
+        var dx = a.X - b.X;
+        var dy = a.Y - b.Y;
+        var dz = a.Z - b.Z;
+        return dx * dx + dy * dy + dz * dz;
     }
 
     private static void HideOwnedBeams(CEnvBeam?[] slots)
