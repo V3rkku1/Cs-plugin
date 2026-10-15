@@ -43,14 +43,14 @@ public class PillButton : DrawnControl, IButtonControl
 
     public Style ButtonStyle { get; set; }
     [DefaultValue(true)] public bool AutoWidth { get; set; } = true;
-    public float Radius { get; set; } = 8;
+    public float Radius { get; set; } = 10;
     public DialogResult DialogResult { get; set; }
 
     public PillButton(string text, Style style = Style.Secondary)
     {
         ButtonStyle = style;
         Font = style == Style.Primary ? Theme.Bold : Theme.Body;
-        Height = 32;
+        Height = 34;
         Cursor = Cursors.Hand;
         Margin = new Padding(0, 0, 8, 0);
         SetStyle(ControlStyles.Selectable, true);
@@ -720,7 +720,7 @@ public class Group : Panel
         base.OnSizeChanged(e);
         foreach (var row in _rows) row.Width = Width;
         // Clip the group and its rows to the rounded card, so no square or garbage corners show.
-        using var path = Theme.Rounded(new RectangleF(0, 0, Width, Height), 12);
+        using var path = Theme.Rounded(new RectangleF(0, 0, Width, Height), 16);
         Region = new Region(path);
     }
 
@@ -729,9 +729,9 @@ public class Group : Panel
         using (var bg = new SolidBrush(Theme.BackdropOf(Parent))) e.Graphics.FillRectangle(bg, ClientRectangle);
         Theme.Smooth(e.Graphics);
         var card = new RectangleF(0, 0, Width - 0.5f, Height - 0.5f);
-        Theme.FillRounded(e.Graphics, Theme.Card, card, 12);
-        // Glass edge: a faint lighter rim, strongest at the top (light from above).
-        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 12))
+        Theme.FillRounded(e.Graphics, Theme.Card, card, 16);
+        // A faint rim, strongest at the top.
+        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 16))
         using (var rim = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(0, 0, Width, Math.Max(Height, 1)),
                    Color.FromArgb(46, 255, 255, 255), Color.FromArgb(10, 255, 255, 255), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
         using (var pen = new Pen(rim, 1f))

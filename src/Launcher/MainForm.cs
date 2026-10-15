@@ -81,7 +81,7 @@ public class MainForm : Form
 
     private Control BuildSidebar()
     {
-        var bar = new Panel { Dock = DockStyle.Left, Width = 236, BackColor = Theme.Sidebar, Padding = new Padding(16, 22, 16, 16) };
+        var bar = new Panel { Dock = DockStyle.Left, Width = 260, BackColor = Theme.Sidebar, Padding = new Padding(16, 22, 16, 16) };
 
         var logo = new PictureBox { Size = new Size(40, 40), Location = new Point(16, 20), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
         using (var png = typeof(MainForm).Assembly.GetManifestResourceStream("app.png"))
@@ -89,7 +89,7 @@ public class MainForm : Form
         var app = new SmoothLabel { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
         var sub = new SmoothLabel { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
 
-        var nav = new VStack(_navPlay, _navLive, _navSkins, _navHacker, _navFriends, _navSetup) { Location = new Point(16, 92) };
+        var nav = new VStack(_navPlay, _navLive, _navSkins, _navHacker, _navFriends, _navSetup) { Location = new Point(16, 104) };
         _navPlay.Click += (_, _) => ShowPage(_play);
         _navLive.Click += (_, _) => ShowPage(_live);
         _navSkins.Click += (_, _) => ShowPage(_skins);

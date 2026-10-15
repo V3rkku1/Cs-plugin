@@ -29,8 +29,8 @@ public class Hero : Panel
         Theme.Smooth(g);
         g.Clear(Theme.Background);
         var r = new RectangleF(0, 0, Width, Height);
-        var from = Running ? Color.FromArgb(22, 52, 44) : Color.FromArgb(26, 36, 70);
-        var to = Running ? Color.FromArgb(30, 40, 62) : Color.FromArgb(48, 30, 74);
+        var from = Running ? Color.FromArgb(12, 40, 36) : Color.FromArgb(16, 24, 48);
+        var to = Running ? Color.FromArgb(14, 28, 42) : Color.FromArgb(32, 22, 58);
         Theme.FillRoundedGradient(g, from, to, r, Theme.S(14f));
 
         // A soft glow in the top-right corner and a thin rim, for depth.

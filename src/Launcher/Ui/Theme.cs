@@ -5,34 +5,34 @@ using System.Runtime.InteropServices;
 namespace LanSkinTester.Launcher.Ui;
 
 /// <summary>
-/// macOS-style dark appearance: system colours, Segoe UI Variable (the closest thing to SF Pro on Windows),
-/// rounded shapes. All custom controls draw themselves with these values.
+/// Dark ink UI: cool black surfaces, a clear blue accent, and rounded cards.
+/// All custom controls draw themselves with these values.
 /// </summary>
 public static class Theme
 {
     // Backgrounds (window → sidebar → grouped content → controls)
-    public static readonly Color Background = Color.FromArgb(22, 22, 24);
-    public static readonly Color Sidebar = Color.FromArgb(30, 30, 33);
-    public static readonly Color Surface = Color.FromArgb(22, 22, 24);
-    public static readonly Color Card = Color.FromArgb(37, 37, 40);
-    public static readonly Color CardHover = Color.FromArgb(46, 46, 50);
-    public static readonly Color Fill = Color.FromArgb(58, 58, 61);
-    public static readonly Color FillHover = Color.FromArgb(72, 72, 76);
-    public static readonly Color Input = Color.FromArgb(28, 28, 30);
-    public static readonly Color Separator = Color.FromArgb(56, 56, 58);
+    public static readonly Color Background = Color.FromArgb(10, 12, 16);
+    public static readonly Color Sidebar = Color.FromArgb(14, 16, 22);
+    public static readonly Color Surface = Color.FromArgb(10, 12, 16);
+    public static readonly Color Card = Color.FromArgb(22, 26, 34);
+    public static readonly Color CardHover = Color.FromArgb(30, 36, 48);
+    public static readonly Color Fill = Color.FromArgb(36, 42, 56);
+    public static readonly Color FillHover = Color.FromArgb(48, 56, 74);
+    public static readonly Color Input = Color.FromArgb(14, 16, 22);
+    public static readonly Color Separator = Color.FromArgb(40, 46, 60);
     public static readonly Color Border = Separator;
 
     // Text
-    public static readonly Color Text = Color.FromArgb(245, 245, 247);
-    public static readonly Color Muted = Color.FromArgb(152, 152, 159);
-    public static readonly Color Tertiary = Color.FromArgb(99, 99, 102);
+    public static readonly Color Text = Color.FromArgb(244, 246, 251);
+    public static readonly Color Muted = Color.FromArgb(154, 163, 181);
+    public static readonly Color Tertiary = Color.FromArgb(108, 116, 136);
 
     // System colours
-    public static readonly Color Accent = Color.FromArgb(10, 132, 255);
-    public static readonly Color AccentHover = Color.FromArgb(64, 156, 255);
-    public static readonly Color Good = Color.FromArgb(48, 209, 88);
-    public static readonly Color Bad = Color.FromArgb(255, 69, 58);
-    public static readonly Color Warning = Color.FromArgb(255, 159, 10);
+    public static readonly Color Accent = Color.FromArgb(91, 140, 255);
+    public static readonly Color AccentHover = Color.FromArgb(130, 168, 255);
+    public static readonly Color Good = Color.FromArgb(52, 211, 153);
+    public static readonly Color Bad = Color.FromArgb(255, 107, 107);
+    public static readonly Color Warning = Color.FromArgb(251, 191, 36);
 
     private static readonly string Family = Pick("Segoe UI Variable Text", "Segoe UI");
     private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
@@ -116,8 +116,8 @@ public static class Theme
     }
 
     /// <summary>Brand gradient (the app icon's blue → violet), used for primary buttons.</summary>
-    public static readonly Color GradientStart = Color.FromArgb(10, 132, 255);
-    public static readonly Color GradientEnd = Color.FromArgb(124, 77, 255);
+    public static readonly Color GradientStart = Color.FromArgb(91, 140, 255);
+    public static readonly Color GradientEnd = Color.FromArgb(142, 108, 255);
 
     public static void FillRoundedGradient(Graphics g, Color from, Color to, RectangleF r, float radius)
     {
@@ -183,7 +183,7 @@ public static class Theme
         Margin = new Padding(0, 4, 8, 4),
     };
 
-    /// <summary>Small grey caption above a group, like macOS settings section headers.</summary>
+    /// <summary>Small grey caption above a group.</summary>
     public static Label Caption(string text) => new SmoothLabel()
     {
         Text = text, AutoSize = true, Font = Small, ForeColor = Muted, BackColor = Color.Transparent,

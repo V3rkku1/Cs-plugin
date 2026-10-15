@@ -14,8 +14,8 @@ public class SidebarItem : DrawnControl
     {
         Text = text;
         _icon = icon;
-        Size = new Size(204, 36);
-        Margin = new Padding(0, 0, 0, 2);
+        Size = new Size(228, 42);
+        Margin = new Padding(0, 0, 0, 4);
         Cursor = Cursors.Hand;
     }
 
@@ -30,18 +30,17 @@ public class SidebarItem : DrawnControl
         var r = new RectangleF(0, 0, Width - 1, Height - 1);
         if (_selected)
         {
-            Theme.FillRounded(g, Theme.Fill, r, 8);
-            // Accent bar on the left of the selected page.
-            Theme.FillRoundedGradient(g, Theme.GradientStart, Theme.GradientEnd, new RectangleF(Theme.S(3f), Theme.S(9f), Theme.S(3f), Height - Theme.S(19f)), Theme.S(1.5f));
+            Theme.FillRounded(g, Theme.Blend(Theme.Sidebar, Theme.Accent, 0.28f), r, 12);
+            Theme.FillRounded(g, Theme.Accent, new RectangleF(0, Theme.S(12f), Theme.S(3f), Height - Theme.S(24f)), 2);
         }
-        else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 110), r, 8);
+        else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 140), r, 12);
 
         var state = g.Save();
         g.TranslateTransform(Theme.S(12f), (Height - Theme.S(18f)) / 2);
         g.ScaleTransform(Theme.Scale, Theme.Scale);
         DrawIcon(g, new RectangleF(0, 0, 18, 18), _selected ? Theme.Accent : Theme.Muted);
         g.Restore(state);
-        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(Theme.S(40), 0, Width - Theme.S(44), Height), Theme.Text);
+        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(Theme.S(40), 0, Width - Theme.S(48), Height), _selected ? Theme.Text : Theme.Muted);
     }
 
     private void DrawIcon(Graphics g, RectangleF box, Color color)
@@ -118,7 +117,7 @@ public class UpdateCard : DrawnControl
 
     public UpdateCard()
     {
-        Size = new Size(204, 52);
+        Size = new Size(228, 52);
         Cursor = Cursors.Hand;
         Visible = false;
     }
@@ -153,7 +152,7 @@ public class StatusBadge : DrawnControl
 
     public StatusBadge()
     {
-        Size = new Size(204, 52);
+        Size = new Size(228, 52);
     }
 
     public void Set(Color dot, string title, string detail)
