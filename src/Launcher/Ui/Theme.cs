@@ -14,12 +14,12 @@ public static class Theme
     public static readonly Color Background = Color.FromArgb(10, 12, 16);
     public static readonly Color Sidebar = Color.FromArgb(14, 16, 22);
     public static readonly Color Surface = Color.FromArgb(10, 12, 16);
-    public static readonly Color Card = Color.FromArgb(22, 26, 34);
-    public static readonly Color CardHover = Color.FromArgb(30, 36, 48);
-    public static readonly Color Fill = Color.FromArgb(36, 42, 56);
-    public static readonly Color FillHover = Color.FromArgb(48, 56, 74);
-    public static readonly Color Input = Color.FromArgb(14, 16, 22);
-    public static readonly Color Separator = Color.FromArgb(40, 46, 60);
+    public static readonly Color Card = Color.FromArgb(24, 29, 40);
+    public static readonly Color CardHover = Color.FromArgb(32, 40, 54);
+    public static readonly Color Fill = Color.FromArgb(38, 46, 62);
+    public static readonly Color FillHover = Color.FromArgb(50, 60, 80);
+    public static readonly Color Input = Color.FromArgb(14, 17, 24);
+    public static readonly Color Separator = Color.FromArgb(52, 62, 82);
     public static readonly Color Border = Separator;
 
     // Text
@@ -43,7 +43,7 @@ public static class Theme
     public static readonly Font Bold = MakeFont("Inter-SemiBold.ttf", 10f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
     public static readonly Font Heading = MakeFont("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
     public static readonly Font Big = MakeFont("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
-    public static readonly Font Title = MakeFont("Inter-SemiBold.ttf", 22f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
+    public static readonly Font Title = MakeFont("Inter-SemiBold.ttf", 26f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
     public static readonly Font Mono = new(Pick("Cascadia Mono", "Consolas"), 8.75f);
 
     /// <summary>A font in the chosen text style: embedded Inter, or Windows' Segoe UI.</summary>

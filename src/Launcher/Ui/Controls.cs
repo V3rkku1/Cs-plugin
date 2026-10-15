@@ -191,9 +191,12 @@ public class Toggle : DrawnControl
     protected override void Draw(Graphics g)
     {
         var track = new RectangleF(1, 2, Width - 3, Height - 5);
-        var color = Theme.Blend(Theme.Fill, Theme.Good, _anim);
+        var color = Theme.Blend(Theme.Input, Theme.Good, _anim);
         if (!Enabled) color = Theme.WithAlpha(color, 100);
         Theme.FillRounded(g, color, track, track.Height / 2);
+        using (var edge = Theme.Rounded(track, track.Height / 2))
+        using (var pen = new Pen(_anim > 0.5f ? Theme.Blend(Theme.Good, Color.White, 0.25f) : Theme.Separator))
+            g.DrawPath(pen, edge);
 
         var d = track.Height - 4;
         var x = track.Left + 2 + (track.Width - d - 4) * _anim;
@@ -295,7 +298,7 @@ public class TextField : DrawnControl
         BorderStyle = BorderStyle.None, BackColor = FieldColor, ForeColor = Theme.Text, Font = Theme.Body,
     };
 
-    public static readonly Color FieldColor = Color.FromArgb(44, 44, 47);
+    public static readonly Color FieldColor = Theme.Input;
 
     public new event EventHandler? TextChanged;
 
@@ -730,11 +733,8 @@ public class Group : Panel
         Theme.Smooth(e.Graphics);
         var card = new RectangleF(0, 0, Width - 0.5f, Height - 0.5f);
         Theme.FillRounded(e.Graphics, Theme.Card, card, 16);
-        // A faint rim, strongest at the top.
         using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 16))
-        using (var rim = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(0, 0, Width, Math.Max(Height, 1)),
-                   Color.FromArgb(46, 255, 255, 255), Color.FromArgb(10, 255, 255, 255), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
-        using (var pen = new Pen(rim, 1f))
+        using (var pen = new Pen(Theme.Separator))
             e.Graphics.DrawPath(pen, path);
     }
 

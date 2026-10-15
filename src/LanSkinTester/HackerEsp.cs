@@ -365,12 +365,27 @@ public partial class LanSkinTester
     private static void MoveBeam(CEnvBeam beam, Vector start, Vector end, Color color)
     {
         if (!beam.IsValid) return;
+        var origin = beam.AbsOrigin;
+        var startMoved = origin == null
+            || Math.Abs(origin.X - start.X) > 0.5f
+            || Math.Abs(origin.Y - start.Y) > 0.5f
+            || Math.Abs(origin.Z - start.Z) > 0.5f;
+        var endPos = beam.EndPos;
+        var endMoved = Math.Abs(endPos.X - end.X) > 0.5f
+            || Math.Abs(endPos.Y - end.Y) > 0.5f
+            || Math.Abs(endPos.Z - end.Z) > 0.5f;
+        if (!startMoved && !endMoved) return;
+
         beam.Render = color;
         beam.NoInterpolate = true;
-        beam.Teleport(start, new QAngle(), new Vector());
+        if (startMoved) beam.Teleport(start, new QAngle(), new Vector());
+        if (!endMoved) return;
+
         beam.EndPos.X = end.X;
         beam.EndPos.Y = end.Y;
         beam.EndPos.Z = end.Z;
+        // The server beam reads this local vector. It is not a networked field: marking it
+        // changed prints a warning for every edge, every tick, and stalls the frame.
         beam.EndPointWorld.X = end.X;
         beam.EndPointWorld.Y = end.Y;
         beam.EndPointWorld.Z = end.Z;
@@ -380,7 +395,6 @@ public partial class LanSkinTester
         try
         {
             Utilities.SetStateChanged(beam, "CBeam", "m_vecEndPos");
-            Utilities.SetStateChanged(beam, "CEnvBeam", "m_vecEndPointWorld");
         }
         catch (Exception)
         {
