@@ -122,10 +122,22 @@ public class ServerSettings
     public bool HackEspInfo { get; set; }
     public bool HackAimWalls { get; set; }
 
-    /// <summary>Hacker mode: no recoil / no spread. CS2 only has these server-wide (weapon_recoil_scale,
-    /// weapon_accuracy_nospread), so with "One random" they apply to everyone, bots included.</summary>
+    /// <summary>Hacker mode: no recoil (per hacker in the plugin, plus CS2's server-wide recoil cvars) and
+    /// no spread (only exists server-wide: weapon_accuracy_nospread, so it applies to everyone).</summary>
     public bool HackNoRecoil { get; set; }
     public bool HackNoSpread { get; set; }
+
+    /// <summary>Enemies show on the hacker's radar.</summary>
+    public bool HackRadar { get; set; }
+
+    public static readonly string[] AimKeys = ["Hold fire (Mouse 1)", "Always on", "Hold right click", "Hold Shift", "Hold E", "Hold F", "Only my own key"];
+    private static readonly string[] AimKeyCommands = ["fire", "always", "mouse2", "shift", "e", "f", "custom"];
+
+    /// <summary>When the aimbot works (index into <see cref="AimKeys"/>).</summary>
+    public int HackAimKey { get; set; }
+
+    /// <summary>Any keyboard/mouse key bound to the aimbot in CS2 on this PC (e.g. mouse4, x, alt). Empty = none.</summary>
+    public string AimBindKey { get; set; } = "";
 
     /// <summary>Aimbot aggression 1 (gentle, slow, loose) - 10 (fast hard head lock).</summary>
     public int HackAggression { get; set; } = 5;
@@ -185,7 +197,7 @@ public class ServerSettings
             s.Bots = 16;
             s.Difficulty = 3;
             s.HackerMode = 1;
-            s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = true;
+            s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
             s.HackAggression = 7;
         }),
         new("Catch the hacker", "Friends: one random hacker per round", s =>
@@ -208,7 +220,7 @@ public class ServerSettings
         MaxMoney = AllowCheats = true;
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
-        HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = false;
+        HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = HackRadar = false;
         HackAggression = 5;
     }
 
@@ -240,14 +252,52 @@ public class ServerSettings
     public const int Port = 27015;
 
     /// <summary>127.0.0.1, not "localhost": that can resolve to IPv6 (::1), where the server doesn't listen.</summary>
-    public string GameArguments() => JoinArguments(GameArgs, $"127.0.0.1:{Port}", Password);
+    public string GameArguments(GameFolder game) => JoinArguments(game, $"127.0.0.1:{Port}", Password);
 
     /// <summary>CS2 with VAC off for this run only (nothing is saved in Steam), joining a server.</summary>
-    public static string JoinArguments(string? extraArgs, string address, string? password)
+    public string JoinArguments(GameFolder game, string address, string? password)
     {
-        var extra = (extraArgs ?? "").Replace("+connect", "").Trim();
+        var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
         var pass = string.IsNullOrWhiteSpace(password) ? "" : $"+password \"{password.Trim()}\" ";
-        return $"-insecure {extra} {pass}+connect {address}".Replace("  ", " ");
+        var exec = WriteClientCfg(game) ? $"+exec {ClientCfg} " : "";
+        return $"-insecure {extra} {exec}{pass}+connect {address}".Replace("  ", " ");
+    }
+
+    public const string ClientCfg = "lanskintester_client";
+
+    /// <summary>A key name CS2 understands (mouse4, x, alt, f6, kp_5...), or null.</summary>
+    public static string? CleanKey(string? key)
+    {
+        key = (key ?? "").Trim().ToLowerInvariant();
+        return System.Text.RegularExpressions.Regex.IsMatch(key, "^[a-z0-9_]{1,16}$") ? key : null;
+    }
+
+    /// <summary>
+    /// Writes the game's own config for this PC's player: the personal aimbot key (bind KEY +lst_aim).
+    /// Returns whether CS2 should run it.
+    /// </summary>
+    public bool WriteClientCfg(GameFolder game)
+    {
+        try
+        {
+            var file = Path.Combine(game.Csgo, "cfg", ClientCfg + ".cfg");
+            var key = CleanKey(AimBindKey);
+            if (key == null)
+            {
+                if (File.Exists(file)) File.Delete(file);
+                return false;
+            }
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file,
+                "// Written by the LAN Skin Tester launcher.\n" +
+                "// Hacker mode: hold this key for the aimbot (does nothing on other servers).\n" +
+                $"bind \"{key}\" \"+lst_aim\"\n");
+            return true;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     /// <summary>The Steam account id (32-bit) logged in on this PC, so the plugin knows who the host is.</summary>
@@ -281,9 +331,7 @@ public class ServerSettings
         sb.AppendLine("sv_cheats 1");
         sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : 0)}");
         sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
-        // Hacker mode: zero recoil / zero spread (server-wide cheat cvars; 2 and 0 are CS2's defaults).
-        sb.AppendLine($"weapon_recoil_scale {(HackerMode != 0 && HackNoRecoil ? 0 : 2)}");
-        sb.AppendLine($"weapon_accuracy_nospread {(HackerMode != 0 && HackNoSpread ? 1 : 0)}");
+        foreach (var line in RecoilCvars()) sb.AppendLine(line);
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
 
         // Bots: difficulty only applies to newly added bots, so kick and re-add them.
@@ -336,6 +384,32 @@ public class ServerSettings
         }
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
+        foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+
+        sb.AppendLine("mp_warmup_end");
+        return sb.ToString();
+    }
+
+    /// <summary>Zero recoil / zero spread cvars (cheat-protected; the "off" values are CS2's defaults).</summary>
+    private IEnumerable<string> RecoilCvars()
+    {
+        // The plugin also removes the recoil per hacker; these make it stick for everyone in hacker mode.
+        var noRecoil = HackerMode != 0 && HackNoRecoil;
+        yield return $"weapon_recoil_scale {(noRecoil ? 0 : 2)}";
+        yield return $"weapon_recoil_view_punch_extra {(noRecoil ? "0" : "0.055")}";
+        yield return $"weapon_recoil_suppression_shots {(noRecoil ? 999 : 4)}";
+        yield return $"weapon_accuracy_nospread {(HackerMode != 0 && HackNoSpread ? 1 : 0)}";
+    }
+
+    /// <summary>Everything hacker mode needs, without touching bots or the round (for live changes).</summary>
+    public IEnumerable<string> HackerCommands(bool withCvars = true)
+    {
+        if (withCvars)
+        {
+            yield return "sv_cheats 1";
+            foreach (var line in RecoilCvars()) yield return line;
+            yield return $"sv_cheats {(NeedsCheats ? 1 : 0)}";
+        }
         var powers = new List<string>();
         if (HackWallhack) powers.Add("wallhack");
         if (HackAimbot) powers.Add("aimbot");
@@ -346,12 +420,19 @@ public class ServerSettings
         if (HackNoFlash) powers.Add("noflash");
         if (HackEspInfo) powers.Add("espinfo");
         if (HackAimWalls) powers.Add("aimwalls");
-        sb.AppendLine($"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}");
-        sb.AppendLine($"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}");
-        sb.AppendLine($"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}");
+        if (HackNoRecoil) powers.Add("norecoil");
+        if (HackRadar) powers.Add("radar");
+        yield return $"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}";
+        yield return $"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}";
+        yield return $"lst_aim_key {AimKeyCommands[Math.Clamp(HackAimKey, 0, AimKeyCommands.Length - 1)]}";
+        yield return $"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}";
+    }
 
-        sb.AppendLine("mp_warmup_end");
-        return sb.ToString();
+    /// <summary>Sends the hacker settings to the running server right away (and keeps them for map changes).</summary>
+    public void ApplyHackerToRunningServer(GameFolder game)
+    {
+        WriteCfg(game);
+        SendCommands(game, HackerCommands().ToArray());
     }
 
     public void WriteCfg(GameFolder game)

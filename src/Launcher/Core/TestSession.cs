@@ -45,7 +45,7 @@ public class TestSession
     {
         Process.Start(new ProcessStartInfo(_game.Exe)
         {
-            Arguments = settings.GameArguments(),
+            Arguments = settings.GameArguments(_game),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });

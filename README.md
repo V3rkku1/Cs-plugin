@@ -87,21 +87,30 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
 
-**Hacker mode (fun)**, on the Play page or with the quick starts *Hacker vs bots* and *Catch the hacker*:
+**Hacker mode (fun)** has its own page in the sidebar (or use the quick starts *Hacker vs bots* and
+*Catch the hacker*). Changes there apply to the running server right away, no Apply needed.
+*Quick profiles* (Legit, Closet, Rage, Movement, All off) set every cheat in one click:
 
 - **Who hacks:** *Everyone* (great against expert bots) or *One random*. With *One random*, a new
   random player gets the hacks each round and glows green for everyone else, so the rest hunt them.
 - **Powers** (each can be turned off):
   - *Wallhack:* enemies glow through walls, and only hackers see it.
-  - *Aimbot:* a "legit" one. Hold fire and your aim pulls smoothly onto a visible enemy near
+  - *Aimbot:* a "legit" one. Hold your aim key and your aim pulls smoothly onto a visible enemy near
     your crosshair, after a human-like reaction delay, at the head or neck, not pixel-perfect. It only
     locks onto enemies you can actually see: a line-of-sight trace from your eyes to their head or
     chest, so walls, floors, props and glass block it (smokes don't).
+  - *Aim key:* hold fire (default), always on, hold right click, hold Shift, hold E or hold F.
+    **Own aim key:** type any key (`mouse4`, `mouse5`, `x`, `alt`…) and the launcher binds it in CS2
+    on this PC (`bind mouse4 +lst_aim`, from `cfg/lanskintester_client.cfg`). The key's old binding
+    is replaced. In game: `!aimkey mouse2` picks your own, `!aimtoggle` (or `bind x css_aimtoggle`)
+    turns the aimbot always-on.
   - *Aim through walls:* the aimbot also locks onto enemies behind walls (off by default, "rage").
   - *Damage boost:* 2× damage (off by default).
-  - *Zero recoil* and *zero spread:* no recoil, and every bullet goes exactly where you aim. CS2 only
-    has these server-wide (`weapon_recoil_scale`, `weapon_accuracy_nospread`), so they apply to
-    everyone, bots included, while hacker mode is on.
+  - *Zero recoil:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
+    tick, and the server-wide recoil cvars are set too.
+  - *Zero spread:* every bullet goes exactly where you aim. CS2 only has this server-wide
+    (`weapon_accuracy_nospread`), so it applies to everyone, bots included.
+  - *Radar hack:* every enemy shows on your radar.
   - *Bunnyhop:* hold jump to bhop perfectly.
   - *No flash:* flashbangs don't blind you.
   - *Enemy info:* the nearest enemy's name, HP, distance and direction (an arrow) in the middle of
@@ -114,7 +123,7 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
   - **W / S** move, **D** or **E** switches / turns a slider up, **A** turns it down, **R** closes.
     You stand still while it's open.
   - Each player switches their own cheats: wallhack, aimbot, **aggression** (a 1-10 slider),
-    enemy info, speedhack, bunnyhop, infinite ammo, no flash, damage boost, third person, or
+    aim key, zero recoil, enemy info, radar, speedhack, bunnyhop, infinite ammo, no flash, damage boost, third person, or
     everything off.
 - **Aim aggression** (1-10, also a slider on the Play page as the default): 1 is gentle and loose
   (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 10 is a hard
@@ -156,9 +165,9 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
      to open UDP port 27015 (UPnP) when you start hosting, and closes it again when you press Stop.
      A password is always used in this mode (one is made for you if you leave it empty).
 2. **Your address** is found automatically: your `192.168.x.x` address, your Radmin `26.x.x.x`
-   address, or your internet address from the router. *Copy Invite* copies a short message with the
-   download link and an **invite code** (`LST-…`), which holds the address, port and password in one
-   piece. The Play page's Server card has the same **Copy IP** and **Copy Invite** buttons.
+   address, or your internet address from the router. *Copy Code* copies just the **invite code**
+   (`LST-…`), which holds the address, port and password in one piece. The Play page's Server card has
+   the same **Copy IP** and **Copy Code** buttons.
 3. **Options:**
    - **Skins:** *Everyone uses mine*, or *Each picks own*. With *Each picks own*, friends use `!skin`,
      `!knife`, `!gloves` and `!gen` in chat, and you keep the launcher's loadout.
@@ -206,7 +215,7 @@ runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`l
 
   | Keys | Does |
   | --- | --- |
-  | `Ctrl+1` … `Ctrl+4` | Play, Skins, Friends, Setup |
+  | `Ctrl+1` … `Ctrl+5` | Play, Skins, Hacker Mode, Friends, Setup |
   | `Ctrl+F` | Search skins |
   | `F5` | Start, or apply changes to the running server |
   | `Shift+F5` | Stop |
@@ -349,6 +358,8 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!noclip` | Fly through walls (type it again to land) |
 | `!hacks` | Who is hacking in hacker mode |
 | `!cheats` | Open the cheat menu (W/S move, D switch, R close) |
+| `!aimkey fire\|always\|mouse2\|shift\|e\|f` | Your own aimbot key |
+| `!aimtoggle` | Aimbot always on / back to your key (bind a key: `bind x css_aimtoggle`) |
 
 The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`) only work on a LAN or private server, like the skins.
 
@@ -381,7 +392,8 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_respawn` | Respawn dead players |
 | `lst_refresh` | Re-apply skins to everyone |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
-| `lst_hack_powers wallhack,aimbot,onetap,ammo,speed,bhop,noflash,espinfo` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_hack_powers wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
 | `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
 | `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |

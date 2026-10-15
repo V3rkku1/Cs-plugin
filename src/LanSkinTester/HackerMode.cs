@@ -23,9 +23,17 @@ public partial class LanSkinTester
     private enum Power
     {
         None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16,
-        Bhop = 32, NoFlash = 64, EspInfo = 128, AimWalls = 256,
-        All = 511,
+        Bhop = 32, NoFlash = 64, EspInfo = 128, AimWalls = 256, NoRecoil = 512, Radar = 1024,
+        All = 2047,
     }
+
+    /// <summary>
+    /// When the aimbot works. The server only sees the game's own actions (fire, scope, walk, use,
+    /// inspect), so "custom" means any key the player binds to +lst_aim (the launcher does that).
+    /// </summary>
+    private enum AimKey { Fire, Always, Mouse2, Shift, E, F, Custom }
+
+    private static readonly string[] AimKeyNames = ["Hold fire", "Always on", "Hold right click", "Hold Shift", "Hold E", "Hold F", "Own key only"];
 
     // A "legit" aimbot: only enemies you can actually see, a small lock-on area, a human-like reaction
     // delay, smooth movement and a slightly imperfect aim point - not an instant snap through walls.
@@ -77,6 +85,94 @@ public partial class LanSkinTester
     /// <summary>Aimbot aggression 1-10 when a player hasn't picked one (launcher: lst_aim_aggression).</summary>
     private int _defaultAggression = 5;
 
+    /// <summary>Aim key for everyone (launcher: lst_aim_key) and per-player picks from the cheat menu.</summary>
+    private AimKey _defaultAimKey = AimKey.Fire;
+    private readonly Dictionary<int, AimKey> _aimKeys = new();
+
+    /// <summary>Players holding their own bound key (+lst_aim), or who toggled the aimbot on (lst_aim_toggle).</summary>
+    private readonly HashSet<int> _aimHeld = new();
+    private readonly HashSet<int> _aimToggled = new();
+
+    private AimKey AimKeyOf(CCSPlayerController player) => _aimKeys.TryGetValue(player.Slot, out var k) ? k : _defaultAimKey;
+
+    private bool AimPressed(CCSPlayerController player)
+    {
+        if (_aimHeld.Contains(player.Slot) || _aimToggled.Contains(player.Slot)) return true;
+        var b = player.Buttons;
+        return AimKeyOf(player) switch
+        {
+            AimKey.Fire => (b & PlayerButtons.Attack) != 0,
+            AimKey.Always => true,
+            AimKey.Mouse2 => (b & PlayerButtons.Attack2) != 0,
+            AimKey.Shift => (b & (PlayerButtons.Speed | PlayerButtons.Walk)) != 0,
+            AimKey.E => (b & PlayerButtons.Use) != 0,
+            AimKey.F => (b & PlayerButtons.Inspect) != 0,
+            _ => false,
+        };
+    }
+
+    private static AimKey? ParseAimKey(string text) => text.Trim().ToLowerInvariant() switch
+    {
+        "fire" or "mouse1" or "attack" => AimKey.Fire,
+        "always" or "on" => AimKey.Always,
+        "mouse2" or "scope" or "attack2" => AimKey.Mouse2,
+        "shift" or "walk" or "speed" => AimKey.Shift,
+        "e" or "use" => AimKey.E,
+        "f" or "inspect" => AimKey.F,
+        "custom" or "key" or "bind" => AimKey.Custom,
+        _ => null,
+    };
+
+    [ConsoleCommand("lst_aim_key", "When the aimbot works: fire | always | mouse2 | shift | e | f | custom (+lst_aim only)")]
+    [CommandHelper(minArgs: 1, usage: "fire|always|mouse2|shift|e|f|custom", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnAimKeyCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        if (ParseAimKey(cmd.GetArg(1)) is { } key) _defaultAimKey = key;
+    }
+
+    [ConsoleCommand("css_aimkey", "Pick your aimbot key: fire, always, mouse2, shift, e, f or custom")]
+    public void OnAimKeyChatCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (player == null || !player.IsValid) return;
+        if (cmd.ArgCount < 2 || ParseAimKey(cmd.GetArg(1)) is not { } key)
+        {
+            Reply(player, $"Aim key: {AimKeyNames[(int)AimKeyOf(player)]}. Change: !aimkey fire|always|mouse2|shift|e|f. " +
+                          "Any key: bind it in the console, e.g. bind mouse4 +lst_aim");
+            return;
+        }
+        _aimKeys[player.Slot] = key;
+        Reply(player, $"Aim key: {AimKeyNames[(int)key]}");
+    }
+
+    [ConsoleCommand("css_aimtoggle", "Turn the aimbot on/off (bind a key: bind x css_aimtoggle)")]
+    public void OnAimToggleCommand(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (player == null || !player.IsValid || !IsHacker(player)) return;
+        var on = _aimToggled.Add(player.Slot);
+        if (!on) _aimToggled.Remove(player.Slot);
+        player.PrintToCenter(on ? "Aimbot: ALWAYS ON" : "Aimbot: back to your aim key");
+    }
+
+    private void RegisterAimBindCommands()
+    {
+        try
+        {
+            // A key bound to +lst_aim sends +lst_aim when pressed and -lst_aim when released.
+            AddCommand("+lst_aim", "Aimbot while this key is held (bind mouse4 +lst_aim)", (player, _) =>
+            {
+                if (player is { IsValid: true }) _aimHeld.Add(player.Slot);
+            });
+            AddCommand("-lst_aim", "Aimbot key released", (player, _) =>
+            {
+                if (player is { IsValid: true }) _aimHeld.Remove(player.Slot);
+            });
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not register +lst_aim (own aimbot key); !aimtoggle still works");
+        }
+    }
+
     private int AggressionOf(CCSPlayerController player) =>
         _aggression.TryGetValue(player.Slot, out var a) ? a : _defaultAggression;
 
@@ -107,6 +203,9 @@ public partial class LanSkinTester
             _personal.Remove(slot);
             _aggression.Remove(slot);
             _aimLocks.Remove(slot);
+            _aimKeys.Remove(slot);
+            _aimHeld.Remove(slot);
+            _aimToggled.Remove(slot);
             _cheatMenus.Remove(slot);
             _espText.Remove(slot);
         });
@@ -116,6 +215,7 @@ public partial class LanSkinTester
         RegisterEventHandler<EventWeaponFire>(OnHackWeaponFire);
         RegisterListener<Listeners.OnEntityTakeDamagePre>(OnHackTakeDamage);
         RegisterEventHandler<EventPlayerBlind>(OnHackBlind);
+        RegisterAimBindCommands();
         LoadCheatMenu();
     }
 
@@ -149,8 +249,8 @@ public partial class LanSkinTester
         Announce();
     }
 
-    [ConsoleCommand("lst_hack_powers", "Hacker powers: wallhack,aimbot,onetap,ammo,speed or all")]
-    [CommandHelper(minArgs: 1, usage: "wallhack,aimbot,onetap,ammo,speed|all", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    [ConsoleCommand("lst_hack_powers", "Hacker powers: wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar or all")]
+    [CommandHelper(minArgs: 1, usage: "wallhack,aimbot,...|all|none", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnHackPowersCommand(CCSPlayerController? caller, CommandInfo cmd)
     {
         var powers = Power.None;
@@ -175,7 +275,7 @@ public partial class LanSkinTester
             return;
         }
         Reply(player, IsHacker(player)
-            ? $"You are hacking: {DescribePowers(player)}{(Has(player, Power.Aimbot) ? " - hold fire to lock on" : "")}. !cheats opens the menu."
+            ? $"You are hacking: {DescribePowers(player)}{(Has(player, Power.Aimbot) ? $" - aimbot: {AimKeyNames[(int)AimKeyOf(player)].ToLowerInvariant()}" : "")}. !cheats opens the menu."
             : $"{string.Join(", ", Hackers().Select(h => h.PlayerName))} is hacking. Look for the green glow!");
     }
 
@@ -226,6 +326,8 @@ public partial class LanSkinTester
         if (Has(player, Power.Speed)) names.Add("speed");
         if (Has(player, Power.Bhop)) names.Add("bhop");
         if (Has(player, Power.NoFlash)) names.Add("no flash");
+        if (Has(player, Power.NoRecoil)) names.Add("no recoil");
+        if (Has(player, Power.Radar)) names.Add("radar");
         return names.Count == 0 ? "nothing (all powers off)" : string.Join(" · ", names);
     }
 
@@ -365,9 +467,68 @@ public partial class LanSkinTester
                 Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
             }
 
-            if (Has(hacker, Power.Aimbot) && (hacker.Buttons & PlayerButtons.Attack) != 0 && !_cheatMenus.ContainsKey(hacker.Slot))
+            if (Has(hacker, Power.NoRecoil)) RemoveRecoil(pawn);
+            if (Has(hacker, Power.Radar) && _tick % 4 == 0) RevealOnRadar(hacker);
+
+            if (Has(hacker, Power.Aimbot) && AimPressed(hacker) && !_cheatMenus.ContainsKey(hacker.Slot))
                 Aim(hacker, pawn);
             else _aimLocks.Remove(hacker.Slot);
+        }
+    }
+
+    private bool _recoilBroken;
+
+    /// <summary>
+    /// Zero recoil for this player only: the server aims bullets with the player's view angles plus the
+    /// "aim punch" (recoil kick), so clearing the punch every tick sends every bullet where they look.
+    /// </summary>
+    private void RemoveRecoil(CCSPlayerPawn pawn)
+    {
+        if (_recoilBroken) return;
+        try
+        {
+            var punch = pawn.AimPunchServices;
+            if (punch == null) return;
+            foreach (var angle in new[] { punch.PredictableBaseAngle, punch.PredictableBaseAngleVel, punch.UnpredictableBaseAngle })
+            {
+                if (angle.X == 0 && angle.Y == 0 && angle.Z == 0) continue;
+                angle.X = angle.Y = angle.Z = 0;
+            }
+        }
+        catch (Exception ex)
+        {
+            _recoilBroken = true; // schema changed after a CS2 update: the server cvar still works
+            Logger.LogWarning(ex, "Per-player no recoil failed");
+        }
+    }
+
+    private bool _radarBroken;
+
+    /// <summary>Radar hack: every enemy shows on the hacker's radar ("spotted" by them).</summary>
+    private void RevealOnRadar(CCSPlayerController hacker)
+    {
+        if (_radarBroken) return;
+        try
+        {
+            foreach (var enemy in Utilities.GetPlayers())
+            {
+                if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
+                var pawn = enemy.PlayerPawn.Value;
+                if (pawn == null || !pawn.IsValid) continue;
+                var spotted = pawn.EntitySpottedState;
+                var mask = spotted.SpottedByMask;
+                var index = hacker.Slot / 32;
+                var bit = 1u << (hacker.Slot % 32);
+                if (spotted.Spotted && index < mask.Length && (mask[index] & bit) != 0) continue;
+                spotted.Spotted = true;
+                if (index < mask.Length) mask[index] |= bit;
+                Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_entitySpottedState");
+            }
+        }
+        catch (Exception ex)
+        {
+            _radarBroken = true;
+            Logger.LogWarning(ex, "Radar hack failed");
         }
     }
 

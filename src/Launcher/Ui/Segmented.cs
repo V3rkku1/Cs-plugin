@@ -18,7 +18,7 @@ public class Segmented : DrawnControl
         _options = options.ToArray();
         _enabled = _options.Select(_ => true).ToArray();
         Columns = columns > 0 ? columns : _options.Length;
-        var width = segmentWidth > 0 ? segmentWidth : _options.Max(o => Theme.MeasureText(o, Theme.Body).Width) + 24;
+        var width = segmentWidth > 0 ? segmentWidth : (int)Math.Ceiling(_options.Max(o => Theme.MeasureText(o, Theme.Body).Width) / Theme.Scale) + 24;
         var rows = (_options.Length + Columns - 1) / Columns;
         Size = new Size(width * Columns + 4, rows * RowHeight + 4);
         Margin = new Padding(0, 0, 8, 0);

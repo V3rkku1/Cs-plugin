@@ -30,12 +30,12 @@ public class PresetCard : DrawnControl
         }
 
         // Icon: a rounded square in the tile's colour with a play triangle.
-        var icon = new RectangleF(14, 14, 26, 26);
+        var icon = new RectangleF(Theme.S(14f), Theme.S(14f), Theme.S(26f), Theme.S(26f));
         Theme.FillRounded(g, _tint, icon, 7);
         using (var white = new SolidBrush(Color.White))
-            g.FillPolygon(white, [new PointF(icon.Left + 10, icon.Top + 7.5f), new PointF(icon.Left + 10, icon.Bottom - 7.5f), new PointF(icon.Right - 7, icon.Top + 13)]);
+            g.FillPolygon(white, [new PointF(icon.Left + Theme.S(10f), icon.Top + Theme.S(7.5f)), new PointF(icon.Left + Theme.S(10f), icon.Bottom - Theme.S(7.5f)), new PointF(icon.Right - Theme.S(7f), icon.Top + Theme.S(13f))]);
 
-        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(14, 46, Width - 22, 20), Enabled ? Theme.Text : Theme.Muted);
-        Theme.DrawText(g, _subtitle, Theme.Small, new Rectangle(14, 64, Width - 20, 22), Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top);
+        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(Theme.S(14), Theme.S(46), Width - Theme.S(22), Theme.S(20)), Enabled ? Theme.Text : Theme.Muted);
+        Theme.DrawText(g, _subtitle, Theme.Small, new Rectangle(Theme.S(14), Theme.S(64), Width - Theme.S(20), Theme.S(22)), Theme.Muted, TextFormatFlags.Left | TextFormatFlags.Top);
     }
 }

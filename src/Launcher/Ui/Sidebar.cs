@@ -5,7 +5,7 @@ namespace LanSkinTester.Launcher.Ui;
 /// <summary>A navigation row in the sidebar: drawn icon + label, rounded highlight when selected.</summary>
 public class SidebarItem : DrawnControl
 {
-    public enum Icon { Play, Skins, Friends, Setup }
+    public enum Icon { Play, Skins, Hacker, Friends, Setup }
 
     private readonly Icon _icon;
     private bool _selected;
@@ -32,12 +32,16 @@ public class SidebarItem : DrawnControl
         {
             Theme.FillRounded(g, Theme.Fill, r, 8);
             // Accent bar on the left of the selected page.
-            Theme.FillRoundedGradient(g, Theme.GradientStart, Theme.GradientEnd, new RectangleF(3, 9, 3, Height - 19), 1.5f);
+            Theme.FillRoundedGradient(g, Theme.GradientStart, Theme.GradientEnd, new RectangleF(Theme.S(3f), Theme.S(9f), Theme.S(3f), Height - Theme.S(19f)), Theme.S(1.5f));
         }
         else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 110), r, 8);
 
-        DrawIcon(g, new RectangleF(12, 9, 18, 18), _selected ? Theme.Accent : Theme.Muted);
-        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(40, 0, Width - 44, Height), Theme.Text);
+        var state = g.Save();
+        g.TranslateTransform(Theme.S(12f), (Height - Theme.S(18f)) / 2);
+        g.ScaleTransform(Theme.Scale, Theme.Scale);
+        DrawIcon(g, new RectangleF(0, 0, 18, 18), _selected ? Theme.Accent : Theme.Muted);
+        g.Restore(state);
+        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(Theme.S(40), 0, Width - Theme.S(44), Height), Theme.Text);
     }
 
     private void DrawIcon(Graphics g, RectangleF box, Color color)
@@ -58,6 +62,16 @@ public class SidebarItem : DrawnControl
                 g.DrawPolygon(pen, [new PointF(box.Left + 4, top), new PointF(box.Right - 4, top), new PointF(box.Right, mid),
                     new PointF(box.Left + box.Width / 2, box.Bottom - 1), new PointF(box.Left, mid)]);
                 g.DrawLine(pen, box.Left, mid, box.Right, mid);
+                break;
+            case Icon.Hacker:
+                // scope: ring, four ticks and a centre dot
+                var m = new PointF(box.Left + box.Width / 2, box.Top + box.Height / 2);
+                g.DrawEllipse(pen, m.X - 6.5f, m.Y - 6.5f, 13, 13);
+                g.DrawLine(pen, m.X, m.Y - 9.5f, m.X, m.Y - 4);
+                g.DrawLine(pen, m.X, m.Y + 4, m.X, m.Y + 9.5f);
+                g.DrawLine(pen, m.X - 9.5f, m.Y, m.X - 4, m.Y);
+                g.DrawLine(pen, m.X + 4, m.Y, m.X + 9.5f, m.Y);
+                g.FillEllipse(brush, m.X - 1.5f, m.Y - 1.5f, 3, 3);
                 break;
             case Icon.Friends:
                 // person.2: two heads and shoulders
@@ -107,15 +121,19 @@ public class UpdateCard : DrawnControl
         var r = new RectangleF(0, 0, Width - 1, Height - 1);
         Theme.FillRounded(g, Hover ? Theme.AccentHover : Theme.Accent, r, 10);
         // arrow.down.circle
+        var state = g.Save();
+        g.ScaleTransform(Theme.Scale, Theme.Scale);
+        var h = Height / Theme.Scale;
         using (var pen = new Pen(Color.White, 1.7f) { StartCap = System.Drawing.Drawing2D.LineCap.Round, EndCap = System.Drawing.Drawing2D.LineCap.Round })
         {
-            g.DrawEllipse(pen, 12, Height / 2f - 9, 18, 18);
-            g.DrawLine(pen, 21, Height / 2f - 5, 21, Height / 2f + 4);
-            g.DrawLine(pen, 17, Height / 2f, 21, Height / 2f + 4);
-            g.DrawLine(pen, 25, Height / 2f, 21, Height / 2f + 4);
+            g.DrawEllipse(pen, 12, h / 2f - 9, 18, 18);
+            g.DrawLine(pen, 21, h / 2f - 5, 21, h / 2f + 4);
+            g.DrawLine(pen, 17, h / 2f, 21, h / 2f + 4);
+            g.DrawLine(pen, 25, h / 2f, 21, h / 2f + 4);
         }
-        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(40, 8, Width - 44, 18), Color.White);
-        Theme.DrawText(g, _detail, Theme.Small, new Rectangle(40, 26, Width - 44, 18), Color.FromArgb(220, 235, 255));
+        g.Restore(state);
+        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(Theme.S(40), Theme.S(8), Width - Theme.S(44), Theme.S(18)), Color.White);
+        Theme.DrawText(g, _detail, Theme.Small, new Rectangle(Theme.S(40), Theme.S(26), Width - Theme.S(44), Theme.S(18)), Color.FromArgb(220, 235, 255));
     }
 }
 
@@ -142,9 +160,10 @@ public class StatusBadge : DrawnControl
     protected override void Draw(Graphics g)
     {
         Theme.FillRounded(g, Theme.Card, new RectangleF(0, 0, Width - 1, Height - 1), 10);
-        using (var glow = new SolidBrush(Theme.WithAlpha(_dot, 60))) g.FillEllipse(glow, 11, Height / 2f - 9, 18, 18);
-        using (var dot = new SolidBrush(_dot)) g.FillEllipse(dot, 15, Height / 2f - 5, 10, 10);
-        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(38, 8, Width - 44, 18), Theme.Text);
-        Theme.DrawText(g, _detail, Theme.Small, new Rectangle(38, 26, Width - 44, 18), Theme.Muted);
+        var mid = Height / 2f;
+        using (var glow = new SolidBrush(Theme.WithAlpha(_dot, 60))) g.FillEllipse(glow, Theme.S(11f), mid - Theme.S(9f), Theme.S(18f), Theme.S(18f));
+        using (var dot = new SolidBrush(_dot)) g.FillEllipse(dot, Theme.S(15f), mid - Theme.S(5f), Theme.S(10f), Theme.S(10f));
+        Theme.DrawText(g, _title, Theme.Bold, new Rectangle(Theme.S(38), Theme.S(8), Width - Theme.S(44), Theme.S(18)), Theme.Text);
+        Theme.DrawText(g, _detail, Theme.Small, new Rectangle(Theme.S(38), Theme.S(26), Width - Theme.S(44), Theme.S(18)), Theme.Muted);
     }
 }

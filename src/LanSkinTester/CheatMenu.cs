@@ -49,7 +49,14 @@ public partial class LanSkinTester
             Toggle("Aim through walls", Power.AimWalls),
             new MenuItem("Aggression", p => Bar(AggressionOf(p)), (p, up) =>
                 _aggression[p.Slot] = Math.Clamp(AggressionOf(p) + (up ? 1 : -1), 1, 10)),
+            new MenuItem("Aim key", p => AimKeyNames[(int)AimKeyOf(p)], (p, up) =>
+            {
+                var count = AimKeyNames.Length;
+                _aimKeys[p.Slot] = (AimKey)(((int)AimKeyOf(p) + (up ? 1 : -1) + count) % count);
+            }),
+            Toggle("Zero recoil", Power.NoRecoil),
             Toggle("Enemy info", Power.EspInfo),
+            Toggle("Radar", Power.Radar),
             Toggle("Speedhack", Power.Speed),
             Toggle("Bunnyhop", Power.Bhop),
             Toggle("Infinite ammo", Power.Ammo),

@@ -36,20 +36,11 @@ public class PlayPage : UserControl
     private SettingRow _workshopRow = null!;
     private readonly TextField _gameArgs = new(220) { PlaceholderText = "-windowed -w 1920 -h 1080" };
     private readonly Toggle _autoStartGame = new();
-    private readonly Segmented _hackerMode = new(ServerSettings.HackerModes, 100);
-    private readonly Toggle _hackWallhack = new();
-    private readonly Toggle _hackAimbot = new();
-    private readonly Toggle _hackOneTap = new();
-    private readonly Toggle _hackAmmo = new();
-    private readonly Toggle _hackSpeed = new();
-    private readonly Toggle _hackBhop = new();
-    private readonly Toggle _hackNoFlash = new();
-    private readonly Toggle _hackEspInfo = new();
-    private readonly Toggle _hackAimWalls = new();
-    private readonly Toggle _hackNoRecoil = new();
-    private readonly Toggle _hackNoSpread = new();
-    private readonly Slider _hackAggression = new() { Minimum = 1, Maximum = 10, Width = 200 };
-    private readonly Label _hackAggressionLabel = new() { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
+    private readonly PillButton _hackerButton = new("Open Hacker Page");
+    private SettingRow _hackerRow = null!;
+
+    /// <summary>The "Open Hacker Page" button was pressed.</summary>
+    public event Action? OpenHackerPage;
 
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
@@ -57,7 +48,7 @@ public class PlayPage : UserControl
     private readonly PillButton _gameButton = new("Open CS2");
     private readonly PillButton _stopButton = new("Stop", PillButton.Style.Destructive);
     private readonly PillButton _copyIp = new("Copy IP");
-    private readonly PillButton _copyInvite = new("Copy Invite", PillButton.Style.Primary);
+    private readonly PillButton _copyInvite = new("Copy Code", PillButton.Style.Primary);
     private SettingRow _inviteRow = null!;
     private readonly Label _modeTitle = new() { AutoSize = true, Font = Theme.Big, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _modeStatus = new() { AutoSize = true, MaximumSize = new Size(440, 0), Font = Theme.Body, ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(0, 4, 0, 14) };
@@ -127,20 +118,8 @@ public class PlayPage : UserControl
         options.AddRow("Round Time", _roundTime, "Minutes · 0 = game mode default");
 
         var hacker = new Group(left);
-        hacker.AddRow("Who Hacks", _hackerMode, "One random: new hacker each round, glows green");
-        hacker.AddRow("Wallhack", _hackWallhack, "See enemies glowing through walls");
-        hacker.AddRow("Aimbot", _hackAimbot, "Hold fire: smoothly pulls onto visible enemies near your crosshair");
-        hacker.AddRow("Aim Through Walls", _hackAimWalls, "Aimbot also locks onto enemies behind walls (rage)");
-        hacker.AddRow("Aim Aggression", new HStack(_hackAggression, _hackAggressionLabel), "1 gentle and loose · 10 fast hard head lock");
-        hacker.AddRow("Damage Boost", _hackOneTap, "2× damage");
-        hacker.AddRow("Infinite Ammo", _hackAmmo, "Never reload");
-        hacker.AddRow("Speedhack", _hackSpeed, "Run 35% faster");
-        hacker.AddRow("Bunnyhop", _hackBhop, "Hold jump to bhop perfectly");
-        hacker.AddRow("No Flash", _hackNoFlash, "Flashbangs don't blind you");
-        hacker.AddRow("Zero Recoil", _hackNoRecoil, "No recoil at all · applies to the whole server");
-        hacker.AddRow("Zero Spread", _hackNoSpread, "Every bullet goes where you aim · whole server");
-        hacker.AddRow("Enemy Info", _hackEspInfo, "Nearest enemy's name, HP, distance and direction on screen");
-        hacker.AddRow("In-Game Cheat Menu", null, "In hacker mode: type !cheats in game, or bind a key: bind F3 css_cheats");
+        _hackerRow = hacker.AddRow("Hacker Mode", _hackerButton, "");
+        _hackerButton.Click += (_, _) => OpenHackerPage?.Invoke();
 
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
@@ -169,7 +148,7 @@ public class PlayPage : UserControl
         _copyInvite.Click += (_, _) =>
         {
             var address = FriendsInvite.HostAddress(_app.Settings.Server);
-            if (address != null) CopyToClipboard(FriendsInvite.InviteText(_app.Settings.Server, address), "Invite copied - paste it to your friend.");
+            if (address != null) CopyToClipboard(FriendsInvite.Code(address, _app.Settings.Server.Password), "Code copied - your friend pastes it in Join a Friend.");
         };
 
         _giveButton.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
@@ -204,7 +183,7 @@ public class PlayPage : UserControl
 
         LoadServerSettings();
         _modeBox.SelectedIndexChanged += (_, _) => OnModeChanged();
-        _hackAggression.ValueChanged += (_, _) => _hackAggressionLabel.Text = AggressionText(_hackAggression.Value);
+        VisibleChanged += (_, _) => { if (Visible) UpdateHackerRow(); };
         _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
 
         _app.Changed += Refresh;
@@ -229,8 +208,6 @@ public class PlayPage : UserControl
         var s = new SmoothLabel { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
         return new VStack(t, s) { Height = 86 };
     }
-
-    private static string AggressionText(int level) => level switch { <= 3 => $"{level} legit", <= 7 => $"{level}", _ => $"{level} rage" };
 
     private record GiveItem(string Classname, string Name)
     {
@@ -264,20 +241,7 @@ public class PlayPage : UserControl
         _gameArgs.Text = s.GameArgs;
         _autoStartGame.Checked = s.AutoStartGame;
         _ffa.Enabled = s.GetMode().Name == "Deathmatch";
-        _hackerMode.SelectedIndex = Math.Clamp(s.HackerMode, 0, 2);
-        _hackWallhack.Checked = s.HackWallhack;
-        _hackAimbot.Checked = s.HackAimbot;
-        _hackOneTap.Checked = s.HackOneTap;
-        _hackAmmo.Checked = s.HackAmmo;
-        _hackSpeed.Checked = s.HackSpeed;
-        _hackBhop.Checked = s.HackBhop;
-        _hackNoFlash.Checked = s.HackNoFlash;
-        _hackEspInfo.Checked = s.HackEspInfo;
-        _hackAimWalls.Checked = s.HackAimWalls;
-        _hackNoRecoil.Checked = s.HackNoRecoil;
-        _hackNoSpread.Checked = s.HackNoSpread;
-        _hackAggression.Value = Math.Clamp(s.HackAggression, 1, 10);
-        _hackAggressionLabel.Text = AggressionText(_hackAggression.Value);
+        UpdateHackerRow();
     }
 
     private ServerSettings ReadServerSettings()
@@ -300,21 +264,20 @@ public class PlayPage : UserControl
         s.WorkshopMap = _workshop.Text.Trim();
         s.GameArgs = _gameArgs.Text.Trim();
         s.AutoStartGame = _autoStartGame.Checked;
-        s.HackerMode = _hackerMode.SelectedIndex;
-        s.HackWallhack = _hackWallhack.Checked;
-        s.HackAimbot = _hackAimbot.Checked;
-        s.HackOneTap = _hackOneTap.Checked;
-        s.HackAmmo = _hackAmmo.Checked;
-        s.HackSpeed = _hackSpeed.Checked;
-        s.HackBhop = _hackBhop.Checked;
-        s.HackNoFlash = _hackNoFlash.Checked;
-        s.HackEspInfo = _hackEspInfo.Checked;
-        s.HackAimWalls = _hackAimWalls.Checked;
-        s.HackNoRecoil = _hackNoRecoil.Checked;
-        s.HackNoSpread = _hackNoSpread.Checked;
-        s.HackAggression = _hackAggression.Value;
         _app.Settings.Save();
         return s;
+    }
+
+    public void UpdateHackerRow()
+    {
+        var s = _app.Settings.Server;
+        _hackerRow.Subtitle = s.HackerMode switch
+        {
+            1 => "On · everyone hacks",
+            2 => "On · one random hacker per round",
+            _ => "Off · aimbot, wallhack, radar and more",
+        };
+        _hackerRow.SubtitleColor = s.HackerMode != 0 ? Theme.Good : Theme.Muted;
     }
 
     private void OnModeChanged()

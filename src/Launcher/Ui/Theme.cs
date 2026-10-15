@@ -38,9 +38,9 @@ public static class Theme
     private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
 
     // Inter (embedded), drawn anti-aliased: smooth like macOS instead of the blocky hinted look.
-    public static readonly Font Body = Fonts.Create("Inter-Regular.ttf", 9.5f, Family);
-    public static readonly Font Small = Fonts.Create("Inter-Regular.ttf", 8.25f, Family);
-    public static readonly Font Bold = Fonts.Create("Inter-SemiBold.ttf", 9.5f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
+    public static readonly Font Body = Fonts.Create("Inter-Regular.ttf", 10f, Family);
+    public static readonly Font Small = Fonts.Create("Inter-Regular.ttf", 8.75f, Family);
+    public static readonly Font Bold = Fonts.Create("Inter-SemiBold.ttf", 10f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
     public static readonly Font Heading = Fonts.Create("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
     public static readonly Font Big = Fonts.Create("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
     public static readonly Font Title = Fonts.Create("Inter-SemiBold.ttf", 22f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
@@ -52,6 +52,27 @@ public static class Theme
         var installed = fonts.Families.Select(f => f.Name).ToHashSet(StringComparer.OrdinalIgnoreCase);
         return names.FirstOrDefault(installed.Contains) ?? names[^1];
     }
+
+    /// <summary>Screen scaling (1 at 100%, 1.5 at 150%). Layouts are in 96-DPI pixels and scaled by WinForms.</summary>
+    public static readonly float Scale = ReadScale();
+
+    private static float ReadScale()
+    {
+        try
+        {
+            using var g = Graphics.FromHwnd(IntPtr.Zero);
+            return Math.Max(1f, g.DpiX / 96f);
+        }
+        catch (Exception)
+        {
+            return 1f;
+        }
+    }
+
+    /// <summary>A 96-DPI length in real pixels.</summary>
+    public static float S(float value) => value * Scale;
+
+    public static int S(int value) => (int)Math.Round(value * Scale);
 
     public static Color Parse(string? hex, Color fallback)
     {
@@ -114,6 +135,9 @@ public static class Theme
         TextFormatFlags flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter)
     {
         if (string.IsNullOrEmpty(text) || r.Width <= 0 || r.Height <= 0) return;
+        // A box shorter than one line would draw nothing: grow it around its middle.
+        var line = (int)Math.Ceiling(font.GetHeight(g)) + 1;
+        if (r.Height < line && !flags.HasFlag(TextFormatFlags.WordBreak)) r = new Rectangle(r.X, r.Y + r.Height / 2 - line / 2, r.Width, line);
         var hint = g.TextRenderingHint;
         g.TextRenderingHint = TextRenderingHint.AntiAlias;
         using var format = Format(flags);
@@ -174,6 +198,9 @@ public static class Theme
         form.BackColor = Background;
         form.ForeColor = Text;
         form.Font = Body;
+        // Laid out in 96-DPI pixels: scale up on 125% / 150% screens (text stays sharp, nothing overlaps).
+        form.AutoScaleDimensions = new SizeF(96F, 96F);
+        form.AutoScaleMode = AutoScaleMode.Dpi;
         form.HandleCreated += (_, _) =>
         {
             try

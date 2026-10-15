@@ -72,10 +72,21 @@ public class PillButton : DrawnControl, IButtonControl
         Invalidate();
     }
 
+    private bool _scaled;
+
+    protected override void ScaleControl(SizeF factor, BoundsSpecified specified)
+    {
+        base.ScaleControl(factor, specified);
+        _scaled = true;
+        FitWidth();
+    }
+
     private void FitWidth()
     {
         if (!AutoWidth) return;
-        base.Width = Theme.MeasureText(Text, Font).Width + 30;
+        // The text is measured in real pixels; before the window scales the layout, widths are in 96-DPI pixels.
+        var px = Theme.MeasureText(Text, Font).Width + Theme.S(30);
+        base.Width = _scaled ? px : (int)Math.Ceiling(px / Theme.Scale);
     }
 
     protected override void Draw(Graphics g)

@@ -22,7 +22,7 @@ public class FriendsPage : UserControl
     private readonly SettingRow _firewallRow;
     private readonly PillButton _firewallButton = new("Allow");
     private readonly PillButton _hostButton = new("Start Hosting", PillButton.Style.Primary);
-    private readonly PillButton _inviteButton = new("Copy Invite");
+    private readonly PillButton _inviteButton = new("Copy Code");
     private readonly PillButton _stopButton = new("Stop", PillButton.Style.Destructive);
     private readonly SettingRow _serverRow;
 
@@ -133,7 +133,7 @@ public class FriendsPage : UserControl
         _firewallButton.Click += (_, _) => AllowFirewall();
         _hostButton.Click += async (_, _) => await StartHostingAsync();
         _stopButton.Click += (_, _) => _play.StopServer();
-        _inviteButton.Click += (_, _) => Copy(Invite(), "Invite copied - paste it to your friend.");
+        _inviteButton.Click += (_, _) => Copy(Invite(), "Code copied - your friend pastes it in Join a Friend.");
         _joinButton.Click += (_, _) => Join();
         _joinAddress.Box.KeyDown += (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; Join(); } };
         FillRecent();
@@ -343,7 +343,7 @@ public class FriendsPage : UserControl
         }
     }
 
-    private string Invite() => FriendsInvite.InviteText(_app.Settings.Server, SelectedAddress());
+    private string Invite() => FriendsInvite.Code(SelectedAddress(), _app.Settings.Server.Password);
 
     private void Copy(string text, string message)
     {
@@ -389,7 +389,7 @@ public class FriendsPage : UserControl
             {
                 Process.Start(new ProcessStartInfo(_app.Game.Exe)
                 {
-                    Arguments = ServerSettings.JoinArguments(_app.Settings.Server.GameArgs, target.Address, target.Password),
+                    Arguments = _app.Settings.Server.JoinArguments(_app.Game, target.Address, target.Password),
                     UseShellExecute = true,
                     WorkingDirectory = Path.GetDirectoryName(_app.Game.Exe)!,
                 });

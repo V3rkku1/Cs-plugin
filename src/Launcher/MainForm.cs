@@ -12,10 +12,12 @@ public class MainForm : Form
     private readonly Panel _pages = new() { Dock = DockStyle.Fill, BackColor = Theme.Background };
     private readonly PlayPage _play;
     private readonly SkinsPage _skins;
+    private readonly HackerPage _hacker;
     private readonly FriendsPage _friends;
     private readonly SetupPage _setup;
     private readonly SidebarItem _navPlay = new("Play", SidebarItem.Icon.Play);
     private readonly SidebarItem _navSkins = new("Skins", SidebarItem.Icon.Skins);
+    private readonly SidebarItem _navHacker = new("Hacker Mode", SidebarItem.Icon.Hacker);
     private readonly SidebarItem _navFriends = new("Friends", SidebarItem.Icon.Friends);
     private readonly SidebarItem _navSetup = new("Setup", SidebarItem.Icon.Setup);
     private readonly StatusBadge _status = new();
@@ -25,6 +27,9 @@ public class MainForm : Form
 
     public MainForm()
     {
+        // Laid out for 96 DPI; WinForms scales everything up on 125% / 150% screens so text stays
+        // sharp (the app is DPI aware) and still fits its boxes.
+        SuspendLayout();
         Text = "LAN Skin Tester";
         Size = new Size(1400, 920);
         MinimumSize = new Size(1180, 740);
@@ -35,9 +40,11 @@ public class MainForm : Form
 
         _play = new PlayPage(_app) { Dock = DockStyle.Fill };
         _skins = new SkinsPage(_app.Images) { Dock = DockStyle.Fill };
+        _hacker = new HackerPage(_app) { Dock = DockStyle.Fill };
         _friends = new FriendsPage(_app, _play) { Dock = DockStyle.Fill };
+        _play.OpenHackerPage += () => ShowPage(_hacker);
         _setup = new SetupPage(_app) { Dock = DockStyle.Fill };
-        _pages.Controls.AddRange([_play, _skins, _friends, _setup]);
+        _pages.Controls.AddRange([_play, _skins, _hacker, _friends, _setup]);
 
         Controls.Add(_pages);
         Controls.Add(BuildSidebar());
@@ -65,6 +72,7 @@ public class MainForm : Form
             if (_app.Game == null) _app.Log("CS2 not found automatically - press Browse on the Setup page.");
         };
         FormClosing += OnClosing;
+        ResumeLayout(true);
     }
 
     private Control BuildSidebar()
@@ -77,9 +85,10 @@ public class MainForm : Form
         var app = new SmoothLabel { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
         var sub = new SmoothLabel { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
 
-        var nav = new VStack(_navPlay, _navSkins, _navFriends, _navSetup) { Location = new Point(16, 92) };
+        var nav = new VStack(_navPlay, _navSkins, _navHacker, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
         _navSkins.Click += (_, _) => ShowPage(_skins);
+        _navHacker.Click += (_, _) => ShowPage(_hacker);
         _navFriends.Click += (_, _) => ShowPage(_friends);
         _navSetup.Click += (_, _) => ShowPage(_setup);
 
@@ -105,10 +114,11 @@ public class MainForm : Form
 
         _navPlay.Selected = page == _play;
         _navSkins.Selected = page == _skins;
+        _navHacker.Selected = page == _hacker;
         _navFriends.Selected = page == _friends;
         _navSetup.Selected = page == _setup;
         if (page == _skins) _skins.Reload();
-        _app.Settings.LastPage = page == _play ? "play" : page == _skins ? "skins" : page == _friends ? "friends" : "setup";
+        _app.Settings.LastPage = page == _play ? "play" : page == _skins ? "skins" : page == _hacker ? "hacker" : page == _friends ? "friends" : "setup";
         try { _app.Settings.Save(); }
         catch (IOException) { /* not important */ }
     }
@@ -117,6 +127,7 @@ public class MainForm : Form
     {
         "play" => _play,
         "skins" => _skins,
+        "hacker" => _hacker,
         "friends" => _friends,
         "setup" => _setup,
         _ => null,
@@ -132,8 +143,9 @@ public class MainForm : Form
         {
             case Keys.Control | Keys.D1: ShowPage(_play); return true;
             case Keys.Control | Keys.D2: ShowPage(_skins); return true;
-            case Keys.Control | Keys.D3: ShowPage(_friends); return true;
-            case Keys.Control | Keys.D4: ShowPage(_setup); return true;
+            case Keys.Control | Keys.D3: ShowPage(_hacker); return true;
+            case Keys.Control | Keys.D4: ShowPage(_friends); return true;
+            case Keys.Control | Keys.D5: ShowPage(_setup); return true;
             case Keys.Control | Keys.F:
                 ShowPage(_skins);
                 _skins.FocusSearch();
