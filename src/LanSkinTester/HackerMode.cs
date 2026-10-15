@@ -679,9 +679,15 @@ public partial class LanSkinTester
         var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
         var visible = IsVisibleTo(nearestPawn, pawn);
         var text = $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
-                   $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>";
+                   $"<font color='#cccccc'> · {nearestPawn.Health} HP · {nearestPawn.ArmorValue} AP{WeaponTag(nearestPawn)} · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>";
         _espText[hacker.Slot] = text;
         hacker.PrintToCenterHtml(text, 1);
+    }
+
+    private static string WeaponTag(CCSPlayerPawn pawn)
+    {
+        var name = pawn.WeaponServices?.ActiveWeapon.Value?.DesignerName;
+        return string.IsNullOrEmpty(name) ? "" : " · " + name.Replace("weapon_", "");
     }
 
     /// <summary>
@@ -691,11 +697,13 @@ public partial class LanSkinTester
     private (float Fov, float Smooth) AimSettingsOf(CCSPlayerController player)
     {
         var a = AggressionOf(player);
+        if (a >= 10) return (180f, 1f); // rage: anywhere in front of you, instant snap
         return (6f + 3f * a, 0.06f + 0.035f * a);
     }
 
     private (double Min, double Max) ReactionOf(CCSPlayerController player)
     {
+        if (AggressionOf(player) >= 10) return (0, 0);
         var min = 250.0 - 20.0 * AggressionOf(player);
         return (min, min + 110.0);
     }
@@ -716,10 +724,12 @@ public partial class LanSkinTester
         CCSPlayerController? best = null;
         CCSPlayerPawn? targetPawn = null;
         var bestScore = closest ? double.MaxValue : fov;
-        if (!closest && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
+        // Both modes keep a live lock: re-picking every tick restarted the reaction delay whenever
+        // two enemies were about as close, so the aim never moved.
+        if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
             && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (Has(hacker, Power.AimWalls) || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
-            && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
+            && (closest || Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f))
         {
             best = locked;
             targetPawn = lockedPawn;
@@ -780,6 +790,7 @@ public partial class LanSkinTester
         if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return;
         var maxStep = AimMaxStep * smoothing / AimSmoothing; // lighter smoothing turns faster too
         if (closest) maxStep *= 1.6f; // may have to turn around
+        if (smoothing >= 1f) maxStep = 360f; // rage: no turn limit
         var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
         var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
         // Close the last bit directly so it doesn't crawl forever.

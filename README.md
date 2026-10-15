@@ -153,7 +153,7 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
   - *Radar hack:* every enemy shows on your radar.
   - *Bunnyhop:* hold jump to bhop perfectly.
   - *No flash:* flashbangs don't blind you.
-  - *Enemy info:* the nearest enemy's name, HP, distance and direction (an arrow) in the middle of
+  - *Enemy info:* the nearest enemy's name, HP, armor, weapon, distance and direction (an arrow) in the middle of
     the screen, and whether you can see them.
   - *Infinite ammo.*
   - *Speedhack:* 35% faster.
@@ -166,8 +166,9 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
     aim key, zero recoil, enemy info, radar, speedhack, bunnyhop, infinite ammo, no flash, damage boost, third person, or
     everything off.
 - **Aim aggression** (1-10, also a slider on the Play page as the default): 1 is gentle and loose
-  (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 10 is a hard
-  head lock (36° area, fast pull, ~50 ms reaction, dead-centre head).
+  (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 9 is a hard
+  head lock (33° area, fast pull, ~70 ms reaction); **10 is rage**: no reaction delay, an instant
+  snap to the dead-centre head of any enemy in front of you.
   - It only works in hacker mode. With **One random**, only that round's hacker gets it.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
   chat shows who is hacking.

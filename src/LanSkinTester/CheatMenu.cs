@@ -77,7 +77,7 @@ public partial class LanSkinTester
     }
 
     /// <summary>A text slider: [■■■■■□□□□□] 5</summary>
-    private static string Bar(int level) => "[" + new string('■', level) + new string('□', 10 - level) + $"] {level}";
+    private static string Bar(int level) => "[" + new string('■', level) + new string('□', 10 - level) + $"] {level}{(level >= 10 ? " RAGE" : "")}";
 
     private static string OnOff(bool on) => on ? "ON" : "off";
 
