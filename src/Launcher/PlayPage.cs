@@ -68,8 +68,11 @@ public class PlayPage : UserControl
     private readonly Toggle _retakePlant = new();
     private readonly Toggle _retakeAnnounce = new();
     private readonly Toggle _retakeJoin = new();
-    private readonly Toggle _retakeBuy = new();
+    private readonly Segmented _retakeGuns = new(["Buy", "Allocator"], 110);
     private readonly NumberField _retakeBuySeconds = new(90) { Minimum = 4, Maximum = 20 };
+    private readonly Toggle _retakeInsta = new();
+    private SettingRow _buyTimeRow = null!;
+    private SettingRow _allocNote = null!;
     private readonly NumberField _retakeBomb = new(90) { Minimum = 15, Maximum = 60 };
     private readonly List<SettingRow> _pluginRows = new();
     private SettingRow _retakeStyleRow = null!;
@@ -198,12 +201,14 @@ public class PlayPage : UserControl
         _pluginRows.Add(retakes.AddRow("Auto Plant", _retakePlant, "The bomb is planted as the round starts"));
         _pluginRows.Add(retakes.AddRow("Announce Site", _retakeAnnounce, "Show which site the bomb is on"));
         _pluginRows.Add(retakes.AddRow("Join Straight In", _retakeJoin, "Skip the team menu"));
-        _pluginRows.Add(retakes.AddRow("Buy Before Round", _retakeBuy, "You buy once per side. Later rounds equip those guns"));
-        _pluginRows.Add(retakes.AddRow("Buy Time", _retakeBuySeconds, "Seconds to buy before you can move"));
+        _pluginRows.Add(retakes.AddRow("Guns", _retakeGuns, "Buy your own, or pistol / half-buy / rifle rounds"));
+        _buyTimeRow = retakes.AddRow("Buy Time", _retakeBuySeconds, "Seconds to buy. Your guns come back next round");
+        _allocNote = retakes.AddRow("Allocator", null, "Type !guns to choose. One AWP per team.");
+        _pluginRows.Add(retakes.AddRow("Instadefuse", _retakeInsta, "The bomb defuses instantly when nothing can stop it"));
         _pluginRows.Add(retakes.AddRow("Bomb Timer", _retakeBomb, "Seconds until the bomb explodes"));
         _retakeStyle.SelectedChanged += (_, _) => UpdateRetakeEditor();
         _retakeScramble.CheckedChanged += (_, _) => UpdateRetakeEditor();
-        _retakeBuy.CheckedChanged += (_, _) => UpdateRetakeEditor();
+        _retakeGuns.SelectedChanged += (_, _) => UpdateRetakeEditor();
 
         var damage = new PillButton("Damage") { AutoWidth = false, Width = 118, Margin = new Padding(0, 0, 8, 8) };
         damage.Click += (_, _) =>
@@ -372,8 +377,9 @@ public class PlayPage : UserControl
         _retakePlant.Checked = s.RetakeAutoPlant;
         _retakeAnnounce.Checked = s.RetakeAnnounce;
         _retakeJoin.Checked = s.RetakeAutoJoin;
-        _retakeBuy.Checked = s.RetakeBuy;
+        _retakeGuns.SelectedIndex = s.RetakeWeapons == 1 ? 1 : 0;
         _retakeBuySeconds.Value = Math.Clamp(s.RetakeBuySeconds, 4, 20);
+        _retakeInsta.Checked = s.RetakeInstadefuse;
         _retakeBomb.Value = Math.Clamp(s.RetakeBombTimer, 15, 60);
         // Match by name. GetMode() returns a copy for plugin retakes, and that copy is not in the list.
         SelectCatalogMode(s.Mode);
@@ -409,22 +415,26 @@ public class PlayPage : UserControl
         _retakeOff.Visible = !on;
         _retakeStyleRow.Visible = on;
         _valveNote.Visible = on && !plugin;
+        var buy = _retakeGuns.SelectedIndex != 1;
+        var owns = mode is ServerSettings.RetakesMode or "Arms Race" or "Demolition";
         foreach (var row in _pluginRows) row.Visible = plugin;
+        _buyTimeRow.Visible = plugin && buy;
+        _allocNote.Visible = plugin && !buy;
         _retakeScrambleRounds.Enabled = _retakeScramble.Checked;
-        _retakeBuySeconds.Enabled = _retakeBuy.Checked;
         _botTeam.Enabled = !on;
+        _botWeapons.Enabled = !owns;
         _botTeamRow.Subtitle = plugin
             ? "The plugin splits the teams. This picker is ignored."
             : on ? "Valve fills both sides (3 T vs 4 CT)."
             : "0 bots = friends only";
         // These rules are skipped on both retake styles, so the switches go quiet.
-        _maxMoney.Enabled = !on;
-        _noRoundEnd.Enabled = !on;
-        _roundTime.Enabled = !on;
+        _maxMoney.Enabled = !owns;
+        _noRoundEnd.Enabled = !owns;
+        _roundTime.Enabled = !owns;
         _ffa.Enabled = mode == "Deathmatch";
-        _moneyRow.Subtitle = on ? "Retakes handles money itself" : "And buy anywhere";
-        _roundsRow.Subtitle = on ? "Retakes ends the round on its own" : "Rounds never end, respawn on death";
-        _timeRow.Subtitle = on ? "Retakes keeps its own round length" : "Minutes · 0 = game mode default";
+        _moneyRow.Subtitle = owns ? "This mode handles money itself" : "And buy anywhere";
+        _roundsRow.Subtitle = owns ? "This mode ends the round on its own" : "Rounds never end, respawn on death";
+        _timeRow.Subtitle = owns ? "This mode keeps its own round length" : "Minutes · 0 = game mode default";
     }
 
     private ServerSettings ReadServerSettings()
@@ -454,8 +464,10 @@ public class PlayPage : UserControl
         s.RetakeAutoPlant = _retakePlant.Checked;
         s.RetakeAnnounce = _retakeAnnounce.Checked;
         s.RetakeAutoJoin = _retakeJoin.Checked;
-        s.RetakeBuy = _retakeBuy.Checked;
+        s.RetakeWeapons = _retakeGuns.SelectedIndex == 1 ? 1 : 0;
+        s.RetakeBuy = s.RetakeWeapons != 1;
         s.RetakeBuySeconds = (int)_retakeBuySeconds.Value;
+        s.RetakeInstadefuse = _retakeInsta.Checked;
         s.RetakeBombTimer = (int)_retakeBomb.Value;
         s.WorkshopMap = _workshop.Text.Trim();
         s.GameArgs = _gameArgs.Text.Trim();
@@ -951,8 +963,8 @@ public class PlayPage : UserControl
         var reload = _runningMode == null || _runningMode != server.Mode || _runningMap != map;
         if (RetakesNeedRestart(game, server))
         {
-            var why = Installer.ThirdPartyRetakesLoaded(game) != server.IsPluginRetakes
-                ? "The retakes plugin has to load or unload, so the server needs a restart."
+            var why = Installer.RetakePluginsMismatch(game, server)
+                ? "A retakes plugin has to load or unload, so the server needs a restart."
                 : "These retakes settings are read when the plugin loads, so the server needs a restart.";
             if (MessageBox.Show(this, why + " Continue?", "Retakes",
                     MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
@@ -1065,38 +1077,27 @@ public class PlayPage : UserControl
     {
         var game = _app.Game;
         if (game == null) return false;
-        if (server.IsPluginRetakes && !Installer.RetakesInstalled(game))
+        if (server.IsPluginRetakes)
         {
-            if (TestSession.Cs2Running())
-            {
-                MessageBox.Show(this, "Close CS2 first, then start again. The retakes plugin installs into the game folder.",
-                    "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!await DownloadRetakePlugin(game, "the retakes plugin",
+                    () => Installer.RetakesInstalled(game), installer => installer.InstallRetakesAsync(),
+                    "Check your internet connection, or switch Style to Valve."))
                 return false;
-            }
-            _startButton.Enabled = false;
-            try
-            {
-                await new Installer(game, _app.Http, _app.Log).InstallRetakesAsync();
-            }
-            catch (Exception ex)
-            {
-                _app.Log("Could not download the retakes plugin: " + ex.Message);
-                MessageBox.Show(this, "The retakes plugin could not be downloaded.\n\n" + ex.Message +
-                                      "\n\nCheck your internet connection, or switch Style to Valve.",
-                    "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (server.RetakeInstadefuse && !await DownloadRetakePlugin(game, "instadefuse",
+                    () => Installer.InstadefuseInstalled(game), installer => installer.InstallInstadefuseAsync(),
+                    "Check your internet connection, or turn Instadefuse off."))
                 return false;
-            }
-            finally
-            {
-                _startButton.Enabled = _app.Ready && !_app.TestModeOn;
-            }
+            if (server.UsesAllocator && !await DownloadRetakePlugin(game, "the retakes allocator",
+                    () => Installer.AllocatorInstalled(game), installer => installer.InstallAllocatorAsync(),
+                    "Check your internet connection, or switch Guns to Buy."))
+                return false;
         }
 
         // A running CS2 refuses to start anyway. Leave its plugin folder alone until it is closed.
         if (TestSession.Cs2Running()) return true;
         try
         {
-            Installer.SetRetakesActive(game, server.IsPluginRetakes);
+            Installer.SetRetakesSuite(game, server);
             if (server.IsPluginRetakes) server.WriteRetakesConfig(game);
         }
         catch (Exception ex)
@@ -1115,13 +1116,41 @@ public class PlayPage : UserControl
     /// </summary>
     private bool RetakesNeedRestart(GameFolder game, ServerSettings server)
     {
-        var loaded = Installer.ThirdPartyRetakesLoaded(game);
-        var want = server.IsPluginRetakes;
+        var mismatch = Installer.RetakePluginsMismatch(game, server);
         var key = server.PluginRetakeKey();
-        if (_runningRetakeKey == null && loaded == want) return false;
+        if (_runningRetakeKey == null && !mismatch) return false;
         var pluginSettingsChanged = _runningRetakeKey != null && _runningRetakeKey != key
-            && (want || _runningRetakeKey is not ("valve" or "off"));
-        return loaded != want || pluginSettingsChanged;
+            && (server.IsPluginRetakes || _runningRetakeKey is not ("valve" or "off"));
+        return mismatch || pluginSettingsChanged;
+    }
+
+    /// <summary>Downloads one retakes add-on the first time it is needed. CS2 has to be closed first.</summary>
+    private async Task<bool> DownloadRetakePlugin(GameFolder game, string label, Func<bool> installed, Func<Installer, Task> download, string hint)
+    {
+        if (installed()) return true;
+        if (TestSession.Cs2Running())
+        {
+            MessageBox.Show(this, $"Close CS2 first, then start again. {label} installs into the game folder.",
+                "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
+        }
+        _startButton.Enabled = false;
+        try
+        {
+            await download(new Installer(game, _app.Http, _app.Log));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _app.Log($"Could not download {label}: " + ex.Message);
+            MessageBox.Show(this, $"{label} could not be downloaded.\n\n" + ex.Message + "\n\n" + hint,
+                "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+        finally
+        {
+            _startButton.Enabled = _app.Ready && !_app.TestModeOn;
+        }
     }
 
     /// <summary>Stops the running server, waits for CS2 to close, then starts again with the current settings.</summary>
