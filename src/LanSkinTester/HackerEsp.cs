@@ -22,8 +22,6 @@ public partial class LanSkinTester
         public CEnvBeam?[] Bones = new CEnvBeam?[BoneEdges];
         public CPointWorldText? Tag;
         public string TagShown = "";
-        public Vector Anchor = new();
-        public bool Anchored;
     }
 
     private readonly Dictionary<int, PlayerEsp> _esp = new();
@@ -166,17 +164,6 @@ public partial class LanSkinTester
         var wantBox = Hackers().Any(h => Has(h, Power.BoxEsp));
         var wantBones = Hackers().Any(h => Has(h, Power.BoneEsp));
         var wantTags = Hackers().Any(h => Has(h, Power.Tags));
-
-        // A beam that is dragged behind a running player keeps its old end on the client and draws a
-        // streak. Rebuild it once the body has actually moved, instead of stretching the old one.
-        var moved = !esp.Anchored || DistanceSquared(esp.Anchor, origin) > 4f * 4f;
-        if (moved)
-        {
-            HideOwnedBeams(esp.Box);
-            HideOwnedBeams(esp.Bones);
-            esp.Anchor = new Vector(origin.X, origin.Y, origin.Z);
-            esp.Anchored = true;
-        }
 
         if (wantBox) DrawBox(esp, origin, EyeHeight(pawn) > 55f ? 72f : 54f, color);
         else HideOwnedBeams(esp.Box);
@@ -397,16 +384,8 @@ public partial class LanSkinTester
         }
         catch (Exception)
         {
-            // The network name moved. Rebuilding the beam after a move still drops the streak.
+            // The network name moved. The beam still follows via its origin.
         }
-    }
-
-    private static float DistanceSquared(Vector a, Vector b)
-    {
-        var dx = a.X - b.X;
-        var dy = a.Y - b.Y;
-        var dz = a.Z - b.Z;
-        return dx * dx + dy * dy + dz * dz;
     }
 
     private static void HideOwnedBeams(CEnvBeam?[] slots)
