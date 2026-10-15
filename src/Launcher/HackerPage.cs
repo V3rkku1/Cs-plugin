@@ -127,7 +127,7 @@ public class HackerPage : UserControl
 
         var aim = new Group(left);
         aim.AddRow("Aimbot", _aimbot, "Moves your aim onto an enemy");
-        aim.AddRow("Style", _aimStyle, "Legit eases on · Silent aims the bullet · Rage snaps and shoots");
+        aim.AddRow("Style", _aimStyle, "Legit eases the crosshair · Silent aims the shot and puts your view back · Rage snaps and shoots");
         aim.AddRow("Body", _aimBone, "Head, neck or chest");
         aim.AddRow("Aim At", _aimTarget, "Distance, crosshair, lowest HP, or who is looking at you");
         aim.AddRow("Aim Key", _aimKey, "When the aimbot works");
@@ -144,7 +144,7 @@ public class HackerPage : UserControl
         visuals.AddRow("Name Tags", _tags, "Name, HP, armor, gun and grenades above each player");
         visuals.AddRow("Radar Hack", _radar, "Every enemy shows on your radar, even when they are quiet");
         visuals.AddRow("Enemy Info", _espInfo, "Three nearest enemies: name, HP, armor, gun, utility, distance");
-        visuals.AddRow("No Flash", _noFlash, "Flashbangs don't blind you");
+        visuals.AddRow("No Flash", _noFlash, "Flashbangs don't blind you, and smokes are not drawn for you");
 
         var leftColumn = new VStack(
             Theme.Caption("MODE"), mode,

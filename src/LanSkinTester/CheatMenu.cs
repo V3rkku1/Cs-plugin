@@ -174,7 +174,7 @@ public partial class LanSkinTester
         try
         {
             // Straight ahead (ignoring up/down look), at eye height, facing the player.
-            var yaw = pawn.EyeAngles.Y;
+            TryReadView(pawn, out _, out var yaw);
             var rad = yaw * Math.PI / 180;
             var forward = new Vector((float)Math.Cos(rad), (float)Math.Sin(rad), 0);
             var right = new Vector((float)Math.Sin(rad), (float)-Math.Cos(rad), 0);
