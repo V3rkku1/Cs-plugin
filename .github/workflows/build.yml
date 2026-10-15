@@ -1,6 +1,6 @@
 name: Build
 
-# Builds the plugin and the Windows launcher on every push. Pushes to main (or the working branch) also
+# Builds the plugin and the Windows launcher on every push. Pushes to main also
 # update the "latest" release, so the newest files are always at Releases → "Latest build".
 # Tags like v2.1.0 get their own release.
 
@@ -46,13 +46,13 @@ jobs:
           if-no-files-found: error
 
       - name: Move the "latest" tag to this commit
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/dreamy-sagan-o0d3u5')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         run: |
           git tag -f latest
           git push -f origin latest
 
       - name: Publish "Latest build" release
-        if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/claude/dreamy-sagan-o0d3u5')
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
