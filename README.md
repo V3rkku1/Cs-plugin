@@ -56,7 +56,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 
 1. **Quick start:** one click sets everything up and starts (or switches the running server):
    *DM vs Expert bots*, *Free-for-all*, *Skin showcase* (peaceful bots, third person),
-   *Aim practice*, *Competitive 5v5*, *Arms Race*.
+   *Aim practice*, *Competitive 5v5*, *Arms Race*, *Retakes* (Valve's 3v4 loadout-card mode),
+   *Rush 3v3* when your CS2 has it, plus any setup you saved.
 2. **Server:** or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
@@ -82,17 +83,28 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
    and option settings to the running server; changing the mode or map switches the map. **Open CS2**
    starts the game again if you closed it.
 4. **Live server** shows the map, mode, players and bots, and whether skins are working, updated
-   every 2 seconds. Quick actions: *Restart*, *End warmup*, *Add bot*, *Kick bots*, *Third person*,
-   *First person*, *Respawn me*, *Refresh skins*, and *Give weapon* (any gun, or your knife).
+   every 2 seconds. Quick actions cover the round (restart, end warmup, pause, resume, swap, CT/T win), bots
+   (add CT, add T, kick), and practice (god, noclip, armor, nades, clear, save/load spot, rethrow,
+   damage report, third person, respawn, refresh skins, give weapon). **Command** sends anything
+   else to the server console.
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
 
-**Retakes** (game mode, or the *Retakes* quick start) runs on
-[cs2-retakes by B3none](https://github.com/B3none/cs2-retakes) (GPL-3.0). The launcher downloads it
-from its GitHub releases the first time you start Retakes, and loads it only for that mode (it is
-parked outside the plugins folder otherwise, so it never touches other modes). It brings its own
-spawns for the official maps, team balancing and weapon allocation; bots fill the teams. Switching
-to or from Retakes on a running server restarts the server.
+**Retakes** (game mode, or the *Retakes* quick start) is Valve's own mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`. No extra retakes plugin is downloaded. If an older launcher had installed B3none's cs2-retakes, the next Start removes it (a running server is restarted once, because that plugin would fight Valve's rules).
+
+**Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
+
+**Live server** controls, besides restart, respawn, third person and giving a weapon:
+
+- *Pause* / *Resume*, *Swap* teams, *CT Win* / *T Win*, *End Warmup*
+- *Add CT*, *Add T*, *Kick Bots*
+- *God*, *Noclip*, *Armor* (helmet, and a kit for CTs), *Nades*
+- *Clear* removes smokes, molotovs and grenades in the world
+- *Save Spot* / *Load Spot* and *Rethrow* (back to where you last threw, with that grenade)
+- *Damage* toggles a chat line for the damage you deal
+- *Command* runs any server console command (Enter sends it)
+
+The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!spots`, `!rethrow`, `!damage`, `!armor`, `!nades`, `!clear`, `!swap`.
 
 **Rush** (Valve's 3v3 tower mode): Valve doesn't publish its game type numbers, so the launcher
 reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
@@ -372,12 +384,18 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!3p` / `!fp` | Third person / first person, to look at your skins |
 | `!respawn` | Respawn yourself |
 | `!noclip` | Fly through walls (type it again to land) |
+| `!god` | God mode (type it again to turn it off) |
+| `!save [name]` / `!load [name]` / `!spots` | Save where you stand and go back. Names are optional |
+| `!rethrow` | Back to your last grenade throw, with that grenade |
+| `!damage` | Toggle the damage report in chat |
+| `!armor` / `!nades` / `!clear` | Armor and a kit, a set of grenades, or remove smokes and fires |
+| `!swap` | Swap the two teams |
 | `!hacks` | Who is hacking in hacker mode |
 | `!cheats` | Open the cheat menu (W/S move, D switch, R close) |
 | `!aimkey fire\|always\|mouse2\|shift\|e\|f` | Your own aimbot key |
 | `!aimtoggle` | Aimbot always on / back to your key (bind a key: `bind x css_aimtoggle`) |
 
-The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`) only work on a LAN or private server, like the skins.
+The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`, `!god`, `!save`, `!rethrow` and the rest) only work on a LAN or private server, like the skins.
 
 ### Examples
 
@@ -407,6 +425,15 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_view third` / `lst_view first` | Switch players to third or first person |
 | `lst_respawn` | Respawn dead players |
 | `lst_refresh` | Re-apply skins to everyone |
+| `lst_show_damage 1` / `0` / `toggle` | Damage report in chat |
+| `lst_god` / `lst_noclip` | God mode / noclip for every human |
+| `lst_armor` / `lst_nades` / `lst_clear` | Armor and a kit, grenades, or remove smokes and fires |
+| `lst_spot save` / `lst_spot load` | Save or load a practice spot |
+| `lst_rethrow` | Back to the last grenade throw |
+| `lst_swap` | Swap the teams |
+| `lst_endround ct` / `t` | End the round |
+| `lst_score <ct> <t>` | Set the score |
+| `lst_pause on` / `off` | Pause or resume |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
 | `lst_hack_powers wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
 | `lst_aim_target closest\|crosshair` | Aimbot goes for the closest enemy anywhere, or the one nearest the crosshair |

@@ -36,6 +36,7 @@ public class PlayPage : UserControl
     private SettingRow _workshopRow = null!;
     private readonly TextField _gameArgs = new(220) { PlaceholderText = "-windowed -w 1920 -h 1080" };
     private readonly Toggle _autoStartGame = new();
+    private readonly Toggle _showDamage = new();
     private readonly PillButton _hackerButton = new("Open Hacker Page");
     private SettingRow _hackerRow = null!;
 
@@ -63,8 +64,13 @@ public class PlayPage : UserControl
     private readonly FlowLayoutPanel _actions;
     private readonly Picker _giveBox = new(190);
     private readonly PillButton _giveButton = new("Give");
+    private readonly TextField _command = new(300) { PlaceholderText = "Any server command" };
+    private readonly PillButton _runCommand = new("Run", PillButton.Style.Primary);
     private readonly TextField _log = new(476, multiline: true, height: 170) { ReadOnly = true };
     private readonly System.Windows.Forms.Timer _poll = new() { Interval = 2000 };
+
+    private FlowLayoutPanel _presets = null!;
+    private int _presetCardWidth;
 
     private static readonly Color[] PresetTints =
     [
@@ -72,6 +78,7 @@ public class PlayPage : UserControl
         Theme.Warning, Theme.Good, Color.FromArgb(100, 210, 255),
         Color.FromArgb(57, 255, 20), Color.FromArgb(255, 100, 60), Color.FromArgb(255, 214, 10),
     ];
+    private static readonly Color SavedTint = Color.FromArgb(120, 150, 255);
 
     public PlayPage(AppState app)
     {
@@ -111,17 +118,15 @@ public class PlayPage : UserControl
         _hero.Controls.AddRange([_modeTitle, _modeStatus, _heroLive, _startButton, _applyButton, _gameButton, _stopButton, _inviteTitle, _inviteText, _copyIp, _copyInvite]);
         _hero.Layout += (_, _) => LayoutHero();
 
-        // ---- Quick start: one wide row of tiles ----
-        var presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(full - 14, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
-        for (var i = 0; i < ServerSettings.Presets.Length; i++)
-        {
-            var card = PresetButton(ServerSettings.Presets[i], PresetTints[i % PresetTints.Length]);
-            card.Width = (full - 24 - 4 * 10) / 5;
-            _tips.SetToolTip(card, ServerSettings.Presets[i].Subtitle);
-            presets.Controls.Add(card);
-        }
+        // ---- Quick start: built-in tiles, plus any setups you saved ----
+        _presetCardWidth = (full - 24 - 4 * 10) / 5;
+        _presets = new FlowLayoutPanel { AutoSize = true, MaximumSize = new Size(full - 14, 0), BackColor = Color.Transparent, Margin = Padding.Empty };
+        RebuildQuickStarts();
+        var saveSetup = new PillButton("Save setup");
+        saveSetup.Click += (_, _) => SaveSetup();
         var quick = new Group(full);
-        quick.AddContent(presets, new Padding(12, 12, 2, 2));
+        quick.AddContent(_presets, new Padding(12, 12, 2, 2));
+        quick.AddRow("Your setups", saveSetup, "Saves the settings below as a quick start · click × on a saved tile to delete it");
 
         // ---- Settings, one tab at a time ----
         var game = new Group(left);
@@ -137,7 +142,7 @@ public class PlayPage : UserControl
         var bots = new Group(left);
         bots.AddRow("Bots", new HStack(_botsBar, _botsLabel));
         bots.AddRow("Skill", _difficulty);
-        bots.AddRow("Team", _botTeam, "Retakes: bots are the T side · 0 bots = friends split in teams");
+        bots.AddRow("Team", _botTeam, "Retakes fills both sides (3 T vs 4 CT) · 0 bots = friends only");
         bots.AddRow("Weapons", _botWeapons);
         bots.AddRow("Peaceful Bots", _botsDontShoot, "Bots don't shoot - look at your skins in peace");
 
@@ -149,6 +154,7 @@ public class PlayPage : UserControl
         options.AddRow("Allow Cheats", _cheats, "Needed for third person and noclip");
         options.AddRow("Friendly Fire", _friendlyFire);
         options.AddRow("Round Time", _roundTime, "Minutes · 0 = game mode default");
+        options.AddRow("Damage Report", _showDamage, "Chat shows the damage you deal");
 
         var launch = new Group(left);
         launch.AddRow("Open CS2 Automatically", _autoStartGame, "Off = start only the server");
@@ -186,18 +192,51 @@ public class PlayPage : UserControl
         _actions.Controls.AddRange([
             Action("Restart", "mp_restartgame 1"),
             Action("End Warmup", "mp_warmup_end"),
-            Action("Add Bot", "bot_add"),
+            Action("Pause", "lst_pause on"),
+            Action("Resume", "lst_pause off"),
+            Action("Swap", "lst_swap"),
+            Action("CT Win", "lst_endround ct"),
+            Action("T Win", "lst_endround t"),
+            Action("Add CT", "bot_add_ct"),
+            Action("Add T", "bot_add_t"),
             Action("Kick Bots", "bot_kick"),
+            Action("Respawn Me", "lst_respawn"),
+            Action("God", "lst_god"),
+            Action("Noclip", "lst_noclip"),
             Action("Third Person", "lst_view third"),
             Action("First Person", "lst_view first"),
-            Action("Respawn Me", "lst_respawn"),
+            Action("Armor", "lst_armor"),
+            Action("Nades", "lst_nades"),
+            Action("Clear", "lst_clear"),
+            Action("Rethrow", "lst_rethrow"),
+            Action("Save Spot", "lst_spot save"),
+            Action("Load Spot", "lst_spot load"),
             Action("Refresh Skins", "lst_refresh"),
         ]);
+        var damage = new PillButton("Damage") { AutoWidth = false, Width = 112, Margin = new Padding(0, 0, 8, 8) };
+        damage.Click += (_, _) =>
+        {
+            _showDamage.Checked = !_showDamage.Checked;
+            var settings = ReadServerSettings();
+            if (_app.Game == null) return;
+            settings.WriteCfg(_app.Game);
+            Send($"lst_show_damage {(settings.ShowDamage ? 1 : 0)}");
+        };
+        _actions.Controls.Add(damage);
+        _command.Margin = new Padding(0, 0, 8, 0);
+        _runCommand.Click += (_, _) => RunCommand();
+        _command.Box.KeyDown += (_, e) =>
+        {
+            if (e.KeyCode != Keys.Enter) return;
+            e.SuppressKeyPress = true;
+            RunCommand();
+        };
         var live = new Group(right);
         _liveRow = live.AddRow("Server not running", null, "Press Start or pick a quick start.");
         live.AddContent(_actions, new Padding(12, 12, 4, 6));
         live.AddRow("Give Weapon", new HStack(_giveBox, _giveButton));
         _giveBox.Margin = new Padding(0, 0, 8, 0);
+        live.AddRow("Command", new HStack(_command, _runCommand), "Runs in the server console · Enter sends it");
 
         var activity = new Group(right);
         activity.AddContent(_log, new Padding(12, 12, 12, 12));
@@ -270,6 +309,7 @@ public class PlayPage : UserControl
         _cheats.Checked = s.AllowCheats;
         _roundTime.Value = Math.Clamp(s.RoundTime, 0, 60);
         _friendlyFire.Checked = s.FriendlyFire;
+        _showDamage.Checked = s.ShowDamage;
         _workshop.Text = s.WorkshopMap;
         _gameArgs.Text = s.GameArgs;
         _autoStartGame.Checked = s.AutoStartGame;
@@ -294,6 +334,7 @@ public class PlayPage : UserControl
         s.AllowCheats = _cheats.Checked;
         s.RoundTime = (int)_roundTime.Value;
         s.FriendlyFire = _friendlyFire.Checked;
+        s.ShowDamage = _showDamage.Checked;
         s.WorkshopMap = _workshop.Text.Trim();
         s.GameArgs = _gameArgs.Text.Trim();
         s.AutoStartGame = _autoStartGame.Checked;
@@ -586,7 +627,7 @@ public class PlayPage : UserControl
         HandleWorkshopStartup(status);
         var running = status != null;
         foreach (Control c in _actions.Controls) c.Enabled = running;
-        _giveBox.Enabled = _giveButton.Enabled = running;
+        _giveBox.Enabled = _giveButton.Enabled = _command.Enabled = _runCommand.Enabled = running;
 
         _heroLive.Text = status == null ? "" : HeroLine(status);
         if (status == null)
@@ -619,11 +660,76 @@ public class PlayPage : UserControl
     // Actions
     // ---------------------------------------------------------------------------------------------
 
-    private Control PresetButton(ServerPreset preset, Color tint)
+    private Control PresetButton(ServerPreset preset, Color tint, bool canDelete = false)
     {
-        var card = new PresetCard(preset.Title, preset.Subtitle, tint);
+        var card = new PresetCard(preset.Title, preset.Subtitle, tint) { CanDelete = canDelete, Width = _presetCardWidth };
         card.Click += (_, _) => RunPreset(preset);
+        if (canDelete) card.DeleteRequested += (_, _) => DeleteSetup(preset.Title);
         return card;
+    }
+
+    private void RebuildQuickStarts()
+    {
+        _app.Settings.SavedSetups ??= [];
+        _presets.SuspendLayout();
+        var old = _presets.Controls.Cast<Control>().ToArray();
+        _presets.Controls.Clear();
+        foreach (var control in old) control.Dispose();
+        for (var i = 0; i < ServerSettings.Presets.Length; i++)
+        {
+            var card = PresetButton(ServerSettings.Presets[i], PresetTints[i % PresetTints.Length]);
+            _tips.SetToolTip(card, ServerSettings.Presets[i].Subtitle);
+            _presets.Controls.Add(card);
+        }
+        foreach (var setup in _app.Settings.SavedSetups.Where(s => !string.IsNullOrWhiteSpace(s.Name) && s.Settings != null))
+        {
+            var preset = new ServerPreset(setup.Name, setup.Settings.Summary(), s => s.CopyPracticeFrom(setup.Settings));
+            var card = PresetButton(preset, SavedTint, canDelete: true);
+            _tips.SetToolTip(card, "Your setup · " + preset.Subtitle + " · click × to delete");
+            _presets.Controls.Add(card);
+        }
+        _presets.ResumeLayout(true);
+    }
+
+    private void SaveSetup()
+    {
+        using var prompt = new Prompt("Save setup", "Name this quick start");
+        if (prompt.ShowDialog(this) != DialogResult.OK) return;
+        var name = prompt.Value.Trim();
+        if (name.Length > 24) name = name[..24];
+        if (ServerSettings.Presets.Any(p => p.Title.Equals(name, StringComparison.OrdinalIgnoreCase)))
+        {
+            Toast.Show("That name is already a built-in quick start.", Toast.Kind.Warning);
+            return;
+        }
+
+        var snap = ReadServerSettings().Clone();
+        _app.Settings.SavedSetups ??= [];
+        var list = _app.Settings.SavedSetups;
+        var existing = list.FindIndex(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        if (existing >= 0)
+        {
+            if (MessageBox.Show(this, $"Replace the saved setup \"{name}\"?", "Save setup",
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            list[existing] = new SavedSetup { Name = name, Settings = snap };
+        }
+        else list.Add(new SavedSetup { Name = name, Settings = snap });
+
+        _app.Settings.Save();
+        RebuildQuickStarts();
+        _app.Log($"Saved setup \"{name}\".");
+        Toast.Show($"Saved setup \"{name}\".");
+    }
+
+    private void DeleteSetup(string name)
+    {
+        if (MessageBox.Show(this, $"Delete the saved setup \"{name}\"?", "Delete setup",
+                MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+        _app.Settings.SavedSetups ??= [];
+        _app.Settings.SavedSetups.RemoveAll(s => s.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+        _app.Settings.Save();
+        RebuildQuickStarts();
+        Toast.Show($"Deleted \"{name}\".");
     }
 
     private void RunPreset(ServerPreset preset)
@@ -689,22 +795,23 @@ public class PlayPage : UserControl
 
     private void ApplyToServer()
     {
-        if (_app.Game == null) return;
+        var game = _app.Game;
+        if (game == null) return;
         var server = ReadServerSettings();
         var map = server.WorkshopMapId ?? server.Map;
         var reload = _runningMode == null || _runningMode != server.Mode || _runningMap != map;
-        if (_runningMode != null && (_runningMode == ServerSettings.RetakesMode) != server.IsRetakes)
+        if (Installer.ThirdPartyRetakesLoaded(game))
         {
-            if (MessageBox.Show(this, "Switching to or from Retakes restarts the server and CS2. Continue?", "Retakes",
-                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
-            _app.Log("Restarting the server for the new mode...");
+            if (MessageBox.Show(this, "An older retakes plugin is still loaded. The server has to restart so Valve's own Retakes can run. Continue?",
+                    "Retakes", MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            _app.Log("Restarting to unload the old retakes plugin. Retakes is now Valve's own mode.");
             _ = RestartServerAsync();
             return;
         }
 
         try
         {
-            var warning = server.ApplyToRunningServer(_app.Game, reload, _runningOnline, _runningForFriends);
+            var warning = server.ApplyToRunningServer(game, reload, _runningOnline, _runningForFriends);
             if (warning != null)
             {
                 _app.Log(warning);
@@ -792,41 +899,26 @@ public class PlayPage : UserControl
                     "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
         }
-        if (!await PrepareRetakesAsync(server)) return;
+        RemoveOldRetakesPlugin();
         StartTest(forFriends);
     }
 
-    /// <summary>
-    /// Retakes runs on B3none's cs2-retakes plugin: download it the first time, and load it only for
-    /// the Retakes mode (it would take over any other mode).
-    /// </summary>
-    private async Task<bool> PrepareRetakesAsync(ServerSettings server)
+    /// <summary>Drops B3none's cs2-retakes if an older launcher installed it. Valve's mode replaces it.</summary>
+    private void RemoveOldRetakesPlugin()
     {
-        if (_app.Game == null) return false;
+        if (_app.Game == null) return;
         try
         {
-            if (server.IsRetakes && !Installer.RetakesInstalled(_app.Game))
-            {
-                Toast.Show("Downloading the retakes plugin…", Toast.Kind.Info);
-                _startButton.Enabled = false;
-                try { await new Installer(_app.Game, _app.Http, _app.Log).InstallRetakesAsync(); }
-                finally { _startButton.Enabled = true; }
-            }
-            Installer.SetRetakesActive(_app.Game, server.IsRetakes);
-            return true;
+            if (Installer.RemoveThirdPartyRetakes(_app.Game))
+                _app.Log("Removed the old retakes plugin. Retakes now uses Valve's mode (sv_skirmish_id 12).");
         }
         catch (Exception ex)
         {
-            _app.Log("Retakes plugin: " + ex.Message);
-            if (!server.IsRetakes) return true; // not needed for this mode
-            MessageBox.Show(this, "Could not get the retakes plugin: " + ex.Message +
-                                  $"\n\nCheck your internet connection and try again. ({Installer.RetakesPage})",
-                "Retakes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
-            return false;
+            _app.Log("Could not remove the old retakes plugin: " + ex.Message);
         }
     }
 
-    /// <summary>Switching to or from Retakes loads/unloads a plugin, which needs a fresh server.</summary>
+    /// <summary>The old retakes plugin is loaded in the running server, so it has to come down before the next start.</summary>
     private async Task RestartServerAsync()
     {
         if (_app.Game == null) return;
@@ -864,6 +956,14 @@ public class PlayPage : UserControl
         if (_app.Game == null) return;
         new TestSession(_app.Game).Stop();
         _app.NotifyChanged();
+    }
+
+    private void RunCommand()
+    {
+        var command = (_command.Text ?? "").Replace("\r", "").Split('\n')[0].Trim();
+        if (command.Length == 0) return;
+        _command.Text = "";
+        Send(command);
     }
 
     private void Send(string command)

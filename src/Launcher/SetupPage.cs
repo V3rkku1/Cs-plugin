@@ -276,6 +276,8 @@ public class SetupPage : UserControl
         if (!_app.Db.IsEmpty) _app.Db.WritePluginSkinNames(_app.Game!.SkinNamesDir);
         foreach (var leftover in new[] { "server_commands.txt", "server_commands.txt.tmp", "loadouts.json.tmp" })
             File.Delete(Path.Combine(_app.Game!.PluginDir, leftover));
+        if (Installer.RemoveThirdPartyRetakes(_app.Game!))
+            _app.Log("Removed the old retakes plugin (Valve's Retakes mode is built in).");
         _app.Log("Repair finished.");
     });
 

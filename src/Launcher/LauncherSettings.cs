@@ -22,6 +22,9 @@ public class LauncherSettings
     /// <summary>The settings tab last open on the Play page.</summary>
     public int PlayTab { get; set; }
 
+    /// <summary>Quick starts the user saved from the Play page (mode, map, bots, rules).</summary>
+    public List<SavedSetup> SavedSetups { get; set; } = new();
+
     /// <summary>Servers joined lately (newest first), for one-click rejoin on the Friends page.</summary>
     public List<JoinTarget> RecentServers { get; set; } = new();
 
@@ -45,4 +48,11 @@ public class LauncherSettings
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
         File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
     }
+}
+
+/// <summary>A named snapshot of the Play page, shown as an extra quick start.</summary>
+public class SavedSetup
+{
+    public string Name { get; set; } = "";
+    public ServerSettings Settings { get; set; } = new();
 }

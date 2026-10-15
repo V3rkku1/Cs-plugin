@@ -60,49 +60,34 @@ public class Installer
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Retakes: B3none's cs2-retakes (GPL-3.0, https://github.com/B3none/cs2-retakes), downloaded from
-    // its own GitHub releases. It is only active while the Retakes mode runs: otherwise it is parked
-    // outside the plugins folder so CounterStrikeSharp doesn't load it.
+    // Older launcher builds downloaded B3none's cs2-retakes and loaded it for the Retakes mode.
+    // Valve's own mode (game_mode 5 + sv_skirmish_id 12) replaces it, so that plugin is removed:
+    // left installed, it would fight the official rules.
     // ---------------------------------------------------------------------------------------------
 
-    public const string RetakesPage = "https://github.com/B3none/cs2-retakes";
-    private const string RetakesApi = "https://api.github.com/repos/B3none/cs2-retakes/releases/latest";
+    public static bool ThirdPartyRetakesLoaded(GameFolder game) =>
+        Directory.Exists(Path.Combine(game.Addons, "counterstrikesharp", "plugins", "RetakesPlugin"));
 
-    private static string RetakesActiveDir(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp", "plugins", "RetakesPlugin");
-    private static string RetakesParkedDir(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp", "lst-parked", "RetakesPlugin");
-
-    public static bool RetakesInstalled(GameFolder game) =>
-        File.Exists(Path.Combine(RetakesActiveDir(game), "RetakesPlugin.dll")) || File.Exists(Path.Combine(RetakesParkedDir(game), "RetakesPlugin.dll"));
-
-    public async Task InstallRetakesAsync()
+    /// <summary>Deletes a previously installed cs2-retakes plugin. Returns whether anything was removed.</summary>
+    public static bool RemoveThirdPartyRetakes(GameFolder game)
     {
-        _log("Looking up the latest cs2-retakes release (by B3none)...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(RetakesApi));
-        var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
-            .FirstOrDefault(a => a.Name.StartsWith("RetakesPlugin", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".zip")
-                                 && !a.Name.Contains("no-map-configs", StringComparison.OrdinalIgnoreCase));
-        if (asset.Url == "")
-            throw new InvalidOperationException("No RetakesPlugin zip found in the latest cs2-retakes release.");
+        var removed = false;
+        foreach (var dir in new[]
+                 {
+                     Path.Combine(game.Addons, "counterstrikesharp", "plugins", "RetakesPlugin"),
+                     Path.Combine(game.Addons, "counterstrikesharp", "lst-parked", "RetakesPlugin"),
+                     Path.Combine(game.Addons, "counterstrikesharp", "configs", "plugins", "RetakesPlugin"),
+                 })
+        {
+            if (!Directory.Exists(dir)) continue;
+            Directory.Delete(dir, recursive: true);
+            removed = true;
+        }
 
-        _log($"Downloading {asset.Name}...");
-        // A fresh copy goes into the plugins folder; drop an older parked one.
-        try { if (Directory.Exists(RetakesParkedDir(_game))) Directory.Delete(RetakesParkedDir(_game), recursive: true); }
-        catch (IOException) { /* replaced below anyway */ }
-        await InstallZipAsync(await DownloadAsync(asset.Url));
-        _log("Retakes plugin installed (map spawns for the official maps included).");
-    }
-
-    /// <summary>Loads (on) or parks (off) the retakes plugin for the next server start.</summary>
-    public static void SetRetakesActive(GameFolder game, bool on)
-    {
-        var active = RetakesActiveDir(game);
-        var parked = RetakesParkedDir(game);
-        var (from, to) = on ? (parked, active) : (active, parked);
-        if (!Directory.Exists(from)) return;
-        if (Directory.Exists(to)) Directory.Delete(to, recursive: true);
-        Directory.CreateDirectory(Path.GetDirectoryName(to)!);
-        Directory.Move(from, to);
+        var parked = Path.Combine(game.Addons, "counterstrikesharp", "lst-parked");
+        if (Directory.Exists(parked) && !Directory.EnumerateFileSystemEntries(parked).Any())
+            Directory.Delete(parked);
+        return removed;
     }
 
     /// <summary>
