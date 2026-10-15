@@ -6,14 +6,11 @@ using CounterStrikeSharp.API.Modules.Utils;
 namespace LanSkinTester;
 
 /// <summary>
-/// Writes the hacker's shot and buttons on the server pawn before the player is simulated, then puts a
-/// silent aimer's own view back afterwards. The client never gets a command injected into their game.
+/// Writes the hacker's buttons on the server pawn before the player is simulated, plus the bhop and
+/// smoke helpers. View turning lives in TurnView (HackerMode).
 /// </summary>
 public partial class LanSkinTester
 {
-    /// <summary>Where this tick's shot should go, written in pre-think. Keyed by player slot.</summary>
-    private readonly Dictionary<int, (float Pitch, float Yaw)> _pendingAim = new();
-
     /// <summary>Jump was cleared in the air so the landing tick counts as a new press.</summary>
     private readonly HashSet<int> _bhopReleased = new();
 
@@ -53,20 +50,6 @@ public partial class LanSkinTester
             pitch = yaw = 0;
             return false;
         }
-    }
-
-    /// <summary>Writes the angles the server aims and shoots with. A ref property, so this is not a Teleport.</summary>
-    private static void WriteView(CCSPlayerPawn pawn, float pitch, float yaw)
-    {
-        void Write(QAngle angles)
-        {
-            angles.X = pitch;
-            angles.Y = yaw;
-            angles.Z = 0;
-        }
-        try { Write(pawn.V_angle); } catch (Exception) { /* schema */ }
-        try { Write(pawn.EyeAngles); } catch (Exception) { /* schema */ }
-        try { Write(pawn.StashedShootAngles); } catch (Exception) { /* schema */ }
     }
 
     /// <summary>ORs or clears a button on the pawn and queues it so the command processed this think keeps it.</summary>
@@ -109,44 +92,9 @@ public partial class LanSkinTester
             var pawn = hacker.PlayerPawn.Value;
             if (pawn is not { IsValid: true }) continue;
 
-            if (_pendingAim.TryGetValue(hacker.Slot, out var aim))
-            {
-                var pitch = aim.Pitch;
-                var yaw = aim.Yaw;
-                // The bullet is view + punch. Taking the punch off here is the recoil control for that shot.
-                if (Has(hacker, Power.NoRecoil))
-                {
-                    try
-                    {
-                        var punch = pawn.AimPunchServices?.PredictableBaseAngle;
-                        if (punch != null)
-                        {
-                            pitch -= punch.X * 2f;
-                            yaw -= punch.Y * 2f;
-                        }
-                    }
-                    catch (Exception)
-                    {
-                        // Punch schema changed; RemoveRecoil still clears it every tick.
-                    }
-                }
-                WriteView(pawn, pitch, yaw);
-            }
-
             if (_attackHeld.Contains(hacker.Slot)) ForceButton(pawn, PlayerButtons.Attack, true);
             if (Has(hacker, Power.Bhop)) ApplyBhopButton(hacker, pawn);
         }
-    }
-
-    private void OnHackPostThink()
-    {
-        if (_silentRestore.Count == 0) return;
-        foreach (var (slot, angles) in _silentRestore)
-        {
-            var pawn = Utilities.GetPlayerFromSlot(slot)?.PlayerPawn.Value;
-            if (pawn is { IsValid: true }) WriteView(pawn, angles.Pitch, angles.Yaw);
-        }
-        _silentRestore.Clear();
     }
 
     /// <summary>

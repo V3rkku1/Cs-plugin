@@ -277,7 +277,6 @@ public partial class LanSkinTester
         RegisterListener<Listeners.CheckTransmit>(OnHackCheckTransmit);
         RegisterListener<Listeners.OnTick>(OnHackTick);
         RegisterListener<Listeners.OnServerPreEntityThink>(OnHackPreThink);
-        RegisterListener<Listeners.OnServerPostEntityThink>(OnHackPostThink);
         RegisterListener<Listeners.OnEntitySpawned>(OnHackSmokeSpawned);
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
@@ -289,7 +288,6 @@ public partial class LanSkinTester
             _triggers.Clear();
             _silentRestore.Clear();
             _attackHeld.Clear();
-            _pendingAim.Clear();
             _bhopReleased.Clear();
             _smokes.Clear();
         });
@@ -312,7 +310,6 @@ public partial class LanSkinTester
             _triggers.Remove(slot);
             _silentRestore.Remove(slot);
             _attackHeld.Remove(slot);
-            _pendingAim.Remove(slot);
             _bhopReleased.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
@@ -567,7 +564,6 @@ public partial class LanSkinTester
         if (_hackMode == HackMode.Off && _personal.Count == 0)
         {
             ReleaseAllForcedAttacks();
-            _pendingAim.Clear();
             _silentRestore.Clear();
             ClearPlayerEsp();
             return;
@@ -606,12 +602,15 @@ public partial class LanSkinTester
 
                 var fire = triggerFire;
                 if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
-                else
-                {
-                    _aimLocks.Remove(hacker.Slot);
-                    _pendingAim.Remove(hacker.Slot);
-                }
+                else _aimLocks.Remove(hacker.Slot);
                 SetForcedAttack(hacker, fire);
+
+                // Silent aim: give the view back once they stop shooting.
+                if (_silentRestore.TryGetValue(hacker.Slot, out var own) && !fire && (hacker.Buttons & PlayerButtons.Attack) == 0)
+                {
+                    TurnView(pawn, own.Pitch, own.Yaw);
+                    _silentRestore.Remove(hacker.Slot);
+                }
             }
             catch (Exception ex)
             {
@@ -623,8 +622,12 @@ public partial class LanSkinTester
     /// <summary>Marks the slot so pre-think injects IN_ATTACK into that pawn's buttons. No client command.</summary>
     private void SetForcedAttack(CCSPlayerController player, bool down)
     {
-        if (down) _attackHeld.Add(player.Slot);
-        else _attackHeld.Remove(player.Slot);
+        var changed = down ? _attackHeld.Add(player.Slot) : _attackHeld.Remove(player.Slot);
+        if (!changed || player.IsBot) return;
+        // The pawn's button word is rewritten from the client's own input each tick, so also press the
+        // key on the client. If CS2 refuses the command, the button write in pre-think is all that's left.
+        try { player.ExecuteClientCommand(down ? "+attack" : "-attack"); }
+        catch (Exception ex) { Logger.LogDebug(ex, "Forced attack"); }
     }
 
     private void ReleaseAllForcedAttacks()
@@ -915,7 +918,6 @@ public partial class LanSkinTester
         if (best == null || targetPawn == null)
         {
             _aimLocks.Remove(hacker.Slot);
-            _pendingAim.Remove(hacker.Slot);
             return false;
         }
         if (aim == null || aim.TargetSlot != best.Slot)
@@ -933,56 +935,46 @@ public partial class LanSkinTester
             _aimLocks[hacker.Slot] = aim;
         }
 
-        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs)
-        {
-            _pendingAim.Remove(hacker.Slot);
-            return false;
-        }
+        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs) return false;
         if (AnglesTo(pawn, targetPawn, aim) is not { } goal) return false;
 
         if (style == AimStyle.Silent)
         {
-            // Pre-think writes the shot on the pawn. Post-think puts the player's own view back.
+            // The client owns its view, so a truly hidden shot isn't possible from the server. Snap only
+            // while firing; OnHackTick puts the player's own view back when they stop.
             var shooting = triggerWantsShot || (hacker.Buttons & PlayerButtons.Attack) != 0;
-            if (!shooting)
-            {
-                _pendingAim.Remove(hacker.Slot);
-                return false;
-            }
-            var readingOurs = _pendingAim.TryGetValue(hacker.Slot, out var previous)
-                && Math.Abs(AngleDiff(previous.Pitch, currentPitch)) < 0.25f
-                && Math.Abs(AngleDiff(previous.Yaw, currentYaw)) < 0.25f;
-            if (!readingOurs) _silentRestore[hacker.Slot] = (currentPitch, currentYaw);
-            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
+            if (!shooting) return false;
+            _silentRestore.TryAdd(hacker.Slot, (currentPitch, currentYaw));
+            TurnView(pawn, goal.Pitch, goal.Yaw);
             return false;
         }
 
         if (style == AimStyle.Rage)
         {
-            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
-            WriteView(pawn, goal.Pitch, goal.Yaw);
+            TurnView(pawn, goal.Pitch, goal.Yaw);
             return true;
         }
 
         var dYaw = AngleDiff(goal.Yaw, currentYaw);
         var dPitch = AngleDiff(goal.Pitch, currentPitch);
-        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f)
-        {
-            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
-            WriteView(pawn, goal.Pitch, goal.Yaw);
-            return false;
-        }
+        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return false;
         var maxStep = AimMaxStep * smoothing / AimSmoothing;
         if (mode != AimTarget.Crosshair) maxStep *= 1.6f;
         var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
         var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
         if (Math.Abs(dYaw) < 0.4f) stepYaw = dYaw;
         if (Math.Abs(dPitch) < 0.4f) stepPitch = dPitch;
-        var nextPitch = currentPitch + stepPitch;
-        var nextYaw = currentYaw + stepYaw;
-        _pendingAim[hacker.Slot] = (nextPitch, nextYaw);
-        WriteView(pawn, nextPitch, nextYaw);
+        TurnView(pawn, currentPitch + stepPitch, currentYaw + stepYaw);
         return false;
+    }
+
+    /// <summary>
+    /// Turns the player's real view. Writing v_angle alone does nothing: the next command from the client
+    /// overwrites it. Teleport snaps the eye angles on the client too.
+    /// </summary>
+    private static void TurnView(CCSPlayerPawn pawn, float pitch, float yaw)
+    {
+        pawn.Teleport(null, new QAngle(Math.Clamp(pitch, -89f, 89f), yaw, 0), null);
     }
 
     /// <summary>Degrees between where they look and a line to us. Smaller means they are aiming at us.</summary>
