@@ -487,7 +487,7 @@ public class SkinsPage : UserControl
         if (_work.Paint != 0)
         {
             var text = $"{ItemData.WearName(_work.Wear)}  {_work.Wear.ToString("0.000000", CultureInfo.InvariantCulture)}";
-            var size = TextRenderer.MeasureText(text, Theme.Small);
+            var size = Theme.MeasureText(text, Theme.Small);
             var tag = new RectangleF(12, 12, size.Width + 14, 22);
             Theme.FillRounded(g, Color.FromArgb(150, 0, 0, 0), tag, 11);
             Theme.DrawText(g, text, Theme.Small, Rectangle.Round(tag), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);

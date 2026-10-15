@@ -74,8 +74,8 @@ public class MainForm : Form
         var logo = new PictureBox { Size = new Size(40, 40), Location = new Point(16, 20), SizeMode = PictureBoxSizeMode.Zoom, BackColor = Color.Transparent };
         using (var png = typeof(MainForm).Assembly.GetManifestResourceStream("app.png"))
             if (png != null) logo.Image = Image.FromStream(png);
-        var app = new Label { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
-        var sub = new Label { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
+        var app = new SmoothLabel { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
+        var sub = new SmoothLabel { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
 
         var nav = new VStack(_navPlay, _navSkins, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);

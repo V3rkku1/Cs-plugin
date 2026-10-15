@@ -75,7 +75,7 @@ public class PillButton : DrawnControl, IButtonControl
     private void FitWidth()
     {
         if (!AutoWidth) return;
-        base.Width = TextRenderer.MeasureText(Text, Font).Width + 30;
+        base.Width = Theme.MeasureText(Text, Font).Width + 30;
     }
 
     protected override void Draw(Graphics g)
@@ -763,11 +763,11 @@ public class SettingRow : Panel
     public SettingRow(string title, Control? accessory, string? subtitle)
     {
         BackColor = Color.Transparent;
-        _title = new Label { Text = title, AutoSize = true, Font = Theme.Body, ForeColor = Theme.Text, BackColor = Color.Transparent };
+        _title = new SmoothLabel { Text = title, AutoSize = true, Font = Theme.Body, ForeColor = Theme.Text, BackColor = Color.Transparent };
         Controls.Add(_title);
         if (subtitle != null)
         {
-            _subtitle = new Label { Text = subtitle, AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, BackColor = Color.Transparent };
+            _subtitle = new SmoothLabel { Text = subtitle, AutoSize = true, Font = Theme.Small, ForeColor = Theme.Muted, BackColor = Color.Transparent };
             Controls.Add(_subtitle);
         }
         Accessory = accessory;

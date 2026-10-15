@@ -53,7 +53,7 @@ public class Toast : DrawnControl
         toast.Text = text;
         toast._kind = kind;
         toast._shownAt = DateTime.UtcNow;
-        toast.Width = Math.Min(TextRenderer.MeasureText(text, Theme.Body).Width + 64, Math.Max(toast.Parent!.Width - 80, 200));
+        toast.Width = Math.Min(Theme.MeasureText(text, Theme.Body).Width + 64, Math.Max(toast.Parent!.Width - 80, 200));
         toast.Place();
         toast.Visible = true;
         toast.BringToFront();

@@ -69,7 +69,7 @@ public class SlotTile : Control
             var cy = Height / 2f - 5;
             g.DrawLine(plus, cx - 6, cy, cx + 6, cy);
             g.DrawLine(plus, cx, cy - 6, cx, cy + 6);
-            TextRenderer.DrawText(g, _label, Theme.Small, new Rectangle(0, Height - 20, Width, 16), Theme.Muted,
+            Theme.DrawText(g, _label, Theme.Small, new Rectangle(0, Height - 20, Width, 16), Theme.Muted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.NoPrefix);
             return;
         }
@@ -79,6 +79,6 @@ public class SlotTile : Control
             g.DrawPath(ring, path);
         var img = _images?.Get(_image, 128, () => { if (IsHandleCreated) BeginInvoke(Invalidate); });
         if (img != null) g.DrawImage(img, CardGrid.Fit(img.Size, Rectangle.Inflate(Rectangle.Round(r), -5, -5)));
-        else TextRenderer.DrawText(g, _label, Theme.Small, Rectangle.Round(r), Theme.Accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
+        else Theme.DrawText(g, _label, Theme.Small, Rectangle.Round(r), Theme.Accent, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);
     }
 }

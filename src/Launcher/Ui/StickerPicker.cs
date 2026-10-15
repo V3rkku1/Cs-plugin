@@ -27,7 +27,7 @@ public class StickerPicker : Form
         Theme.StyleWindow(this);
         _grid.SetImageCache(images);
 
-        var heading = new Label { Text = title, Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 10) };
+        var heading = new SmoothLabel { Text = title, Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 10) };
         var top = new Panel { Dock = DockStyle.Top, Height = isSticker ? 128 : 92, BackColor = Theme.Background, Padding = new Padding(24, 18, 24, 0) };
         var stack = isSticker
             ? new VStack(heading, new HStack(_search, _count), new HStack(_effect) { Margin = new Padding(0, 10, 0, 0) })
@@ -44,7 +44,7 @@ public class StickerPicker : Form
         bottom.Controls.Add(buttons);
         if (isSticker)
         {
-            var scrape = new HStack(new Label { Text = "Scrape", AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent, Margin = new Padding(0, 6, 12, 0) }, _scrape, _scrapeLabel);
+            var scrape = new HStack(new SmoothLabel { Text = "Scrape", AutoSize = true, ForeColor = Theme.Text, BackColor = Color.Transparent, Margin = new Padding(0, 6, 12, 0) }, _scrape, _scrapeLabel);
             scrape.Location = new Point(24, 18);
             bottom.Controls.Add(scrape);
         }

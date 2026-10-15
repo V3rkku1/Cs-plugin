@@ -27,6 +27,8 @@
   <!-- App logo for the sidebar (the same art as app.ico, from assets/make_icon.py). -->
   <ItemGroup>
     <EmbeddedResource Include="..\..\assets\app.png" LogicalName="app.png" />
+    <!-- Inter typeface (SIL Open Font License, see assets/fonts/Inter-LICENSE.txt). -->
+    <EmbeddedResource Include="..\..\assets\fonts\*.ttf" LogicalName="fonts/%(Filename)%(Extension)" />
   </ItemGroup>
 
   <!-- The built plugin ships inside the exe (build.sh builds the plugin first). -->

@@ -37,12 +37,13 @@ public static class Theme
     private static readonly string Family = Pick("Segoe UI Variable Text", "Segoe UI");
     private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
 
-    public static readonly Font Body = new(Family, 10f);
-    public static readonly Font Small = new(Family, 8.75f);
-    public static readonly Font Bold = new(Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"), 10f);
-    public static readonly Font Heading = new(Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"), 12f);
-    public static readonly Font Big = new(Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"), 14f);
-    public static readonly Font Title = new(Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"), 24f);
+    // Inter (embedded), drawn anti-aliased: smooth like macOS instead of the blocky hinted look.
+    public static readonly Font Body = Fonts.Create("Inter-Regular.ttf", 9.5f, Family);
+    public static readonly Font Small = Fonts.Create("Inter-Regular.ttf", 8.25f, Family);
+    public static readonly Font Bold = Fonts.Create("Inter-SemiBold.ttf", 9.5f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
+    public static readonly Font Heading = Fonts.Create("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
+    public static readonly Font Big = Fonts.Create("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
+    public static readonly Font Title = Fonts.Create("Inter-SemiBold.ttf", 22f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
     public static readonly Font Mono = new(Pick("Cascadia Mono", "Consolas"), 8.75f);
 
     private static string Pick(params string[] names)
@@ -86,7 +87,7 @@ public static class Theme
         g.SmoothingMode = SmoothingMode.AntiAlias;
         g.PixelOffsetMode = PixelOffsetMode.HighQuality;
         g.InterpolationMode = InterpolationMode.HighQualityBicubic;
-        g.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
     }
 
     /// <summary>Brand gradient (the app icon's blue → violet), used for primary buttons.</summary>
@@ -108,21 +109,54 @@ public static class Theme
         g.FillPath(brush, path);
     }
 
+    /// <summary>Anti-aliased (GDI+) text. Takes the same flags as TextRenderer for easy use.</summary>
     public static void DrawText(Graphics g, string text, Font font, Rectangle r, Color color,
         TextFormatFlags flags = TextFormatFlags.Left | TextFormatFlags.VerticalCenter)
     {
-        TextRenderer.DrawText(g, text, font, r, color, flags | TextFormatFlags.NoPrefix | TextFormatFlags.EndEllipsis);
+        if (string.IsNullOrEmpty(text) || r.Width <= 0 || r.Height <= 0) return;
+        var hint = g.TextRenderingHint;
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        using var format = Format(flags);
+        using var brush = new SolidBrush(color);
+        g.DrawString(text, font, brush, r, format);
+        g.TextRenderingHint = hint;
+    }
+
+    /// <summary>Size of the text as <see cref="DrawText"/> draws it (rounded up, with a little air).</summary>
+    public static Size MeasureText(string text, Font font)
+    {
+        using var bitmap = new Bitmap(1, 1);
+        using var g = Graphics.FromImage(bitmap);
+        g.TextRenderingHint = TextRenderingHint.AntiAlias;
+        var size = g.MeasureString(string.IsNullOrEmpty(text) ? " " : text, font, PointF.Empty, StringFormat.GenericTypographic);
+        return new Size((int)Math.Ceiling(size.Width) + 4, (int)Math.Ceiling(font.GetHeight()) + 2);
+    }
+
+    private static StringFormat Format(TextFormatFlags flags)
+    {
+        var f = new StringFormat(StringFormat.GenericTypographic)
+        {
+            Trimming = StringTrimming.EllipsisCharacter,
+            HotkeyPrefix = HotkeyPrefix.None,
+            Alignment = flags.HasFlag(TextFormatFlags.HorizontalCenter) ? StringAlignment.Center
+                : flags.HasFlag(TextFormatFlags.Right) ? StringAlignment.Far : StringAlignment.Near,
+            LineAlignment = flags.HasFlag(TextFormatFlags.VerticalCenter) ? StringAlignment.Center
+                : flags.HasFlag(TextFormatFlags.Bottom) ? StringAlignment.Far : StringAlignment.Near,
+        };
+        f.FormatFlags |= StringFormatFlags.MeasureTrailingSpaces;
+        if (!flags.HasFlag(TextFormatFlags.WordBreak)) f.FormatFlags |= StringFormatFlags.NoWrap;
+        return f;
     }
 
     /// <summary>Plain text label in the theme colours.</summary>
-    public static Label Label(string text, Font? font = null, Color? color = null) => new()
+    public static Label Label(string text, Font? font = null, Color? color = null) => new SmoothLabel()
     {
         Text = text, AutoSize = true, Font = font ?? Body, ForeColor = color ?? Text, BackColor = Color.Transparent,
         Margin = new Padding(0, 4, 8, 4),
     };
 
     /// <summary>Small grey caption above a group, like macOS settings section headers.</summary>
-    public static Label Caption(string text) => new()
+    public static Label Caption(string text) => new SmoothLabel()
     {
         Text = text, AutoSize = true, Font = Small, ForeColor = Muted, BackColor = Color.Transparent,
         Margin = new Padding(14, 18, 0, 6),
@@ -231,5 +265,21 @@ public static class Theme
             }
             ApplyColors(c);
         }
+    }
+}
+
+/// <summary>A label drawn with anti-aliased GDI+ text, matching the self-drawn controls.</summary>
+public class SmoothLabel : Label
+{
+    public SmoothLabel()
+    {
+        UseCompatibleTextRendering = true;
+        SetStyle(ControlStyles.OptimizedDoubleBuffer | ControlStyles.AllPaintingInWmPaint, true);
+    }
+
+    protected override void OnPaint(PaintEventArgs e)
+    {
+        e.Graphics.TextRenderingHint = System.Drawing.Text.TextRenderingHint.AntiAlias;
+        base.OnPaint(e);
     }
 }

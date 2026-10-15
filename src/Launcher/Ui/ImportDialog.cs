@@ -36,8 +36,8 @@ public class ImportDialog : Form
         Theme.StyleWindow(this);
         ClientSize = new Size(660, 640);
 
-        var title = new Label { Text = "Import a Real Item", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 4) };
-        var help = new Label
+        var title = new SmoothLabel { Text = "Import a Real Item", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 4) };
+        var help = new SmoothLabel
         {
             AutoSize = true, MaximumSize = new Size(612, 0), ForeColor = Theme.Muted, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 12),
             Text = "Paste a !gen code (CSFloat → Copy !gen), an inspect link with item data (csgo_econ_action_preview 00…), " +

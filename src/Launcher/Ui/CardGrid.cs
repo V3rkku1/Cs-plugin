@@ -179,7 +179,7 @@ public class CardGrid : Panel
 
         if (_items.Count == 0)
         {
-            TextRenderer.DrawText(g, _emptyText, Theme.Heading, ClientRectangle, Theme.Muted,
+            Theme.DrawText(g, _emptyText, Theme.Heading, ClientRectangle, Theme.Muted,
                 TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter | TextFormatFlags.WordBreak);
             return;
         }
@@ -236,7 +236,7 @@ public class CardGrid : Panel
 
         if (item.Badge != "")
         {
-            var size = TextRenderer.MeasureText(item.Badge, Theme.Small);
+            var size = Theme.MeasureText(item.Badge, Theme.Small);
             var badge = new RectangleF(r.Right - size.Width - 18, r.Top + 9, size.Width + 8, 20);
             Theme.FillRounded(g, Theme.Accent, badge, 10);
             Theme.DrawText(g, item.Badge, Theme.Small, Rectangle.Round(badge), Color.White, TextFormatFlags.HorizontalCenter | TextFormatFlags.VerticalCenter);

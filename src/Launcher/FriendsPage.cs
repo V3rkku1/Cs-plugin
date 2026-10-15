@@ -228,7 +228,7 @@ public class FriendsPage : UserControl
         if (Mode == ServerSettings.FriendsNetwork.Internet)
         {
             if (RouterPort.Searching) SetAddressNote("Looking for your router…", Theme.Muted);
-            else if (Router == null) SetAddressNote("No UPnP router found - turn on UPnP in your router, or use Radmin", Theme.Warning);
+            else if (Router == null) SetAddressNote("No UPnP router - turn it on or use Radmin", Theme.Warning);
             else if (External == null) SetAddressNote($"{Router.Name} didn't say its internet address", Theme.Warning);
             else if (Upnp.IsBehindAnotherNat(External))
                 SetAddressNote("Your provider shares one address between homes (CGNAT): friends can't reach you - use Radmin", Theme.Warning);

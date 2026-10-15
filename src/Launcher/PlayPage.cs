@@ -225,8 +225,8 @@ public class PlayPage : UserControl
     /// <summary>Large page title + subtitle, like a macOS settings pane.</summary>
     internal static Control Header(string title, string subtitle)
     {
-        var t = new Label { Text = title, Font = Theme.Title, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
-        var s = new Label { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
+        var t = new SmoothLabel { Text = title, Font = Theme.Title, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
+        var s = new SmoothLabel { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
         return new VStack(t, s) { Height = 86 };
     }
 
@@ -496,7 +496,7 @@ public class PlayPage : UserControl
             _ => "same Wi-Fi",
         };
         _inviteRow.Subtitle = address != null ? $"{address} · {how} · change on the Friends page"
-            : s.Friends == ServerSettings.FriendsNetwork.Internet ? "Router address appears after Start (or open the Friends page)"
+            : s.Friends == ServerSettings.FriendsNetwork.Internet ? "Router address shows after Start"
             : $"No {how} address found · see the Friends page";
     }
 
