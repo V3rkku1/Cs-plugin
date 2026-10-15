@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 
 namespace LanSkinTester.Launcher.Core;
@@ -26,8 +27,8 @@ public class ServerSettings
         new("Casual", 0, 0, DefuseMaps),
         new("Wingman", 0, 2, ["de_inferno", "de_nuke", "de_vertigo", "de_overpass"]),
         new("Arms Race", 1, 0, ["ar_baggage", "ar_shoots", "ar_pool_day"]),
-        // Competitive rules; the plugin plants the bomb on a random site every round.
-        new(RetakesMode, 0, 1, ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo", "de_overpass", "de_train"]),
+        // Valve's own Retakes: game_type 0 / game_mode 5, also selected by sv_skirmish_id 12.
+        new(RetakesMode, 0, 5, ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo", "de_overpass", "de_train"]),
     ];
 
     public const string RetakesMode = "Retakes";
@@ -66,6 +67,9 @@ public class ServerSettings
     public bool MaxMoney { get; set; } = true;
     public bool NoRoundEnd { get; set; }
     public bool AllowCheats { get; set; } = true;
+
+    /// <summary>Chat line for the damage you deal (practice / retake quality of life).</summary>
+    public bool ShowDamage { get; set; }
 
     /// <summary>Round length in minutes; 0 = the game mode's default.</summary>
     public int RoundTime { get; set; }
@@ -226,10 +230,10 @@ public class ServerSettings
             s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
             s.HackAggression = 7;
         }),
-        new("Retakes", "Bomb planted on A or B · retake the site", s =>
+        new("Retakes", "Valve retakes · 3v4 · loadout cards", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
-            s.Bots = 4;
+            s.Bots = 6; // you + 6 bots fills the 3 T vs 4 CT match
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
@@ -259,6 +263,7 @@ public class ServerSettings
         BotTeam = BotWeapons = RoundTime = 0;
         FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
         MaxMoney = AllowCheats = true;
+        ShowDamage = false;
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
         HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = HackRadar = false;
@@ -277,7 +282,11 @@ public class ServerSettings
         // -condebug: the server writes csgo\console.log, which the launcher shows if the server crashes.
         // sv_hibernate_when_empty 0: an empty server otherwise sleeps after a few seconds, and then the
         // plugin can't run the launcher's commands (e.g. switching to a Workshop map) until someone joins.
-        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +{MapCommand(running: false)}";
+        // sv_skirmish_id survives map changes. 12 is Valve's Retakes war game; every other mode clears it.
+        // Retake team sizes have to be set before the map loads (they decide the slot count).
+        var skirmish = IsRetakes ? 12 : 0;
+        var retake = IsRetakes ? " +mp_retake_t_count 3 +mp_retake_ct_count 4" : "";
+        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake} +{MapCommand(running: false)}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
@@ -380,11 +389,11 @@ public class ServerSettings
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
         sb.AppendLine($"bot_join_team {(IsRetakes ? "any" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
-        sb.AppendLine($"bot_knives_only {(BotWeapons == 3 ? 1 : 0)}");
-        sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 ? 1 : 0)}");
-        sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 ? 1 : 0)}");
-        // Which weapon types bots may buy. "Rifles": rifles (+ pistols) only.
-        var rifles = BotWeapons == 0;
+        // Retakes hands out Valve's loadout cards, so weapon limits would strip the AWP / rifle the card picked.
+        var rifles = !IsRetakes && BotWeapons == 0;
+        sb.AppendLine($"bot_knives_only {(BotWeapons == 3 && !IsRetakes ? 1 : 0)}");
+        sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 && !IsRetakes ? 1 : 0)}");
+        sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 && !IsRetakes ? 1 : 0)}");
         sb.AppendLine($"bot_allow_snipers {(rifles ? 0 : 1)}");
         sb.AppendLine($"bot_allow_shotguns {(rifles ? 0 : 1)}");
         sb.AppendLine($"bot_allow_sub_machine_guns {(rifles ? 0 : 1)}");
@@ -397,6 +406,8 @@ public class ServerSettings
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
+        else
+            sb.AppendLine("mp_teammates_are_enemies 0");
 
         if (MaxMoney && !IsRetakes)
         {
@@ -426,11 +437,44 @@ public class ServerSettings
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+        sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
 
-        // Retakes: B3none's plugin sets up rounds, teams and weapons itself (see Installer).
-        if (!IsRetakes) sb.AppendLine("mp_warmup_end");
-        else sb.AppendLine("retakes_enabled 1");
+        // Official Retakes (game_mode 5) already runs gamemode_retakecasual.cfg on map load, including
+        // the loadout-card warmup. sv_skirmish_id 12 turns on the same rules; it has to be 0 for every
+        // other mode because the cvar stays set across maps. Don't end warmup here: that skips the cards.
+        sb.AppendLine($"sv_skirmish_id {(IsRetakes ? 12 : 0)}");
+        if (IsRetakes)
+        {
+            sb.AppendLine("mp_retake_t_count 3");
+            sb.AppendLine("mp_retake_ct_count 4");
+        }
+        else sb.AppendLine("mp_warmup_end");
         return sb.ToString();
+    }
+
+    /// <summary>One line for a saved quick-start tile.</summary>
+    public string Summary() => $"{Mode} · {Map} · {(Bots == 0 ? "no bots" : Bots + " bots")}";
+
+    /// <summary>A detached copy (saved setups must not keep changing with the Play page).</summary>
+    public ServerSettings Clone()
+    {
+        var json = System.Text.Json.JsonSerializer.Serialize(this);
+        return System.Text.Json.JsonSerializer.Deserialize<ServerSettings>(json) ?? new ServerSettings();
+    }
+
+    /// <summary>
+    /// Copies a saved quick start onto this server. Friends, password and shared-skins stay as they are:
+    /// those live on the Friends page, not in a game setup.
+    /// </summary>
+    public void CopyPracticeFrom(ServerSettings source)
+    {
+        foreach (var prop in typeof(ServerSettings).GetProperties(BindingFlags.Instance | BindingFlags.Public))
+        {
+            if (!prop.CanRead || !prop.CanWrite) continue;
+            if (prop.GetCustomAttribute<System.Text.Json.Serialization.JsonIgnoreAttribute>() != null) continue;
+            if (prop.Name is nameof(Friends) or nameof(Password) or nameof(SharedSkins)) continue;
+            prop.SetValue(this, prop.GetValue(source));
+        }
     }
 
     /// <summary>Zero recoil / zero spread cvars (cheat-protected; the "off" values are CS2's defaults).</summary>
@@ -501,7 +545,15 @@ public class ServerSettings
         WriteCfg(game);
         var mode = GetMode();
         if (mapOrModeChanged)
-            SendCommands(game, $"game_type {mode.GameType}", $"game_mode {mode.Mode}", MapCommand(running: true));
+        {
+            // Skirmish id and retake sizes first: the map load reads them, and a later cfg exec is too late.
+            var beforeMap = new List<string> { $"sv_skirmish_id {(IsRetakes ? 12 : 0)}" };
+            if (IsRetakes) beforeMap.AddRange(["mp_retake_t_count 3", "mp_retake_ct_count 4"]);
+            beforeMap.Add($"game_type {mode.GameType}");
+            beforeMap.Add($"game_mode {mode.Mode}");
+            beforeMap.Add(MapCommand(running: true));
+            SendCommands(game, beforeMap.ToArray());
+        }
         else
             SendCommands(game, "exec lanskintester_server.cfg");
         return null;
