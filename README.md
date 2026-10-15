@@ -102,7 +102,7 @@ On the Retakes tab, Plugin style can set max players (2–10), the terrorist per
 
 **Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse)) finishes a defuse the moment it starts when no terrorist, molotov, or grenade can stop it. It is on for both plugin quick starts. Turning it off restarts the server so the plugin unloads.
 
-**Demolition** is gun-game with a bomb (`game_type 1`, `game_mode 1`) on de_lake, de_safehouse and de_shortdust. **Weapons Expert** is competitive where each gun can be bought once (`game_type 0`, `game_mode 3`). **Custom** is an open sandbox (`game_type 3`, `game_mode 0`). Arms Race, Demolition and both retake styles keep their own guns, money and round length.
+**Demolition** is gun-game with a bomb (`game_type 1`, `game_mode 1`) on de_lake, de_safehouse and de_shortdust. **Weapons Expert** is competitive where each gun can be bought once per match. CS2 no longer has its own mode for it, so the server runs competitive and the plugin takes back (and refunds) a gun you already bought (`lst_weapons_expert 1`). **Custom** is an open sandbox (`game_type 3`, `game_mode 0`). Arms Race, Demolition and both retake styles keep their own guns, money and round length.
 
 **Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
 

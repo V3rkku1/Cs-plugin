@@ -31,7 +31,7 @@ public class LanSkinTesterConfig : BasePluginConfig
 public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "2.9.6";
+    public override string ModuleVersion => "2.10.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 

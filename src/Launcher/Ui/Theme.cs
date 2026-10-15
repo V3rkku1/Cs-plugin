@@ -5,34 +5,35 @@ using System.Runtime.InteropServices;
 namespace LanSkinTester.Launcher.Ui;
 
 /// <summary>
-/// Dark ink UI: cool black surfaces, a clear blue accent, and rounded cards.
-/// All custom controls draw themselves with these values.
+/// iOS dark mode: true-black window, inset grouped cards in iOS's elevated greys, systemBlue / systemGreen,
+/// rounded shapes. All custom controls draw themselves with these values.
 /// </summary>
 public static class Theme
 {
     // Backgrounds (window → sidebar → grouped content → controls)
-    public static readonly Color Background = Color.FromArgb(10, 12, 16);
-    public static readonly Color Sidebar = Color.FromArgb(14, 16, 22);
-    public static readonly Color Surface = Color.FromArgb(10, 12, 16);
-    public static readonly Color Card = Color.FromArgb(24, 29, 40);
-    public static readonly Color CardHover = Color.FromArgb(32, 40, 54);
-    public static readonly Color Fill = Color.FromArgb(38, 46, 62);
-    public static readonly Color FillHover = Color.FromArgb(50, 60, 80);
-    public static readonly Color Input = Color.FromArgb(14, 17, 24);
-    public static readonly Color Separator = Color.FromArgb(52, 62, 82);
+    // iOS: systemBackground, secondary / tertiary grouped background, systemFill, separator.
+    public static readonly Color Background = Color.FromArgb(0, 0, 0);
+    public static readonly Color Sidebar = Color.FromArgb(28, 28, 30);
+    public static readonly Color Surface = Color.FromArgb(0, 0, 0);
+    public static readonly Color Card = Color.FromArgb(28, 28, 30);
+    public static readonly Color CardHover = Color.FromArgb(44, 44, 46);
+    public static readonly Color Fill = Color.FromArgb(58, 58, 60);
+    public static readonly Color FillHover = Color.FromArgb(72, 72, 74);
+    public static readonly Color Input = Color.FromArgb(28, 28, 30);
+    public static readonly Color Separator = Color.FromArgb(56, 56, 58);
     public static readonly Color Border = Separator;
 
     // Text
-    public static readonly Color Text = Color.FromArgb(244, 246, 251);
-    public static readonly Color Muted = Color.FromArgb(154, 163, 181);
-    public static readonly Color Tertiary = Color.FromArgb(108, 116, 136);
+    public static readonly Color Text = Color.FromArgb(255, 255, 255);
+    public static readonly Color Muted = Color.FromArgb(152, 152, 159);
+    public static readonly Color Tertiary = Color.FromArgb(99, 99, 102);
 
     // System colours
-    public static readonly Color Accent = Color.FromArgb(91, 140, 255);
-    public static readonly Color AccentHover = Color.FromArgb(130, 168, 255);
-    public static readonly Color Good = Color.FromArgb(52, 211, 153);
-    public static readonly Color Bad = Color.FromArgb(255, 107, 107);
-    public static readonly Color Warning = Color.FromArgb(251, 191, 36);
+    public static readonly Color Accent = Color.FromArgb(10, 132, 255);
+    public static readonly Color AccentHover = Color.FromArgb(64, 156, 255);
+    public static readonly Color Good = Color.FromArgb(48, 209, 88);
+    public static readonly Color Bad = Color.FromArgb(255, 69, 58);
+    public static readonly Color Warning = Color.FromArgb(255, 159, 10);
 
     private static readonly string Family = Pick("Segoe UI Variable Text", "Segoe UI");
     private static readonly string DisplayFamily = Pick("Segoe UI Variable Display", "Segoe UI");
@@ -43,7 +44,7 @@ public static class Theme
     public static readonly Font Bold = MakeFont("Inter-SemiBold.ttf", 10f, Pick("Segoe UI Variable Text Semibold", "Segoe UI Semibold"));
     public static readonly Font Heading = MakeFont("Inter-SemiBold.ttf", 11.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
     public static readonly Font Big = MakeFont("Inter-SemiBold.ttf", 13.5f, Pick("Segoe UI Variable Display Semibold", "Segoe UI Semibold"));
-    public static readonly Font Title = MakeFont("Inter-SemiBold.ttf", 26f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
+    public static readonly Font Title = MakeFont("Inter-SemiBold.ttf", 25f, Pick("Segoe UI Variable Display Bold", "Segoe UI Semibold"));
     public static readonly Font Mono = new(Pick("Cascadia Mono", "Consolas"), 8.75f);
 
     /// <summary>A font in the chosen text style: embedded Inter, or Windows' Segoe UI.</summary>
@@ -115,9 +116,9 @@ public static class Theme
         g.TextRenderingHint = TextStyle.Hint;
     }
 
-    /// <summary>Brand gradient (the app icon's blue → violet), used for primary buttons.</summary>
-    public static readonly Color GradientStart = Color.FromArgb(91, 140, 255);
-    public static readonly Color GradientEnd = Color.FromArgb(142, 108, 255);
+    /// <summary>iOS buttons are flat systemBlue, so the old brand gradient is one colour now.</summary>
+    public static readonly Color GradientStart = Accent;
+    public static readonly Color GradientEnd = Accent;
 
     public static void FillRoundedGradient(Graphics g, Color from, Color to, RectangleF r, float radius)
     {

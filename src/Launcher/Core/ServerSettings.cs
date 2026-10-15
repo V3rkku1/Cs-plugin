@@ -29,7 +29,8 @@ public class ServerSettings
         new("Wingman", 0, 2, ["de_inferno", "de_nuke", "de_vertigo", "de_overpass"]),
         new("Arms Race", 1, 0, ["ar_baggage", "ar_shoots", "ar_pool_day"]),
         new("Demolition", 1, 1, ["de_lake", "de_safehouse", "de_shortdust"]),
-        new("Weapons Expert", 0, 3, DefuseMaps),
+        // CS2 dropped mode 0/3 (it starts casual): run competitive and let the plugin enforce one buy per gun.
+        new(WeaponsExpertMode, 0, 1, DefuseMaps),
         new("Custom", 3, 0, DefuseMaps),
         // Valve's own Retakes: game_type 0 / game_mode 5, also selected by sv_skirmish_id 12.
         new(RetakesMode, 0, 5, ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo", "de_overpass", "de_train"]),
@@ -37,6 +38,7 @@ public class ServerSettings
 
     public const string RetakesMode = "Retakes";
     public const string RushMode = "Rush";
+    public const string WeaponsExpertMode = "Weapons Expert";
 
     /// <summary>
     /// Adds modes the launcher only knows by name, read from the game's own files (Rush: Valve's 3v3
@@ -579,6 +581,7 @@ public class ServerSettings
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
+        sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
         // plugin, clears it. Don't end warmup on either retake style: Valve's cards and the plugin's

@@ -878,10 +878,12 @@ public partial class LanSkinTester
         CCSPlayerController? best = null;
         CCSPlayerPawn? targetPawn = null;
         var bestScore = sticky ? fov : double.MaxValue;
-        if (sticky && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
+        // Every mode keeps a live lock: re-picking each tick restarted the reaction delay whenever two
+        // enemies scored about the same, so the aim never moved.
+        if (aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
             && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (walls || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
-            && Math.Max(Math.Abs(AngleDiff(a.Yaw, currentYaw)), Math.Abs(AngleDiff(a.Pitch, currentPitch))) < fov * 1.5f)
+            && (!sticky || Math.Max(Math.Abs(AngleDiff(a.Yaw, currentYaw)), Math.Abs(AngleDiff(a.Pitch, currentPitch))) < fov * 1.5f))
         {
             best = locked;
             targetPawn = lockedPawn;

@@ -78,11 +78,7 @@ public class Segmented : DrawnControl
 
     protected override void Draw(Graphics g)
     {
-        var track = new RectangleF(0, 0, Width - 1, Height - 1);
-        Theme.FillRounded(g, Theme.Input, track, 9);
-        using (var outline = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 9))
-        using (var pen = new Pen(Theme.Separator))
-            g.DrawPath(pen, outline);
+        Theme.FillRounded(g, Color.FromArgb(44, 44, 46), new RectangleF(0, 0, Width - 1, Height - 1), 9); // iOS segmented track
 
         for (var i = 0; i < _options.Length; i++)
         {
