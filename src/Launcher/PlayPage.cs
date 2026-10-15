@@ -766,6 +766,8 @@ public class PlayPage : UserControl
                 && Installer.ThirdPartyRetakesLoaded(_app.Game) && _app.Settings.Server.IsPluginRetakes);
         if (status.GameType == 0 && status.GameMode == 1 && pluginSession)
             return "Retakes";
+        if (status.GameType == 0 && status.GameMode == 1 && _app.Settings.Server.Mode == ServerSettings.WeaponsExpertMode)
+            return ServerSettings.WeaponsExpertMode;
         var known = ServerSettings.Modes.FirstOrDefault(m => m.GameType == status.GameType && m.Mode == status.GameMode)?.Name;
         if (!string.IsNullOrEmpty(known)) return known;
         return withFallback ? $"mode {status.GameType}/{status.GameMode}" : "";
