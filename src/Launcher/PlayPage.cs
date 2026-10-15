@@ -198,7 +198,7 @@ public class PlayPage : UserControl
         _pluginRows.Add(retakes.AddRow("Auto Plant", _retakePlant, "The bomb is planted as the round starts"));
         _pluginRows.Add(retakes.AddRow("Announce Site", _retakeAnnounce, "Show which site the bomb is on"));
         _pluginRows.Add(retakes.AddRow("Join Straight In", _retakeJoin, "Skip the team menu"));
-        _pluginRows.Add(retakes.AddRow("Buy Before Round", _retakeBuy, "You buy your guns. Bots keep theirs"));
+        _pluginRows.Add(retakes.AddRow("Buy Before Round", _retakeBuy, "You buy once per side. Later rounds equip those guns"));
         _pluginRows.Add(retakes.AddRow("Buy Time", _retakeBuySeconds, "Seconds to buy before you can move"));
         _pluginRows.Add(retakes.AddRow("Bomb Timer", _retakeBomb, "Seconds until the bomb explodes"));
         _retakeStyle.SelectedChanged += (_, _) => UpdateRetakeEditor();
@@ -362,7 +362,21 @@ public class PlayPage : UserControl
     private void LoadServerSettings()
     {
         var s = _app.Settings.Server;
-        _modeBox.SelectedItem = s.GetMode();
+        // Style first: picking the mode refreshes the Retakes tab, and plugin style must already be on.
+        _retakeStyle.SelectedIndex = s.RetakeStyle == 1 ? 1 : 0;
+        _retakePlayers.Value = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
+        _retakeRatio.Value = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
+        _retakeScramble.Checked = s.RetakeScramble;
+        _retakeScrambleRounds.Value = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
+        _retakeBalance.Checked = s.RetakeBalance;
+        _retakePlant.Checked = s.RetakeAutoPlant;
+        _retakeAnnounce.Checked = s.RetakeAnnounce;
+        _retakeJoin.Checked = s.RetakeAutoJoin;
+        _retakeBuy.Checked = s.RetakeBuy;
+        _retakeBuySeconds.Value = Math.Clamp(s.RetakeBuySeconds, 4, 20);
+        _retakeBomb.Value = Math.Clamp(s.RetakeBombTimer, 15, 60);
+        // Match by name. GetMode() returns a copy for plugin retakes, and that copy is not in the list.
+        SelectCatalogMode(s.Mode);
         FillMaps();
         _mapBox.Text = s.Map;
         _botsBar.Value = Math.Clamp(s.Bots, 0, 20);
@@ -379,18 +393,6 @@ public class PlayPage : UserControl
         _roundTime.Value = Math.Clamp(s.RoundTime, 0, 60);
         _friendlyFire.Checked = s.FriendlyFire;
         _showDamage.Checked = s.ShowDamage;
-        _retakeStyle.SelectedIndex = s.RetakeStyle == 1 ? 1 : 0;
-        _retakePlayers.Value = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
-        _retakeRatio.Value = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
-        _retakeScramble.Checked = s.RetakeScramble;
-        _retakeScrambleRounds.Value = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
-        _retakeBalance.Checked = s.RetakeBalance;
-        _retakePlant.Checked = s.RetakeAutoPlant;
-        _retakeAnnounce.Checked = s.RetakeAnnounce;
-        _retakeJoin.Checked = s.RetakeAutoJoin;
-        _retakeBuy.Checked = s.RetakeBuy;
-        _retakeBuySeconds.Value = Math.Clamp(s.RetakeBuySeconds, 4, 20);
-        _retakeBomb.Value = Math.Clamp(s.RetakeBombTimer, 15, 60);
         _workshop.Text = s.WorkshopMap;
         _gameArgs.Text = s.GameArgs;
         _autoStartGame.Checked = s.AutoStartGame;
@@ -474,9 +476,22 @@ public class PlayPage : UserControl
         _hackerRow.SubtitleColor = s.HackerMode != 0 ? Theme.Good : Theme.Muted;
     }
 
+    /// <summary>Selects the mode row by name. A copied <see cref="GameMode"/> would miss the list and clear the picker.</summary>
+    private void SelectCatalogMode(string name)
+    {
+        for (var i = 0; i < _modeBox.Items.Count; i++)
+        {
+            if (_modeBox.Items[i] is GameMode mode && mode.Name == name)
+            {
+                _modeBox.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
     private void OnModeChanged()
     {
-        var mode = (GameMode)_modeBox.SelectedItem!;
+        if (_modeBox.SelectedItem is not GameMode mode || mode.Maps is not { Length: > 0 }) return;
         var keep = mode.Maps.Contains(_mapBox.Text) ? _mapBox.Text : mode.Maps[0];
         FillMaps();
         _mapBox.Text = keep;
@@ -485,7 +500,8 @@ public class PlayPage : UserControl
 
     private void FillMaps()
     {
-        _mapBox.SetItems(((GameMode)_modeBox.SelectedItem!).Maps);
+        if (_modeBox.SelectedItem is not GameMode mode) return;
+        _mapBox.SetItems(mode.Maps);
     }
 
     private Process? _reportedServer;
@@ -630,7 +646,7 @@ public class PlayPage : UserControl
             // New modes found in the game files (Rush).
             _modeBox.Items.Clear();
             foreach (var m in ServerSettings.Modes) _modeBox.Items.Add(m);
-            _modeBox.SelectedItem = _app.Settings.Server.GetMode();
+            SelectCatalogMode(_app.Settings.Server.Mode);
         }
         var on = _app.TestModeOn;
         var ready = _app.Ready;
