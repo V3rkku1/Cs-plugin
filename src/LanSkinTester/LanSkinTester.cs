@@ -73,7 +73,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         RegisterListener<Listeners.OnMapStart>(_ => AddTimer(2.0f, ExecServerSettings, TimerFlags.STOP_ON_MAPCHANGE));
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
         LoadHackerMode();
-        LoadRetakes();
     }
 
     public override void Unload(bool hotReload)

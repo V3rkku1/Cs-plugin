@@ -158,9 +158,16 @@ public class PlayPage : UserControl
         launch.AddRow("Reset Settings", reset, "Back to the defaults (keeps friends and launch options)");
 
         var tabPages = new Control[] { game, bots, options, launch };
+        var tabHost = new VStack(tabPages) { MinimumSize = new Size(left, tabPages.Max(t => t.Height)) };
         void ShowTab(int index)
         {
-            for (var i = 0; i < tabPages.Length; i++) tabPages[i].Visible = i == index;
+            // Swap without repainting in between, and keep the height fixed so the page doesn't jump.
+            using (Theme.FreezePainting(this))
+            {
+                tabHost.SuspendLayout();
+                for (var i = 0; i < tabPages.Length; i++) tabPages[i].Visible = i == index;
+                tabHost.ResumeLayout(true);
+            }
         }
         _tabs.SelectedIndex = Math.Clamp(_app.Settings.PlayTab, 0, tabPages.Length - 1);
         ShowTab(_tabs.SelectedIndex);
@@ -171,7 +178,7 @@ public class PlayPage : UserControl
         };
         _tabs.Margin = new Padding(0, 0, 0, 10);
 
-        var leftColumn = new VStack(Theme.Caption("SETTINGS"), _tabs, new VStack(tabPages)) { Margin = new Padding(0, 0, 28, 0) };
+        var leftColumn = new VStack(Theme.Caption("SETTINGS"), _tabs, tabHost) { Margin = new Padding(0, 0, 28, 0) };
 
         // ---- Live server ----
         _giveButton.Click += (_, _) => Send($"lst_give {((GiveItem)_giveBox.SelectedItem!).Classname}");
@@ -457,6 +464,13 @@ public class PlayPage : UserControl
 
     public new void Refresh()
     {
+        if (_modeBox.Items.Count != ServerSettings.Modes.Length)
+        {
+            // New modes found in the game files (Rush).
+            _modeBox.Items.Clear();
+            foreach (var m in ServerSettings.Modes) _modeBox.Items.Add(m);
+            _modeBox.SelectedItem = _app.Settings.Server.GetMode();
+        }
         var on = _app.TestModeOn;
         var ready = _app.Ready;
         _startButton.Enabled = ready && !on;
@@ -485,9 +499,23 @@ public class PlayPage : UserControl
         var w = _hero.Width;
         var rightX = w - S(352);
         _modeTitle.Location = new Point(S(24), S(18));
+        _inviteTitle.Location = new Point(rightX, S(22));
+        _inviteText.MaximumSize = new Size(w - rightX - S(24), 0);
+        _inviteText.Location = new Point(rightX, _inviteTitle.Bottom + S(4));
         _modeStatus.MaximumSize = new Size(Math.Max(S(200), rightX - S(48)), 0);
         _modeStatus.Location = new Point(S(26), _modeTitle.Bottom + S(4));
         _heroLive.Location = new Point(S(26), _modeStatus.Bottom + S(4));
+        var textBottom = _heroLive.Text != "" ? _heroLive.Bottom : _modeStatus.Bottom;
+        var inviteBottom = _inviteText.Bottom;
+
+        // Grow the banner when the text needs more room, so it never runs into the buttons.
+        var needed = Math.Max(textBottom, inviteBottom) + S(18) + _startButton.Height + S(20);
+        var height = Math.Max(S(176), needed);
+        if (_hero.Height != height)
+        {
+            _hero.Height = height;
+            return; // the resize lays it out again
+        }
         var x = S(24);
         var y = _hero.Height - _startButton.Height - S(20);
         foreach (var b in new Control[] { _startButton, _applyButton, _gameButton, _stopButton })
@@ -496,10 +524,6 @@ public class PlayPage : UserControl
             x += b.Width + S(10);
         }
 
-        // Invite, on the right.
-        _inviteTitle.Location = new Point(rightX, S(22));
-        _inviteText.MaximumSize = new Size(w - rightX - S(24), 0);
-        _inviteText.Location = new Point(rightX, _inviteTitle.Bottom + S(4));
         _copyIp.Location = new Point(rightX, _hero.Height - _copyIp.Height - S(20));
         _copyInvite.Location = new Point(_copyIp.Right + S(10), _copyIp.Top);
     }
@@ -604,6 +628,12 @@ public class PlayPage : UserControl
 
     private void RunPreset(ServerPreset preset)
     {
+        if (preset.Title.StartsWith(ServerSettings.RushMode) && ServerSettings.Modes.All(m => m.Name != ServerSettings.RushMode))
+        {
+            MessageBox.Show(this, "Rush wasn't found in your CS2 files. Update CS2 in Steam (Rush came with the Rush Hour update), " +
+                                  "then restart the launcher.", "Rush", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return;
+        }
         preset.Apply(_app.Settings.Server);
         LoadServerSettings();
         _app.Log($"Quick start: {preset.Title}");
@@ -663,6 +693,14 @@ public class PlayPage : UserControl
         var server = ReadServerSettings();
         var map = server.WorkshopMapId ?? server.Map;
         var reload = _runningMode == null || _runningMode != server.Mode || _runningMap != map;
+        if (_runningMode != null && (_runningMode == ServerSettings.RetakesMode) != server.IsRetakes)
+        {
+            if (MessageBox.Show(this, "Switching to or from Retakes restarts the server and CS2. Continue?", "Retakes",
+                    MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
+            _app.Log("Restarting the server for the new mode...");
+            _ = RestartServerAsync();
+            return;
+        }
 
         try
         {
@@ -754,7 +792,49 @@ public class PlayPage : UserControl
                     "Couldn't open the port", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) != DialogResult.Yes)
                 return;
         }
+        if (!await PrepareRetakesAsync(server)) return;
         StartTest(forFriends);
+    }
+
+    /// <summary>
+    /// Retakes runs on B3none's cs2-retakes plugin: download it the first time, and load it only for
+    /// the Retakes mode (it would take over any other mode).
+    /// </summary>
+    private async Task<bool> PrepareRetakesAsync(ServerSettings server)
+    {
+        if (_app.Game == null) return false;
+        try
+        {
+            if (server.IsRetakes && !Installer.RetakesInstalled(_app.Game))
+            {
+                Toast.Show("Downloading the retakes plugin…", Toast.Kind.Info);
+                _startButton.Enabled = false;
+                try { await new Installer(_app.Game, _app.Http, _app.Log).InstallRetakesAsync(); }
+                finally { _startButton.Enabled = true; }
+            }
+            Installer.SetRetakesActive(_app.Game, server.IsRetakes);
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _app.Log("Retakes plugin: " + ex.Message);
+            if (!server.IsRetakes) return true; // not needed for this mode
+            MessageBox.Show(this, "Could not get the retakes plugin: " + ex.Message +
+                                  $"\n\nCheck your internet connection and try again. ({Installer.RetakesPage})",
+                "Retakes", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+    }
+
+    /// <summary>Switching to or from Retakes loads/unloads a plugin, which needs a fresh server.</summary>
+    private async Task RestartServerAsync()
+    {
+        if (_app.Game == null) return;
+        new TestSession(_app.Game).Stop();
+        _runningMode = _runningMap = null;
+        _app.NotifyChanged();
+        for (var i = 0; i < 20 && TestSession.Cs2Running(); i++) await Task.Delay(500);
+        await StartServerAsync(_runningForFriends);
     }
 
     /// <summary>F5: start, or apply the settings to the running server.</summary>

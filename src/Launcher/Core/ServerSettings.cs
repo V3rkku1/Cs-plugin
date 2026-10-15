@@ -19,7 +19,7 @@ public class ServerSettings
     private static readonly string[] DefuseMaps =
         ["de_dust2", "de_mirage", "de_inferno", "de_nuke", "de_ancient", "de_anubis", "de_vertigo", "de_overpass", "de_train", "cs_office", "cs_italy"];
 
-    public static readonly GameMode[] Modes =
+    public static GameMode[] Modes { get; private set; } =
     [
         new("Deathmatch", 1, 2, DefuseMaps),
         new("Competitive", 0, 1, DefuseMaps),
@@ -31,6 +31,20 @@ public class ServerSettings
     ];
 
     public const string RetakesMode = "Retakes";
+    public const string RushMode = "Rush";
+
+    /// <summary>
+    /// Adds modes the launcher only knows by name, read from the game's own files (Rush: Valve's 3v3
+    /// tower mode). Returns whether something new was found.
+    /// </summary>
+    public static bool DiscoverModes(GameFolder game)
+    {
+        if (Modes.Any(m => m.Name == RushMode)) return false;
+        var rush = GameModeCatalog.Find(game, "rush", RushMode);
+        if (rush == null) return false;
+        Modes = [.. Modes, rush];
+        return true;
+    }
 
     [System.Text.Json.Serialization.JsonIgnore]
     public bool IsRetakes => Mode == RetakesMode;
@@ -212,10 +226,18 @@ public class ServerSettings
             s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
             s.HackAggression = 7;
         }),
-        new("Retakes", "Bomb planted on A or B · retake it vs 4 bots", s =>
+        new("Retakes", "Bomb planted on A or B · retake the site", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 4;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
+        }),
+        new("Rush 3v3", "Valve's tower mode · you + 2 bots vs 3", s =>
+        {
+            var rush = Modes.FirstOrDefault(m => m.Name == RushMode);
+            s.Reset(RushMode, rush?.Maps[0] ?? "de_dust2");
+            s.Bots = 5;
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
@@ -357,22 +379,7 @@ public class ServerSettings
         sb.AppendLine($"bot_difficulty {Math.Clamp(Difficulty, 0, 3)}");
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
-        sb.AppendLine($"bot_join_team {(IsRetakes ? "T" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
-        if (IsRetakes && Bots > 0)
-        {
-            // Players retake as CT, bots hold the site as T.
-            sb.AppendLine("mp_humanteam ct");
-            sb.AppendLine("mp_autoteambalance 0");
-            sb.AppendLine("mp_limitteams 0");
-        }
-        else if (IsRetakes)
-        {
-            // Friends only: split everyone into two even teams; the T side starts on the site.
-            sb.AppendLine("mp_humanteam any");
-            sb.AppendLine("mp_autoteambalance 1");
-            sb.AppendLine("mp_limitteams 1");
-        }
-        else sb.AppendLine("mp_humanteam any");
+        sb.AppendLine($"bot_join_team {(IsRetakes ? "any" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 ? 1 : 0)}");
         sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 ? 1 : 0)}");
         sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 ? 1 : 0)}");
@@ -410,7 +417,7 @@ public class ServerSettings
             sb.AppendLine("mp_respawn_on_death_ct 1");
         }
 
-        if (RoundTime > 0)
+        if (RoundTime > 0 && !IsRetakes)
         {
             sb.AppendLine($"mp_roundtime {RoundTime}");
             sb.AppendLine($"mp_roundtime_defuse {RoundTime}");
@@ -420,37 +427,9 @@ public class ServerSettings
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
 
-        sb.AppendLine($"lst_retakes {(IsRetakes ? 1 : 0)}");
-        if (IsRetakes)
-        {
-            // Retakes: short rounds, no buying, everyone spawns with a rifle, armor and some utility.
-            foreach (var line in new[]
-            {
-                "mp_ignore_round_win_conditions 0", "mp_respawn_on_death_t 0", "mp_respawn_on_death_ct 0",
-                "mp_give_player_c4 0", "mp_freezetime 3", "mp_round_restart_delay 3", "mp_c4timer 40",
-                "mp_roundtime 1.5", "mp_roundtime_defuse 1.5", "mp_maxrounds 99", "mp_halftime 0", "mp_match_can_clinch 0",
-                "mp_buytime 0", "mp_buy_anywhere 0", "mp_startmoney 0", "mp_afterroundmoney 0", "mp_maxmoney 0",
-                "mp_free_armor 2", "mp_defuser_allocation 2", "mp_death_drop_gun 0",
-                "mp_ct_default_primary weapon_m4a1_silencer", "mp_t_default_primary weapon_ak47",
-                "mp_ct_default_secondary weapon_usp_silencer", "mp_t_default_secondary weapon_glock",
-                "mp_ct_default_grenades \"weapon_flashbang weapon_smokegrenade\"",
-                "mp_t_default_grenades \"weapon_flashbang weapon_molotov\"",
-            })
-                sb.AppendLine(line);
-        }
-        else
-        {
-            // Back to the game's own loadouts after Retakes (armor and defusers come back with the mode's config on the map change).
-            foreach (var line in new[]
-            {
-                "mp_give_player_c4 1", "mp_death_drop_gun 1",
-                "mp_ct_default_primary \"\"", "mp_t_default_primary \"\"", "mp_ct_default_grenades \"\"", "mp_t_default_grenades \"\"",
-                "mp_ct_default_secondary weapon_hkp2000", "mp_t_default_secondary weapon_glock",
-            })
-                sb.AppendLine(line);
-        }
-
-        sb.AppendLine("mp_warmup_end");
+        // Retakes: B3none's plugin sets up rounds, teams and weapons itself (see Installer).
+        if (!IsRetakes) sb.AppendLine("mp_warmup_end");
+        else sb.AppendLine("retakes_enabled 1");
         return sb.ToString();
     }
 

@@ -87,16 +87,21 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
 
-**Retakes** (game mode, or the *Retakes* quick start): every round the bomb is already planted on a
-random site, A or B. The bots are terrorists guarding it; you and your friends start as CTs and
-retake it. Everyone spawns with a rifle, armor, utility and (CTs) a defuse kit; no buying. Bots set
-how many terrorists there are (4 is a good start). With **0 bots** (friends only) everyone is split
-into two even teams instead, and the T side starts on the site. Works on the defuse maps in the list.
+**Retakes** (game mode, or the *Retakes* quick start) runs on
+[cs2-retakes by B3none](https://github.com/B3none/cs2-retakes) (GPL-3.0). The launcher downloads it
+from its GitHub releases the first time you start Retakes, and loads it only for that mode (it is
+parked outside the plugins folder otherwise, so it never touches other modes). It brings its own
+spawns for the official maps, team balancing and weapon allocation; bots fill the teams. Switching
+to or from Retakes on a running server restarts the server.
+
+**Rush** (Valve's 3v3 tower mode): Valve doesn't publish its game type numbers, so the launcher
+reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
+CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
 **Text look:** Setup → *Appearance*: font (Inter or Windows' Segoe UI), *Sharp* (ClearType) or
 *Smooth* text, and *Large* text. Press *Restart Now* to apply.
 
-**Hacker mode (fun)** has its own page in the sidebar (or use the quick starts *Hacker vs bots* and
+**Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts (or use the quick starts *Hacker vs bots* and
 *Catch the hacker*). Changes there apply to the running server right away, no Apply needed.
 *Quick profiles* (Legit, Closet, Rage, Movement, All off) set every cheat in one click:
 
@@ -404,7 +409,6 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_refresh` | Re-apply skins to everyone |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
 | `lst_hack_powers wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
-| `lst_retakes 0\|1` | Retakes: bomb planted on a random site every round (the launcher sets it with the Retakes mode) |
 | `lst_aim_target closest\|crosshair` | Aimbot goes for the closest enemy anywhere, or the one nearest the crosshair |
 | `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
 | `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |

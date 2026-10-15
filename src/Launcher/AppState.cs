@@ -18,7 +18,12 @@ public class AppState
     public static string LauncherDataDir => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanSkinTester");
 
-    public AppState() => Images = new ImageCache(Http);
+    public AppState()
+    {
+        Images = new ImageCache(Http);
+        // Hacker mode is never carried over from last time: it is on only when picked in this session.
+        Settings.Server.HackerMode = 0;
+    }
 
     public bool Ready => Game is { MetamodInstalled: true, CounterStrikeSharpInstalled: true, PluginInstalled: true };
     public bool TestModeOn => Game != null && new TestSession(Game).IsOn;
@@ -37,6 +42,7 @@ public class AppState
             // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
             if (!Db.IsEmpty && Game.PluginInstalled && !File.Exists(Path.Combine(Game.SkinNamesDir, "skins.json")))
                 Db.WritePluginSkinNames(Game.SkinNamesDir);
+            if (ServerSettings.DiscoverModes(Game)) Log("Found Valve's Rush mode in your CS2 files.");
         }
         NotifyChanged();
     }

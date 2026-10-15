@@ -194,6 +194,31 @@ public static class Theme
     // Windows: dark title bar + rounded corners (Windows 11). Ignored where unsupported.
     // ---------------------------------------------------------------------------------------------
 
+    [DllImport("user32.dll")]
+    private static extern IntPtr SendMessage(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam);
+
+    /// <summary>Stops a control from painting until disposed, then repaints it once (no flicker while it changes).</summary>
+    public static IDisposable FreezePainting(Control control) => new PaintFreeze(control);
+
+    private sealed class PaintFreeze : IDisposable
+    {
+        private readonly Control _control;
+
+        public PaintFreeze(Control control)
+        {
+            _control = control;
+            if (control.IsHandleCreated) SendMessage(control.Handle, 0x000B, IntPtr.Zero, IntPtr.Zero); // WM_SETREDRAW off
+        }
+
+        public void Dispose()
+        {
+            if (!_control.IsHandleCreated) return;
+            SendMessage(_control.Handle, 0x000B, (IntPtr)1, IntPtr.Zero);
+            _control.Invalidate(true);
+            _control.Update();
+        }
+    }
+
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
