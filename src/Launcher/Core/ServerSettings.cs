@@ -358,12 +358,19 @@ public class ServerSettings
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
         sb.AppendLine($"bot_join_team {(IsRetakes ? "T" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
-        if (IsRetakes)
+        if (IsRetakes && Bots > 0)
         {
-            // Players defend as CT, bots hold the site as T.
+            // Players retake as CT, bots hold the site as T.
             sb.AppendLine("mp_humanteam ct");
             sb.AppendLine("mp_autoteambalance 0");
             sb.AppendLine("mp_limitteams 0");
+        }
+        else if (IsRetakes)
+        {
+            // Friends only: split everyone into two even teams; the T side starts on the site.
+            sb.AppendLine("mp_humanteam any");
+            sb.AppendLine("mp_autoteambalance 1");
+            sb.AppendLine("mp_limitteams 1");
         }
         else sb.AppendLine("mp_humanteam any");
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 ? 1 : 0)}");

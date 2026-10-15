@@ -90,7 +90,12 @@ public partial class LanSkinTester
             var terrorists = Utilities.GetPlayers()
                 .Where(p => p.IsValid && p.PawnIsAlive && p.Team == CsTeam.Terrorist && p.PlayerPawn.Value is { IsValid: true })
                 .ToList();
-            var spots = FindSpots(mins, maxs, terrorists.Count + 1, terrorists.FirstOrDefault()?.PlayerPawn.Value);
+            if (terrorists.Count == 0)
+            {
+                Server.PrintToChatAll($" {ChatColors.Gold}[Retakes]{ChatColors.Default} Nobody is on T: add bots, or have a friend join the terrorists.");
+                return;
+            }
+            var spots = FindSpots(mins, maxs, terrorists.Count + 1, terrorists[0].PlayerPawn.Value);
             if (spots.Count == 0)
             {
                 Logger.LogWarning("Retakes: no free spot found on site {Site}", name);

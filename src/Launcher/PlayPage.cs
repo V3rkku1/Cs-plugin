@@ -137,7 +137,7 @@ public class PlayPage : UserControl
         var bots = new Group(left);
         bots.AddRow("Bots", new HStack(_botsBar, _botsLabel));
         bots.AddRow("Skill", _difficulty);
-        bots.AddRow("Team", _botTeam, "Retakes: bots are always the terrorists");
+        bots.AddRow("Team", _botTeam, "Retakes: bots are the T side · 0 bots = friends split in teams");
         bots.AddRow("Weapons", _botWeapons);
         bots.AddRow("Peaceful Bots", _botsDontShoot, "Bots don't shoot - look at your skins in peace");
 

@@ -90,7 +90,8 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 **Retakes** (game mode, or the *Retakes* quick start): every round the bomb is already planted on a
 random site, A or B. The bots are terrorists guarding it; you and your friends start as CTs and
 retake it. Everyone spawns with a rifle, armor, utility and (CTs) a defuse kit; no buying. Bots set
-how many terrorists there are (4 is a good start). Works on the defuse maps in the list.
+how many terrorists there are (4 is a good start). With **0 bots** (friends only) everyone is split
+into two even teams instead, and the T side starts on the site. Works on the defuse maps in the list.
 
 **Text look:** Setup → *Appearance*: font (Inter or Windows' Segoe UI), *Sharp* (ClearType) or
 *Smooth* text, and *Large* text. Press *Restart Now* to apply.
