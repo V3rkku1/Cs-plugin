@@ -4,7 +4,7 @@ using LanSkinTester.Launcher.Ui;
 
 namespace LanSkinTester.Launcher;
 
-/// <summary>Quick-start presets, server settings, start/stop and the live server panel with quick actions.</summary>
+/// <summary>Quick starts and start/stop. Mode, bots, rules and live controls live on <see cref="LiveServerPage"/>.</summary>
 public class PlayPage : UserControl
 {
     private readonly AppState _app;
@@ -43,6 +43,12 @@ public class PlayPage : UserControl
     /// <summary>The "Open Hacker Page" button was pressed.</summary>
     public event Action? OpenHackerPage;
 
+    /// <summary>The Play page asked to open Live Server.</summary>
+    public event Action? OpenLiveServer;
+
+    /// <summary>The settings and live controls, hosted by <see cref="LiveServerPage"/>.</summary>
+    public Control ServerContent { get; private set; } = null!;
+
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
     private readonly PillButton _applyButton = new("Apply Changes");
@@ -56,8 +62,8 @@ public class PlayPage : UserControl
     private readonly Label _heroLive = new SmoothLabel { AutoSize = true, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _inviteTitle = new SmoothLabel { AutoSize = true, Text = "Invite Friends", Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _inviteText = new SmoothLabel { AutoSize = true, MaximumSize = new Size(330, 0), Font = Theme.Small, ForeColor = Color.FromArgb(200, 205, 225), BackColor = Color.Transparent };
-    // Two rows so six tabs stay readable. Order is fixed: saved PlayTab 3 is still Launch.
-    private readonly Segmented _tabs = new(["Game", "Bots", "Rules", "Launch", "Retakes", "Live"], 178, columns: 3);
+    // Order is fixed: a saved PlayTab of 3 is still Launch.
+    private readonly Segmented _tabs = new(["Game", "Bots", "Rules", "Launch", "Retakes"], 108);
 
     private readonly Segmented _retakeStyle = new(ServerSettings.RetakeStyles, 96);
     private readonly NumberField _retakePlayers = new(90) { Minimum = 2, Maximum = 10 };
@@ -133,7 +139,7 @@ public class PlayPage : UserControl
         _gameButton.Click += (_, _) => OpenGame();
         _stopButton.Click += (_, _) => StopTest();
         _tips.SetToolTip(_startButton, "Start the server and CS2 (F5)");
-        _tips.SetToolTip(_applyButton, "Send the settings below to the running server (F5)");
+        _tips.SetToolTip(_applyButton, "Send the Live Server settings to the running server (F5)");
         _tips.SetToolTip(_stopButton, "Close the server and CS2, back to normal (Shift+F5)");
         _copyIp.Click += (_, _) => CopyToClipboard(FriendsInvite.HostAddress(_app.Settings.Server), "Address copied - send it to your friend.");
         _copyInvite.Click += (_, _) =>
@@ -152,7 +158,10 @@ public class PlayPage : UserControl
         saveSetup.Click += (_, _) => SaveSetup();
         var quick = new Group(full);
         quick.AddContent(_presets, new Padding(12, 12, 2, 2));
-        quick.AddRow("Your setups", saveSetup, "Saves the settings below as a quick start · click × on a saved tile to delete it");
+        quick.AddRow("Your setups", saveSetup, "Saves the Live Server settings as a quick start · click × on a saved tile to delete it");
+        var openServer = new PillButton("Open Live Server", PillButton.Style.Primary);
+        openServer.Click += (_, _) => OpenLiveServer?.Invoke();
+        quick.AddRow("Server settings", openServer, "Mode, bots, rules and the live controls");
 
         // ---- Settings, one tab at a time ----
         var game = new Group(left);
@@ -220,7 +229,7 @@ public class PlayPage : UserControl
             Send($"lst_show_damage {(settings.ShowDamage ? 1 : 0)}");
         };
         _liveControls.Add(damage);
-        var roundButtons = ButtonRow(left,
+        var roundButtons = ButtonRow(right,
             Action("Restart", "mp_restartgame 1"),
             Action("End Warmup", "mp_warmup_end"),
             Action("Pause", "lst_pause on"),
@@ -228,13 +237,13 @@ public class PlayPage : UserControl
             Action("Swap", "lst_swap"),
             Action("CT Win", "lst_endround ct"),
             Action("T Win", "lst_endround t"));
-        var playerButtons = ButtonRow(left,
+        var playerButtons = ButtonRow(right,
             Action("Add CT", "bot_add_ct"),
             Action("Add T", "bot_add_t"),
             Action("Kick Bots", "bot_kick"),
             Action("Respawn", "lst_respawn"),
             Action("God", "lst_god"));
-        var practiceButtons = ButtonRow(left,
+        var practiceButtons = ButtonRow(right,
             Action("Third Person", "lst_view third"),
             Action("First Person", "lst_view first"),
             Action("Noclip", "lst_noclip"),
@@ -261,34 +270,17 @@ public class PlayPage : UserControl
         _liveControls.Add(_command);
         _liveControls.Add(_runCommand);
         foreach (var control in _liveControls) control.Enabled = false;
-        var roundGroup = new Group(left);
+        var roundGroup = new Group(right);
         roundGroup.AddContent(roundButtons, new Padding(12, 12, 4, 4));
-        var playerGroup = new Group(left);
+        var playerGroup = new Group(right);
         playerGroup.AddContent(playerButtons, new Padding(12, 12, 4, 4));
-        var practiceGroup = new Group(left);
+        var practiceGroup = new Group(right);
         practiceGroup.AddContent(practiceButtons, new Padding(12, 12, 4, 4));
-        var giveGroup = new Group(left);
+        var giveGroup = new Group(right);
         _giveBox.Margin = new Padding(0, 0, 8, 0);
         giveGroup.AddRow("Give Weapon", new HStack(_giveBox, _giveButton));
         giveGroup.AddRow("Command", new HStack(_command, _runCommand), "Server console · Enter sends it");
-        var liveHint = new SmoothLabel
-        {
-            Text = "Round, players and practice. They light up when the server is up.",
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = true,
-            MaximumSize = new Size(left - 4, 0),
-            Margin = new Padding(2, 0, 0, 10),
-            BackColor = Color.Transparent,
-        };
-        var liveTab = new VStack(
-            liveHint,
-            Theme.Caption("ROUND"), roundGroup,
-            Theme.Caption("PLAYERS"), playerGroup,
-            Theme.Caption("PRACTICE"), practiceGroup,
-            giveGroup);
-
-        var tabPages = new Control[] { game, bots, options, launch, retakes, liveTab };
+        var tabPages = new Control[] { game, bots, options, launch, retakes };
         var tabHost = new VStack(tabPages) { MinimumSize = new Size(left, 0) };
         void ShowTab(int index)
         {
@@ -309,27 +301,31 @@ public class PlayPage : UserControl
         };
         _tabs.Margin = new Padding(0, 0, 0, 10);
 
-        var leftColumn = new VStack(Theme.Caption("SERVER"), _tabs, tabHost) { Margin = new Padding(0, 0, 28, 0) };
+        var leftColumn = new VStack(Theme.Caption("SETTINGS"), _tabs, tabHost) { Margin = new Padding(0, 0, 28, 0) };
 
         var live = new Group(right);
-        _liveRow = live.AddRow("Server not running", null, "Press Start, or open the Live tab once it's up.");
+        _liveRow = live.AddRow("Server not running", null, "Press Start on the Play page.");
         var activity = new Group(right);
         activity.AddContent(_log, new Padding(12, 12, 12, 12));
         var rightColumn = new VStack(
             Theme.Caption("STATUS"), live,
+            Theme.Caption("ROUND"), roundGroup,
+            Theme.Caption("PLAYERS"), playerGroup,
+            Theme.Caption("PRACTICE"), practiceGroup,
+            giveGroup,
             Theme.Caption("ACTIVITY"), activity);
+        ServerContent = new HStack(leftColumn, rightColumn);
 
         var page = new VStack(
-            Header("Play", "Start a local server, then run the match from the Live tab."),
+            Header("Play", "Pick a quick start, or press Start."),
             _hero,
-            Theme.Caption("QUICK START"), quick,
-            new HStack(leftColumn, rightColumn));
+            Theme.Caption("QUICK START"), quick);
         Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
         LoadServerSettings();
         _modeBox.SelectedIndexChanged += (_, _) => OnModeChanged();
-        VisibleChanged += (_, _) => { if (Visible) UpdateHackerRow(); };
+        // The hacker row now lives on Live Server, so refresh it whenever this page is shown too.
         _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
 
         _app.Changed += Refresh;
@@ -342,7 +338,7 @@ public class PlayPage : UserControl
         {
             RefreshLive();
             CheckServerCrash();
-            if (Visible && WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
+            if (WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
         };
         _poll.Start();
     }

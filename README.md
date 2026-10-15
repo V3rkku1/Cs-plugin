@@ -59,7 +59,7 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
    *Aim practice*, *Competitive 5v5*, *Arms Race*, *Demolition*, *Weapons Expert*,
    *Retakes* (Valve's 3v4 loadout-card mode), *Plugin retakes* (allocator and instadefuse),
    *Retake buy*, *Rush 3v3* when your CS2 has it, plus any setup you saved.
-2. **Server** settings sit on tabs: Game, Bots, Rules, Launch, Retakes, Live. Or pick everything yourself:
+2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings sit on tabs: Game, Bots, Rules, Launch, Retakes. Or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom, Retakes) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
    - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
@@ -83,10 +83,10 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
    and option settings to the running server; changing the mode or map switches the map. **Open CS2**
    starts the game again if you closed it.
-4. **Status** (right side) shows the map, mode, players and bots, and whether skins are working,
-   updated every 2 seconds. **Live** (its own tab) holds the server controls: round (restart, end warmup,
-   pause, resume, swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person,
-   noclip, armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
+4. **Live Server** shows the map, mode, players and bots, and whether skins are working, updated
+   every 2 seconds. The same page holds the server controls: round (restart, end warmup, pause, resume,
+   swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person, noclip,
+   armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
    **Command** sends anything else to the server console. The buttons light up when the server is up.
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
@@ -106,7 +106,7 @@ On the Retakes tab, Plugin style can set max players (2–10), the terrorist per
 
 **Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
 
-**Live tab** controls, besides restart, respawn, third person and giving a weapon:
+**Live Server** controls, besides restart, respawn, third person and giving a weapon:
 
 - *Pause* / *Resume*, *Swap* teams, *CT Win* / *T Win*, *End Warmup*
 - *Add CT*, *Add T*, *Kick Bots*
