@@ -134,15 +134,14 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 - **Powers** (each can be turned off):
   - *Chams:* a solid colored copy of each player, visible through walls. Enemies and teammates use
     different colors, and only hackers see them.
-  - *Box ESP:* a 3D wire box around every player, through walls. The box is rebuilt as they move so it
-    does not drag a line behind them.
+  - *Box ESP:* a 3D wire box around every player, through walls. The same beams follow the player, so
+    turning the profile on does not spawn a new box every step.
   - *Skeleton ESP:* a stick figure on the body (crouch and facing). The server has no client bone
     overlay, so this is drawn in the world and only sent to hackers.
   - *Name tags:* name, HP, armor, gun and grenades (including the bomb) floating above each player.
-  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** rewrites
-    the angles inside the command the server shoots with, then puts your own view back, so the
-    crosshair is not left on the target. **Rage** snaps that command and injects the shot.
-    The triggerbot does the same with the attack button when an enemy is under the crosshair.
+  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** aims the
+    shot on the server pawn and puts your own view back. **Rage** snaps onto the target and shoots.
+    The triggerbot presses attack when an enemy is under the crosshair, after a short random delay.
   - *Body:* head, neck or chest. Legit and silent still miss by a little at low aggression.
   - *Aim at:* **closest enemy**, **nearest crosshair**, **lowest HP**, or **highest threat** (the enemy
     whose aim is closest to you).

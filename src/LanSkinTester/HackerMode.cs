@@ -323,12 +323,10 @@ public partial class LanSkinTester
         RegisterEventHandler<EventPlayerBlind>(OnHackBlind);
         RegisterAimBindCommands();
         LoadCheatMenu();
-        LoadCommandAim();
     }
 
     private void UnloadHackerMode()
     {
-        UnloadCommandAim();
         RemoveAllGlows();
     }
 
@@ -587,33 +585,21 @@ public partial class LanSkinTester
             var pawn = hacker.PlayerPawn.Value;
             if (pawn == null || !pawn.IsValid) continue;
 
-            if (Has(hacker, Power.Bhop)) AutoBhop(hacker, pawn);
-            if (Has(hacker, Power.EspInfo)) ShowEnemyInfo(hacker, pawn, refresh: _tick % 8 == 0);
-
-            if (Has(hacker, Power.Speed) && pawn.VelocityModifier < SpeedMultiplier)
+            try
             {
-                pawn.VelocityModifier = SpeedMultiplier;
-                Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
-            }
+                if (Has(hacker, Power.Bhop)) AutoBhop(hacker, pawn);
+                if (Has(hacker, Power.EspInfo)) ShowEnemyInfo(hacker, pawn, refresh: _tick % 8 == 0);
 
-            if (Has(hacker, Power.NoRecoil)) RemoveRecoil(pawn);
-            if (Has(hacker, Power.Radar) && _tick % 2 == 0) RevealOnRadar(hacker);
-
-            var menu = _cheatMenus.ContainsKey(hacker.Slot);
-            // The command hook aims with this tick's mouse angles. Doing it here as well would
-            // reset the reaction timer before that command is simulated.
-            if (CommandAimReady)
-            {
-                if (menu)
+                if (Has(hacker, Power.Speed) && pawn.VelocityModifier < SpeedMultiplier)
                 {
-                    SetForcedAttack(hacker, false);
-                    _aimLocks.Remove(hacker.Slot);
-                    _pendingAim.Remove(hacker.Slot);
-                    _triggers.Remove(hacker.Slot);
+                    pawn.VelocityModifier = SpeedMultiplier;
+                    Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
                 }
-            }
-            else
-            {
+
+                if (Has(hacker, Power.NoRecoil)) RemoveRecoil(pawn);
+                if (Has(hacker, Power.Radar) && _tick % 2 == 0) RevealOnRadar(hacker);
+
+                var menu = _cheatMenus.ContainsKey(hacker.Slot);
                 var triggerFire = false;
                 if (!menu && Has(hacker, Power.Trigger)) triggerFire = Triggerbot(hacker, pawn);
                 else _triggers.Remove(hacker.Slot);
@@ -626,6 +612,10 @@ public partial class LanSkinTester
                     _pendingAim.Remove(hacker.Slot);
                 }
                 SetForcedAttack(hacker, fire);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogWarning(ex, "Hacker tick failed for slot {Slot}", hacker.Slot);
             }
         }
     }
@@ -872,21 +862,14 @@ public partial class LanSkinTester
     };
 
     /// <returns>True when rage should fire for this target.</returns>
-    private bool Aim(CCSPlayerController hacker, CCSPlayerPawn pawn, bool triggerWantsShot, float? commandPitch = null, float? commandYaw = null, bool commandAttack = false)
+    private bool Aim(CCSPlayerController hacker, CCSPlayerPawn pawn, bool triggerWantsShot)
     {
-        var fromCommand = commandPitch.HasValue && commandYaw.HasValue;
         var style = AimStyleOf(hacker);
         var (fov, smoothing) = AimSettingsOf(hacker);
         if (style == AimStyle.Rage) fov = 180f;
         var mode = AimTargetOf(hacker);
         var sticky = mode == AimTarget.Crosshair;
-        float currentPitch, currentYaw;
-        if (fromCommand)
-        {
-            currentPitch = commandPitch!.Value;
-            currentYaw = commandYaw!.Value;
-        }
-        else if (!TryReadView(pawn, out currentPitch, out currentYaw)) return false;
+        if (!TryReadView(pawn, out var currentPitch, out var currentYaw)) return false;
         _aimLocks.TryGetValue(hacker.Slot, out var aim);
         var walls = Has(hacker, Power.AimWalls);
 
@@ -957,22 +940,17 @@ public partial class LanSkinTester
 
         if (style == AimStyle.Silent)
         {
-            // The bullet uses the angles written into this tick's command. The post hook puts the
-            // player's own view back, so the crosshair is not left on the target.
-            var shooting = commandAttack || triggerWantsShot || (hacker.Buttons & PlayerButtons.Attack) != 0;
+            // Pre-think writes the shot on the pawn. Post-think puts the player's own view back.
+            var shooting = triggerWantsShot || (hacker.Buttons & PlayerButtons.Attack) != 0;
             if (!shooting)
             {
                 _pendingAim.Remove(hacker.Slot);
                 return false;
             }
-            if (fromCommand) _silentRestore[hacker.Slot] = (currentPitch, currentYaw);
-            else
-            {
-                var readingOurs = _pendingAim.TryGetValue(hacker.Slot, out var previous)
-                    && Math.Abs(AngleDiff(previous.Pitch, currentPitch)) < 0.25f
-                    && Math.Abs(AngleDiff(previous.Yaw, currentYaw)) < 0.25f;
-                if (!readingOurs) _silentRestore[hacker.Slot] = (currentPitch, currentYaw);
-            }
+            var readingOurs = _pendingAim.TryGetValue(hacker.Slot, out var previous)
+                && Math.Abs(AngleDiff(previous.Pitch, currentPitch)) < 0.25f
+                && Math.Abs(AngleDiff(previous.Yaw, currentYaw)) < 0.25f;
+            if (!readingOurs) _silentRestore[hacker.Slot] = (currentPitch, currentYaw);
             _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
             return false;
         }
@@ -980,7 +958,7 @@ public partial class LanSkinTester
         if (style == AimStyle.Rage)
         {
             _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
-            if (!fromCommand) WriteView(pawn, goal.Pitch, goal.Yaw);
+            WriteView(pawn, goal.Pitch, goal.Yaw);
             return true;
         }
 
@@ -989,7 +967,7 @@ public partial class LanSkinTester
         if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f)
         {
             _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
-            if (!fromCommand) WriteView(pawn, goal.Pitch, goal.Yaw);
+            WriteView(pawn, goal.Pitch, goal.Yaw);
             return false;
         }
         var maxStep = AimMaxStep * smoothing / AimSmoothing;
@@ -1001,7 +979,7 @@ public partial class LanSkinTester
         var nextPitch = currentPitch + stepPitch;
         var nextYaw = currentYaw + stepYaw;
         _pendingAim[hacker.Slot] = (nextPitch, nextYaw);
-        if (!fromCommand) WriteView(pawn, nextPitch, nextYaw);
+        WriteView(pawn, nextPitch, nextYaw);
         return false;
     }
 
@@ -1024,7 +1002,7 @@ public partial class LanSkinTester
         return TriggerbotAt(hacker, pawn, pitch, yaw);
     }
 
-    /// <summary>Same delay as <see cref="Triggerbot"/>, using the angles in this tick's command.</summary>
+    /// <summary>Same delay as <see cref="Triggerbot"/>, using the view angles already read from the pawn.</summary>
     private bool TriggerbotAt(CCSPlayerController hacker, CCSPlayerPawn pawn, float pitch, float yaw)
     {
         var walls = Has(hacker, Power.AimWalls);

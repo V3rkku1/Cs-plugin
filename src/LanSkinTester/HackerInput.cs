@@ -109,7 +109,7 @@ public partial class LanSkinTester
             var pawn = hacker.PlayerPawn.Value;
             if (pawn is not { IsValid: true }) continue;
 
-            if (!CommandAimReady && _pendingAim.TryGetValue(hacker.Slot, out var aim))
+            if (_pendingAim.TryGetValue(hacker.Slot, out var aim))
             {
                 var pitch = aim.Pitch;
                 var yaw = aim.Yaw;

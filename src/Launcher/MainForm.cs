@@ -64,7 +64,8 @@ public class MainForm : Form
                 ? _app.Settings.GamePath
                 : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
             // First run (or something missing): start on Setup; otherwise where you left off.
-            ShowPage(!_app.Ready || _app.Db.IsEmpty ? _setup : PageByName(_app.Settings.LastPage) ?? _play);
+            var requested = Program.StartPage != null ? PageByName(Program.StartPage) : null;
+            ShowPage(requested ?? (!_app.Ready || _app.Db.IsEmpty ? _setup : PageByName(_app.Settings.LastPage) ?? _play));
             _watch.Tick += (_, _) => WatchGame();
             _watch.Start();
             WatchGame();
