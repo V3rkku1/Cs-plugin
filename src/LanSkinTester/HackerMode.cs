@@ -13,7 +13,7 @@ namespace LanSkinTester;
 /// "Hacker mode": a fun game mode for your own server. Everything happens on the server (glow
 /// entities, view angles, damage), so nobody's game is modified.
 ///   lst_hack off|all|one        everyone is a hacker, or one random player per round ("catch the hacker")
-///   lst_hack_powers wallhack,aimbot,onetap,ammo,speed   (or "all")
+///   lst_hack_powers wallhack,boxesp,boneesp,tags,aimbot,trigger,onetap,ammo,speed   (or "all")
 /// </summary>
 public partial class LanSkinTester
 {
@@ -24,7 +24,8 @@ public partial class LanSkinTester
     {
         None = 0, Wallhack = 1, Aimbot = 2, OneTap = 4, Ammo = 8, Speed = 16,
         Bhop = 32, NoFlash = 64, EspInfo = 128, AimWalls = 256, NoRecoil = 512, Radar = 1024,
-        All = 2047,
+        BoxEsp = 2048, BoneEsp = 4096, Tags = 8192, Trigger = 16384,
+        All = 32767,
     }
 
     /// <summary>
@@ -93,21 +94,91 @@ public partial class LanSkinTester
     private readonly HashSet<int> _aimHeld = new();
     private readonly HashSet<int> _aimToggled = new();
 
-    /// <summary>Who the aimbot goes for: the closest enemy anywhere around you, or the one nearest your crosshair.</summary>
-    private enum AimTarget { Closest, Crosshair }
+    /// <summary>Who the aimbot goes for.</summary>
+    private enum AimTarget { Closest, Crosshair, Health, Threat }
 
-    private static readonly string[] AimTargetNames = ["Closest enemy", "Near crosshair"];
+    private static readonly string[] AimTargetNames = ["Closest enemy", "Near crosshair", "Lowest HP", "Highest threat"];
     private AimTarget _defaultAimTarget = AimTarget.Closest;
     private readonly Dictionary<int, AimTarget> _aimTargets = new();
 
     private AimTarget AimTargetOf(CCSPlayerController player) => _aimTargets.TryGetValue(player.Slot, out var t) ? t : _defaultAimTarget;
 
-    [ConsoleCommand("lst_aim_target", "Aimbot target: closest (closest enemy anywhere) | crosshair (nearest the crosshair)")]
-    [CommandHelper(minArgs: 1, usage: "closest|crosshair", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    private static AimTarget ParseAimTarget(string text)
+    {
+        var t = text.Trim().ToLowerInvariant();
+        if (t.StartsWith("cross")) return AimTarget.Crosshair;
+        if (t is "health" or "hp" or "low" or "lowest") return AimTarget.Health;
+        if (t.StartsWith("threat") || t is "danger") return AimTarget.Threat;
+        return AimTarget.Closest;
+    }
+
+    [ConsoleCommand("lst_aim_target", "Aimbot target: closest | crosshair | health | threat")]
+    [CommandHelper(minArgs: 1, usage: "closest|crosshair|health|threat", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnAimTargetCommand(CCSPlayerController? caller, CommandInfo cmd)
     {
-        _defaultAimTarget = cmd.GetArg(1).StartsWith("cross", StringComparison.OrdinalIgnoreCase) ? AimTarget.Crosshair : AimTarget.Closest;
+        _defaultAimTarget = ParseAimTarget(cmd.GetArg(1));
     }
+
+    /// <summary>Legit eases the crosshair. Silent aims the bullet while you shoot. Rage snaps and fires.</summary>
+    private enum AimStyle { Legit, Silent, Rage }
+
+    private enum AimBone { Head, Neck, Chest }
+
+    private static readonly string[] AimStyleNames = ["Legit", "Silent", "Rage"];
+    private static readonly string[] AimBoneNames = ["Head", "Neck", "Chest"];
+
+    private AimStyle _defaultAimStyle = AimStyle.Legit;
+    private AimBone _defaultAimBone = AimBone.Head;
+    private readonly Dictionary<int, AimStyle> _aimStyles = new();
+    private readonly Dictionary<int, AimBone> _aimBones = new();
+
+    private AimStyle AimStyleOf(CCSPlayerController player) => _aimStyles.TryGetValue(player.Slot, out var s) ? s : _defaultAimStyle;
+    private AimBone AimBoneOf(CCSPlayerController player) => _aimBones.TryGetValue(player.Slot, out var b) ? b : _defaultAimBone;
+
+    private static AimStyle? ParseAimStyle(string text) => text.Trim().ToLowerInvariant() switch
+    {
+        "legit" or "smooth" or "human" => AimStyle.Legit,
+        "silent" => AimStyle.Silent,
+        "rage" or "snap" => AimStyle.Rage,
+        _ => null,
+    };
+
+    private static AimBone? ParseAimBone(string text) => text.Trim().ToLowerInvariant() switch
+    {
+        "head" => AimBone.Head,
+        "neck" => AimBone.Neck,
+        "chest" or "body" => AimBone.Chest,
+        _ => null,
+    };
+
+    [ConsoleCommand("lst_aim_style", "Aimbot style: legit (smooth) | silent (bullet only) | rage (snap and shoot)")]
+    [CommandHelper(minArgs: 1, usage: "legit|silent|rage", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnAimStyleCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        if (ParseAimStyle(cmd.GetArg(1)) is { } style) _defaultAimStyle = style;
+    }
+
+    [ConsoleCommand("lst_aim_bone", "Aimbot body part: head | neck | chest")]
+    [CommandHelper(minArgs: 1, usage: "head|neck|chest", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnAimBoneCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        if (ParseAimBone(cmd.GetArg(1)) is { } bone) _defaultAimBone = bone;
+    }
+
+    /// <summary>View angles to put back on the next tick after a silent shot.</summary>
+    private readonly Dictionary<int, (float Pitch, float Yaw)> _silentRestore = new();
+
+    /// <summary>Slots whose +attack we sent (triggerbot or rage), so we can release it.</summary>
+    private readonly HashSet<int> _attackHeld = new();
+
+    private sealed class TriggerLock
+    {
+        public int TargetSlot = -1;
+        public DateTime SeenAt;
+        public double DelayMs;
+    }
+
+    private readonly Dictionary<int, TriggerLock> _triggers = new();
 
     private AimKey AimKeyOf(CCSPlayerController player) => _aimKeys.TryGetValue(player.Slot, out var k) ? k : _defaultAimKey;
 
@@ -211,20 +282,30 @@ public partial class LanSkinTester
             _hackerSlots.Clear();
             _cheatMenus.Clear(); // their boards went with the old map
             _aimLocks.Clear();
+            _esp.Clear();
+            _triggers.Clear();
+            _silentRestore.Clear();
+            _attackHeld.Clear();
         });
         RegisterListener<Listeners.OnClientDisconnect>(slot =>
         {
             RemoveGlow(slot);
+            RemovePlayerEsp(slot);
             _hackerSlots.Remove(slot);
             _personal.Remove(slot);
             _aggression.Remove(slot);
             _aimLocks.Remove(slot);
             _aimKeys.Remove(slot);
             _aimTargets.Remove(slot);
+            _aimStyles.Remove(slot);
+            _aimBones.Remove(slot);
             _aimHeld.Remove(slot);
             _aimToggled.Remove(slot);
             _cheatMenus.Remove(slot);
             _espText.Remove(slot);
+            _triggers.Remove(slot);
+            _silentRestore.Remove(slot);
+            _attackHeld.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnHackSpawn);
@@ -266,8 +347,8 @@ public partial class LanSkinTester
         Announce();
     }
 
-    [ConsoleCommand("lst_hack_powers", "Hacker powers: wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar or all")]
-    [CommandHelper(minArgs: 1, usage: "wallhack,aimbot,...|all|none", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    [ConsoleCommand("lst_hack_powers", "Hacker powers: wallhack,boxesp,boneesp,tags,aimbot,trigger,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar or all")]
+    [CommandHelper(minArgs: 1, usage: "wallhack,boxesp,aimbot,trigger,...|all|none", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnHackPowersCommand(CCSPlayerController? caller, CommandInfo cmd)
     {
         var powers = Power.None;
@@ -335,15 +416,24 @@ public partial class LanSkinTester
     private string DescribePowers(CCSPlayerController player)
     {
         var names = new List<string>();
-        if (Has(player, Power.Wallhack)) names.Add("walls");
-        if (Has(player, Power.Aimbot)) names.Add(Has(player, Power.AimWalls) ? "aimbot (through walls)" : "aimbot");
+        if (Has(player, Power.Wallhack)) names.Add("chams");
+        if (Has(player, Power.BoxEsp)) names.Add("box esp");
+        if (Has(player, Power.BoneEsp)) names.Add("skeleton");
+        if (Has(player, Power.Tags)) names.Add("tags");
+        if (Has(player, Power.Aimbot))
+        {
+            var style = AimStyleNames[(int)AimStyleOf(player)].ToLowerInvariant();
+            var bone = AimBoneNames[(int)AimBoneOf(player)].ToLowerInvariant();
+            names.Add(Has(player, Power.AimWalls) ? $"aimbot {style} {bone} (through walls)" : $"aimbot {style} {bone}");
+        }
+        if (Has(player, Power.Trigger)) names.Add("triggerbot");
         if (Has(player, Power.EspInfo)) names.Add("enemy info");
         if (Has(player, Power.OneTap)) names.Add("damage boost");
         if (Has(player, Power.Ammo)) names.Add("infinite ammo");
         if (Has(player, Power.Speed)) names.Add("speed");
         if (Has(player, Power.Bhop)) names.Add("bhop");
         if (Has(player, Power.NoFlash)) names.Add("no flash");
-        if (Has(player, Power.NoRecoil)) names.Add("no recoil");
+        if (Has(player, Power.NoRecoil)) names.Add("recoil control");
         if (Has(player, Power.Radar)) names.Add("radar");
         return names.Count == 0 ? "nothing (all powers off)" : string.Join(" · ", names);
     }
@@ -466,12 +556,23 @@ public partial class LanSkinTester
     private void OnHackTick()
     {
         TickCheatMenus();
-        if (_hackMode == HackMode.Off && _personal.Count == 0) return;
+        RestoreSilentAims();
+        if (_hackMode == HackMode.Off && _personal.Count == 0)
+        {
+            ReleaseAllForcedAttacks();
+            ClearPlayerEsp();
+            return;
+        }
         _tick++;
+        UpdatePlayerEsp();
 
         foreach (var hacker in Hackers())
         {
-            if (!hacker.PawnIsAlive) continue;
+            if (!hacker.PawnIsAlive)
+            {
+                SetForcedAttack(hacker, false);
+                continue;
+            }
             var pawn = hacker.PlayerPawn.Value;
             if (pawn == null || !pawn.IsValid) continue;
 
@@ -485,12 +586,58 @@ public partial class LanSkinTester
             }
 
             if (Has(hacker, Power.NoRecoil)) RemoveRecoil(pawn);
-            if (Has(hacker, Power.Radar) && _tick % 4 == 0) RevealOnRadar(hacker);
+            if (Has(hacker, Power.Radar) && _tick % 2 == 0) RevealOnRadar(hacker);
 
-            if (Has(hacker, Power.Aimbot) && AimPressed(hacker) && !_cheatMenus.ContainsKey(hacker.Slot))
-                Aim(hacker, pawn);
+            var menu = _cheatMenus.ContainsKey(hacker.Slot);
+            // Trigger looks at the real crosshair, before legit/rage/silent move the view.
+            var triggerFire = false;
+            if (!menu && Has(hacker, Power.Trigger)) triggerFire = Triggerbot(hacker, pawn);
+            else _triggers.Remove(hacker.Slot);
+
+            var fire = triggerFire;
+            if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
             else _aimLocks.Remove(hacker.Slot);
+
+            SetForcedAttack(hacker, fire);
         }
+    }
+
+    /// <summary>Puts the real view back after a silent shot so the crosshair does not stay on the target.</summary>
+    private void RestoreSilentAims()
+    {
+        if (_silentRestore.Count == 0) return;
+        foreach (var (slot, angles) in _silentRestore)
+        {
+            var pawn = Utilities.GetPlayerFromSlot(slot)?.PlayerPawn.Value;
+            if (pawn is { IsValid: true }) pawn.Teleport(null, new QAngle(angles.Pitch, angles.Yaw, 0), null);
+        }
+        _silentRestore.Clear();
+    }
+
+    private void SetForcedAttack(CCSPlayerController player, bool down)
+    {
+        var held = _attackHeld.Contains(player.Slot);
+        if (down == held) return;
+        try
+        {
+            player.ExecuteClientCommandFromServer(down ? "+attack" : "-attack");
+            if (down) _attackHeld.Add(player.Slot);
+            else _attackHeld.Remove(player.Slot);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Could not {Action} attack for slot {Slot}", down ? "press" : "release", player.Slot);
+        }
+    }
+
+    private void ReleaseAllForcedAttacks()
+    {
+        foreach (var slot in _attackHeld.ToList())
+        {
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player is { IsValid: true }) SetForcedAttack(player, false);
+        }
+        _attackHeld.Clear();
     }
 
     private bool _recoilBroken;
@@ -639,11 +786,11 @@ public partial class LanSkinTester
 
     private static readonly string[] Arrows = ["↑", "↗", "→", "↘", "↓", "↙", "←", "↖"];
 
-    /// <summary>"ESP" line in the center of the screen: the nearest enemy's name, health, distance and direction.</summary>
+    /// <summary>Center-screen ESP: the three nearest enemies, with gear.</summary>
     private readonly Dictionary<int, string> _espText = new();
 
     /// <summary>
-    /// Recomputes the line every few ticks (refresh) but re-sends it every tick so the center panel
+    /// Recomputes the lines every few ticks (refresh) but re-sends them every tick so the center panel
     /// stays steady instead of fading in and out.
     /// </summary>
     private void ShowEnemyInfo(CCSPlayerController hacker, CCSPlayerPawn pawn, bool refresh)
@@ -658,28 +805,33 @@ public partial class LanSkinTester
         var origin = pawn.AbsOrigin;
         if (origin == null) return;
 
-        CCSPlayerController? nearest = null;
-        CCSPlayerPawn? nearestPawn = null;
-        var best = double.MaxValue;
+        var found = new List<(CCSPlayerController Player, CCSPlayerPawn Pawn, double Distance, Vector Origin)>();
         foreach (var enemy in Utilities.GetPlayers())
         {
             if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
-            var p = enemy.PlayerPawn.Value;
-            if (p?.AbsOrigin is not { } o) continue;
+            var enemyPawn = enemy.PlayerPawn.Value;
+            if (enemyPawn?.AbsOrigin is not { } o) continue;
             var d = Math.Sqrt(Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2) + Math.Pow(o.Z - origin.Z, 2));
-            if (d >= best) continue;
-            best = d;
-            nearest = enemy;
-            nearestPawn = p;
+            found.Add((enemy, enemyPawn, d, o));
         }
-        if (nearest == null || nearestPawn?.AbsOrigin is not { } target) return;
+        if (found.Count == 0) return;
+        found.Sort((a, b) => a.Distance.CompareTo(b.Distance));
 
-        var yaw = Math.Atan2(target.Y - origin.Y, target.X - origin.X) * 180 / Math.PI;
-        var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
-        var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
-        var visible = IsVisibleTo(nearestPawn, pawn);
-        var text = $"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(nearest.PlayerName)}</font>" +
-                   $"<font color='#cccccc'> · {nearestPawn.Health} HP · {best * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>";
+        var lines = new List<string>();
+        foreach (var (enemy, enemyPawn, distance, target) in found.Take(3))
+        {
+            var yaw = Math.Atan2(target.Y - origin.Y, target.X - origin.X) * 180 / Math.PI;
+            var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
+            var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
+            var visible = IsVisibleTo(enemyPawn, pawn);
+            var gear = ReadGear(enemyPawn);
+            var extra = gear.Gun == "" ? gear.Utility : gear.Utility == "" ? gear.Gun : $"{gear.Gun} {gear.Utility}";
+            lines.Add($"<font color='{(visible ? "#ff5050" : "#ffb020")}'>{arrow} {System.Net.WebUtility.HtmlEncode(enemy.PlayerName)}</font>" +
+                      $"<font color='#cccccc'> · {enemyPawn.Health} HP · {gear.Armor}" +
+                      (extra == "" ? "" : $" · {System.Net.WebUtility.HtmlEncode(extra)}") +
+                      $" · {distance * 0.0254:0} m{(visible ? " · VISIBLE" : "")}</font>");
+        }
+        var text = string.Join("<br>", lines);
         _espText[hacker.Slot] = text;
         hacker.PrintToCenterHtml(text, 1);
     }
@@ -703,21 +855,33 @@ public partial class LanSkinTester
     /// <summary>1 at aggression 1 (loose: head/neck, a few units off), 0 at 10 (dead-centre head).</summary>
     private float LoosenessOf(CCSPlayerController player) => (10 - AggressionOf(player)) / 9f;
 
-    private void Aim(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    /// <summary>How far below the eyes the chosen body part sits.</summary>
+    private static float BoneDrop(AimBone bone) => bone switch
     {
+        AimBone.Neck => 12f,
+        AimBone.Chest => 26f,
+        _ => 2f,
+    };
+
+    /// <returns>True when rage should fire for this target.</returns>
+    private bool Aim(CCSPlayerController hacker, CCSPlayerPawn pawn, bool triggerWantsShot)
+    {
+        var style = AimStyleOf(hacker);
         var (fov, smoothing) = AimSettingsOf(hacker);
-        var closest = AimTargetOf(hacker) == AimTarget.Closest;
+        if (style == AimStyle.Rage) fov = 180f;
+        var mode = AimTargetOf(hacker);
+        var sticky = mode == AimTarget.Crosshair;
         var current = pawn.EyeAngles;
         _aimLocks.TryGetValue(hacker.Slot, out var aim);
+        var walls = Has(hacker, Power.AimWalls);
 
-        // "Closest": the nearest enemy you can see (or any, through walls), wherever they are around
-        // you, re-checked every tick. "Crosshair": keep the current target while it stays visible and
-        // near the crosshair; otherwise the visible enemy closest to the crosshair.
+        // Crosshair mode keeps the current target while it stays visible and near the crosshair.
+        // Distance, lowest HP and threat are re-checked every tick.
         CCSPlayerController? best = null;
         CCSPlayerPawn? targetPawn = null;
-        var bestScore = closest ? double.MaxValue : fov;
-        if (!closest && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
-            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (Has(hacker, Power.AimWalls) || IsVisibleTo(lockedPawn, pawn))
+        var bestScore = sticky ? fov : double.MaxValue;
+        if (sticky && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
+            && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (walls || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
             && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
         {
@@ -732,18 +896,17 @@ public partial class LanSkinTester
                 if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
                 var enemyPawn = enemy.PlayerPawn.Value;
                 if (enemyPawn == null || !enemyPawn.IsValid || enemyPawn.AbsOrigin is not { } o || origin == null) continue;
-                double score;
-                if (closest)
+                double score = mode switch
                 {
-                    score = Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2) + Math.Pow(o.Z - origin.Z, 2);
-                }
-                else
-                {
-                    if (AnglesTo(pawn, enemyPawn, null) is not { } angles) continue;
-                    score = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
-                }
-                // Trace only the candidates; "aim through walls" skips the line-of-sight check.
-                if (score >= bestScore || (!Has(hacker, Power.AimWalls) && !IsVisibleTo(enemyPawn, pawn))) continue;
+                    AimTarget.Closest => Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2) + Math.Pow(o.Z - origin.Z, 2),
+                    AimTarget.Health => enemyPawn.Health * 100000d + Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2),
+                    AimTarget.Threat => LookingAtMe(enemyPawn, pawn) * 100000d + Math.Sqrt(Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2)),
+                    _ => AnglesTo(pawn, enemyPawn, null) is { } angles
+                        ? Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)))
+                        : double.MaxValue,
+                };
+                // Trace only the better candidate. "Aim through walls" skips the line-of-sight check.
+                if (score >= bestScore || (!walls && !IsVisibleTo(enemyPawn, pawn))) continue;
                 bestScore = score;
                 best = enemy;
                 targetPawn = enemyPawn;
@@ -752,40 +915,100 @@ public partial class LanSkinTester
         if (best == null || targetPawn == null)
         {
             _aimLocks.Remove(hacker.Slot);
-            return;
+            return false;
         }
         if (aim == null || aim.TargetSlot != best.Slot)
         {
             var reaction = ReactionOf(hacker);
+            var loose = style == AimStyle.Rage ? 0f : LoosenessOf(hacker);
             aim = new AimLock
             {
                 TargetSlot = best.Slot,
                 AcquiredAt = DateTime.UtcNow,
-                // Switching between close targets: quicker than a fresh reaction.
-                ReactionMs = (reaction.Min + Random.Shared.NextDouble() * (reaction.Max - reaction.Min)) * (closest && aim != null ? 0.4 : 1),
-                // Mostly the head, sometimes the neck - never pixel-perfect.
-                OffsetZ = 1f + (float)Random.Shared.NextDouble() * (Random.Shared.Next(4) == 0 ? 9f : 4f) * LoosenessOf(hacker),
-                OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5) * LoosenessOf(hacker),
+                ReactionMs = style == AimStyle.Rage ? 0 : (reaction.Min + Random.Shared.NextDouble() * (reaction.Max - reaction.Min)) * (sticky && aim != null ? 0.4 : 1),
+                OffsetZ = BoneDrop(AimBoneOf(hacker)) + (float)Random.Shared.NextDouble() * 4f * loose,
+                OffsetSide = (float)(Random.Shared.NextDouble() * 5 - 2.5) * loose,
             };
             _aimLocks[hacker.Slot] = aim;
         }
 
-        // Human reaction time before the aim starts moving.
-        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs) return;
-        if (targetPawn == null || AnglesTo(pawn, targetPawn, aim) is not { } goal) return;
+        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs) return false;
+        if (AnglesTo(pawn, targetPawn, aim) is not { } goal) return false;
 
-        // Move part of the way each tick (smooth, capped), like a hand, not a snap.
+        if (style == AimStyle.Silent)
+        {
+            // Only while a shot is going out: point the bullet, then RestoreSilentAims puts the view back.
+            if ((hacker.Buttons & PlayerButtons.Attack) == 0 && !triggerWantsShot) return false;
+            _silentRestore[hacker.Slot] = (current.X, current.Y);
+            pawn.Teleport(null, new QAngle(goal.Pitch, goal.Yaw, 0), null);
+            return false;
+        }
+
+        if (style == AimStyle.Rage)
+        {
+            pawn.Teleport(null, new QAngle(goal.Pitch, goal.Yaw, 0), null);
+            return true;
+        }
+
         var dYaw = AngleDiff(goal.Yaw, current.Y);
         var dPitch = AngleDiff(goal.Pitch, current.X);
-        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return;
-        var maxStep = AimMaxStep * smoothing / AimSmoothing; // lighter smoothing turns faster too
-        if (closest) maxStep *= 1.6f; // may have to turn around
+        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return false;
+        var maxStep = AimMaxStep * smoothing / AimSmoothing;
+        if (mode != AimTarget.Crosshair) maxStep *= 1.6f;
         var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
         var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
-        // Close the last bit directly so it doesn't crawl forever.
         if (Math.Abs(dYaw) < 0.4f) stepYaw = dYaw;
         if (Math.Abs(dPitch) < 0.4f) stepPitch = dPitch;
         pawn.Teleport(null, new QAngle(current.X + stepPitch, current.Y + stepYaw, 0), null);
+        return false;
+    }
+
+    /// <summary>Degrees between where they look and a line to us. Smaller means they are aiming at us.</summary>
+    private static float LookingAtMe(CCSPlayerPawn enemy, CCSPlayerPawn me)
+    {
+        if (AnglesTo(enemy, me, null) is not { } angles) return 180f;
+        var eye = enemy.EyeAngles;
+        return Math.Max(Math.Abs(AngleDiff(angles.Yaw, eye.Y)), Math.Abs(AngleDiff(angles.Pitch, eye.X)));
+    }
+
+    /// <summary>Fires after a short random delay once an enemy sits on the crosshair. True when it is time to shoot.</summary>
+    private bool Triggerbot(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    {
+        var current = pawn.EyeAngles;
+        var walls = Has(hacker, Power.AimWalls);
+        var probe = new AimLock { OffsetZ = BoneDrop(AimBoneOf(hacker)) };
+        CCSPlayerController? best = null;
+        var bestAngle = 2.4f;
+        foreach (var enemy in Utilities.GetPlayers())
+        {
+            if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
+            var enemyPawn = enemy.PlayerPawn.Value;
+            if (enemyPawn == null || !enemyPawn.IsValid) continue;
+            if (AnglesTo(pawn, enemyPawn, probe) is not { } angles) continue;
+            var score = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
+            if (score >= bestAngle || (!walls && !IsVisibleTo(enemyPawn, pawn))) continue;
+            bestAngle = score;
+            best = enemy;
+        }
+        if (best == null)
+        {
+            _triggers.Remove(hacker.Slot);
+            return false;
+        }
+        if (!_triggers.TryGetValue(hacker.Slot, out var wait) || wait.TargetSlot != best.Slot)
+        {
+            var aggression = AggressionOf(hacker);
+            var min = 95.0 - 8.0 * aggression;
+            var max = min + 35.0 + (10 - aggression) * 9.0;
+            wait = new TriggerLock
+            {
+                TargetSlot = best.Slot,
+                SeenAt = DateTime.UtcNow,
+                DelayMs = min + Random.Shared.NextDouble() * (max - min),
+            };
+            _triggers[hacker.Slot] = wait;
+        }
+        return (DateTime.UtcNow - wait.SeenAt).TotalMilliseconds >= wait.DelayMs;
     }
 
     private static float EyeHeight(CCSPlayerPawn pawn)
@@ -848,12 +1071,16 @@ public partial class LanSkinTester
             relay.RenderMode = RenderMode_t.kRenderNone;
             relay.DispatchSpawn();
 
+            var color = IsHacker(player) && _hackMode == HackMode.OneRandom ? HackerGlow
+                : player.Team == CsTeam.Terrorist ? TerroristGlow : CounterTerroristGlow;
             glow.SetModel(model);
             glow.Spawnflags = 256;
+            // Solid translucent body (chams) plus the through-wall glow outline.
+            glow.RenderMode = RenderMode_t.kRenderTransAlpha;
+            glow.Render = Color.FromArgb(170, color.R, color.G, color.B);
             glow.DispatchSpawn();
-            glow.Glow.GlowColorOverride = IsHacker(player) && _hackMode == HackMode.OneRandom ? HackerGlow
-                : player.Team == CsTeam.Terrorist ? TerroristGlow : CounterTerroristGlow;
-            glow.Glow.GlowRange = 5000;
+            glow.Glow.GlowColorOverride = color;
+            glow.Glow.GlowRange = 10000;
             glow.Glow.GlowRangeMin = 0;
             glow.Glow.GlowTeam = -1;
             glow.Glow.GlowType = 3;
@@ -881,19 +1108,20 @@ public partial class LanSkinTester
     }
 
     /// <summary>
-    /// Who sees whose glow: hackers (with walls) see their enemies; in "one random" mode everyone else
-    /// sees the hacker. Nobody sees their own.
+    /// Who sees whose glow: hackers with chams see every other player (enemies and teammates, different
+    /// colors). In "one random" mode everyone else sees the hacker. Nobody sees their own.
     /// </summary>
     private bool CanSeeGlow(CCSPlayerController viewer, CCSPlayerController owner)
     {
         if (!viewer.IsValid || !owner.IsValid || viewer.Slot == owner.Slot) return false;
         if (_hackMode == HackMode.OneRandom && IsHacker(owner)) return true;
-        return IsHacker(viewer) && Has(viewer, Power.Wallhack) && IsEnemy(viewer, owner);
+        if (!IsHacker(viewer) || !Has(viewer, Power.Wallhack)) return false;
+        return owner.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist;
     }
 
     private void OnHackCheckTransmit(CCheckTransmitInfoList infoList)
     {
-        if (_glows.Count == 0 && _cheatMenus.Count == 0) return;
+        if (_glows.Count == 0 && _cheatMenus.Count == 0 && _esp.Count == 0) return;
         foreach (var (info, viewer) in infoList)
         {
             if (_cheatMenus.Count > 0) HideOtherMenus(info, viewer);
@@ -902,6 +1130,7 @@ public partial class LanSkinTester
                 if (!glow.IsValid) continue;
                 if (viewer == null || !CanSeeGlow(viewer, owner)) info.TransmitEntities.Remove(glow);
             }
+            if (_esp.Count > 0) FilterEsp(info, viewer);
         }
     }
 }

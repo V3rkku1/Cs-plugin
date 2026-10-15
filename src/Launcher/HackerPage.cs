@@ -18,14 +18,20 @@ public class HackerPage : UserControl
     // Aimbot
     private readonly Toggle _aimbot = new();
     private readonly Picker _aimKey = new(200);
-    private readonly Segmented _aimTarget = new(ServerSettings.AimTargets, 130);
+    private readonly Segmented _aimStyle = new(ServerSettings.AimStyles, 88);
+    private readonly Segmented _aimBone = new(ServerSettings.AimBones, 76);
+    private readonly Segmented _aimTarget = new(ServerSettings.AimTargets, 150, 2);
     private readonly TextField _bindKey = new(110) { PlaceholderText = "e.g. mouse4", MaxLength = 16 };
     private readonly Slider _aggression = new() { Minimum = 1, Maximum = 10, Width = 200 };
     private readonly Label _aggressionLabel = new SmoothLabel { AutoSize = false, Width = 64, Height = 28, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent, TextAlign = ContentAlignment.MiddleRight };
     private readonly Toggle _aimWalls = new();
+    private readonly Toggle _trigger = new();
 
     // Visuals
     private readonly Toggle _wallhack = new();
+    private readonly Toggle _boxEsp = new();
+    private readonly Toggle _boneEsp = new();
+    private readonly Toggle _tags = new();
     private readonly Toggle _radar = new();
     private readonly Toggle _espInfo = new();
     private readonly Toggle _noFlash = new();
@@ -45,20 +51,21 @@ public class HackerPage : UserControl
 
     private static readonly (string Title, string Subtitle, Action<ServerSettings> Apply)[] Profiles =
     [
-        ("Legit", "Looks like a good player", s =>
+        ("Legit", "Smooth aim, looks like a good player", s =>
         {
-            Set(s, wallhack: true, aimbot: true, radar: true);
+            Set(s, wallhack: true, aimbot: true, radar: true, trigger: true);
             s.HackAggression = 3;
         }),
-        ("Closet", "Aimbot + walls, nothing loud", s =>
+        ("Closet", "Silent aim + walls, nothing loud", s =>
         {
-            Set(s, wallhack: true, aimbot: true, radar: true, noFlash: true, noRecoil: true);
+            Set(s, wallhack: true, aimbot: true, radar: true, noFlash: true, noRecoil: true, tags: true, trigger: true, style: 1);
             s.HackAggression = 5;
         }),
-        ("Rage", "Everything, head lock through walls", s =>
+        ("Rage", "Snap aim, ESP and trigger, through walls", s =>
         {
             Set(s, wallhack: true, aimbot: true, aimWalls: true, radar: true, esp: true, noFlash: true, noRecoil: true,
-                noSpread: true, ammo: true, damage: true, speed: true, bhop: true);
+                noSpread: true, ammo: true, damage: true, speed: true, bhop: true,
+                box: true, bones: true, tags: true, trigger: true, style: 2);
             s.HackAggression = 10;
             s.HackAimKey = 1; // always on
         }),
@@ -67,7 +74,8 @@ public class HackerPage : UserControl
 
     private static void Set(ServerSettings s, bool wallhack = false, bool aimbot = false, bool aimWalls = false, bool radar = false,
         bool esp = false, bool noFlash = false, bool noRecoil = false, bool noSpread = false, bool ammo = false, bool damage = false,
-        bool speed = false, bool bhop = false)
+        bool speed = false, bool bhop = false, bool box = false, bool bones = false, bool tags = false, bool trigger = false,
+        int style = 0, int bone = 0)
     {
         s.HackWallhack = wallhack;
         s.HackAimbot = aimbot;
@@ -81,6 +89,12 @@ public class HackerPage : UserControl
         s.HackOneTap = damage;
         s.HackSpeed = speed;
         s.HackBhop = bhop;
+        s.HackBoxEsp = box;
+        s.HackBoneEsp = bones;
+        s.HackTags = tags;
+        s.HackTrigger = trigger;
+        s.HackAimStyle = style;
+        s.HackAimBone = bone;
         s.HackAimKey = 0;
         if (s.HackerMode == 0) s.HackerMode = 1;
     }
@@ -112,18 +126,24 @@ public class HackerPage : UserControl
         mode.AddContent(profiles, new Padding(14, 0, 14, 12));
 
         var aim = new Group(left);
-        aim.AddRow("Aimbot", _aimbot, "Pulls your crosshair onto enemies you can see");
-        aim.AddRow("Aim At", _aimTarget, "Closest: snaps to the nearest enemy anywhere");
+        aim.AddRow("Aimbot", _aimbot, "Moves your aim onto an enemy");
+        aim.AddRow("Style", _aimStyle, "Legit eases on · Silent aims the bullet · Rage snaps and shoots");
+        aim.AddRow("Body", _aimBone, "Head, neck or chest");
+        aim.AddRow("Aim At", _aimTarget, "Distance, crosshair, lowest HP, or who is looking at you");
         aim.AddRow("Aim Key", _aimKey, "When the aimbot works");
         _bindKey.Margin = Padding.Empty;
         aim.AddRow("Own Aim Key", _bindKey, "Any key: mouse4, mouse5, x, alt, f... · bound in CS2 on this PC");
-        aim.AddRow("Aggression", new HStack(_aggression, _aggressionLabel), "1 gentle and human · 10 instant head lock");
-        aim.AddRow("Aim Through Walls", _aimWalls, "Also locks onto enemies behind walls (rage)");
+        aim.AddRow("Aggression", new HStack(_aggression, _aggressionLabel), "1 gentle and human · 10 instant lock. Also shortens the trigger delay");
+        aim.AddRow("Aim Through Walls", _aimWalls, "Aimbot and triggerbot also lock through walls");
+        aim.AddRow("Triggerbot", _trigger, "Shoots when an enemy crosses your crosshair, after a short random delay");
 
         var visuals = new Group(left);
-        visuals.AddRow("Wallhack", _wallhack, "Enemies glow through walls");
-        visuals.AddRow("Radar Hack", _radar, "Every enemy shows on your radar");
-        visuals.AddRow("Enemy Info", _espInfo, "Nearest enemy's name, HP, distance and direction");
+        visuals.AddRow("Chams", _wallhack, "Solid colored player models, visible through walls");
+        visuals.AddRow("Box ESP", _boxEsp, "3D box around enemies and teammates");
+        visuals.AddRow("Skeleton ESP", _boneEsp, "Pose stick-figure through walls");
+        visuals.AddRow("Name Tags", _tags, "Name, HP, armor, gun and grenades above each player");
+        visuals.AddRow("Radar Hack", _radar, "Every enemy shows on your radar, even when they are quiet");
+        visuals.AddRow("Enemy Info", _espInfo, "Three nearest enemies: name, HP, armor, gun, utility, distance");
         visuals.AddRow("No Flash", _noFlash, "Flashbangs don't blind you");
 
         var leftColumn = new VStack(
@@ -133,7 +153,7 @@ public class HackerPage : UserControl
 
         // ---- Right column ----
         var weapons = new Group(right);
-        weapons.AddRow("Zero Recoil", _noRecoil, "Sprays stay on the crosshair");
+        weapons.AddRow("Recoil Control", _noRecoil, "Pulls the spray back onto the crosshair for you");
         weapons.AddRow("Zero Spread", _noSpread, "Every bullet goes where you aim · whole server");
         weapons.AddRow("Infinite Ammo", _ammo, "Never reload");
         weapons.AddRow("Damage Boost", _damage, "2× damage");
@@ -160,10 +180,12 @@ public class HackerPage : UserControl
 
         LoadSettings();
 
-        foreach (var toggle in new[] { _aimbot, _aimWalls, _wallhack, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
+        foreach (var toggle in new[] { _aimbot, _aimWalls, _trigger, _wallhack, _boxEsp, _boneEsp, _tags, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
             toggle.CheckedChanged += (_, _) => Changed();
         _mode.SelectedChanged += (_, _) => Changed();
         _aimKey.SelectedIndexChanged += (_, _) => Changed();
+        _aimStyle.SelectedChanged += (_, _) => Changed();
+        _aimBone.SelectedChanged += (_, _) => Changed();
         _aimTarget.SelectedChanged += (_, _) => Changed();
         _aggression.ValueChanged += (_, _) =>
         {
@@ -195,12 +217,18 @@ public class HackerPage : UserControl
         _mode.SelectedIndex = Math.Clamp(s.HackerMode, 0, 2);
         _aimbot.Checked = s.HackAimbot;
         _aimKey.SelectedIndex = Math.Clamp(s.HackAimKey, 0, ServerSettings.AimKeys.Length - 1);
+        _aimStyle.SelectedIndex = Math.Clamp(s.HackAimStyle, 0, ServerSettings.AimStyles.Length - 1);
+        _aimBone.SelectedIndex = Math.Clamp(s.HackAimBone, 0, ServerSettings.AimBones.Length - 1);
         _aimTarget.SelectedIndex = Math.Clamp(s.HackAimTarget, 0, ServerSettings.AimTargets.Length - 1);
         _bindKey.Text = s.AimBindKey;
         _aggression.Value = Math.Clamp(s.HackAggression, 1, 10);
         _aggressionLabel.Text = AggressionText(_aggression.Value);
         _aimWalls.Checked = s.HackAimWalls;
+        _trigger.Checked = s.HackTrigger;
         _wallhack.Checked = s.HackWallhack;
+        _boxEsp.Checked = s.HackBoxEsp;
+        _boneEsp.Checked = s.HackBoneEsp;
+        _tags.Checked = s.HackTags;
         _radar.Checked = s.HackRadar;
         _espInfo.Checked = s.HackEspInfo;
         _noFlash.Checked = s.HackNoFlash;
@@ -221,11 +249,17 @@ public class HackerPage : UserControl
         s.HackerMode = _mode.SelectedIndex;
         s.HackAimbot = _aimbot.Checked;
         s.HackAimKey = _aimKey.SelectedIndex;
+        s.HackAimStyle = _aimStyle.SelectedIndex;
+        s.HackAimBone = _aimBone.SelectedIndex;
         s.HackAimTarget = _aimTarget.SelectedIndex;
         s.AimBindKey = _bindKey.Text.Trim();
         s.HackAggression = _aggression.Value;
         s.HackAimWalls = _aimWalls.Checked;
+        s.HackTrigger = _trigger.Checked;
         s.HackWallhack = _wallhack.Checked;
+        s.HackBoxEsp = _boxEsp.Checked;
+        s.HackBoneEsp = _boneEsp.Checked;
+        s.HackTags = _tags.Checked;
         s.HackRadar = _radar.Checked;
         s.HackEspInfo = _espInfo.Checked;
         s.HackNoFlash = _noFlash.Checked;
@@ -261,10 +295,12 @@ public class HackerPage : UserControl
         };
         var key = ServerSettings.CleanKey(_bindKey.Text);
         var enabled = _mode.SelectedIndex != 0;
-        foreach (var c in new Control[] { _aimbot, _aimKey, _aimTarget, _bindKey, _aggression, _aimWalls, _wallhack, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
+        foreach (var c in new Control[] { _aimbot, _aimStyle, _aimBone, _aimKey, _aimTarget, _bindKey, _aggression, _aimWalls, _trigger, _wallhack, _boxEsp, _boneEsp, _tags, _radar, _espInfo, _noFlash, _noRecoil, _noSpread, _ammo, _damage, _speed, _bhop })
             c.Enabled = enabled;
-        _bindKey.Enabled = enabled && _aimbot.Checked;
-        _aimKey.Enabled = _aimTarget.Enabled = _aggression.Enabled = _aimWalls.Enabled = enabled && _aimbot.Checked;
+        var aimOn = enabled && _aimbot.Checked;
+        var aimOrTrigger = enabled && (_aimbot.Checked || _trigger.Checked);
+        _bindKey.Enabled = _aimKey.Enabled = aimOn;
+        _aimStyle.Enabled = _aimBone.Enabled = _aimTarget.Enabled = _aggression.Enabled = _aimWalls.Enabled = aimOrTrigger;
         if (_bindKey.Text.Trim() != "" && key == null) _bindKey.PlaceholderText = "letters/numbers only";
     }
 

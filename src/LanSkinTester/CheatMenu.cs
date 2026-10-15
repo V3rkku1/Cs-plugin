@@ -44,21 +44,26 @@ public partial class LanSkinTester
     {
         _menuItems =
         [
-            Toggle("Wallhack", Power.Wallhack),
+            Toggle("Chams", Power.Wallhack),
+            Toggle("Box ESP", Power.BoxEsp),
+            Toggle("Skeleton ESP", Power.BoneEsp),
+            Toggle("Name tags", Power.Tags),
+            Toggle("Enemy info", Power.EspInfo),
+            Toggle("Radar", Power.Radar),
             Toggle("Aimbot", Power.Aimbot),
             Toggle("Aim through walls", Power.AimWalls),
+            new MenuItem("Aim style", p => AimStyleNames[(int)AimStyleOf(p)], (p, up) =>
+                _aimStyles[p.Slot] = Cycle(AimStyleOf(p), AimStyleNames.Length, up)),
+            new MenuItem("Aim bone", p => AimBoneNames[(int)AimBoneOf(p)], (p, up) =>
+                _aimBones[p.Slot] = Cycle(AimBoneOf(p), AimBoneNames.Length, up)),
             new MenuItem("Aggression", p => Bar(AggressionOf(p)), (p, up) =>
                 _aggression[p.Slot] = Math.Clamp(AggressionOf(p) + (up ? 1 : -1), 1, 10)),
             new MenuItem("Aim key", p => AimKeyNames[(int)AimKeyOf(p)], (p, up) =>
-            {
-                var count = AimKeyNames.Length;
-                _aimKeys[p.Slot] = (AimKey)(((int)AimKeyOf(p) + (up ? 1 : -1) + count) % count);
-            }),
-            new MenuItem("Aim target", p => AimTargetNames[(int)AimTargetOf(p)], (p, _) =>
-                _aimTargets[p.Slot] = AimTargetOf(p) == AimTarget.Closest ? AimTarget.Crosshair : AimTarget.Closest),
-            Toggle("Zero recoil", Power.NoRecoil),
-            Toggle("Enemy info", Power.EspInfo),
-            Toggle("Radar", Power.Radar),
+                _aimKeys[p.Slot] = Cycle(AimKeyOf(p), AimKeyNames.Length, up)),
+            new MenuItem("Aim target", p => AimTargetNames[(int)AimTargetOf(p)], (p, up) =>
+                _aimTargets[p.Slot] = Cycle(AimTargetOf(p), AimTargetNames.Length, up)),
+            Toggle("Triggerbot", Power.Trigger),
+            Toggle("Recoil control", Power.NoRecoil),
             Toggle("Speedhack", Power.Speed),
             Toggle("Bunnyhop", Power.Bhop),
             Toggle("Infinite ammo", Power.Ammo),
@@ -80,6 +85,12 @@ public partial class LanSkinTester
     private static string Bar(int level) => "[" + new string('■', level) + new string('□', 10 - level) + $"] {level}";
 
     private static string OnOff(bool on) => on ? "ON" : "off";
+
+    private static T Cycle<T>(T current, int count, bool up) where T : struct, Enum
+    {
+        var next = ((Convert.ToInt32(current) + (up ? 1 : -1)) + count) % count;
+        return (T)Enum.ToObject(typeof(T), next);
+    }
 
     private MenuItem Toggle(string label, Power power) =>
         new(label, p => OnOff(Has(p, power)), (p, _) => SetPowers(p, PowersOf(p) ^ power));

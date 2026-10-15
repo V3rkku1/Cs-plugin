@@ -132,29 +132,38 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 - **Who hacks:** *Everyone* (great against expert bots) or *One random*. With *One random*, a new
   random player gets the hacks each round and glows green for everyone else, so the rest hunt them.
 - **Powers** (each can be turned off):
-  - *Wallhack:* enemies glow through walls, and only hackers see it.
-  - *Aimbot:* a "legit" one. Hold your aim key and your aim pulls smoothly onto a visible enemy near
-    your crosshair, after a human-like reaction delay, at the head or neck, not pixel-perfect. It only
-    locks onto enemies you can actually see: a line-of-sight trace from your eyes to their head or
-    chest, so walls, floors, props and glass block it (smokes don't).
-  - *Aim at:* **closest enemy** (default: holding the key turns you onto the nearest enemy anywhere
-    around you, re-picked every moment) or **nearest crosshair** (only enemies close to where you look).
+  - *Chams:* a solid colored copy of each player, visible through walls. Enemies and teammates use
+    different colors, and only hackers see them.
+  - *Box ESP:* a 3D wire box around every player, through walls.
+  - *Skeleton ESP:* a stick figure of their pose (crouch, facing, walk, and whether they are shooting).
+    The server has no client bone overlay, so this is drawn in the world and only sent to hackers.
+  - *Name tags:* name, HP, armor, gun and grenades (including the bomb) floating above each player.
+  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** leaves
+    your crosshair where you look and points the bullet while you shoot, then puts the view back.
+    **Rage** snaps onto the target and fires.
+  - *Body:* head, neck or chest. Legit and silent still miss by a little at low aggression.
+  - *Aim at:* **closest enemy**, **nearest crosshair**, **lowest HP**, or **highest threat** (the enemy
+    whose aim is closest to you).
   - *Aim key:* hold fire (default), always on, hold right click, hold Shift, hold E or hold F.
     **Own aim key:** type any key (`mouse4`, `mouse5`, `x`, `alt`…) and the launcher binds it in CS2
     on this PC (`bind mouse4 +lst_aim`, from `cfg/lanskintester_client.cfg`). The key's old binding
     is replaced. In game: `!aimkey mouse2` picks your own, `!aimtoggle` (or `bind x css_aimtoggle`)
     turns the aimbot always-on.
-  - *Aim through walls:* the aimbot also locks onto enemies behind walls (off by default, "rage").
+  - *Aim through walls:* the aimbot and the triggerbot also lock through walls (off by default).
+    Otherwise a line-of-sight trace from your eyes to their head or chest has to be clear (walls,
+    floors, props and glass block it; smokes don't).
+  - *Triggerbot:* fires the moment an enemy model sits on your crosshair, after a small random delay
+    so it is less instant. Higher aggression shortens that delay.
   - *Damage boost:* 2× damage (off by default).
-  - *Zero recoil:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
+  - *Recoil control:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
     tick, and the server-wide recoil cvars are set too.
   - *Zero spread:* every bullet goes exactly where you aim. CS2 only has this server-wide
     (`weapon_accuracy_nospread`), so it applies to everyone, bots included.
-  - *Radar hack:* every enemy shows on your radar.
+  - *Radar hack:* every enemy shows on your radar, even when they make no noise.
   - *Bunnyhop:* hold jump to bhop perfectly.
   - *No flash:* flashbangs don't blind you.
-  - *Enemy info:* the nearest enemy's name, HP, distance and direction (an arrow) in the middle of
-    the screen, and whether you can see them.
+  - *Enemy info:* the three nearest enemies in the middle of the screen: name, HP, armor, gun,
+    grenades, distance, direction, and whether you can see them.
   - *Infinite ammo.*
   - *Speedhack:* 35% faster.
 - **In-game cheat menu:** type `!cheats` (or bind a key once in the CS2 console: `bind F3 css_cheats`).
@@ -162,12 +171,14 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
   flickery center-screen panel):
   - **W / S** move, **D** or **E** switches / turns a slider up, **A** turns it down, **R** closes.
     You stand still while it's open.
-  - Each player switches their own cheats: wallhack, aimbot, **aggression** (a 1-10 slider),
-    aim key, zero recoil, enemy info, radar, speedhack, bunnyhop, infinite ammo, no flash, damage boost, third person, or
-    everything off.
-- **Aim aggression** (1-10, also a slider on the Play page as the default): 1 is gentle and loose
-  (small 9° lock-on area, slow pull, ~230 ms reaction, aims around the head/neck); 10 is a hard
-  head lock (36° area, fast pull, ~50 ms reaction, dead-centre head).
+  - Each player switches their own cheats: chams, box ESP, skeleton, name tags, aimbot, **style**
+    (legit / silent / rage), body part, **aggression** (a 1-10 slider), aim key, aim target, triggerbot,
+    recoil control, enemy info, radar, speedhack, bunnyhop, infinite ammo, no flash, damage boost,
+    third person, or everything off.
+- **Aim aggression** (1-10, the slider on the Hacker page is the default): 1 is gentle and loose
+  (small 9° lock-on area, slow pull, ~230 ms reaction, a little off the body part you picked, and the
+  trigger waits longer); 10 is a hard lock (36° area, fast pull, ~50 ms reaction, dead-centre on that
+  body part, trigger almost immediate). Rage style snaps instead of easing in.
   - It only works in hacker mode. With **One random**, only that round's hacker gets it.
 - Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
   chat shows who is hacking.
@@ -447,8 +458,10 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_score <ct> <t>` | Set the score |
 | `lst_pause on` / `off` | Pause or resume |
 | `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
-| `lst_hack_powers wallhack,aimbot,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
-| `lst_aim_target closest\|crosshair` | Aimbot goes for the closest enemy anywhere, or the one nearest the crosshair |
+| `lst_hack_powers wallhack,boxesp,boneesp,tags,aimbot,trigger,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
+| `lst_aim_target closest\|crosshair\|health\|threat` | Who the aimbot picks: nearest, closest to the crosshair, lowest HP, or who is aiming at you |
+| `lst_aim_style legit\|silent\|rage` | Smooth aim, bullet-only aim, or snap-and-shoot |
+| `lst_aim_bone head\|neck\|chest` | Body part for the aimbot and the triggerbot |
 | `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
 | `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
 | `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |

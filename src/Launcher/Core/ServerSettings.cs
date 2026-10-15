@@ -206,13 +206,34 @@ public class ServerSettings
     /// <summary>Enemies show on the hacker's radar.</summary>
     public bool HackRadar { get; set; }
 
+    /// <summary>3D box around players, a pose skeleton, and a name / HP / gear plate. Chams is <see cref="HackWallhack"/>.</summary>
+    public bool HackBoxEsp { get; set; }
+    public bool HackBoneEsp { get; set; }
+    public bool HackTags { get; set; }
+
+    /// <summary>Fires when an enemy crosses the crosshair, after a short random delay.</summary>
+    public bool HackTrigger { get; set; }
+
     public static readonly string[] AimKeys = ["Hold fire (Mouse 1)", "Always on", "Hold right click", "Hold Shift", "Hold E", "Hold F", "Only my own key"];
     private static readonly string[] AimKeyCommands = ["fire", "always", "mouse2", "shift", "e", "f", "custom"];
 
-    public static readonly string[] AimTargets = ["Closest enemy", "Nearest crosshair"];
+    public static readonly string[] AimTargets = ["Closest enemy", "Nearest crosshair", "Lowest HP", "Highest threat"];
+    private static readonly string[] AimTargetCommands = ["closest", "crosshair", "health", "threat"];
 
     /// <summary>Who the aimbot goes for (index into <see cref="AimTargets"/>).</summary>
     public int HackAimTarget { get; set; }
+
+    public static readonly string[] AimStyles = ["Legit", "Silent", "Rage"];
+    private static readonly string[] AimStyleCommands = ["legit", "silent", "rage"];
+
+    /// <summary>How the aimbot moves: 0 smooth, 1 bullet-only, 2 snap and shoot.</summary>
+    public int HackAimStyle { get; set; }
+
+    public static readonly string[] AimBones = ["Head", "Neck", "Chest"];
+    private static readonly string[] AimBoneCommands = ["head", "neck", "chest"];
+
+    /// <summary>Which body part the aimbot and triggerbot use.</summary>
+    public int HackAimBone { get; set; }
 
     /// <summary>When the aimbot works (index into <see cref="AimKeys"/>).</summary>
     public int HackAimKey { get; set; }
@@ -279,6 +300,7 @@ public class ServerSettings
             s.Difficulty = 3;
             s.HackerMode = 1;
             s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
+            s.HackBoxEsp = s.HackTags = s.HackTrigger = true;
             s.HackAggression = 7;
         }),
         new("Retakes", "Valve retakes · 3v4 · loadout cards", s =>
@@ -364,6 +386,8 @@ public class ServerSettings
         HackerMode = 0;
         HackWallhack = HackAimbot = HackAmmo = true;
         HackOneTap = HackSpeed = HackBhop = HackNoFlash = HackEspInfo = HackAimWalls = HackNoRecoil = HackNoSpread = HackRadar = false;
+        HackBoxEsp = HackBoneEsp = HackTags = HackTrigger = false;
+        HackAimStyle = HackAimBone = 0;
         HackAggression = 5;
     }
 
@@ -708,9 +732,15 @@ public class ServerSettings
         if (HackAimWalls) powers.Add("aimwalls");
         if (HackNoRecoil) powers.Add("norecoil");
         if (HackRadar) powers.Add("radar");
+        if (HackBoxEsp) powers.Add("boxesp");
+        if (HackBoneEsp) powers.Add("boneesp");
+        if (HackTags) powers.Add("tags");
+        if (HackTrigger) powers.Add("trigger");
         yield return $"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}";
         yield return $"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}";
-        yield return $"lst_aim_target {(HackAimTarget == 1 ? "crosshair" : "closest")}";
+        yield return $"lst_aim_target {AimTargetCommands[Math.Clamp(HackAimTarget, 0, AimTargetCommands.Length - 1)]}";
+        yield return $"lst_aim_style {AimStyleCommands[Math.Clamp(HackAimStyle, 0, AimStyleCommands.Length - 1)]}";
+        yield return $"lst_aim_bone {AimBoneCommands[Math.Clamp(HackAimBone, 0, AimBoneCommands.Length - 1)]}";
         yield return $"lst_aim_key {AimKeyCommands[Math.Clamp(HackAimKey, 0, AimKeyCommands.Length - 1)]}";
         yield return $"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}";
     }
