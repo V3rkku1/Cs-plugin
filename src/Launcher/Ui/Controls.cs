@@ -43,7 +43,7 @@ public class PillButton : DrawnControl, IButtonControl
 
     public Style ButtonStyle { get; set; }
     [DefaultValue(true)] public bool AutoWidth { get; set; } = true;
-    public float Radius { get; set; } = 8;
+    public float Radius { get; set; } = 10;
     public DialogResult DialogResult { get; set; }
 
     public PillButton(string text, Style style = Style.Secondary)
@@ -295,7 +295,7 @@ public class TextField : DrawnControl
         BorderStyle = BorderStyle.None, BackColor = FieldColor, ForeColor = Theme.Text, Font = Theme.Body,
     };
 
-    public static readonly Color FieldColor = Color.FromArgb(44, 44, 47);
+    public static readonly Color FieldColor = Color.FromArgb(44, 44, 46);
 
     public new event EventHandler? TextChanged;
 
@@ -729,13 +729,7 @@ public class Group : Panel
         using (var bg = new SolidBrush(Theme.BackdropOf(Parent))) e.Graphics.FillRectangle(bg, ClientRectangle);
         Theme.Smooth(e.Graphics);
         var card = new RectangleF(0, 0, Width - 0.5f, Height - 0.5f);
-        Theme.FillRounded(e.Graphics, Theme.Card, card, 12);
-        // Glass edge: a faint lighter rim, strongest at the top (light from above).
-        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 12))
-        using (var rim = new System.Drawing.Drawing2D.LinearGradientBrush(new RectangleF(0, 0, Width, Math.Max(Height, 1)),
-                   Color.FromArgb(46, 255, 255, 255), Color.FromArgb(10, 255, 255, 255), System.Drawing.Drawing2D.LinearGradientMode.Vertical))
-        using (var pen = new Pen(rim, 1f))
-            e.Graphics.DrawPath(pen, path);
+        Theme.FillRounded(e.Graphics, Theme.Card, card, 12); // iOS inset grouped: flat, no rim
     }
 
     protected override void OnPaint(PaintEventArgs e)
@@ -744,7 +738,7 @@ public class Group : Panel
         Control? previous = null;
         foreach (var row in _rows.Where(r => r.Visible))
         {
-            if (previous != null) e.Graphics.DrawLine(pen, 14, row.Top - 1, Width - 14, row.Top - 1);
+            if (previous != null) e.Graphics.DrawLine(pen, 16, row.Top - 1, Width, row.Top - 1); // iOS: inset left, runs to the edge
             previous = row;
         }
     }

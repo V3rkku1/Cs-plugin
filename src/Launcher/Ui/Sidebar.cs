@@ -28,20 +28,16 @@ public class SidebarItem : DrawnControl
     protected override void Draw(Graphics g)
     {
         var r = new RectangleF(0, 0, Width - 1, Height - 1);
-        if (_selected)
-        {
-            Theme.FillRounded(g, Theme.Fill, r, 8);
-            // Accent bar on the left of the selected page.
-            Theme.FillRoundedGradient(g, Theme.GradientStart, Theme.GradientEnd, new RectangleF(Theme.S(3f), Theme.S(9f), Theme.S(3f), Height - Theme.S(19f)), Theme.S(1.5f));
-        }
-        else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 110), r, 8);
+        // iPadOS sidebar: the selected page is a filled systemBlue row with white icon and text.
+        if (_selected) Theme.FillRounded(g, Theme.Accent, r, 10);
+        else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 110), r, 10);
 
         var state = g.Save();
         g.TranslateTransform(Theme.S(12f), (Height - Theme.S(18f)) / 2);
         g.ScaleTransform(Theme.Scale, Theme.Scale);
-        DrawIcon(g, new RectangleF(0, 0, 18, 18), _selected ? Theme.Accent : Theme.Muted);
+        DrawIcon(g, new RectangleF(0, 0, 18, 18), _selected ? Color.White : Theme.Accent);
         g.Restore(state);
-        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(Theme.S(40), 0, Width - Theme.S(44), Height), Theme.Text);
+        Theme.DrawText(g, Text, _selected ? Theme.Bold : Theme.Body, new Rectangle(Theme.S(40), 0, Width - Theme.S(44), Height), _selected ? Color.White : Theme.Text);
     }
 
     private void DrawIcon(Graphics g, RectangleF box, Color color)
@@ -166,7 +162,7 @@ public class StatusBadge : DrawnControl
 
     protected override void Draw(Graphics g)
     {
-        Theme.FillRounded(g, Theme.Card, new RectangleF(0, 0, Width - 1, Height - 1), 10);
+        Theme.FillRounded(g, Theme.CardHover, new RectangleF(0, 0, Width - 1, Height - 1), 12); // sits on the sidebar grey
         var mid = Height / 2f;
         using (var glow = new SolidBrush(Theme.WithAlpha(_dot, 60))) g.FillEllipse(glow, Theme.S(11f), mid - Theme.S(9f), Theme.S(18f), Theme.S(18f));
         using (var dot = new SolidBrush(_dot)) g.FillEllipse(dot, Theme.S(15f), mid - Theme.S(5f), Theme.S(10f), Theme.S(10f));
