@@ -60,50 +60,151 @@ public class Installer
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Plugin retakes: B3none's cs2-retakes (GPL-3.0). Loaded only while that style is selected.
-    // Parked outside the plugins folder otherwise, so it never fights Valve's own retakes mode.
+    // Plugin retakes and the plugins that ride with it. Each one is parked outside the plugins
+    // folder when it should not load, so it never fights Valve's own retakes mode.
+    // Instadefuse: B3none, GPL-3.0. Allocator: the maintained fork of Yoni Lerner's allocator.
     // ---------------------------------------------------------------------------------------------
 
     public const string RetakesPage = "https://github.com/B3none/cs2-retakes";
+    public const string InstadefusePage = "https://github.com/B3none/cs2-instadefuse";
+    public const string AllocatorPage = "https://github.com/Micka2302/cs2-retakes-allocator-2.0";
+
     private const string RetakesApi = "https://api.github.com/repos/B3none/cs2-retakes/releases/latest";
+    private const string InstadefuseApi = "https://api.github.com/repos/B3none/cs2-instadefuse/releases/latest";
+    private const string AllocatorApi = "https://api.github.com/repos/Micka2302/cs2-retakes-allocator-2.0/releases/latest";
 
-    private static string RetakesActiveDir(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp", "plugins", "RetakesPlugin");
-    private static string RetakesParkedDir(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp", "lst-parked", "RetakesPlugin");
+    private static readonly string[] AllocatorTrees =
+    [
+        "plugins/RetakesAllocator",
+        "plugins/SharpModMenu",
+        "shared/SharpModMenu",
+        "shared/CSSUniversalMenuAPI",
+    ];
 
-    public static bool ThirdPartyRetakesLoaded(GameFolder game) => Directory.Exists(RetakesActiveDir(game));
+    private static string CssRoot(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp");
 
-    public static bool RetakesInstalled(GameFolder game) =>
-        File.Exists(Path.Combine(RetakesActiveDir(game), "RetakesPlugin.dll")) ||
-        File.Exists(Path.Combine(RetakesParkedDir(game), "RetakesPlugin.dll"));
+    public static bool ThirdPartyRetakesLoaded(GameFolder game) => TreeLoaded(game, "plugins/RetakesPlugin");
 
-    public async Task InstallRetakesAsync()
+    public static bool RetakesInstalled(GameFolder game) => TreeInstalled(game, "plugins/RetakesPlugin", "RetakesPlugin.dll");
+
+    public static bool InstadefuseInstalled(GameFolder game) => TreeInstalled(game, "plugins/InstadefusePlugin", "InstadefusePlugin.dll");
+
+    public static bool AllocatorInstalled(GameFolder game) => TreeInstalled(game, "plugins/RetakesAllocator", "RetakesAllocator.dll");
+
+    /// <summary>True when the plugins on disk are not the set this server wants loaded.</summary>
+    public static bool RetakePluginsMismatch(GameFolder game, ServerSettings server)
     {
-        _log("Looking up the latest cs2-retakes release (by B3none)...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(RetakesApi));
-        var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
-            .FirstOrDefault(a => a.Name.StartsWith("RetakesPlugin", StringComparison.OrdinalIgnoreCase) && a.Name.EndsWith(".zip")
-                                 && !a.Name.Contains("no-map-configs", StringComparison.OrdinalIgnoreCase));
-        if (asset.Url == "")
-            throw new InvalidOperationException("No RetakesPlugin zip found in the latest cs2-retakes release.");
-
-        _log($"Downloading {asset.Name}...");
-        try { if (Directory.Exists(RetakesParkedDir(_game))) Directory.Delete(RetakesParkedDir(_game), recursive: true); }
-        catch (IOException) { /* replaced below anyway */ }
-        await InstallZipAsync(await DownloadAsync(asset.Url));
-        _log("Retakes plugin installed (map spawns for the official maps included).");
+        var plugin = server.IsPluginRetakes;
+        return TreeLoaded(game, "plugins/RetakesPlugin") != plugin
+            || TreeLoaded(game, "plugins/InstadefusePlugin") != (plugin && server.RetakeInstadefuse)
+            || TreeLoaded(game, "plugins/RetakesAllocator") != server.UsesAllocator;
     }
 
-    /// <summary>Loads (on) or parks (off) the retakes plugin for the next server start.</summary>
-    public static void SetRetakesActive(GameFolder game, bool on)
+    public async Task InstallRetakesAsync() =>
+        await InstallReleaseAsync(RetakesApi, "cs2-retakes",
+            name => name.StartsWith("RetakesPlugin", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".zip")
+                    && !name.Contains("no-map-configs", StringComparison.OrdinalIgnoreCase));
+
+    public async Task InstallInstadefuseAsync() =>
+        await InstallReleaseAsync(InstadefuseApi, "cs2-instadefuse", name => name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+    public async Task InstallAllocatorAsync() =>
+        await InstallReleaseAsync(AllocatorApi, "retakes allocator",
+            name => name.Contains("Allocator", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Loads or parks retakes, instadefuse and the allocator to match the current settings.</summary>
+    public static void SetRetakesSuite(GameFolder game, ServerSettings server)
     {
-        var active = RetakesActiveDir(game);
-        var parked = RetakesParkedDir(game);
+        var plugin = server.IsPluginRetakes;
+        SetTreeActive(game, "plugins/RetakesPlugin", plugin);
+        SetTreeActive(game, "plugins/InstadefusePlugin", plugin && server.RetakeInstadefuse);
+        foreach (var tree in AllocatorTrees)
+            SetTreeActive(game, tree, server.UsesAllocator);
+    }
+
+    private async Task InstallReleaseAsync(string api, string label, Func<string, bool> pick)
+    {
+        _log($"Looking up the latest {label} release...");
+        using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
+        var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
+            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
+            .FirstOrDefault(a => pick(a.Name) && a.Url != "");
+        if (asset.Url == "")
+            throw new InvalidOperationException($"No zip found in the latest {label} release.");
+
+        _log($"Downloading {asset.Name}...");
+        await InstallCssBundleAsync(await DownloadAsync(asset.Url));
+        _log($"{label} installed.");
+    }
+
+    /// <summary>
+    /// Extracts a CounterStrikeSharp plugin zip. Accepts an addons/counterstrikesharp tree, a bundle
+    /// rooted at plugins/shared/configs, or a single plugin folder.
+    /// </summary>
+    public Task InstallCssBundleAsync(string zipPath) => Task.Run(() =>
+    {
+        using var zip = ZipFile.OpenRead(zipPath);
+        var root = Path.GetFullPath(CssRoot(_game));
+        var count = 0;
+        foreach (var entry in zip.Entries)
+        {
+            var full = entry.FullName.Replace('\\', '/').TrimStart('/');
+            if (full.Length == 0 || full.EndsWith('/')) continue;
+            var relative = CssRelative(full);
+            if (relative == null) continue;
+            var target = Path.GetFullPath(Path.Combine(root, relative.Replace('/', Path.DirectorySeparatorChar)));
+            if (!target.StartsWith(root, StringComparison.OrdinalIgnoreCase)) continue;
+            if (relative.StartsWith("configs/", StringComparison.OrdinalIgnoreCase) && File.Exists(target)) continue;
+            Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+            entry.ExtractToFile(target, overwrite: true);
+            count++;
+        }
+        if (count == 0)
+            throw new InvalidDataException($"{Path.GetFileName(zipPath)} has no CounterStrikeSharp plugin files.");
+        _log($"Extracted {count} files from {Path.GetFileName(zipPath)}.");
+    });
+
+    private static string? CssRelative(string full)
+    {
+        const string nested = "addons/counterstrikesharp/";
+        var at = full.IndexOf(nested, StringComparison.OrdinalIgnoreCase);
+        if (at >= 0) return full[(at + nested.Length)..];
+        if (full.StartsWith("plugins/", StringComparison.OrdinalIgnoreCase)
+            || full.StartsWith("shared/", StringComparison.OrdinalIgnoreCase)
+            || full.StartsWith("configs/", StringComparison.OrdinalIgnoreCase)
+            || full.StartsWith("gamedata/", StringComparison.OrdinalIgnoreCase))
+            return full;
+        var slash = full.IndexOf('/');
+        if (slash <= 0) return null;
+        var top = full[..slash];
+        if (top.EndsWith("Plugin", StringComparison.OrdinalIgnoreCase) || top.Equals("RetakesAllocator", StringComparison.OrdinalIgnoreCase))
+            return "plugins/" + full;
+        return null;
+    }
+
+    private static bool TreeLoaded(GameFolder game, string relative) =>
+        Directory.Exists(TreePath(game, relative, parked: false));
+
+    private static bool TreeInstalled(GameFolder game, string relative, string file) =>
+        File.Exists(Path.Combine(TreePath(game, relative, parked: false), file))
+        || File.Exists(Path.Combine(TreePath(game, relative, parked: true), file));
+
+    private static void SetTreeActive(GameFolder game, string relative, bool on)
+    {
+        var active = TreePath(game, relative, parked: false);
+        var parked = TreePath(game, relative, parked: true);
         var (from, to) = on ? (parked, active) : (active, parked);
         if (!Directory.Exists(from)) return;
         if (Directory.Exists(to)) Directory.Delete(to, recursive: true);
         Directory.CreateDirectory(Path.GetDirectoryName(to)!);
         Directory.Move(from, to);
+    }
+
+    private static string TreePath(GameFolder game, string relative, bool parked)
+    {
+        var parts = relative.Split('/', StringSplitOptions.RemoveEmptyEntries);
+        var root = parked ? Path.Combine(CssRoot(game), "lst-parked") : CssRoot(game);
+        return Path.Combine([root, .. parts]);
     }
 
     /// <summary>

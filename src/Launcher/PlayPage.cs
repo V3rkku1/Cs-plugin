@@ -4,7 +4,7 @@ using LanSkinTester.Launcher.Ui;
 
 namespace LanSkinTester.Launcher;
 
-/// <summary>Quick-start presets, server settings, start/stop and the live server panel with quick actions.</summary>
+/// <summary>Quick starts and start/stop. Mode, bots, rules and live controls live on <see cref="LiveServerPage"/>.</summary>
 public class PlayPage : UserControl
 {
     private readonly AppState _app;
@@ -43,6 +43,12 @@ public class PlayPage : UserControl
     /// <summary>The "Open Hacker Page" button was pressed.</summary>
     public event Action? OpenHackerPage;
 
+    /// <summary>The Play page asked to open Live Server.</summary>
+    public event Action? OpenLiveServer;
+
+    /// <summary>The settings and live controls, hosted by <see cref="LiveServerPage"/>.</summary>
+    public Control ServerContent { get; private set; } = null!;
+
     // Play
     private readonly PillButton _startButton = new("Start", PillButton.Style.Primary) { AutoWidth = false };
     private readonly PillButton _applyButton = new("Apply Changes");
@@ -56,8 +62,8 @@ public class PlayPage : UserControl
     private readonly Label _heroLive = new SmoothLabel { AutoSize = true, Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _inviteTitle = new SmoothLabel { AutoSize = true, Text = "Invite Friends", Font = Theme.Bold, ForeColor = Theme.Text, BackColor = Color.Transparent };
     private readonly Label _inviteText = new SmoothLabel { AutoSize = true, MaximumSize = new Size(330, 0), Font = Theme.Small, ForeColor = Color.FromArgb(200, 205, 225), BackColor = Color.Transparent };
-    // Two rows so six tabs stay readable. Order is fixed: saved PlayTab 3 is still Launch.
-    private readonly Segmented _tabs = new(["Game", "Bots", "Rules", "Launch", "Retakes", "Live"], 178, columns: 3);
+    // Order is fixed: a saved PlayTab of 3 is still Launch.
+    private readonly Segmented _tabs = new(["Game", "Bots", "Rules", "Launch", "Retakes"], 108);
 
     private readonly Segmented _retakeStyle = new(ServerSettings.RetakeStyles, 96);
     private readonly NumberField _retakePlayers = new(90) { Minimum = 2, Maximum = 10 };
@@ -68,8 +74,11 @@ public class PlayPage : UserControl
     private readonly Toggle _retakePlant = new();
     private readonly Toggle _retakeAnnounce = new();
     private readonly Toggle _retakeJoin = new();
-    private readonly Toggle _retakeBuy = new();
+    private readonly Segmented _retakeGuns = new(["Buy", "Allocator"], 110);
     private readonly NumberField _retakeBuySeconds = new(90) { Minimum = 4, Maximum = 20 };
+    private readonly Toggle _retakeInsta = new();
+    private SettingRow _buyTimeRow = null!;
+    private SettingRow _allocNote = null!;
     private readonly NumberField _retakeBomb = new(90) { Minimum = 15, Maximum = 60 };
     private readonly List<SettingRow> _pluginRows = new();
     private SettingRow _retakeStyleRow = null!;
@@ -130,7 +139,7 @@ public class PlayPage : UserControl
         _gameButton.Click += (_, _) => OpenGame();
         _stopButton.Click += (_, _) => StopTest();
         _tips.SetToolTip(_startButton, "Start the server and CS2 (F5)");
-        _tips.SetToolTip(_applyButton, "Send the settings below to the running server (F5)");
+        _tips.SetToolTip(_applyButton, "Send the Live Server settings to the running server (F5)");
         _tips.SetToolTip(_stopButton, "Close the server and CS2, back to normal (Shift+F5)");
         _copyIp.Click += (_, _) => CopyToClipboard(FriendsInvite.HostAddress(_app.Settings.Server), "Address copied - send it to your friend.");
         _copyInvite.Click += (_, _) =>
@@ -149,7 +158,10 @@ public class PlayPage : UserControl
         saveSetup.Click += (_, _) => SaveSetup();
         var quick = new Group(full);
         quick.AddContent(_presets, new Padding(12, 12, 2, 2));
-        quick.AddRow("Your setups", saveSetup, "Saves the settings below as a quick start · click × on a saved tile to delete it");
+        quick.AddRow("Your setups", saveSetup, "Saves the Live Server settings as a quick start · click × on a saved tile to delete it");
+        var openServer = new PillButton("Open Live Server", PillButton.Style.Primary);
+        openServer.Click += (_, _) => OpenLiveServer?.Invoke();
+        quick.AddRow("Server settings", openServer, "Mode, bots, rules and the live controls");
 
         // ---- Settings, one tab at a time ----
         var game = new Group(left);
@@ -198,12 +210,14 @@ public class PlayPage : UserControl
         _pluginRows.Add(retakes.AddRow("Auto Plant", _retakePlant, "The bomb is planted as the round starts"));
         _pluginRows.Add(retakes.AddRow("Announce Site", _retakeAnnounce, "Show which site the bomb is on"));
         _pluginRows.Add(retakes.AddRow("Join Straight In", _retakeJoin, "Skip the team menu"));
-        _pluginRows.Add(retakes.AddRow("Buy Before Round", _retakeBuy, "You buy your guns. Bots keep theirs"));
-        _pluginRows.Add(retakes.AddRow("Buy Time", _retakeBuySeconds, "Seconds to buy before you can move"));
+        _pluginRows.Add(retakes.AddRow("Guns", _retakeGuns, "Buy your own, or pistol / half-buy / rifle rounds"));
+        _buyTimeRow = retakes.AddRow("Buy Time", _retakeBuySeconds, "Seconds to buy. Your guns come back next round");
+        _allocNote = retakes.AddRow("Allocator", null, "Type !guns to choose. One AWP per team.");
+        _pluginRows.Add(retakes.AddRow("Instadefuse", _retakeInsta, "The bomb defuses instantly when nothing can stop it"));
         _pluginRows.Add(retakes.AddRow("Bomb Timer", _retakeBomb, "Seconds until the bomb explodes"));
         _retakeStyle.SelectedChanged += (_, _) => UpdateRetakeEditor();
         _retakeScramble.CheckedChanged += (_, _) => UpdateRetakeEditor();
-        _retakeBuy.CheckedChanged += (_, _) => UpdateRetakeEditor();
+        _retakeGuns.SelectedChanged += (_, _) => UpdateRetakeEditor();
 
         var damage = new PillButton("Damage") { AutoWidth = false, Width = 118, Margin = new Padding(0, 0, 8, 8) };
         damage.Click += (_, _) =>
@@ -215,7 +229,7 @@ public class PlayPage : UserControl
             Send($"lst_show_damage {(settings.ShowDamage ? 1 : 0)}");
         };
         _liveControls.Add(damage);
-        var roundButtons = ButtonRow(left,
+        var roundButtons = ButtonRow(right,
             Action("Restart", "mp_restartgame 1"),
             Action("End Warmup", "mp_warmup_end"),
             Action("Pause", "lst_pause on"),
@@ -223,13 +237,13 @@ public class PlayPage : UserControl
             Action("Swap", "lst_swap"),
             Action("CT Win", "lst_endround ct"),
             Action("T Win", "lst_endround t"));
-        var playerButtons = ButtonRow(left,
+        var playerButtons = ButtonRow(right,
             Action("Add CT", "bot_add_ct"),
             Action("Add T", "bot_add_t"),
             Action("Kick Bots", "bot_kick"),
             Action("Respawn", "lst_respawn"),
             Action("God", "lst_god"));
-        var practiceButtons = ButtonRow(left,
+        var practiceButtons = ButtonRow(right,
             Action("Third Person", "lst_view third"),
             Action("First Person", "lst_view first"),
             Action("Noclip", "lst_noclip"),
@@ -256,34 +270,17 @@ public class PlayPage : UserControl
         _liveControls.Add(_command);
         _liveControls.Add(_runCommand);
         foreach (var control in _liveControls) control.Enabled = false;
-        var roundGroup = new Group(left);
+        var roundGroup = new Group(right);
         roundGroup.AddContent(roundButtons, new Padding(12, 12, 4, 4));
-        var playerGroup = new Group(left);
+        var playerGroup = new Group(right);
         playerGroup.AddContent(playerButtons, new Padding(12, 12, 4, 4));
-        var practiceGroup = new Group(left);
+        var practiceGroup = new Group(right);
         practiceGroup.AddContent(practiceButtons, new Padding(12, 12, 4, 4));
-        var giveGroup = new Group(left);
+        var giveGroup = new Group(right);
         _giveBox.Margin = new Padding(0, 0, 8, 0);
         giveGroup.AddRow("Give Weapon", new HStack(_giveBox, _giveButton));
         giveGroup.AddRow("Command", new HStack(_command, _runCommand), "Server console · Enter sends it");
-        var liveHint = new SmoothLabel
-        {
-            Text = "Round, players and practice. They light up when the server is up.",
-            Font = Theme.Small,
-            ForeColor = Theme.Muted,
-            AutoSize = true,
-            MaximumSize = new Size(left - 4, 0),
-            Margin = new Padding(2, 0, 0, 10),
-            BackColor = Color.Transparent,
-        };
-        var liveTab = new VStack(
-            liveHint,
-            Theme.Caption("ROUND"), roundGroup,
-            Theme.Caption("PLAYERS"), playerGroup,
-            Theme.Caption("PRACTICE"), practiceGroup,
-            giveGroup);
-
-        var tabPages = new Control[] { game, bots, options, launch, retakes, liveTab };
+        var tabPages = new Control[] { game, bots, options, launch, retakes };
         var tabHost = new VStack(tabPages) { MinimumSize = new Size(left, 0) };
         void ShowTab(int index)
         {
@@ -304,27 +301,31 @@ public class PlayPage : UserControl
         };
         _tabs.Margin = new Padding(0, 0, 0, 10);
 
-        var leftColumn = new VStack(Theme.Caption("SERVER"), _tabs, tabHost) { Margin = new Padding(0, 0, 28, 0) };
+        var leftColumn = new VStack(Theme.Caption("SETTINGS"), _tabs, tabHost) { Margin = new Padding(0, 0, 28, 0) };
 
         var live = new Group(right);
-        _liveRow = live.AddRow("Server not running", null, "Press Start, or open the Live tab once it's up.");
+        _liveRow = live.AddRow("Server not running", null, "Press Start on the Play page.");
         var activity = new Group(right);
         activity.AddContent(_log, new Padding(12, 12, 12, 12));
         var rightColumn = new VStack(
             Theme.Caption("STATUS"), live,
+            Theme.Caption("ROUND"), roundGroup,
+            Theme.Caption("PLAYERS"), playerGroup,
+            Theme.Caption("PRACTICE"), practiceGroup,
+            giveGroup,
             Theme.Caption("ACTIVITY"), activity);
+        ServerContent = new HStack(leftColumn, rightColumn);
 
         var page = new VStack(
-            Header("Play", "Start a local server, then run the match from the Live tab."),
+            Header("Play", "Pick a quick start, or press Start."),
             _hero,
-            Theme.Caption("QUICK START"), quick,
-            new HStack(leftColumn, rightColumn));
+            Theme.Caption("QUICK START"), quick);
         Controls.Add(new ScrollPanel { Dock = DockStyle.Fill, Padding = new Padding(36, 26, 24, 28), Content = page });
         Theme.Apply(this);
 
         LoadServerSettings();
         _modeBox.SelectedIndexChanged += (_, _) => OnModeChanged();
-        VisibleChanged += (_, _) => { if (Visible) UpdateHackerRow(); };
+        // The hacker row now lives on Live Server, so refresh it whenever this page is shown too.
         _botsBar.ValueChanged += (_, _) => _botsLabel.Text = _botsBar.Value == 0 ? "None" : $"{_botsBar.Value}";
 
         _app.Changed += Refresh;
@@ -337,7 +338,7 @@ public class PlayPage : UserControl
         {
             RefreshLive();
             CheckServerCrash();
-            if (Visible && WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
+            if (WorkshopId() != null) UpdateWorkshopRow(); // turns green when Steam finishes downloading
         };
         _poll.Start();
     }
@@ -362,7 +363,22 @@ public class PlayPage : UserControl
     private void LoadServerSettings()
     {
         var s = _app.Settings.Server;
-        _modeBox.SelectedItem = s.GetMode();
+        // Style first: picking the mode refreshes the Retakes tab, and plugin style must already be on.
+        _retakeStyle.SelectedIndex = s.RetakeStyle == 1 ? 1 : 0;
+        _retakePlayers.Value = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
+        _retakeRatio.Value = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
+        _retakeScramble.Checked = s.RetakeScramble;
+        _retakeScrambleRounds.Value = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
+        _retakeBalance.Checked = s.RetakeBalance;
+        _retakePlant.Checked = s.RetakeAutoPlant;
+        _retakeAnnounce.Checked = s.RetakeAnnounce;
+        _retakeJoin.Checked = s.RetakeAutoJoin;
+        _retakeGuns.SelectedIndex = s.RetakeWeapons == 1 ? 1 : 0;
+        _retakeBuySeconds.Value = Math.Clamp(s.RetakeBuySeconds, 4, 20);
+        _retakeInsta.Checked = s.RetakeInstadefuse;
+        _retakeBomb.Value = Math.Clamp(s.RetakeBombTimer, 15, 60);
+        // Match by name. GetMode() returns a copy for plugin retakes, and that copy is not in the list.
+        SelectCatalogMode(s.Mode);
         FillMaps();
         _mapBox.Text = s.Map;
         _botsBar.Value = Math.Clamp(s.Bots, 0, 20);
@@ -379,18 +395,6 @@ public class PlayPage : UserControl
         _roundTime.Value = Math.Clamp(s.RoundTime, 0, 60);
         _friendlyFire.Checked = s.FriendlyFire;
         _showDamage.Checked = s.ShowDamage;
-        _retakeStyle.SelectedIndex = s.RetakeStyle == 1 ? 1 : 0;
-        _retakePlayers.Value = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
-        _retakeRatio.Value = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
-        _retakeScramble.Checked = s.RetakeScramble;
-        _retakeScrambleRounds.Value = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
-        _retakeBalance.Checked = s.RetakeBalance;
-        _retakePlant.Checked = s.RetakeAutoPlant;
-        _retakeAnnounce.Checked = s.RetakeAnnounce;
-        _retakeJoin.Checked = s.RetakeAutoJoin;
-        _retakeBuy.Checked = s.RetakeBuy;
-        _retakeBuySeconds.Value = Math.Clamp(s.RetakeBuySeconds, 4, 20);
-        _retakeBomb.Value = Math.Clamp(s.RetakeBombTimer, 15, 60);
         _workshop.Text = s.WorkshopMap;
         _gameArgs.Text = s.GameArgs;
         _autoStartGame.Checked = s.AutoStartGame;
@@ -407,22 +411,26 @@ public class PlayPage : UserControl
         _retakeOff.Visible = !on;
         _retakeStyleRow.Visible = on;
         _valveNote.Visible = on && !plugin;
+        var buy = _retakeGuns.SelectedIndex != 1;
+        var owns = mode is ServerSettings.RetakesMode or "Arms Race" or "Demolition";
         foreach (var row in _pluginRows) row.Visible = plugin;
+        _buyTimeRow.Visible = plugin && buy;
+        _allocNote.Visible = plugin && !buy;
         _retakeScrambleRounds.Enabled = _retakeScramble.Checked;
-        _retakeBuySeconds.Enabled = _retakeBuy.Checked;
         _botTeam.Enabled = !on;
+        _botWeapons.Enabled = !owns;
         _botTeamRow.Subtitle = plugin
             ? "The plugin splits the teams. This picker is ignored."
             : on ? "Valve fills both sides (3 T vs 4 CT)."
             : "0 bots = friends only";
         // These rules are skipped on both retake styles, so the switches go quiet.
-        _maxMoney.Enabled = !on;
-        _noRoundEnd.Enabled = !on;
-        _roundTime.Enabled = !on;
+        _maxMoney.Enabled = !owns;
+        _noRoundEnd.Enabled = !owns;
+        _roundTime.Enabled = !owns;
         _ffa.Enabled = mode == "Deathmatch";
-        _moneyRow.Subtitle = on ? "Retakes handles money itself" : "And buy anywhere";
-        _roundsRow.Subtitle = on ? "Retakes ends the round on its own" : "Rounds never end, respawn on death";
-        _timeRow.Subtitle = on ? "Retakes keeps its own round length" : "Minutes · 0 = game mode default";
+        _moneyRow.Subtitle = owns ? "This mode handles money itself" : "And buy anywhere";
+        _roundsRow.Subtitle = owns ? "This mode ends the round on its own" : "Rounds never end, respawn on death";
+        _timeRow.Subtitle = owns ? "This mode keeps its own round length" : "Minutes · 0 = game mode default";
     }
 
     private ServerSettings ReadServerSettings()
@@ -452,8 +460,10 @@ public class PlayPage : UserControl
         s.RetakeAutoPlant = _retakePlant.Checked;
         s.RetakeAnnounce = _retakeAnnounce.Checked;
         s.RetakeAutoJoin = _retakeJoin.Checked;
-        s.RetakeBuy = _retakeBuy.Checked;
+        s.RetakeWeapons = _retakeGuns.SelectedIndex == 1 ? 1 : 0;
+        s.RetakeBuy = s.RetakeWeapons != 1;
         s.RetakeBuySeconds = (int)_retakeBuySeconds.Value;
+        s.RetakeInstadefuse = _retakeInsta.Checked;
         s.RetakeBombTimer = (int)_retakeBomb.Value;
         s.WorkshopMap = _workshop.Text.Trim();
         s.GameArgs = _gameArgs.Text.Trim();
@@ -474,9 +484,22 @@ public class PlayPage : UserControl
         _hackerRow.SubtitleColor = s.HackerMode != 0 ? Theme.Good : Theme.Muted;
     }
 
+    /// <summary>Selects the mode row by name. A copied <see cref="GameMode"/> would miss the list and clear the picker.</summary>
+    private void SelectCatalogMode(string name)
+    {
+        for (var i = 0; i < _modeBox.Items.Count; i++)
+        {
+            if (_modeBox.Items[i] is GameMode mode && mode.Name == name)
+            {
+                _modeBox.SelectedIndex = i;
+                return;
+            }
+        }
+    }
+
     private void OnModeChanged()
     {
-        var mode = (GameMode)_modeBox.SelectedItem!;
+        if (_modeBox.SelectedItem is not GameMode mode || mode.Maps is not { Length: > 0 }) return;
         var keep = mode.Maps.Contains(_mapBox.Text) ? _mapBox.Text : mode.Maps[0];
         FillMaps();
         _mapBox.Text = keep;
@@ -485,7 +508,8 @@ public class PlayPage : UserControl
 
     private void FillMaps()
     {
-        _mapBox.SetItems(((GameMode)_modeBox.SelectedItem!).Maps);
+        if (_modeBox.SelectedItem is not GameMode mode) return;
+        _mapBox.SetItems(mode.Maps);
     }
 
     private Process? _reportedServer;
@@ -630,7 +654,7 @@ public class PlayPage : UserControl
             // New modes found in the game files (Rush).
             _modeBox.Items.Clear();
             foreach (var m in ServerSettings.Modes) _modeBox.Items.Add(m);
-            _modeBox.SelectedItem = _app.Settings.Server.GetMode();
+            SelectCatalogMode(_app.Settings.Server.Mode);
         }
         var on = _app.TestModeOn;
         var ready = _app.Ready;
@@ -935,8 +959,8 @@ public class PlayPage : UserControl
         var reload = _runningMode == null || _runningMode != server.Mode || _runningMap != map;
         if (RetakesNeedRestart(game, server))
         {
-            var why = Installer.ThirdPartyRetakesLoaded(game) != server.IsPluginRetakes
-                ? "The retakes plugin has to load or unload, so the server needs a restart."
+            var why = Installer.RetakePluginsMismatch(game, server)
+                ? "A retakes plugin has to load or unload, so the server needs a restart."
                 : "These retakes settings are read when the plugin loads, so the server needs a restart.";
             if (MessageBox.Show(this, why + " Continue?", "Retakes",
                     MessageBoxButtons.OKCancel, MessageBoxIcon.Question) != DialogResult.OK) return;
@@ -1049,38 +1073,27 @@ public class PlayPage : UserControl
     {
         var game = _app.Game;
         if (game == null) return false;
-        if (server.IsPluginRetakes && !Installer.RetakesInstalled(game))
+        if (server.IsPluginRetakes)
         {
-            if (TestSession.Cs2Running())
-            {
-                MessageBox.Show(this, "Close CS2 first, then start again. The retakes plugin installs into the game folder.",
-                    "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            if (!await DownloadRetakePlugin(game, "the retakes plugin",
+                    () => Installer.RetakesInstalled(game), installer => installer.InstallRetakesAsync(),
+                    "Check your internet connection, or switch Style to Valve."))
                 return false;
-            }
-            _startButton.Enabled = false;
-            try
-            {
-                await new Installer(game, _app.Http, _app.Log).InstallRetakesAsync();
-            }
-            catch (Exception ex)
-            {
-                _app.Log("Could not download the retakes plugin: " + ex.Message);
-                MessageBox.Show(this, "The retakes plugin could not be downloaded.\n\n" + ex.Message +
-                                      "\n\nCheck your internet connection, or switch Style to Valve.",
-                    "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            if (server.RetakeInstadefuse && !await DownloadRetakePlugin(game, "instadefuse",
+                    () => Installer.InstadefuseInstalled(game), installer => installer.InstallInstadefuseAsync(),
+                    "Check your internet connection, or turn Instadefuse off."))
                 return false;
-            }
-            finally
-            {
-                _startButton.Enabled = _app.Ready && !_app.TestModeOn;
-            }
+            if (server.UsesAllocator && !await DownloadRetakePlugin(game, "the retakes allocator",
+                    () => Installer.AllocatorInstalled(game), installer => installer.InstallAllocatorAsync(),
+                    "Check your internet connection, or switch Guns to Buy."))
+                return false;
         }
 
         // A running CS2 refuses to start anyway. Leave its plugin folder alone until it is closed.
         if (TestSession.Cs2Running()) return true;
         try
         {
-            Installer.SetRetakesActive(game, server.IsPluginRetakes);
+            Installer.SetRetakesSuite(game, server);
             if (server.IsPluginRetakes) server.WriteRetakesConfig(game);
         }
         catch (Exception ex)
@@ -1099,13 +1112,41 @@ public class PlayPage : UserControl
     /// </summary>
     private bool RetakesNeedRestart(GameFolder game, ServerSettings server)
     {
-        var loaded = Installer.ThirdPartyRetakesLoaded(game);
-        var want = server.IsPluginRetakes;
+        var mismatch = Installer.RetakePluginsMismatch(game, server);
         var key = server.PluginRetakeKey();
-        if (_runningRetakeKey == null && loaded == want) return false;
+        if (_runningRetakeKey == null && !mismatch) return false;
         var pluginSettingsChanged = _runningRetakeKey != null && _runningRetakeKey != key
-            && (want || _runningRetakeKey is not ("valve" or "off"));
-        return loaded != want || pluginSettingsChanged;
+            && (server.IsPluginRetakes || _runningRetakeKey is not ("valve" or "off"));
+        return mismatch || pluginSettingsChanged;
+    }
+
+    /// <summary>Downloads one retakes add-on the first time it is needed. CS2 has to be closed first.</summary>
+    private async Task<bool> DownloadRetakePlugin(GameFolder game, string label, Func<bool> installed, Func<Installer, Task> download, string hint)
+    {
+        if (installed()) return true;
+        if (TestSession.Cs2Running())
+        {
+            MessageBox.Show(this, $"Close CS2 first, then start again. {label} installs into the game folder.",
+                "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Information);
+            return false;
+        }
+        _startButton.Enabled = false;
+        try
+        {
+            await download(new Installer(game, _app.Http, _app.Log));
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _app.Log($"Could not download {label}: " + ex.Message);
+            MessageBox.Show(this, $"{label} could not be downloaded.\n\n" + ex.Message + "\n\n" + hint,
+                "Retakes plugin", MessageBoxButtons.OK, MessageBoxIcon.Warning);
+            return false;
+        }
+        finally
+        {
+            _startButton.Enabled = _app.Ready && !_app.TestModeOn;
+        }
     }
 
     /// <summary>Stops the running server, waits for CS2 to close, then starts again with the current settings.</summary>

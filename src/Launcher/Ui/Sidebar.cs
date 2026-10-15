@@ -5,7 +5,7 @@ namespace LanSkinTester.Launcher.Ui;
 /// <summary>A navigation row in the sidebar: drawn icon + label, rounded highlight when selected.</summary>
 public class SidebarItem : DrawnControl
 {
-    public enum Icon { Play, Skins, Hacker, Friends, Setup }
+    public enum Icon { Play, Live, Skins, Hacker, Friends, Setup }
 
     private readonly Icon _icon;
     private bool _selected;
@@ -54,6 +54,13 @@ public class SidebarItem : DrawnControl
                 // play.circle
                 g.DrawEllipse(pen, box);
                 g.FillPolygon(brush, [new PointF(box.Left + 7, box.Top + 5), new PointF(box.Left + 7, box.Bottom - 5), new PointF(box.Right - 4.5f, box.Top + 9)]);
+                break;
+            case Icon.Live:
+                // a server rack: three stacked bars and a status dot
+                g.DrawRectangle(pen, box.Left + 2, box.Top + 2, 11, 4);
+                g.DrawRectangle(pen, box.Left + 2, box.Top + 7.5f, 11, 4);
+                g.DrawRectangle(pen, box.Left + 2, box.Top + 13, 11, 4);
+                g.FillEllipse(brush, box.Right - 5, box.Top + 3, 3.2f, 3.2f);
                 break;
             case Icon.Skins:
                 // a gem / diamond outline

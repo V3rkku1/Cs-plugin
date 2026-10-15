@@ -56,10 +56,11 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 
 1. **Quick start:** one click sets everything up and starts (or switches the running server):
    *DM vs Expert bots*, *Free-for-all*, *Skin showcase* (peaceful bots, third person),
-   *Aim practice*, *Competitive 5v5*, *Arms Race*, *Retakes* (Valve's 3v4 loadout-card mode),
-   *Plugin retakes* (cs2-retakes, with a buy period), *Rush 3v3* when your CS2 has it, plus any setup you saved.
-2. **Server** settings sit on tabs: Game, Bots, Rules, Launch, Retakes, Live. Or pick everything yourself:
-   - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race) and map
+   *Aim practice*, *Competitive 5v5*, *Arms Race*, *Demolition*, *Weapons Expert*,
+   *Retakes* (Valve's 3v4 loadout-card mode), *Plugin retakes* (allocator and instadefuse),
+   *Retake buy*, *Rush 3v3* when your CS2 has it, plus any setup you saved.
+2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings sit on tabs: Game, Bots, Rules, Launch, Retakes. Or pick everything yourself:
+   - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom, Retakes) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
    - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
      machine guns, and any sniper a bot still gets is swapped for an AK-47 / M4A4), pistols only,
@@ -82,10 +83,10 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
    and option settings to the running server; changing the mode or map switches the map. **Open CS2**
    starts the game again if you closed it.
-4. **Status** (right side) shows the map, mode, players and bots, and whether skins are working,
-   updated every 2 seconds. **Live** (its own tab) holds the server controls: round (restart, end warmup,
-   pause, resume, swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person,
-   noclip, armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
+4. **Live Server** shows the map, mode, players and bots, and whether skins are working, updated
+   every 2 seconds. The same page holds the server controls: round (restart, end warmup, pause, resume,
+   swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person, noclip,
+   armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
    **Command** sends anything else to the server console. The buttons light up when the server is up.
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
@@ -93,13 +94,19 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 **Retakes** has two styles, chosen on the Retakes tab (and only while the game mode is Retakes).
 
 - **Valve** (the *Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
-- **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks the plugin outside the plugins folder whenever another mode or Valve retakes is running, so the two never fight. Switching the plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
+- **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
 
-On the Retakes tab, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu. **Buy before round** turns the freeze into a buy: after the plugin hands out rifles, humans are stripped (knife and bomb stay) and get $16000 to buy their own guns. Bots keep the rifles. Buy on/off, buy time (4–20 seconds) and the bomb timer apply without a restart. Max money, endless rounds and round time stay off for both styles, because retakes owns those rules.
+On the Retakes tab, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
+
+**Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Retake buy* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
+
+**Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse)) finishes a defuse the moment it starts when no terrorist, molotov, or grenade can stop it. It is on for both plugin quick starts. Turning it off restarts the server so the plugin unloads.
+
+**Demolition** is gun-game with a bomb (`game_type 1`, `game_mode 1`) on de_lake, de_safehouse and de_shortdust. **Weapons Expert** is competitive where each gun can be bought once (`game_type 0`, `game_mode 3`). **Custom** is an open sandbox (`game_type 3`, `game_mode 0`). Arms Race, Demolition and both retake styles keep their own guns, money and round length.
 
 **Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
 
-**Live tab** controls, besides restart, respawn, third person and giving a weapon:
+**Live Server** controls, besides restart, respawn, third person and giving a weapon:
 
 - *Pause* / *Resume*, *Swap* teams, *CT Win* / *T Win*, *End Warmup*
 - *Add CT*, *Add T*, *Kick Bots*

@@ -11,11 +11,13 @@ public class MainForm : Form
     private readonly AppState _app = new();
     private readonly Panel _pages = new() { Dock = DockStyle.Fill, BackColor = Theme.Background };
     private readonly PlayPage _play;
+    private readonly LiveServerPage _live;
     private readonly SkinsPage _skins;
     private readonly HackerPage _hacker;
     private readonly FriendsPage _friends;
     private readonly SetupPage _setup;
     private readonly SidebarItem _navPlay = new("Play", SidebarItem.Icon.Play);
+    private readonly SidebarItem _navLive = new("Live Server", SidebarItem.Icon.Live);
     private readonly SidebarItem _navSkins = new("Skins", SidebarItem.Icon.Skins);
     private readonly SidebarItem _navHacker = new("Hacker Mode", SidebarItem.Icon.Hacker);
     private readonly SidebarItem _navFriends = new("Friends", SidebarItem.Icon.Friends);
@@ -39,12 +41,14 @@ public class MainForm : Form
         catch (Exception) { /* default icon */ }
 
         _play = new PlayPage(_app) { Dock = DockStyle.Fill };
+        _live = new LiveServerPage(_app, _play) { Dock = DockStyle.Fill };
         _skins = new SkinsPage(_app.Images) { Dock = DockStyle.Fill };
         _hacker = new HackerPage(_app) { Dock = DockStyle.Fill };
         _friends = new FriendsPage(_app, _play) { Dock = DockStyle.Fill };
         _play.OpenHackerPage += () => ShowPage(_hacker);
+        _play.OpenLiveServer += () => ShowPage(_live);
         _setup = new SetupPage(_app) { Dock = DockStyle.Fill };
-        _pages.Controls.AddRange([_play, _skins, _hacker, _friends, _setup]);
+        _pages.Controls.AddRange([_play, _live, _skins, _hacker, _friends, _setup]);
 
         Controls.Add(_pages);
         Controls.Add(BuildSidebar());
@@ -85,8 +89,9 @@ public class MainForm : Form
         var app = new SmoothLabel { Text = "Skin Tester", Font = Theme.Big, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Location = new Point(62, 19) };
         var sub = new SmoothLabel { Text = $"CS2 · {UpdateCheck.ShortVersion}", Font = Theme.Small, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Location = new Point(63, 45) };
 
-        var nav = new VStack(_navPlay, _navSkins, _navHacker, _navFriends, _navSetup) { Location = new Point(16, 92) };
+        var nav = new VStack(_navPlay, _navLive, _navSkins, _navHacker, _navFriends, _navSetup) { Location = new Point(16, 92) };
         _navPlay.Click += (_, _) => ShowPage(_play);
+        _navLive.Click += (_, _) => ShowPage(_live);
         _navSkins.Click += (_, _) => ShowPage(_skins);
         _navHacker.Click += (_, _) => ShowPage(_hacker);
         _navFriends.Click += (_, _) => ShowPage(_friends);
@@ -113,12 +118,14 @@ public class MainForm : Form
         foreach (Control other in _pages.Controls) if (other != page) other.Visible = false;
 
         _navPlay.Selected = page == _play;
+        _navLive.Selected = page == _live;
         _navSkins.Selected = page == _skins;
         _navHacker.Selected = page == _hacker;
         _navFriends.Selected = page == _friends;
         _navSetup.Selected = page == _setup;
         if (page == _skins) _skins.Reload();
-        _app.Settings.LastPage = page == _play ? "play" : page == _skins ? "skins" : page == _hacker ? "hacker" : page == _friends ? "friends" : "setup";
+        if (page == _live) _play.UpdateHackerRow();
+        _app.Settings.LastPage = page == _play ? "play" : page == _live ? "live" : page == _skins ? "skins" : page == _hacker ? "hacker" : page == _friends ? "friends" : "setup";
         try { _app.Settings.Save(); }
         catch (IOException) { /* not important */ }
     }
@@ -126,6 +133,7 @@ public class MainForm : Form
     private Control? PageByName(string? name) => name switch
     {
         "play" => _play,
+        "live" => _live,
         "skins" => _skins,
         "hacker" => _hacker,
         "friends" => _friends,
@@ -142,10 +150,11 @@ public class MainForm : Form
         switch (keyData)
         {
             case Keys.Control | Keys.D1: ShowPage(_play); return true;
-            case Keys.Control | Keys.D2: ShowPage(_skins); return true;
-            case Keys.Control | Keys.D3: ShowPage(_hacker); return true;
-            case Keys.Control | Keys.D4: ShowPage(_friends); return true;
-            case Keys.Control | Keys.D5: ShowPage(_setup); return true;
+            case Keys.Control | Keys.D2: ShowPage(_live); return true;
+            case Keys.Control | Keys.D3: ShowPage(_skins); return true;
+            case Keys.Control | Keys.D4: ShowPage(_hacker); return true;
+            case Keys.Control | Keys.D5: ShowPage(_friends); return true;
+            case Keys.Control | Keys.D6: ShowPage(_setup); return true;
             case Keys.Control | Keys.F:
                 ShowPage(_skins);
                 _skins.FocusSearch();
