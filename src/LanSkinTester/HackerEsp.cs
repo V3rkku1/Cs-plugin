@@ -202,7 +202,8 @@ public partial class LanSkinTester
 
     private void DrawSkeleton(PlayerEsp esp, CCSPlayerController player, CCSPlayerPawn pawn, Vector origin, Color color)
     {
-        var yaw = pawn.EyeAngles.Y * Math.PI / 180.0;
+        TryReadView(pawn, out _, out var yawDeg);
+        var yaw = yawDeg * Math.PI / 180.0;
         var forward = new Vector((float)Math.Cos(yaw), (float)Math.Sin(yaw), 0);
         var right = new Vector((float)Math.Sin(yaw), (float)-Math.Cos(yaw), 0);
         var duck = EyeHeight(pawn) <= 55f;
@@ -281,8 +282,9 @@ public partial class LanSkinTester
         }
         if (esp.Tag is { IsValid: true })
         {
+            TryReadView(pawn, out _, out var yaw);
             var z = origin.Z + Math.Max(EyeHeight(pawn), 64f) + 18f;
-            esp.Tag.Teleport(new Vector(origin.X, origin.Y, z), new QAngle(0, pawn.EyeAngles.Y, 0), null);
+            esp.Tag.Teleport(new Vector(origin.X, origin.Y, z), new QAngle(0, yaw, 0), null);
         }
     }
 
@@ -301,6 +303,12 @@ public partial class LanSkinTester
         entity.JustifyVertical = PointWorldTextJustifyVertical_t.POINT_WORLD_TEXT_JUSTIFY_VERTICAL_BOTTOM;
         entity.ReorientMode = PointWorldTextReorientMode_t.POINT_WORLD_TEXT_REORIENT_AROUND_UP;
         entity.DispatchSpawn();
+        // Same through-wall highlight as the player chams, so the plate is readable behind cover.
+        entity.Glow.GlowColorOverride = color;
+        entity.Glow.GlowRange = 8000;
+        entity.Glow.GlowRangeMin = 0;
+        entity.Glow.GlowTeam = -1;
+        entity.Glow.GlowType = 3;
         return entity;
     }
 
@@ -326,17 +334,25 @@ public partial class LanSkinTester
                 return null;
             }
             beam.BeamType = BeamType_t.BEAM_POINTS;
-            beam.Width = 1.15f;
-            beam.EndWidth = 1.15f;
-            beam.BoltWidth = 1.15f;
+            beam.Width = 2f;
+            beam.EndWidth = 2f;
+            beam.BoltWidth = 2f;
             beam.Amplitude = 0;
             beam.NoiseAmplitude = 0;
-            beam.Life = 0;
+            beam.Life = 9999f;
+            beam.SpriteName = "materials/sprites/laserbeam.vmat";
+            beam.BeamFlags = 0x4000u | 0x20u; // stay up, draw solid
+            beam.NumBeamEnts = 2;
             beam.Render = color;
             beam.RenderMode = RenderMode_t.kRenderNormal;
             beam.FadeMinDist = 0;
             beam.FadeMaxDist = 20000;
             beam.DispatchSpawn();
+            beam.Glow.GlowColorOverride = color;
+            beam.Glow.GlowRange = 8000;
+            beam.Glow.GlowRangeMin = 0;
+            beam.Glow.GlowTeam = -1;
+            beam.Glow.GlowType = 3;
             return beam;
         }
         catch (Exception ex)

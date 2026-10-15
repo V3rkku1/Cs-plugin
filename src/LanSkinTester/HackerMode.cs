@@ -276,6 +276,9 @@ public partial class LanSkinTester
     {
         RegisterListener<Listeners.CheckTransmit>(OnHackCheckTransmit);
         RegisterListener<Listeners.OnTick>(OnHackTick);
+        RegisterListener<Listeners.OnServerPreEntityThink>(OnHackPreThink);
+        RegisterListener<Listeners.OnServerPostEntityThink>(OnHackPostThink);
+        RegisterListener<Listeners.OnEntitySpawned>(OnHackSmokeSpawned);
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
             _glows.Clear();
@@ -286,6 +289,9 @@ public partial class LanSkinTester
             _triggers.Clear();
             _silentRestore.Clear();
             _attackHeld.Clear();
+            _pendingAim.Clear();
+            _bhopReleased.Clear();
+            _smokes.Clear();
         });
         RegisterListener<Listeners.OnClientDisconnect>(slot =>
         {
@@ -306,6 +312,8 @@ public partial class LanSkinTester
             _triggers.Remove(slot);
             _silentRestore.Remove(slot);
             _attackHeld.Remove(slot);
+            _pendingAim.Remove(slot);
+            _bhopReleased.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
         RegisterEventHandler<EventPlayerSpawn>(OnHackSpawn);
@@ -556,10 +564,11 @@ public partial class LanSkinTester
     private void OnHackTick()
     {
         TickCheatMenus();
-        RestoreSilentAims();
         if (_hackMode == HackMode.Off && _personal.Count == 0)
         {
             ReleaseAllForcedAttacks();
+            _pendingAim.Clear();
+            _silentRestore.Clear();
             ClearPlayerEsp();
             return;
         }
@@ -596,38 +605,21 @@ public partial class LanSkinTester
 
             var fire = triggerFire;
             if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
-            else _aimLocks.Remove(hacker.Slot);
+            else
+            {
+                _aimLocks.Remove(hacker.Slot);
+                _pendingAim.Remove(hacker.Slot);
+            }
 
             SetForcedAttack(hacker, fire);
         }
     }
 
-    /// <summary>Puts the real view back after a silent shot so the crosshair does not stay on the target.</summary>
-    private void RestoreSilentAims()
-    {
-        if (_silentRestore.Count == 0) return;
-        foreach (var (slot, angles) in _silentRestore)
-        {
-            var pawn = Utilities.GetPlayerFromSlot(slot)?.PlayerPawn.Value;
-            if (pawn is { IsValid: true }) pawn.Teleport(null, new QAngle(angles.Pitch, angles.Yaw, 0), null);
-        }
-        _silentRestore.Clear();
-    }
-
+    /// <summary>Marks the slot so pre-think injects IN_ATTACK into that pawn's buttons. No client command.</summary>
     private void SetForcedAttack(CCSPlayerController player, bool down)
     {
-        var held = _attackHeld.Contains(player.Slot);
-        if (down == held) return;
-        try
-        {
-            player.ExecuteClientCommandFromServer(down ? "+attack" : "-attack");
-            if (down) _attackHeld.Add(player.Slot);
-            else _attackHeld.Remove(player.Slot);
-        }
-        catch (Exception ex)
-        {
-            Logger.LogDebug(ex, "Could not {Action} attack for slot {Slot}", down ? "press" : "release", player.Slot);
-        }
+        if (down) _attackHeld.Add(player.Slot);
+        else _attackHeld.Remove(player.Slot);
     }
 
     private void ReleaseAllForcedAttacks()
@@ -821,7 +813,8 @@ public partial class LanSkinTester
         foreach (var (enemy, enemyPawn, distance, target) in found.Take(3))
         {
             var yaw = Math.Atan2(target.Y - origin.Y, target.X - origin.X) * 180 / Math.PI;
-            var rel = AngleDiff(pawn.EyeAngles.Y, (float)yaw); // positive: enemy is to the right
+            TryReadView(pawn, out _, out var viewYaw);
+            var rel = AngleDiff(viewYaw, (float)yaw); // positive: enemy is to the right
             var arrow = Arrows[(int)Math.Round(((rel % 360) + 360) % 360 / 45.0) % 8];
             var visible = IsVisibleTo(enemyPawn, pawn);
             var gear = ReadGear(enemyPawn);
@@ -871,7 +864,7 @@ public partial class LanSkinTester
         if (style == AimStyle.Rage) fov = 180f;
         var mode = AimTargetOf(hacker);
         var sticky = mode == AimTarget.Crosshair;
-        var current = pawn.EyeAngles;
+        if (!TryReadView(pawn, out var currentPitch, out var currentYaw)) return false;
         _aimLocks.TryGetValue(hacker.Slot, out var aim);
         var walls = Has(hacker, Power.AimWalls);
 
@@ -883,7 +876,7 @@ public partial class LanSkinTester
         if (sticky && aim != null && Utilities.GetPlayerFromSlot(aim.TargetSlot) is { IsValid: true, PawnIsAlive: true } locked
             && IsEnemy(hacker, locked) && locked.PlayerPawn.Value is { IsValid: true } lockedPawn && (walls || IsVisibleTo(lockedPawn, pawn))
             && AnglesTo(pawn, lockedPawn, aim) is { } a
-            && Math.Max(Math.Abs(AngleDiff(a.Yaw, current.Y)), Math.Abs(AngleDiff(a.Pitch, current.X))) < fov * 1.5f)
+            && Math.Max(Math.Abs(AngleDiff(a.Yaw, currentYaw)), Math.Abs(AngleDiff(a.Pitch, currentPitch))) < fov * 1.5f)
         {
             best = locked;
             targetPawn = lockedPawn;
@@ -902,7 +895,7 @@ public partial class LanSkinTester
                     AimTarget.Health => enemyPawn.Health * 100000d + Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2),
                     AimTarget.Threat => LookingAtMe(enemyPawn, pawn) * 100000d + Math.Sqrt(Math.Pow(o.X - origin.X, 2) + Math.Pow(o.Y - origin.Y, 2)),
                     _ => AnglesTo(pawn, enemyPawn, null) is { } angles
-                        ? Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)))
+                        ? Math.Max(Math.Abs(AngleDiff(angles.Yaw, currentYaw)), Math.Abs(AngleDiff(angles.Pitch, currentPitch)))
                         : double.MaxValue,
                 };
                 // Trace only the better candidate. "Aim through walls" skips the line-of-sight check.
@@ -915,6 +908,7 @@ public partial class LanSkinTester
         if (best == null || targetPawn == null)
         {
             _aimLocks.Remove(hacker.Slot);
+            _pendingAim.Remove(hacker.Slot);
             return false;
         }
         if (aim == null || aim.TargetSlot != best.Slot)
@@ -932,34 +926,57 @@ public partial class LanSkinTester
             _aimLocks[hacker.Slot] = aim;
         }
 
-        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs) return false;
+        if ((DateTime.UtcNow - aim.AcquiredAt).TotalMilliseconds < aim.ReactionMs)
+        {
+            _pendingAim.Remove(hacker.Slot);
+            return false;
+        }
         if (AnglesTo(pawn, targetPawn, aim) is not { } goal) return false;
 
         if (style == AimStyle.Silent)
         {
-            // Only while a shot is going out: point the bullet, then RestoreSilentAims puts the view back.
-            if ((hacker.Buttons & PlayerButtons.Attack) == 0 && !triggerWantsShot) return false;
-            _silentRestore[hacker.Slot] = (current.X, current.Y);
-            pawn.Teleport(null, new QAngle(goal.Pitch, goal.Yaw, 0), null);
+            // The bullet uses the angles written in pre-think. Post-think puts the player's own view back,
+            // so the crosshair never stays on the target. Remember the real view only when we are not
+            // reading the angles we wrote last think.
+            if ((hacker.Buttons & PlayerButtons.Attack) == 0 && !triggerWantsShot)
+            {
+                _pendingAim.Remove(hacker.Slot);
+                return false;
+            }
+            var readingOurs = _pendingAim.TryGetValue(hacker.Slot, out var previous)
+                && Math.Abs(AngleDiff(previous.Pitch, currentPitch)) < 0.25f
+                && Math.Abs(AngleDiff(previous.Yaw, currentYaw)) < 0.25f;
+            if (!readingOurs) _silentRestore[hacker.Slot] = (currentPitch, currentYaw);
+            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
             return false;
         }
 
         if (style == AimStyle.Rage)
         {
+            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
+            WriteView(pawn, goal.Pitch, goal.Yaw);
             pawn.Teleport(null, new QAngle(goal.Pitch, goal.Yaw, 0), null);
             return true;
         }
 
-        var dYaw = AngleDiff(goal.Yaw, current.Y);
-        var dPitch = AngleDiff(goal.Pitch, current.X);
-        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f) return false;
+        var dYaw = AngleDiff(goal.Yaw, currentYaw);
+        var dPitch = AngleDiff(goal.Pitch, currentPitch);
+        if (Math.Abs(dYaw) < 0.05f && Math.Abs(dPitch) < 0.05f)
+        {
+            _pendingAim[hacker.Slot] = (goal.Pitch, goal.Yaw);
+            return false;
+        }
         var maxStep = AimMaxStep * smoothing / AimSmoothing;
         if (mode != AimTarget.Crosshair) maxStep *= 1.6f;
         var stepYaw = Math.Clamp(dYaw * smoothing, -maxStep, maxStep);
         var stepPitch = Math.Clamp(dPitch * smoothing, -maxStep, maxStep);
         if (Math.Abs(dYaw) < 0.4f) stepYaw = dYaw;
         if (Math.Abs(dPitch) < 0.4f) stepPitch = dPitch;
-        pawn.Teleport(null, new QAngle(current.X + stepPitch, current.Y + stepYaw, 0), null);
+        var nextPitch = currentPitch + stepPitch;
+        var nextYaw = currentYaw + stepYaw;
+        _pendingAim[hacker.Slot] = (nextPitch, nextYaw);
+        WriteView(pawn, nextPitch, nextYaw);
+        pawn.Teleport(null, new QAngle(nextPitch, nextYaw, 0), null);
         return false;
     }
 
@@ -967,42 +984,28 @@ public partial class LanSkinTester
     private static float LookingAtMe(CCSPlayerPawn enemy, CCSPlayerPawn me)
     {
         if (AnglesTo(enemy, me, null) is not { } angles) return 180f;
-        var eye = enemy.EyeAngles;
-        return Math.Max(Math.Abs(AngleDiff(angles.Yaw, eye.Y)), Math.Abs(AngleDiff(angles.Pitch, eye.X)));
+        if (!TryReadView(enemy, out var pitch, out var yaw)) return 180f;
+        return Math.Max(Math.Abs(AngleDiff(angles.Yaw, yaw)), Math.Abs(AngleDiff(angles.Pitch, pitch)));
     }
 
-    /// <summary>Fires after a short random delay once an enemy sits on the crosshair. True when it is time to shoot.</summary>
+    /// <summary>Fires after a short random delay once a shot trace hits an enemy. True when it is time to shoot.</summary>
     private bool Triggerbot(CCSPlayerController hacker, CCSPlayerPawn pawn)
     {
-        var current = pawn.EyeAngles;
         var walls = Has(hacker, Power.AimWalls);
-        var probe = new AimLock { OffsetZ = BoneDrop(AimBoneOf(hacker)) };
-        CCSPlayerController? best = null;
-        var bestAngle = 2.4f;
-        foreach (var enemy in Utilities.GetPlayers())
-        {
-            if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
-            var enemyPawn = enemy.PlayerPawn.Value;
-            if (enemyPawn == null || !enemyPawn.IsValid) continue;
-            if (AnglesTo(pawn, enemyPawn, probe) is not { } angles) continue;
-            var score = Math.Max(Math.Abs(AngleDiff(angles.Yaw, current.Y)), Math.Abs(AngleDiff(angles.Pitch, current.X)));
-            if (score >= bestAngle || (!walls && !IsVisibleTo(enemyPawn, pawn))) continue;
-            bestAngle = score;
-            best = enemy;
-        }
-        if (best == null)
+        if (!CrosshairOnEnemy(hacker, pawn, walls))
         {
             _triggers.Remove(hacker.Slot);
             return false;
         }
-        if (!_triggers.TryGetValue(hacker.Slot, out var wait) || wait.TargetSlot != best.Slot)
+        const int anyEnemy = -2;
+        if (!_triggers.TryGetValue(hacker.Slot, out var wait) || wait.TargetSlot != anyEnemy)
         {
             var aggression = AggressionOf(hacker);
             var min = 95.0 - 8.0 * aggression;
             var max = min + 35.0 + (10 - aggression) * 9.0;
             wait = new TriggerLock
             {
-                TargetSlot = best.Slot,
+                TargetSlot = anyEnemy,
                 SeenAt = DateTime.UtcNow,
                 DelayMs = min + Random.Shared.NextDouble() * (max - min),
             };
@@ -1075,10 +1078,9 @@ public partial class LanSkinTester
                 : player.Team == CsTeam.Terrorist ? TerroristGlow : CounterTerroristGlow;
             glow.SetModel(model);
             glow.Spawnflags = 256;
-            // Solid translucent body (chams) plus the through-wall glow outline.
-            glow.RenderMode = RenderMode_t.kRenderTransAlpha;
-            glow.Render = Color.FromArgb(170, color.R, color.G, color.B);
             glow.DispatchSpawn();
+            // Engine glow (spectator-style highlight). It is drawn through walls for whoever receives the entity.
+            // A render-mode override here hides that highlight on current CS2, so the model stays the normal one.
             glow.Glow.GlowColorOverride = color;
             glow.Glow.GlowRange = 10000;
             glow.Glow.GlowRangeMin = 0;
@@ -1121,10 +1123,11 @@ public partial class LanSkinTester
 
     private void OnHackCheckTransmit(CCheckTransmitInfoList infoList)
     {
-        if (_glows.Count == 0 && _cheatMenus.Count == 0 && _esp.Count == 0) return;
+        if (_glows.Count == 0 && _cheatMenus.Count == 0 && _esp.Count == 0 && _smokes.Count == 0) return;
         foreach (var (info, viewer) in infoList)
         {
             if (_cheatMenus.Count > 0) HideOtherMenus(info, viewer);
+            if (_smokes.Count > 0) HideSmokes(info, viewer);
             foreach (var (_, (owner, _, glow)) in _glows)
             {
                 if (!glow.IsValid) continue;

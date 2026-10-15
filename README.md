@@ -138,9 +138,9 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
   - *Skeleton ESP:* a stick figure of their pose (crouch, facing, walk, and whether they are shooting).
     The server has no client bone overlay, so this is drawn in the world and only sent to hackers.
   - *Name tags:* name, HP, armor, gun and grenades (including the bomb) floating above each player.
-  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** leaves
-    your crosshair where you look and points the bullet while you shoot, then puts the view back.
-    **Rage** snaps onto the target and fires.
+  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** writes
+    the shot angle on the server just before the bullet is made, then puts your own view back, so the
+    crosshair is not left on the target. **Rage** snaps the crosshair and injects the shot.
   - *Body:* head, neck or chest. Legit and silent still miss by a little at low aggression.
   - *Aim at:* **closest enemy**, **nearest crosshair**, **lowest HP**, or **highest threat** (the enemy
     whose aim is closest to you).
@@ -161,7 +161,7 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
     (`weapon_accuracy_nospread`), so it applies to everyone, bots included.
   - *Radar hack:* every enemy shows on your radar, even when they make no noise.
   - *Bunnyhop:* hold jump to bhop perfectly.
-  - *No flash:* flashbangs don't blind you.
+  - *No flash:* flashbangs don't blind you, and smoke entities are not sent to you.
   - *Enemy info:* the three nearest enemies in the middle of the screen: name, HP, armor, gun,
     grenades, distance, direction, and whether you can see them.
   - *Infinite ammo.*
