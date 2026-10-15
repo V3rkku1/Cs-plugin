@@ -78,7 +78,11 @@ public class Segmented : DrawnControl
 
     protected override void Draw(Graphics g)
     {
-        Theme.FillRounded(g, Color.FromArgb(44, 44, 47), new RectangleF(0, 0, Width - 1, Height - 1), 9);
+        var track = new RectangleF(0, 0, Width - 1, Height - 1);
+        Theme.FillRounded(g, Theme.Input, track, 9);
+        using (var outline = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 9))
+        using (var pen = new Pen(Theme.Separator))
+            g.DrawPath(pen, outline);
 
         for (var i = 0; i < _options.Length; i++)
         {
@@ -87,19 +91,15 @@ public class Segmented : DrawnControl
             if (on)
             {
                 var raised = RectangleF.Inflate(r, -1, -1);
-                using (var shadow = new SolidBrush(Color.FromArgb(50, 0, 0, 0)))
-                using (var path = Theme.Rounded(new RectangleF(raised.X, raised.Y + 1, raised.Width, raised.Height), 7))
-                    g.FillPath(shadow, path);
-                Theme.FillRounded(g, Enabled ? Color.FromArgb(99, 99, 104) : Color.FromArgb(66, 66, 70), raised, 7);
+                Theme.FillRounded(g, Enabled ? Theme.Accent : Theme.Blend(Theme.Accent, Theme.Input, 0.55f), raised, 7);
             }
             else if (i == _hover && _enabled[i] && Enabled)
             {
-                Theme.FillRounded(g, Color.FromArgb(56, 56, 60), RectangleF.Inflate(r, -1, -1), 7);
+                Theme.FillRounded(g, Theme.Fill, RectangleF.Inflate(r, -1, -1), 7);
             }
             else if (i > 0 && i % Columns != 0 && i - 1 != _selected)
             {
-                // hairline between unselected neighbours
-                using var pen = new Pen(Theme.WithAlpha(Color.White, 25));
+                using var pen = new Pen(Theme.Separator);
                 g.DrawLine(pen, r.Left, r.Top + 7, r.Left, r.Bottom - 7);
             }
 

@@ -52,12 +52,9 @@ public class PresetCard : DrawnControl
         var r = new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f);
         var bg = Pressed ? Theme.Fill : Hover ? Theme.CardHover : Theme.Card;
         Theme.FillRounded(g, bg, r, 12);
-        if (Hover)
-        {
-            using var path = Theme.Rounded(r, 12);
-            using var pen = new Pen(Theme.WithAlpha(_tint, 180), 1.5f);
+        using (var path = Theme.Rounded(r, 12))
+        using (var pen = new Pen(Hover ? Theme.WithAlpha(_tint, 200) : Theme.Separator, Hover ? 1.5f : 1f))
             g.DrawPath(pen, path);
-        }
 
         // Icon: a rounded square in the tile's colour with a play triangle.
         var icon = new RectangleF(Theme.S(14f), Theme.S(14f), Theme.S(26f), Theme.S(26f));

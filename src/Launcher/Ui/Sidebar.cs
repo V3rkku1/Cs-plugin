@@ -30,10 +30,13 @@ public class SidebarItem : DrawnControl
         var r = new RectangleF(0, 0, Width - 1, Height - 1);
         if (_selected)
         {
-            Theme.FillRounded(g, Theme.Blend(Theme.Sidebar, Theme.Accent, 0.28f), r, 12);
-            Theme.FillRounded(g, Theme.Accent, new RectangleF(0, Theme.S(12f), Theme.S(3f), Height - Theme.S(24f)), 2);
+            Theme.FillRounded(g, Theme.Blend(Theme.Sidebar, Theme.Accent, 0.34f), r, 12);
+            using (var path = Theme.Rounded(r, 12))
+            using (var pen = new Pen(Theme.WithAlpha(Theme.Accent, 110)))
+                g.DrawPath(pen, path);
+            Theme.FillRounded(g, Theme.Accent, new RectangleF(0, Theme.S(11f), Theme.S(3f), Height - Theme.S(22f)), 2);
         }
-        else if (Hover) Theme.FillRounded(g, Theme.WithAlpha(Theme.Fill, 140), r, 12);
+        else if (Hover) Theme.FillRounded(g, Theme.Fill, r, 12);
 
         var state = g.Save();
         g.TranslateTransform(Theme.S(12f), (Height - Theme.S(18f)) / 2);
@@ -165,7 +168,11 @@ public class StatusBadge : DrawnControl
 
     protected override void Draw(Graphics g)
     {
-        Theme.FillRounded(g, Theme.Card, new RectangleF(0, 0, Width - 1, Height - 1), 10);
+        var badge = new RectangleF(0, 0, Width - 1, Height - 1);
+        Theme.FillRounded(g, Theme.Card, badge, 10);
+        using (var path = Theme.Rounded(new RectangleF(0.5f, 0.5f, Width - 1.5f, Height - 1.5f), 10))
+        using (var pen = new Pen(Theme.Separator))
+            g.DrawPath(pen, path);
         var mid = Height / 2f;
         using (var glow = new SolidBrush(Theme.WithAlpha(_dot, 60))) g.FillEllipse(glow, Theme.S(11f), mid - Theme.S(9f), Theme.S(18f), Theme.S(18f));
         using (var dot = new SolidBrush(_dot)) g.FillEllipse(dot, Theme.S(15f), mid - Theme.S(5f), Theme.S(10f), Theme.S(10f));

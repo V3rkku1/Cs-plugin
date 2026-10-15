@@ -347,8 +347,8 @@ public class PlayPage : UserControl
     internal static Control Header(string title, string subtitle)
     {
         var t = new SmoothLabel { Text = title, Font = Theme.Title, ForeColor = Theme.Text, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(2, 0, 0, 0) };
-        var s = new SmoothLabel { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 2, 0, 16) };
-        return new VStack(t, s) { Height = 86 };
+        var s = new SmoothLabel { Text = subtitle, Font = Theme.Body, ForeColor = Theme.Muted, AutoSize = true, BackColor = Color.Transparent, Margin = new Padding(4, 4, 0, 18) };
+        return new VStack(t, s);
     }
 
     private record GiveItem(string Classname, string Name)
