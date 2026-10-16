@@ -3,6 +3,30 @@ import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall, useApi, useEvent } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Toggle, Slider, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
 import { PRESETS, DEFAULTS } from "../theme.js";
+import { openUpdate } from "../update.js";
+
+/** This launcher's version, update check and automatic updates. */
+function LauncherSection() {
+  const [app] = useApi("app.state");
+  const [checked, setChecked] = useState(false);
+  if (!app) return null;
+  const check = async () => {
+    const newer = await tryCall("app.checkUpdate");
+    if (newer === false) setChecked(true);
+  };
+  const subtitle = app.updateProgress ?? (app.updateAvailable ? `Build ${app.updateCommit} is out - you have ${app.version}`
+    : checked ? `You have the newest (${app.version})` : `You have ${app.version}`);
+  return html`<${Section} title="Launcher" footer="New versions show up here and as a popup while the launcher is open. With automatic updates on, a new version installs by itself when you open the launcher.">
+    <${Row} icon=${{ name: "download", color: "blue" }} title=${app.updateAvailable ? "Update Available" : "Launcher Version"} subtitle=${subtitle}>
+      ${app.updateAvailable
+        ? html`<${Button} size="sm" kind="prominent" disabled=${!!app.updateProgress} onClick=${() => openUpdate(app)}>See What's New<//>`
+        : html`<${Button} size="sm" busy=${app.checkingUpdate} onClick=${check}>Check<//>`}
+    <//>
+    <${Row} icon=${{ name: "refresh", color: "green" }} title="Update Automatically" subtitle="Install new versions when the launcher opens">
+      <${Toggle} value=${app.autoUpdate} onChange=${v => tryCall("app.autoUpdate", v)} />
+    <//>
+  <//>`;
+}
 
 const setTheme = changes => tryCall("setup.theme", changes);
 
@@ -137,8 +161,10 @@ export function SetupPage() {
           </div>
         <//>
 
+        <${LauncherSection} />
+
         <${Section} title="Maintenance">
-          <${Row} icon=${{ name: "refresh", color: "blue" }} title="Check for Updates" subtitle="Compare with the newest Metamod and CounterStrikeSharp">
+          <${Row} icon=${{ name: "refresh", color: "blue" }} title="Check Mod Updates" subtitle="Compare with the newest Metamod and CounterStrikeSharp">
             <${Button} size="sm" disabled=${busy} onClick=${() => tryCall("setup.checkUpdates")}>Check<//>
           <//>
           <${Row} icon=${{ name: "zip", color: "indigo" }} title="Install from Zip" subtitle="If a download fails: get the zip from the links below">

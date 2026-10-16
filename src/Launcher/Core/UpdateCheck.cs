@@ -12,6 +12,7 @@ public static class UpdateCheck
 {
     public const string ReleaseUrl = "https://github.com/V3rkku1/Cs-plugin/releases/tag/latest";
     private const string TagApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/git/ref/tags/latest";
+    private const string CompareApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/compare";
 
     /// <summary>Full commit hash of this build, or null for local builds without one.</summary>
     public static string? LocalCommit
@@ -27,25 +28,58 @@ public static class UpdateCheck
 
     public static string ShortVersion => LocalCommit is { } c ? $"build {c[..7]}" : "dev build";
 
-    /// <summary>True when GitHub has a newer build. Fails quietly (offline, rate limit) as "no update".</summary>
-    public static async Task<bool> NewerAvailableAsync(HttpClient http)
+    /// <summary>A newer build on GitHub: its commit and the changes since this one (newest first).</summary>
+    public record Update(string Commit, List<string> Notes);
+
+    /// <summary>The newer build on GitHub, or null. Fails quietly (offline, rate limit) as "no update".</summary>
+    public static async Task<Update?> FindAsync(HttpClient http)
     {
         var local = LocalCommit;
-        if (local == null) return false;
+        if (local == null) return null;
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, TagApi);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            using var response = await http.SendAsync(request);
-            if (!response.IsSuccessStatusCode) return false;
-            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-            var remote = doc.RootElement.GetProperty("object").GetProperty("sha").GetString();
-            return remote != null && !remote.Equals(local, StringComparison.OrdinalIgnoreCase);
+            using var doc = await GetJsonAsync(http, TagApi);
+            var remote = doc?.RootElement.GetProperty("object").GetProperty("sha").GetString();
+            if (remote == null || remote.Equals(local, StringComparison.OrdinalIgnoreCase)) return null;
+            return new Update(remote, await NotesAsync(http, local, remote));
         }
         catch (Exception)
         {
-            return false;
+            return null;
         }
+    }
+
+    /// <summary>First lines of the commit messages between the two builds (the "what's new" list).</summary>
+    private static async Task<List<string>> NotesAsync(HttpClient http, string local, string remote)
+    {
+        var notes = new List<string>();
+        try
+        {
+            using var doc = await GetJsonAsync(http, $"{CompareApi}/{local}...{remote}");
+            if (doc == null) return notes;
+            foreach (var c in doc.RootElement.GetProperty("commits").EnumerateArray().Reverse())
+            {
+                var message = c.GetProperty("commit").GetProperty("message").GetString() ?? "";
+                var line = message.Split('\n')[0].Trim();
+                if (line.Length == 0 || line.StartsWith("Merge ", StringComparison.Ordinal)) continue;
+                notes.Add(line);
+                if (notes.Count == 15) break;
+            }
+        }
+        catch (Exception)
+        {
+            // No notes is fine: the update itself still works.
+        }
+        return notes;
+    }
+
+    private static async Task<JsonDocument?> GetJsonAsync(HttpClient http, string url)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, url);
+        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
+        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+        using var response = await http.SendAsync(request);
+        if (!response.IsSuccessStatusCode) return null;
+        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
     }
 }

@@ -3,6 +3,7 @@ import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./ve
 import { call, tryCall, useApi, on, prefetch } from "./api.js";
 import { Icon, Toasts, sheen } from "./ui.js";
 import { openPalette } from "./palette.js";
+import { UpdatePopup, openUpdate } from "./update.js";
 import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
@@ -54,10 +55,10 @@ function Sidebar({ page, setPage, state }) {
       </button>`)}
     </nav>
     <div class="spacer"></div>
-    ${state?.updateAvailable && html`<button class="update-card" onClick=${() => tryCall("app.update")}>
+    ${state?.updateAvailable && html`<button class="update-card" onClick=${() => state.updateProgress || openUpdate(state)}>
       <${Icon} name="download" size=${22} stroke=${2} />
       <div><div class="title">${state.updateProgress ? "Updating…" : "Update available"}</div>
-      <div class="detail">${state.updateProgress ?? "Click to install"}</div></div>
+      <div class="detail">${state.updateProgress ?? `Build ${state.updateCommit ?? ""} · see what's new`}</div></div>
     </button>`}
     ${state && html`<div class="status-card" style=${`--c:${statusColors[state.statusKind]}`}>
       <span class="dot"></span>
@@ -121,6 +122,7 @@ function App() {
   return html`<div class="app">
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
+    <${UpdatePopup} state=${state} />
     <${Toasts} />
   </div>`;
 }

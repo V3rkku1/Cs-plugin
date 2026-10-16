@@ -9,6 +9,8 @@ public partial class Api
 {
     private bool _updateAvailable;
     private string? _updateProgress;
+    private UpdateCheck.Update? _update;
+    private bool _checkingUpdate;
     private int _cs2GoneTicks;
 
     /// <summary>Called once the server is up: find CS2 and look for a launcher update.</summary>
@@ -18,15 +20,16 @@ public partial class Api
             ? App.Settings.GamePath
             : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
         if (App.Game == null) App.Log("CS2 not found automatically - press Browse on the Setup page.");
-        _ = CheckForUpdateAsync();
-        // Look again every few hours while the launcher stays open.
-        var timer = new System.Windows.Forms.Timer { Interval = 4 * 60 * 60 * 1000 };
-        timer.Tick += (_, _) => { if (!_updateAvailable) _ = CheckForUpdateAsync(); };
+        _ = CheckForUpdateAsync(startup: true);
+        // Look again every 15 minutes while the launcher stays open, so a new build shows up without a restart.
+        var timer = new System.Windows.Forms.Timer { Interval = 15 * 60 * 1000 };
+        timer.Tick += (_, _) => { if (!_updating) _ = CheckForUpdateAsync(startup: false); };
         timer.Start();
     }
 
     public record ShellState(string Version, string Page, bool Ready, bool TestMode, string StatusKind, string StatusTitle,
-        string StatusDetail, bool UpdateAvailable, string? UpdateProgress);
+        string StatusDetail, bool UpdateAvailable, string? UpdateProgress, string? UpdateCommit, List<string> UpdateNotes,
+        bool AutoUpdate, bool CheckingUpdate);
 
     [Call("app.state")]
     private ShellState State()
@@ -36,7 +39,8 @@ public partial class Api
             : ("bad", "Setup needed", "Open Setup to install");
         // First run (or something missing): start on Setup; otherwise where you left off.
         var page = Program.StartPage ?? (!App.Ready || App.Db.IsEmpty ? "setup" : App.Settings.LastPage ?? "play");
-        return new ShellState(UpdateCheck.ShortVersion, page, App.Ready, App.TestModeOn, kind, title, detail, _updateAvailable, _updateProgress);
+        return new ShellState(UpdateCheck.ShortVersion, page, App.Ready, App.TestModeOn, kind, title, detail, _updateAvailable, _updateProgress,
+            _update?.Commit[..7], _update?.Notes ?? new List<string>(), App.Settings.AutoUpdate, _checkingUpdate);
     }
 
     [Call("app.fullscreen")]
@@ -74,12 +78,66 @@ public partial class Api
         Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
     }
 
-    private async Task CheckForUpdateAsync()
+    /// <summary>
+    /// Looks for a newer build. At start-up (nothing running yet) it installs it right away when automatic
+    /// updates are on; while the launcher is open it only shows it, so nothing restarts under you.
+    /// </summary>
+    private async Task CheckForUpdateAsync(bool startup)
     {
-        if (!await UpdateCheck.NewerAvailableAsync(App.Http)) return;
+        if (_checkingUpdate) return;
+        _checkingUpdate = true;
+        App.NotifyChanged();
+        UpdateCheck.Update? found;
+        try
+        {
+            found = await UpdateCheck.FindAsync(App.Http);
+        }
+        finally
+        {
+            _checkingUpdate = false;
+        }
+        if (found == null)
+        {
+            App.NotifyChanged();
+            return;
+        }
+        var isNew = _update?.Commit != found.Commit;
+        _update = found;
         _updateAvailable = true;
-        App.Log("A newer launcher build is on GitHub - click \"Update available\" in the sidebar to install it.");
-        Toast("Update available - click the card in the sidebar.");
+        var recently = App.Settings.LastAutoUpdate is { } last && DateTime.UtcNow - last < TimeSpan.FromMinutes(30);
+        if (startup && App.Settings.AutoUpdate && !recently && !App.TestModeOn && Updater.CanSelfUpdate())
+        {
+            App.Settings.LastAutoUpdate = DateTime.UtcNow;
+            try { App.Settings.Save(); }
+            catch (IOException) { /* not important */ }
+            App.Log($"Newer launcher build {found.Commit[..7]} on GitHub - updating automatically.");
+            App.NotifyChanged();
+            await InstallUpdateAsync(automatic: true);
+            return;
+        }
+        if (isNew)
+        {
+            App.Log($"Newer launcher build {found.Commit[..7]} on GitHub - click \"Update available\" in the sidebar to install it.");
+            Toast("Launcher update available.");
+        }
+        App.NotifyChanged();
+    }
+
+    /// <summary>The "Check for updates" button: looks now and says if this is already the newest.</summary>
+    [Call("app.checkUpdate")]
+    private async Task<bool> CheckUpdateNow()
+    {
+        if (UpdateCheck.LocalCommit == null) throw new ApiException("This is a dev build - it can't tell which build is newer.");
+        await CheckForUpdateAsync(startup: false);
+        return _updateAvailable;
+    }
+
+    [Call("app.autoUpdate")]
+    private void SetAutoUpdate(bool on)
+    {
+        App.Settings.AutoUpdate = on;
+        try { App.Settings.Save(); }
+        catch (IOException) { /* not important */ }
         App.NotifyChanged();
     }
 
@@ -87,7 +145,9 @@ public partial class Api
 
     /// <summary>Downloads the new launcher, swaps it in after closing, and restarts.</summary>
     [Call("app.update")]
-    private async Task InstallUpdate()
+    private Task InstallUpdate() => InstallUpdateAsync(automatic: false);
+
+    private async Task InstallUpdateAsync(bool automatic)
     {
         if (_updating) return;
         if (App.TestModeOn) throw new ApiException("Press Stop first (test mode is on), then update.");
@@ -116,8 +176,17 @@ public partial class Api
         {
             _updateProgress = null;
             App.NotifyChanged();
-            App.Log("Update failed: " + ex.Message + " - opening the download page instead.");
-            OpenUrl(UpdateCheck.ReleaseUrl);
+            if (automatic)
+            {
+                // Don't throw a browser at someone who just opened the launcher: the sidebar card stays.
+                App.Log("Automatic update failed: " + ex.Message + " - click \"Update available\" to try again.");
+                Toast("Update failed - click the card in the sidebar to try again.", "bad");
+            }
+            else
+            {
+                App.Log("Update failed: " + ex.Message + " - opening the download page instead.");
+                OpenUrl(UpdateCheck.ReleaseUrl);
+            }
         }
         finally
         {

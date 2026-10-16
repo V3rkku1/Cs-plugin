@@ -20,6 +20,10 @@ public class LauncherSettings
     /// <summary>Accessibility: solid panels instead of see-through glass, and no animations.</summary>
     public bool ReduceGlass { get; set; }
     public bool ReduceMotion { get; set; }
+    /// <summary>Install launcher updates by itself when it starts (nothing running yet).</summary>
+    public bool AutoUpdate { get; set; } = true;
+    /// <summary>When the last automatic update ran, so a half-published release can't cause a restart loop.</summary>
+    public DateTime? LastAutoUpdate { get; set; }
 
     /// <summary>
     /// The launcher's look (Setup › Appearance): accent, background and panel colours, panel opacity,

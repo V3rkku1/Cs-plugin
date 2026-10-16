@@ -45,17 +45,12 @@ jobs:
             build/LanSkinTester.zip
           if-no-files-found: error
 
-      - name: Move the "latest" tag to this commit
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          git tag -f latest
-          git push -f origin latest
-
       - name: Publish "Latest build" release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         uses: softprops/action-gh-release@v2
         with:
           tag_name: latest
+          target_commitish: ${{ github.sha }}
           name: Latest build
           prerelease: true
           body: |
@@ -70,6 +65,12 @@ jobs:
             build/LanSkinTesterLauncher.exe
             build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip
+
+      - name: Move the "latest" tag to this commit (after the files are up, so launchers never see a new tag with old files)
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git tag -f latest
+          git push -f origin latest
 
       - name: Publish versioned release
         if: startsWith(github.ref, 'refs/tags/v')
