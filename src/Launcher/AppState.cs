@@ -24,7 +24,7 @@ public class AppState
     public AppState()
     {
         Images = new ImageCache(Http);
-        Prices = new PriceList(ItemDatabase.DataDir, Log);
+        Prices = new PriceList(ItemDatabase.DataDir, Log, NotifyChanged);
         // Hacker mode is never carried over from last time: it is on only when picked in this session.
         Settings.Server.HackerMode = 0;
     }

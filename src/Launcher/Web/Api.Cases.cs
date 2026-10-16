@@ -23,7 +23,7 @@ public partial class Api
         string Currency, double KeyPrice, double Spent, double InventoryValue);
 
     public record ContentItem(string Name, string Image, string Color, string? Phase, double? Price);
-    public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items);
+    public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items, string? Image = null);
     public record CaseContents(string Id, string Name, string Image, string Type, List<ContentGroup> Groups, double? CasePrice, double KeyPrice, bool NeedsKey, string Currency);
 
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
@@ -90,7 +90,7 @@ public partial class Api
             var shown = items.GroupBy(i => i.Name).Select(g => g.First())
                 .Select(i => new ContentItem(i.Name, i.Image, i.Color, null, o.Grade == "Rare" ? null : CheapestPrice(i.Name, box.Type.StartsWith("Souvenir")))).ToList();
             var color = o.Grade == "Rare" ? "#e4ae39" : items.FirstOrDefault()?.Color ?? "#b0c3d9";
-            return new ContentGroup(o.Grade == "Rare" ? "Rare Special Item" : o.Grade, color, o.Chance, shown);
+            return new ContentGroup(o.Grade == "Rare" ? "Rare Special Item" : o.Grade, color, o.Chance, shown, o.Grade == "Rare" ? box.RareImage : null);
         }).ToList();
         return new CaseContents(box.Id, box.Name, box.Image, box.Type, groups, PricesNow().Price(box.Name),
             PriceList.KeyPrice(App.Settings.Currency), NeedsKey(box), App.Settings.Currency);
@@ -107,7 +107,7 @@ public partial class Api
         // "Rare Special Item" card, like in the game.
         const int length = 56, win = 48;
         ReelItem Card(CaseItem item, bool isRare) => isRare
-            ? new ReelItem("★ Rare Special Item ★", box.Image, "#e4ae39", true)
+            ? new ReelItem("★ Rare Special Item ★", box.RareImage ?? "", "#e4ae39", true)
             : new ReelItem(item.Name, item.Image, item.Color, false);
         var reel = Enumerable.Range(0, length).Select(i =>
         {

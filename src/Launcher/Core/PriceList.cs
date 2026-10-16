@@ -21,18 +21,49 @@ public class PriceList
         Timeout = TimeSpan.FromSeconds(60),
     };
 
+    static PriceList() =>
+        Http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LanSkinTester/2");
+
     private readonly string _dir;
     private readonly Action<string> _log;
+    private readonly Action _changed;
     private Dictionary<string, double> _prices = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>"AK-47 | Redline" -> its prices by what's in the brackets ("Field-Tested"...), for items without an exact match.</summary>
+    private Dictionary<string, List<(string Variant, double Price)>> _variants = new(StringComparer.OrdinalIgnoreCase);
+    private DateTime _lastNotify;
     private readonly Dictionary<string, double?> _steam = new(StringComparer.OrdinalIgnoreCase);
     private string _currency = "";
     private DateTime _loadedAt;
     private Task? _loading;
 
-    public PriceList(string dir, Action<string> log)
+    public PriceList(string dir, Action<string> log, Action changed)
     {
         _dir = dir;
         _log = log;
+        _changed = changed;
+    }
+
+    private void SetPrices(Dictionary<string, double> prices)
+    {
+        var variants = new Dictionary<string, List<(string, double)>>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (name, price) in prices)
+        {
+            var open = name.LastIndexOf(" (", StringComparison.Ordinal);
+            if (open <= 0 || !name.EndsWith(')')) continue;
+            var key = name[..open];
+            if (!variants.TryGetValue(key, out var list)) variants[key] = list = new();
+            list.Add((name[(open + 2)..^1], price));
+        }
+        _prices = prices;
+        _variants = variants;
+    }
+
+    /// <summary>Tells the pages a price arrived (at most every few seconds).</summary>
+    private void Notify()
+    {
+        if (DateTime.UtcNow - _lastNotify < TimeSpan.FromSeconds(3)) return;
+        _lastNotify = DateTime.UtcNow;
+        try { _changed(); } catch (Exception) { /* page refresh only */ }
     }
 
     public bool Ready => _prices.Count > 0;
@@ -44,7 +75,7 @@ public class PriceList
         if (_currency != currency)
         {
             _currency = currency;
-            _prices = ReadCache(currency, out _loadedAt);
+            SetPrices(ReadCache(currency, out _loadedAt));
             lock (_steam) _steam.Clear();
         }
         if (DateTime.UtcNow - _loadedAt > TimeSpan.FromHours(12) && _loading is null or { IsCompleted: true })
@@ -76,6 +107,8 @@ public class PriceList
         {
             using var request = new HttpRequestMessage(HttpMethod.Get, $"https://api.skinport.com/v1/items?app_id=730&currency={currency}&tradable=0");
             request.Headers.TryAddWithoutValidation("Accept-Encoding", "br, gzip");
+            request.Headers.TryAddWithoutValidation("User-Agent", "LanSkinTester/2 (+https://github.com/V3rkku1/Cs-plugin)");
+            request.Headers.TryAddWithoutValidation("Accept", "application/json");
             using var response = await Http.SendAsync(request);
             response.EnsureSuccessStatusCode();
             using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
@@ -93,8 +126,9 @@ public class PriceList
             File.WriteAllText(CacheFile(currency), JsonSerializer.Serialize(prices));
             if (_currency == currency)
             {
-                _prices = prices;
+                SetPrices(prices);
                 _loadedAt = DateTime.UtcNow;
+                Notify();
             }
             _log($"Prices updated: {prices.Count} items ({currency}).");
         }
@@ -105,10 +139,31 @@ public class PriceList
         }
     }
 
-    /// <summary>The price of a market name, or null when unknown (a Steam lookup then runs in the background).</summary>
+    private static readonly string[] WearOrder = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
+
+    /// <summary>
+    /// The price of a market name. When that exact item has no price (no listings in that wear, or a
+    /// name variant like graffiti colours), the nearest wear or the cheapest variant is used; only when
+    /// nothing at all is known is Steam asked (in the background; the page refreshes when it answers).
+    /// </summary>
     public double? Price(string marketName)
     {
         if (_prices.TryGetValue(marketName, out var p)) return p;
+        var open = marketName.LastIndexOf(" (", StringComparison.Ordinal);
+        var baseName = open > 0 && marketName.EndsWith(')') ? marketName[..open] : marketName;
+        var wanted = open > 0 && marketName.EndsWith(')') ? marketName[(open + 2)..^1] : null;
+        if (_variants.TryGetValue(baseName, out var variants) && variants.Count > 0)
+        {
+            var at = wanted == null ? -1 : Array.IndexOf(WearOrder, wanted);
+            if (at >= 0)
+            {
+                // Nearest wear that has a price.
+                var nearest = variants.Where(v => Array.IndexOf(WearOrder, v.Variant) >= 0)
+                    .OrderBy(v => Math.Abs(Array.IndexOf(WearOrder, v.Variant) - at)).ThenBy(v => v.Price).FirstOrDefault();
+                if (nearest.Variant != null) return nearest.Price;
+            }
+            return variants.Min(v => v.Price);
+        }
         lock (_steam)
         {
             if (_steam.TryGetValue(marketName, out var known)) return known;
@@ -136,7 +191,10 @@ public class PriceList
             var last = digits.LastIndexOf('.');
             if (last > 0) digits = digits[..last].Replace(".", "") + digits[last..];
             if (double.TryParse(digits, NumberStyles.Float, CultureInfo.InvariantCulture, out var price) && price > 0)
+            {
                 lock (_steam) _steam[marketName] = price;
+                Notify();
+            }
             await Task.Delay(3500);
         }
         catch (Exception) { /* unknown stays unknown */ }

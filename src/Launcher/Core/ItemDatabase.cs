@@ -27,7 +27,7 @@ public record MusicKitInfo(int Id, string Name, string Rarity, string RarityColo
 /// A container: weapon case, sticker / autograph capsule, souvenir package, music kit box, pins, patches or
 /// graffiti. Items are what it drops ("Weapon | Finish", paint kit, rarity); Rare are a case's knives / gloves.
 /// </summary>
-public record CaseInfo(string Id, string Name, string Image, string Type, List<CaseItem> Items, List<CaseItem> Rare);
+public record CaseInfo(string Id, string Name, string Image, string Type, List<CaseItem> Items, List<CaseItem> Rare, string? RareImage = null);
 
 /// <summary>Id is the item data's id ("skin-…", "sticker-123", "music_kit-32", "collectible-6110"...).</summary>
 public record CaseItem(string Id, string Name, int Paint, string Rarity, string Color, string Image, string? Phase);
@@ -182,7 +182,9 @@ public class ItemDatabase
                 Str(x["rarity"]?["color"]), Str(x["image"]), x["phase"]?.GetValueKind() == JsonValueKind.String ? x["phase"]!.GetValue<string>() : null))
                 .Where(i => i.Name != "").ToList()
             : new List<CaseItem>();
-        return new CaseInfo(Str(n["id"]), Str(n["name"]), Str(n["image"]), type, Items(contains), Items(n["contains_rare"]));
+        // The case's own "Rare Special Item" picture (the gold card the game shows in the reel).
+        var rareImage = Str(n["loot_list"]?["image"]);
+        return new CaseInfo(Str(n["id"]), Str(n["name"]), Str(n["image"]), type, Items(contains), Items(n["contains_rare"]), rareImage == "" ? null : rareImage);
     }
 
     /// <summary>

@@ -862,3 +862,11 @@ kbd { font-family: var(--font); }
 }
 .reveal-pic img { animation: reveal-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both; }
 @keyframes reveal-in { from { transform: scale(0.6) translateY(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+/* Light rays behind Classified and better drops, like the game's big reveals. */
+.reveal-rays { position: absolute; left: 50%; top: 125px; width: 560px; height: 560px; margin: -280px 0 0 -280px; pointer-events: none; opacity: 0.55;
+  background: repeating-conic-gradient(from 0deg, color-mix(in srgb, var(--c) 55%, transparent) 0deg 6deg, transparent 6deg 22deg);
+  -webkit-mask-image: radial-gradient(closest-side, #000 15%, transparent 75%); mask-image: radial-gradient(closest-side, #000 15%, transparent 75%);
+  animation: rays-spin 18s linear infinite, rays-in 0.8s ease-out both; }
+@keyframes rays-spin { to { transform: rotate(360deg); } }
+@keyframes rays-in { from { opacity: 0; } }
+.reel-card.rare .pic img { max-height: 120px; }

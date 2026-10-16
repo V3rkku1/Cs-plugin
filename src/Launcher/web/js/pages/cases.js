@@ -116,11 +116,13 @@ function Reel({ result, onDone }) {
     // Stop somewhere on the winning card, not always the middle (like the game).
     const target = result.win * CARD + CARD * (0.08 + Math.random() * 0.84) - width / 2;
     const start = performance.now();
+    // Every spin takes a slightly different time, like the game.
+    const spinMs = SPIN_MS * (0.94 + Math.random() * 0.12);
     let last = -1, lastX = 0, frame;
     // Quick start, long slow end: CS2's reel slows down over its last few seconds.
     const ease = t => 1 - Math.pow(1 - t, 4.6);
     const step = now => {
-      const t = Math.min(1, (now - start) / SPIN_MS);
+      const t = Math.min(1, (now - start) / spinMs);
       const x = target * ease(t);
       strip.current.style.transform = `translate3d(${-x}px,0,0)`;
       // Motion blur while it's fast.
@@ -138,7 +140,7 @@ function Reel({ result, onDone }) {
   return html`<div class=${"reel" + (landed ? " landed" : "")} ref=${box}>
     <div class="reel-strip" ref=${strip}>
       ${result.reel.map((r, i) => html`<div key=${i} class=${"reel-card" + (r.rare ? " rare" : "") + (landed && i === result.win ? " winner" : "")} style=${`--c:${r.color}`}>
-        <div class="pic">${r.rare ? html`<span class="rare-star">★</span>` : html`<${ItemPic} src=${r.image} size=${256} />`}</div>
+        <div class="pic">${r.rare && !r.image ? html`<span class="rare-star">★</span>` : html`<${ItemPic} src=${r.image} size=${256} />`}</div>
       </div>`)}
     </div>
     <div class="reel-marker"></div>
@@ -151,6 +153,7 @@ function Reveal({ view, cur, onAgain, onBack, onInventory }) {
   const title = (item.souvenir ? "Souvenir " : "") + (item.statTrak && item.kind === "skin" ? "StatTrak™ " : "") + item.name;
   return html`<div class="reveal" style=${`--c:${item.color}`}>
     <div class="reveal-glow"></div>
+    ${["#d32ce6", "#eb4b4b", "#e4ae39", "#ffd700"].includes(item.color) && html`<div class="reveal-rays"></div>`}
     <div class="reveal-pic"><${ItemPic} src=${item.image} size=${512} /></div>
     <div class="reveal-grade">${item.grade}${item.phase ? ` · ${item.phase}` : ""}</div>
     <h2 class="reveal-name">${title}</h2>
@@ -203,7 +206,7 @@ function CaseSheet({ id, close }) {
           <div class="grade-head" style=${`--c:${g.color}`}><span class="dot"></span>${g.grade}<span class="faint">${pct(g.chance)}</span></div>
           <div class="grade-items">
             ${g.grade === "Rare Special Item"
-              ? html`<div class="content-card rare" style="--c:#e4ae39"><div class="pic"><span class="rare-star">★</span></div>
+              ? html`<div class="content-card rare" style="--c:#e4ae39"><div class="pic">${g.image ? html`<${ItemPic} src=${g.image} size=${256} />` : html`<span class="rare-star">★</span>`}</div>
                   <div class="name">${g.items.length} knives / gloves</div></div>`
               : g.items.map(i => html`<div class="content-card" style=${`--c:${i.color}`} title=${i.name}>
                   <div class="pic"><${ItemPic} src=${i.image} size=${256} /></div><div class="name">${i.name}</div>
