@@ -168,7 +168,10 @@ graffiti. Nothing touches a Steam inventory.
 **INVENTORY page** (the old Skins tab): what you unboxed, laid out like CS2's inventory: All Items,
 Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
 an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
-came from) and **Equip** / **Unequip** it. It replaces the old Skins page. With the admin code, **Add Item**
+came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
+from your inventory (applying uses the sticker up, like in the game), drag them anywhere on the gun, turn,
+resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
+within a second (the launcher's preview is a guide). With the admin code, **Add Item**
 puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
 pattern, StatTrak or Souvenir you pick.
 

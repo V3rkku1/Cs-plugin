@@ -29,7 +29,10 @@ public partial class Api
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
     public record InventoryItem(string Uid, string Kind, string Name, string Image, string Grade, string Color,
         ushort Def, int Paint, float Wear, int Seed, bool StatTrak, bool Souvenir, string? Phase, string CaseName,
-        int CollectibleId, DateTime Opened, string? ItemId = null, string? Team = null);
+        int CollectibleId, DateTime Opened, string? ItemId = null, string? Team = null, List<AppliedSticker>? Stickers = null);
+
+    /// <summary>A sticker stuck on a gun: which one, where (slot, offset, rotation, scale) and how scraped.</summary>
+    public record AppliedSticker(int Slot, int Id, string Name, string Image, float OffsetX, float OffsetY, float Rotation, float Scale, float Wear);
 
     public record ReelItem(string Name, string Image, string Color, bool Rare);
     public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item, double Cost);
@@ -272,7 +275,7 @@ public partial class Api
             case "skin" when item.Def != 0:
                 if (IsKnifeType(item.Def)) loadout.Knife = item.Def;
                 if (IsGloveType(item.Def)) loadout.Gloves = item.Def;
-                var skin = new SkinSettings { Paint = item.Paint, Wear = item.Wear > 0 ? item.Wear : 0.01f, Seed = item.Seed, StatTrak = item.StatTrak };
+                var skin = SkinOf(item);
                 if (skin.HasCustomization || IsKnifeType(item.Def)) loadout.Skins[item.Def] = skin;
                 break;
             case "pin" when item.CollectibleId > 0:
@@ -449,5 +452,103 @@ public partial class Api
         SaveInventory();
         App.NotifyChanged();
         return View(item, ReadLoadout());
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Stickers on guns (Inventory › a gun › Stickers): like CS2, applying uses up the sticker and
+    // scraping it all the way removes it. Up to 5, anywhere on the gun.
+    // ---------------------------------------------------------------------------------------------
+
+    private static SkinSettings SkinOf(InventoryItem item) => new()
+    {
+        Paint = item.Paint,
+        Wear = item.Wear > 0 ? item.Wear : 0.01f,
+        Seed = item.Seed,
+        StatTrak = item.StatTrak,
+        Stickers = (item.Stickers ?? new List<AppliedSticker>()).Select(s => new StickerSettings
+        {
+            Slot = s.Slot, Id = s.Id, Wear = s.Wear, Scale = s.Scale, Rotation = s.Rotation, OffsetX = s.OffsetX, OffsetY = s.OffsetY,
+        }).ToList(),
+    };
+
+    private static int StickerIdOf(InventoryItem i) =>
+        int.TryParse(i.ItemId?.Split('-').ElementAtOrDefault(1), out var id) ? id : 0;
+
+    public record StickerChoice(string Uid, int Id, string Name, string Image, string Color);
+
+    /// <summary>The stickers in the inventory that can go on a gun.</summary>
+    [Call("inventory.stickers")]
+    private List<StickerChoice> StickerChoices() =>
+        Inventory().Where(i => i.Kind == "sticker" && StickerIdOf(i) > 0)
+            .Select(i => new StickerChoice(i.Uid, StickerIdOf(i), i.Name, i.Image, i.Color)).ToList();
+
+    public record ApplyStickerArgs(string Gun, string Sticker, int Slot, float OffsetX, float OffsetY, float Rotation, float Scale);
+
+    [Call("inventory.applySticker")]
+    private void ApplySticker(ApplyStickerArgs a)
+    {
+        var gun = GunFor(a.Gun);
+        var sticker = Inventory().FirstOrDefault(i => i.Uid == a.Sticker && i.Kind == "sticker") ?? throw new ApiException("That sticker isn't in your inventory any more.");
+        var list = (gun.Stickers ?? new List<AppliedSticker>()).ToList();
+        if (list.Count >= 5) throw new ApiException("A gun holds up to 5 stickers. Scrape one off first.");
+        var slot = Enumerable.Range(0, 5).FirstOrDefault(n => list.All(s => s.Slot != n));
+        list.Add(new AppliedSticker(slot, StickerIdOf(sticker), sticker.Name, sticker.Image,
+            Math.Clamp(a.OffsetX, -1f, 1f), Math.Clamp(a.OffsetY, -1f, 1f), Math.Clamp(a.Rotation, -180f, 180f), Math.Clamp(a.Scale, 0.5f, 2f), 0f));
+        Inventory().Remove(sticker); // used up, like in the game
+        ReplaceGun(gun, gun with { Stickers = list });
+        Toast("Sticker applied.", "good");
+    }
+
+    public record PlaceStickerArgs(string Gun, int Slot, float OffsetX, float OffsetY, float Rotation, float Scale, float Wear);
+
+    /// <summary>Moves, turns, resizes or scrapes a sticker already on the gun. Scraped to 100% it comes off for good.</summary>
+    [Call("inventory.placeSticker")]
+    private void PlaceSticker(PlaceStickerArgs a)
+    {
+        var gun = GunFor(a.Gun);
+        var list = (gun.Stickers ?? new List<AppliedSticker>()).ToList();
+        var at = list.FindIndex(s => s.Slot == a.Slot);
+        if (at < 0) throw new ApiException("No sticker in that slot.");
+        if (a.Wear >= 1f)
+        {
+            list.RemoveAt(at);
+            Toast("Sticker scraped off.");
+        }
+        else
+        {
+            list[at] = list[at] with
+            {
+                OffsetX = Math.Clamp(a.OffsetX, -1f, 1f), OffsetY = Math.Clamp(a.OffsetY, -1f, 1f),
+                Rotation = Math.Clamp(a.Rotation, -180f, 180f), Scale = Math.Clamp(a.Scale, 0.5f, 2f), Wear = Math.Clamp(a.Wear, 0f, 1f),
+            };
+        }
+        ReplaceGun(gun, gun with { Stickers = list });
+    }
+
+    private InventoryItem GunFor(string uid)
+    {
+        var gun = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That gun isn't in your inventory any more.");
+        if (gun.Kind != "skin" || gun.Def == 0 || IsGloveType(gun.Def) || IsKnifeType(gun.Def))
+            throw new ApiException("Stickers only go on guns.");
+        return gun;
+    }
+
+    /// <summary>Saves the changed gun; when it is equipped, the game gets the new stickers too.</summary>
+    private void ReplaceGun(InventoryItem old, InventoryItem updated)
+    {
+        var index = Inventory().FindIndex(i => i.Uid == old.Uid);
+        if (index >= 0) Inventory()[index] = updated;
+        SaveInventory();
+        if (App.Game is { PluginInstalled: true } game)
+        {
+            var store = new LoadoutStore(game.LoadoutFile);
+            var loadout = store.Get(LoadoutStore.LocalKey);
+            if (View(old, loadout).Equipped)
+            {
+                loadout.Skins[updated.Def] = SkinOf(updated);
+                store.Save();
+            }
+        }
+        App.NotifyChanged();
     }
 }

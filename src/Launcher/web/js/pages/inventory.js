@@ -1,5 +1,5 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
-import { html, useState, useEffect } from "../vendor/preact-htm.js";
+import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, img } from "../api.js";
 import { Page, Button, Segmented, Select, TextField, Icon, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
 import { navigate } from "../app.js";
@@ -38,6 +38,10 @@ function Inspect({ v, cur, close }) {
       <${WearBar} wear=${i.wear} />
       <div class="inspect-row"><span>Pattern</span><b class="mono">${i.seed}</b></div>`}
     ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">0</b></div>`}
+    ${i.kind === "skin" && v.category === "weapons" && html`
+      <div class="inspect-row"><span>Stickers</span><b>${(i.stickers ?? []).length}/5</b></div>
+      ${(i.stickers ?? []).length > 0 && html`<div class="inspect-stickers">${i.stickers.map(st => html`<span title=${st.name}><${Pic} src=${st.image} size=${128} /></span>`)}</div>`}
+      <${Button} block icon="layers" onClick=${() => sheet(close => html`<${StickerSheet} uid=${i.uid} close=${close} />`, { wide: true })}>Stickers…<//>`}
     <div class="inspect-row"><span>Market price</span><b>${money(v.price, cur)}</b></div>
     <div class="inspect-row"><span>Unboxed from</span><b>${i.caseName}</b></div>
     <div class="inspect-row"><span>Unboxed</span><b>${new Date(i.opened).toLocaleString()}</b></div>
@@ -50,6 +54,95 @@ function Inspect({ v, cur, close }) {
       }}>Delete<//>
     </div>
   </aside>`;
+}
+
+/** CS2-style sticker editor for one gun: apply from your inventory, drag to place, turn, size, scrape. */
+function StickerSheet({ uid, close }) {
+  const [inv] = useApi("cases.inventory");
+  const [choices, reloadChoices] = useApi("inventory.stickers");
+  const [sel, setSel] = useState(null);
+  const [drag, setDrag] = useState(null); // { slot, x, y } while dragging
+  const [local, setLocal] = useState({}); // slot -> edits not saved yet
+  const box = useRef();
+  const v = inv?.items.find(x => x.item.uid === uid);
+  if (!v) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
+  const gun = v.item;
+  const stickers = (gun.stickers ?? []).map(st => ({ ...st, ...(local[st.slot] ?? {}) }));
+  const current = stickers.find(st => st.slot === sel);
+
+  const save = (slot, change) => {
+    const st = stickers.find(x => x.slot === slot);
+    if (!st) return;
+    const next = { ...st, ...change };
+    setLocal(l => ({ ...l, [slot]: change }));
+    tryCall("inventory.placeSticker", { gun: uid, slot, offsetX: next.offsetX, offsetY: next.offsetY, rotation: next.rotation, scale: next.scale, wear: next.wear })
+      .then(() => setLocal(l => { const c = { ...l }; delete c[slot]; return c; }));
+  };
+  const toOffset = e => {
+    const r = box.current.getBoundingClientRect();
+    return { x: Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) / 0.45)), y: Math.max(-1, Math.min(1, -((e.clientY - r.top) / r.height - 0.5) / 0.4)) };
+  };
+  const down = (e, slot) => { e.preventDefault(); setSel(slot); setDrag({ slot, ...toOffset(e) }); e.currentTarget.setPointerCapture?.(e.pointerId); };
+  const move = e => { if (drag) setDrag({ ...drag, ...toOffset(e) }); };
+  const up = () => { if (drag) { save(drag.slot, { offsetX: drag.x, offsetY: drag.y }); setDrag(null); } };
+  const apply = async stUid => {
+    await tryCall("inventory.applySticker", { gun: uid, sticker: stUid, slot: 0, offsetX: 0, offsetY: 0, rotation: 0, scale: 1 });
+    reloadChoices();
+  };
+  const scrape = async () => {
+    if (await confirm({ title: "Scrape off?", message: `${current.name} comes off the gun for good (like in CS2).`, ok: "Scrape Off", danger: true })) {
+      save(current.slot, { wear: 1 });
+      setSel(null);
+    }
+  };
+
+  return html`<div class="picker sticker-editor">
+    <div class="picker-head"><h2>Stickers · ${v.weapon} | ${v.finish}</h2>
+      <span class="faint small">Drag a sticker to move it. The preview is a guide: check it in game (inspect with F) - equipped guns change within a second.</span></div>
+    <div class="sticker-layout">
+      <div class="sticker-stage" ref=${box} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up}>
+        <${Pic} src=${gun.image} size=${1024} />
+        ${stickers.map(st => {
+          const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
+          return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)}
+            style=${`left:${50 + x * 45}%;top:${50 - y * 40}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
+            <${Pic} src=${st.image} size=${128} /></div>`;
+        })}
+      </div>
+      <div class="sticker-side">
+        <div class="field-label">On this gun (${stickers.length}/5)</div>
+        <div class="sticker-slots">
+          ${stickers.map(st => html`<button key=${st.slot} class=${"slot" + (sel === st.slot ? " selected" : "")} onClick=${() => setSel(st.slot)} title=${st.name}>
+            <${Pic} src=${st.image} size=${128} /></button>`)}
+          ${stickers.length === 0 && html`<div class="faint small">No stickers yet. Pick one below.</div>`}
+        </div>
+        ${current && html`<div class="sticker-controls">
+          <div class="inspect-row"><span>${current.name}</span></div>
+          <div class="inspect-row"><span>Rotation</span><b class="mono">${Math.round(current.rotation)}°</b></div>
+          <${Slider} min=${-180} max=${180} step=${1} value=${current.rotation} onChange=${r => setLocal(l => ({ ...l, [current.slot]: { ...(l[current.slot] ?? {}), rotation: r } }))}
+            onCommit=${r => save(current.slot, { rotation: r })} format=${r => `${Math.round(r)}°`} />
+          <div class="inspect-row"><span>Size</span><b class="mono">${current.scale.toFixed(2)}×</b></div>
+          <${Slider} min=${0.5} max=${2} step=${0.01} value=${current.scale} onChange=${r => setLocal(l => ({ ...l, [current.slot]: { ...(l[current.slot] ?? {}), scale: r } }))}
+            onCommit=${r => save(current.slot, { scale: r })} format=${r => `${r.toFixed(2)}×`} />
+          <div class="inspect-row"><span>Scrape</span><b class="mono">${Math.round(current.wear * 100)}%</b></div>
+          <${Slider} min=${0} max=${0.95} step=${0.01} value=${current.wear} onChange=${r => setLocal(l => ({ ...l, [current.slot]: { ...(l[current.slot] ?? {}), wear: r } }))}
+            onCommit=${r => save(current.slot, { wear: r })} format=${r => `${Math.round(r * 100)}%`} />
+          <div class="hstack">
+            <${Button} size="sm" onClick=${() => save(current.slot, { offsetX: 0, offsetY: 0, rotation: 0, scale: 1 })}>Reset Position<//>
+            <${Button} size="sm" kind="destructive" onClick=${scrape}>Scrape Off<//>
+          </div>
+        </div>`}
+        <div class="field-label">Your stickers</div>
+        <div class="sticker-choices scroll">
+          ${!choices ? html`<div class="faint small">Loading…</div>`
+            : choices.length === 0 ? html`<div class="faint small">No stickers in your inventory. Open sticker capsules on the Cases page.</div>`
+            : choices.map(c => html`<button key=${c.uid} class="slot" style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
+                title=${`Apply ${c.name}`} onClick=${() => apply(c.uid)}><${Pic} src=${c.image} size=${128} /></button>`)}
+        </div>
+      </div>
+    </div>
+    <div class="picker-foot"><div class="grow"></div><${Button} kind="prominent" onClick=${() => close(undefined)}>Done<//></div>
+  </div>`;
 }
 
 const KINDS = [{ value: "skin", label: "Skins" }, { value: "sticker", label: "Stickers" }, { value: "agent", label: "Agents" },
