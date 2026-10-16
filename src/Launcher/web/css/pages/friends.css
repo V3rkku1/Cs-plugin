@@ -1,0 +1,45 @@
+/* Friends page: the hosting steps and the join card. */
+.col-head { display: flex; align-items: center; gap: 10px; margin: 0 6px -6px; font-size: 1.25em; font-weight: 700; letter-spacing: -0.01em; }
+.col-head .icon { color: var(--blue); }
+
+.step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  margin-right: 2px;
+  border-radius: 50%;
+  font-size: 0.95em;
+  letter-spacing: 0;
+  color: #fff;
+  background: var(--blue);
+  box-shadow: 0 0 10px color-mix(in srgb, var(--blue) 60%, transparent);
+  align-self: center;
+}
+.step-num.done { background: var(--green); box-shadow: 0 0 10px color-mix(in srgb, var(--green) 60%, transparent); }
+
+.pad-block { padding: 16px 18px; }
+.segmented.full { display: grid; width: 100%; }
+.help { margin: 10px 2px 0; line-height: 1.45; }
+
+.address-line { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.address { font-size: 1.7em; font-weight: 700; letter-spacing: -0.01em; user-select: text; overflow-wrap: anywhere; }
+.address-note { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+.state-icon.mini { width: 14px; height: 14px; border-width: 2px; }
+.copy-row { margin-top: 16px; }
+
+.host-row { min-height: 72px; }
+.host-row .live-dot { margin: 0 6px 0 4px; }
+.host-row .title { font-weight: 600; }
+
+.join-block { display: flex; flex-direction: column; gap: 8px; }
+.join-block .btn { margin-top: 10px; }
+.field-label { color: var(--text-2); font-size: 0.85em; font-weight: 600; margin: 4px 2px 0; }
+
+.chat-help { padding: 14px 18px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9em; user-select: text; }
+.chat-help b { color: var(--teal); font-weight: 600; }
+.chat-help i { color: var(--text-2); font-style: normal; }
+.chat-help span { display: block; color: var(--text-3); font-family: var(--font); font-size: 0.92em; }
+.address.none { font-size: 1.2em; color: var(--text-3); }
+.cols.friends-cols { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+@media (max-width: 1240px) { .cols.friends-cols { grid-template-columns: minmax(0, 1fr); } }
