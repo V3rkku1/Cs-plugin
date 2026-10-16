@@ -34,7 +34,9 @@ Pick one:
   It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-The launcher has four pages: Play, Skins, Friends and Setup. On first start it opens on **SETUP**.
+The launcher has six pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Friends and Setup
+(Ctrl+1 to Ctrl+6). On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
+Windows 10 and 11 already have; without it the launcher opens in your web browser instead.
 
 **SETUP page**
 
@@ -59,7 +61,7 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
    *Aim practice*, *Competitive 5v5*, *Arms Race*, *Demolition*, *Weapons Expert*,
    *Retakes* (Valve's 3v4 loadout-card mode), *Plugin retakes* (allocator and instadefuse),
    *Retake buy*, *Rush 3v3* when your CS2 has it, plus any setup you saved.
-2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings sit on tabs: Game, Bots, Rules, Launch, Retakes. Or pick everything yourself:
+2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings are grouped: Game, Bots, Rules, Retakes (only in Retakes mode), Launch, and the live controls. Or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom, Retakes) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
    - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
@@ -91,12 +93,12 @@ The launcher has four pages: Play, Skins, Friends and Setup. On first start it o
 5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
    If you close the launcher while test mode is on, it asks you first.
 
-**Retakes** has two styles, chosen on the Retakes tab (and only while the game mode is Retakes).
+**Retakes** has two styles, chosen in the Retakes group (shown only while the game mode is Retakes).
 
 - **Valve** (the *Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
 - **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
 
-On the Retakes tab, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
+In the Retakes group, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
 
 **Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Retake buy* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
 
@@ -122,8 +124,8 @@ The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!
 reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
 CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
-**Text look:** Setup → *Appearance*: font (Inter or Windows' Segoe UI), *Sharp* (ClearType) or
-*Smooth* text, and *Large* text. Press *Restart Now* to apply.
+**Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (solid panels instead of
+glass) and *Reduce Motion* (no animations). They apply right away.
 
 **Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts (or use the quick starts *Hacker vs bots* and
 *Catch the hacker*). Changes there apply to the running server right away, no Apply needed.
@@ -550,8 +552,13 @@ This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
 On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
 `LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
 
+The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/web/DESIGN.md`). Run
+`LanSkinTesterLauncher.exe --serve 5099 --token dev --web-dir src\Launcher\web` to open it in a normal
+browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
+
 ## Credits
 
+- Launcher UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
 - Skin, sticker and charm data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
 - The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms)

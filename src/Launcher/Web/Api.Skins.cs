@@ -226,11 +226,11 @@ public partial class Api
         catch (Exception) { return ""; }
     });
 
-    public record CopyArgs(ushort Def, SkinSettings Skin, string Kind);
+    public record CopyItemArgs(ushort Def, SkinSettings Skin, string Kind);
 
     /// <summary>Copies the item being edited as a !gen code or an inspect link.</summary>
     [Call("skins.copy")]
-    private async Task CopyItem(CopyArgs a)
+    private async Task CopyItem(CopyItemArgs a)
     {
         var link = a.Kind == "link";
         var text = link ? ItemImport.ToInspectLink(a.Def, a.Skin) : ItemImport.ToGen(a.Def, a.Skin);
