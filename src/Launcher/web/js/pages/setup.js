@@ -54,6 +54,9 @@ function Appearance({ state }) {
       <${Row} icon=${{ name: "eye", color: "purple" }} title="Panel Opacity"
           subtitle=${state.reduceGlass ? "Reduce Transparency is on: panels stay solid" : "Lower lets the background (or your picture) show through"}>
         <${ThemeSlider} min=${40} max=${100} value=${Number(t.opacity)} format=${v => `${Math.round(v)}%`} onCommit=${v => setTheme({ opacity: num(v) })} /><//>
+      <${Row} icon=${{ name: "layers", color: "blue" }} title="Title Bar" subtitle="The window's top bar (colours need Windows 11)">
+        <${Segmented} options=${[{ value: "theme", label: "Match Theme" }, { value: "accent", label: "Accent" }, { value: "system", label: "Windows" }]}
+          value=${state.theme.titlebar ?? "theme"} onChange=${v => setTheme({ titlebar: v })} /><//>
       <${Row} icon=${{ name: "shield", color: "orange" }} title="Corners">
         <${Segmented} options=${[{ value: "0", label: "Square" }, { value: "50", label: "Small" }, { value: "100", label: "Round" }, { value: "140", label: "Rounder" }]}
           value=${t.radius} onChange=${v => setTheme({ radius: v })} /><//>

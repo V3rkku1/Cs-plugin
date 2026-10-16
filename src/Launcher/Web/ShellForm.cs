@@ -40,7 +40,7 @@ public sealed class ShellForm : Form
         Size = Fit(1400, 900);
         MinimumSize = Fit(1080, 700);
         StartPosition = FormStartPosition.CenterScreen;
-        BackColor = Color.FromArgb(8, 10, 18);
+        BackColor = ThemeColor("background", Color.FromArgb(15, 17, 23));
         ForeColor = Color.White;
         try { Icon = Icon.ExtractAssociatedIcon(Environment.ProcessPath ?? Application.ExecutablePath); }
         catch (Exception) { /* default icon */ }
@@ -53,7 +53,7 @@ public sealed class ShellForm : Form
         }
         else RestoreWindow();
 
-        HandleCreated += (_, _) => DarkTitleBar();
+        HandleCreated += (_, _) => ApplyTitleBar();
         Resize += (_, _) => FitZoom();
         DpiChanged += (_, _) => FitZoom();
         Load += async (_, _) => await StartAsync();
@@ -212,20 +212,71 @@ public sealed class ShellForm : Form
     [DllImport("dwmapi.dll")]
     private static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
 
-    private void DarkTitleBar()
+    private const int DwmUseImmersiveDarkMode = 20, DwmCornerPreference = 33, DwmBorderColor = 34,
+        DwmCaptionColor = 35, DwmTextColor = 36, DwmColorDefault = unchecked((int)0xFFFFFFFF);
+
+    /// <summary>A colour from Setup › Appearance (#rrggbb), or the fallback.</summary>
+    private Color ThemeColor(string key, Color fallback)
     {
+        var hex = _app.Settings.Theme.GetValueOrDefault(key);
+        if (hex is not { Length: 7 } || hex[0] != '#') return fallback;
+        try { return ColorTranslator.FromHtml(hex); }
+        catch (Exception) { return fallback; }
+    }
+
+    /// <summary>
+    /// Colours the Windows title bar like the launcher (Setup › Appearance › Title Bar): the theme's
+    /// background with a panel-coloured border, the accent colour, or Windows' own. Colours need
+    /// Windows 11; Windows 10 only gets the dark bar.
+    /// </summary>
+    public void ApplyTitleBar()
+    {
+        if (!IsHandleCreated) return;
+        var style = _app.Settings.Theme.GetValueOrDefault("titlebar") ?? "theme";
+        var background = ThemeColor("background", Color.FromArgb(15, 17, 23));
+        BackColor = background;
+        if (_view != null) _view.DefaultBackgroundColor = background;
+
+        var caption = style switch
+        {
+            "accent" => ThemeColor("accent", Color.FromArgb(10, 132, 255)),
+            "system" => (Color?)null,
+            _ => background,
+        };
+        var border = style == "system" ? (Color?)null : style == "accent" ? caption : ThemeColor("panel", Color.FromArgb(26, 29, 38));
         try
         {
-            var on = 1;
-            DwmSetWindowAttribute(Handle, 20, ref on, sizeof(int)); // DWMWA_USE_IMMERSIVE_DARK_MODE
+            var dark = caption is not { } c || c.GetBrightness() < 0.6f ? 1 : 0;
+            DwmSetWindowAttribute(Handle, DwmUseImmersiveDarkMode, ref dark, sizeof(int));
             var round = 2;
-            DwmSetWindowAttribute(Handle, 33, ref round, sizeof(int)); // DWMWA_WINDOW_CORNER_PREFERENCE = ROUND
-            var caption = ColorTranslator.ToWin32(BackColor);
-            DwmSetWindowAttribute(Handle, 35, ref caption, sizeof(int)); // DWMWA_CAPTION_COLOR
+            DwmSetWindowAttribute(Handle, DwmCornerPreference, ref round, sizeof(int)); // round corners
+            var captionValue = caption is { } cap ? ColorTranslator.ToWin32(cap) : DwmColorDefault;
+            DwmSetWindowAttribute(Handle, DwmCaptionColor, ref captionValue, sizeof(int));
+            var textValue = caption is { } capText ? ColorTranslator.ToWin32(ReadableOn(capText)) : DwmColorDefault;
+            DwmSetWindowAttribute(Handle, DwmTextColor, ref textValue, sizeof(int));
+            var borderValue = border is { } b ? ColorTranslator.ToWin32(b) : DwmColorDefault;
+            DwmSetWindowAttribute(Handle, DwmBorderColor, ref borderValue, sizeof(int));
         }
         catch (Exception)
         {
             // Older Windows / Wine: default frame.
         }
     }
+
+    /// <summary>White or near-black title text, whichever reads better on the bar.</summary>
+    private static Color ReadableOn(Color c)
+    {
+        var luminance = (0.2126 * c.R + 0.7152 * c.G + 0.0722 * c.B) / 255;
+        return luminance > 0.6 ? Color.FromArgb(20, 20, 24) : Color.FromArgb(240, 240, 245);
+    }
+
+    private static readonly Dictionary<string, string> PageTitles = new()
+    {
+        ["play"] = "Play", ["live"] = "Live Server", ["skins"] = "Skins", ["hacker"] = "Hacker Mode",
+        ["friends"] = "Friends", ["setup"] = "Setup",
+    };
+
+    /// <summary>"Skins · LAN Skin Tester" in the title bar and the taskbar.</summary>
+    public void ShowPage(string page) =>
+        Text = PageTitles.TryGetValue(page, out var title) ? $"{title} · LAN Skin Tester" : "LAN Skin Tester";
 }

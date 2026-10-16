@@ -129,7 +129,7 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
 **Appearance:** Setup → *Theme* and *Appearance*: ready-made themes (Midnight, OLED Black, Slate, CS2
 Orange, Green Ops, Violet, Crimson, Ocean), your own accent, background and panel colours, panel opacity,
-corners, font, text size, a background picture (with a darken slider), *Reduce Transparency* and *Reduce
+title bar colour (match theme, accent or Windows), corners, font, text size, a background picture (with a darken slider), *Reduce Transparency* and *Reduce
 Motion*. Everything applies right away. *Theme Code › Copy* puts your look on the clipboard as a short
 `LST1-…` code; a friend presses *Paste…* to use it. For full control, *Open custom.css* creates
 `%LocalAppData%\LanSkinTester\custom.css` (with notes and examples); it loads after the built-in styles

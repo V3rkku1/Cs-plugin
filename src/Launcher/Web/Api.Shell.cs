@@ -45,6 +45,7 @@ public partial class Api
     [Call("app.page")]
     private void SavePage(string page)
     {
+        _ = OnUi(() => (Window as ShellForm)?.ShowPage(page));
         App.Settings.LastPage = page;
         try { App.Settings.Save(); }
         catch (IOException) { /* not important */ }

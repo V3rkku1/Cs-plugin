@@ -30,6 +30,7 @@ public partial class Api
         "dim" => Number(value, 0, 90),
         "font" => value is "inter" or "segoe" or "system" or "mono" ? value : null,
         "preset" => Regex.IsMatch(value, "^[a-z0-9-]{1,24}$") ? value : null,
+        "titlebar" => value is "theme" or "accent" or "system" ? value : null,
         _ => null,
     };
 
@@ -186,6 +187,8 @@ public partial class Api
 
     private void SaveSettingsQuietly()
     {
+        // The title bar is drawn by Windows: give it the new colours too.
+        _ = OnUi(() => (Window as ShellForm)?.ApplyTitleBar());
         try { App.Settings.Save(); }
         catch (IOException ex) { App.Log("Could not save settings: " + ex.Message); }
     }
