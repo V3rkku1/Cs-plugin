@@ -23,6 +23,10 @@ public record PinInfo(int Id, string Name, string Rarity, string RarityColor, st
 
 public record MusicKitInfo(int Id, string Name, string Rarity, string RarityColor, string Image);
 
+/// <summary>A weapon case: its skins ("Weapon | Finish", paint kit, rarity) and the rare knives / gloves.</summary>
+public record CaseInfo(string Name, string Image, List<CaseItem> Items, List<CaseItem> Rare);
+public record CaseItem(string Name, int Paint, string Rarity);
+
 /// <summary>
 /// Skin, sticker and charm data from ByMykel's CSGO-API (MIT). Downloaded once, then kept as a small
 /// cache in %LocalAppData%\LanSkinTester\data. Also writes the plugin's skins\skins.json (names + legacy flags).
@@ -41,6 +45,7 @@ public class ItemDatabase
     public List<AgentInfo> Agents { get; private set; } = new();
     public List<PinInfo> Pins { get; private set; } = new();
     public List<MusicKitInfo> MusicKits { get; private set; } = new();
+    public List<CaseInfo> Cases { get; private set; } = new();
 
     public bool IsEmpty => Skins.Count == 0;
 
@@ -66,6 +71,7 @@ public class ItemDatabase
             db.Agents = Read<List<AgentInfo>>(Path.Combine(dir, "agents.json")) ?? new();
             db.Pins = Read<List<PinInfo>>(Path.Combine(dir, "pins.json")) ?? new();
             db.MusicKits = Read<List<MusicKitInfo>>(Path.Combine(dir, "musickits.json")) ?? new();
+            db.Cases = Read<List<CaseInfo>>(Path.Combine(dir, "cases.json")) ?? new();
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
@@ -93,6 +99,8 @@ public class ItemDatabase
         var pins = Convert(await GetArray(http, "collectibles.json"), ParsePin);
         log("Downloading music kits...");
         var musicKits = Convert(await GetArray(http, "music_kits.json"), ParseMusicKit);
+        log("Downloading weapon cases...");
+        var cases = Convert(await GetArray(http, "crates.json"), ParseCase);
 
         Write(Path.Combine(dir, "weapons.json"), weapons);
         Write(Path.Combine(dir, "skins.json"), skins);
@@ -101,6 +109,7 @@ public class ItemDatabase
         Write(Path.Combine(dir, "agents.json"), agents);
         Write(Path.Combine(dir, "pins.json"), pins);
         Write(Path.Combine(dir, "musickits.json"), musicKits);
+        Write(Path.Combine(dir, "cases.json"), cases);
         log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms, {agents.Count} agents, " +
             $"{pins.Count} pins, {musicKits.Count} music kits.");
     }
@@ -155,6 +164,42 @@ public class ItemDatabase
         var id = Int(n["def_index"]);
         if (Str(n["type"]) != "Pin" || id is <= 0 or > ushort.MaxValue) return null;
         return new PinInfo(id, Str(n["name"]), Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
+    }
+
+    private static CaseInfo? ParseCase(JsonNode n)
+    {
+        if (Str(n["type"]) != "Case" || n["contains"] is not JsonArray contains || contains.Count == 0) return null;
+        static List<CaseItem> Items(JsonNode? list) => list is JsonArray a
+            ? a.Where(x => x != null).Select(x => new CaseItem(Str(x!["name"]), Int(x["paint_index"]), Str(x["rarity"]?["name"]))).Where(i => i.Name != "").ToList()
+            : new List<CaseItem>();
+        return new CaseInfo(Str(n["name"]), Str(n["image"]), Items(contains), Items(n["contains_rare"]));
+    }
+
+    /// <summary>
+    /// The plugin's case list (cases\cases.json): each skin with its weapon's definition index and
+    /// float range, so !case can open real cases in game.
+    /// </summary>
+    public void WritePluginCases(string casesDir)
+    {
+        if (Cases.Count == 0) return;
+        Directory.CreateDirectory(casesDir);
+        var byName = Weapons.GroupBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().DefIndex, StringComparer.OrdinalIgnoreCase);
+        object? Item(CaseItem item)
+        {
+            var name = item.Name.Replace("★", "").Trim();
+            var bar = name.IndexOf('|');
+            var weapon = (bar < 0 ? name : name[..bar]).Trim();
+            if (!byName.TryGetValue(weapon, out var def)) return null;
+            var skin = item.Paint != 0 ? Find(def, item.Paint) : null;
+            return new { def, paint = item.Paint, name, rarity = item.Rarity, min = skin?.MinFloat ?? 0f, max = skin?.MaxFloat ?? 1f };
+        }
+        var list = Cases.Select(c => new
+        {
+            name = c.Name,
+            items = c.Items.Select(Item).Where(i => i != null).ToList(),
+            rare = c.Rare.Select(Item).Where(i => i != null).ToList(),
+        }).Where(c => c.items.Count > 0).ToList();
+        File.WriteAllText(Path.Combine(casesDir, "cases.json"), JsonSerializer.Serialize(list));
     }
 
     /// <summary>Each kit is listed twice, plain and StatTrak ("music_kit-3_st"); the plain one is enough.</summary>
