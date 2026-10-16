@@ -3,6 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "./vendor/preact-htm.js
 
 const token = new URLSearchParams(location.search).get("t") ?? "";
 const listeners = new Map();
+/** Last result of each useApi call ("name|args"), so a page shows at once when you switch back to it. */
+const cache = new Map();
 
 /** Calls a launcher method. Errors become a toast and reject with the message. */
 export async function call(name, args) {
@@ -67,12 +69,17 @@ connect();
  * (or on the extra events given). Returns [data, reload].
  */
 export function useApi(name, args, events = []) {
-  const [data, setData] = useState(undefined);
   const key = JSON.stringify(args ?? null);
+  const cacheKey = `${name}|${key}`;
+  const [data, setData] = useState(() => cache.get(cacheKey));
   const seq = useRef(0);
   const reload = useCallback(() => {
     const mine = ++seq.current;
-    return call(name, args).then(result => { if (mine === seq.current) setData(result); return result; }).catch(() => undefined);
+    return call(name, args).then(result => {
+      cache.set(cacheKey, result);
+      if (mine === seq.current) setData(result);
+      return result;
+    }).catch(() => undefined);
   }, [name, key]);
   useEffect(() => {
     reload();
@@ -80,6 +87,12 @@ export function useApi(name, args, events = []) {
     return () => offs.forEach(off => off());
   }, [reload]);
   return [data, reload];
+}
+
+/** Loads calls into the useApi cache in the background (the pages you are likely to open next). */
+export function prefetch(names) {
+  for (const name of names)
+    call(name).then(result => cache.set(`${name}|null`, result), () => undefined);
 }
 
 /** Subscribes to an event for the component's lifetime. */

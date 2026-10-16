@@ -93,42 +93,85 @@ button { cursor: pointer; }
 /* Backdrop: slow, colourful light for the glass to refract                                     */
 /* -------------------------------------------------------------------------------------------- */
 
+/* The glow colour follows the page (app.js sets data-page); registered so it fades between pages. */
+@property --accent { syntax: "<color>"; inherits: true; initial-value: #2e6bff; }
+
 .backdrop {
+  --accent: #2e6bff;
   position: fixed;
   inset: 0;
   z-index: 0;
   overflow: hidden;
   background:
-    radial-gradient(1200px 800px at 85% -10%, #1b2a6b 0%, transparent 60%),
-    radial-gradient(900px 700px at -10% 110%, #3a1450 0%, transparent 60%),
+    radial-gradient(90vmax 60vmax at 85% -10%, #1b2a6b 0%, transparent 60%),
+    radial-gradient(70vmax 55vmax at -10% 110%, #3a1450 0%, transparent 60%),
     linear-gradient(160deg, #070a18 0%, #0b0d1c 45%, #120a14 100%);
+  transition: --accent 1.4s var(--ease);
 }
+.backdrop[data-page="play"] { --accent: #ff7a1a; }
+.backdrop[data-page="live"] { --accent: #2e6bff; }
+.backdrop[data-page="skins"] { --accent: #b43cff; }
+.backdrop[data-page="hacker"] { --accent: #30d158; }
+.backdrop[data-page="friends"] { --accent: #00c2d1; }
+.backdrop[data-page="setup"] { --accent: #5e5ce6; }
 
+/* Soft light. Sized to the screen (vmax) so big and zoomed windows are covered too. The gradients
+   are already soft, so no blur filter: big blurred layers made switching pages stutter. */
 .backdrop .blob {
   position: absolute;
   border-radius: 50%;
-  filter: blur(80px);
-  opacity: 0.55;
+  opacity: 0.75;
   mix-blend-mode: screen;
+  will-change: transform;
   animation: drift 36s ease-in-out infinite alternate;
 }
-.backdrop .b1 { width: 620px; height: 620px; left: 8%; top: -12%; background: radial-gradient(circle, #ff7a1a 0%, #ff3d00 35%, transparent 70%); animation-duration: 42s; }
-.backdrop .b2 { width: 760px; height: 760px; right: -8%; top: 18%; background: radial-gradient(circle, #2e6bff 0%, #1037c8 40%, transparent 70%); animation-duration: 50s; animation-delay: -12s; }
-.backdrop .b3 { width: 560px; height: 560px; left: 30%; bottom: -22%; background: radial-gradient(circle, #b43cff 0%, #6a11cb 40%, transparent 70%); animation-duration: 46s; animation-delay: -24s; }
-.backdrop .b4 { width: 380px; height: 380px; left: -6%; top: 40%; background: radial-gradient(circle, #00d1b2 0%, #007a8a 40%, transparent 70%); opacity: 0.45; animation-duration: 38s; animation-delay: -6s; }
+.backdrop .b1 { width: 50vmax; height: 50vmax; left: 4%; top: -18%; background: radial-gradient(circle closest-side, #ff7a1a 0%, rgba(255, 61, 0, 0.55) 40%, rgba(255, 61, 0, 0.12) 70%, transparent 100%); animation-duration: 42s; }
+.backdrop .b2 { width: 60vmax; height: 60vmax; right: -14%; top: 10%; background: radial-gradient(circle closest-side, #2e6bff 0%, rgba(16, 55, 200, 0.55) 42%, rgba(16, 55, 200, 0.12) 72%, transparent 100%); animation-duration: 50s; animation-delay: -12s; }
+.backdrop .b3 { width: 46vmax; height: 46vmax; left: 28%; bottom: -26%; background: radial-gradient(circle closest-side, #b43cff 0%, rgba(106, 17, 203, 0.55) 42%, rgba(106, 17, 203, 0.12) 72%, transparent 100%); animation-duration: 46s; animation-delay: -24s; }
+.backdrop .b4 { width: 32vmax; height: 32vmax; left: -8%; top: 38%; background: radial-gradient(circle closest-side, #00d1b2 0%, rgba(0, 122, 138, 0.5) 45%, transparent 100%); opacity: 0.55; animation-duration: 38s; animation-delay: -6s; }
+
+/* The page's colour, breathing slowly in the middle. */
+.backdrop .accent {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(60vmax 45vmax at 62% 42%, color-mix(in srgb, var(--accent) 42%, transparent) 0%, transparent 72%);
+  mix-blend-mode: screen;
+  animation: breathe 14s ease-in-out infinite alternate;
+}
+
+/* A faint dot grid, strongest in the middle: depth for the glass, like a tactical map. */
+.backdrop .grid {
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1.4px);
+  background-size: 26px 26px;
+  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 58% 42%, #000 0%, transparent 100%);
+  mask-image: radial-gradient(ellipse 70% 65% at 58% 42%, #000 0%, transparent 100%);
+}
+
+/* Darker edges keep text readable and frame the window. */
+.backdrop .vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse 85% 80% at 55% 45%, transparent 55%, rgba(2, 3, 8, 0.45) 100%);
+}
 
 .backdrop .grain {
   position: absolute;
   inset: 0;
-  opacity: 0.08;
+  opacity: 0.07;
   background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>");
 }
 
 @keyframes drift {
   0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(60px, 40px) scale(1.08); }
-  66% { transform: translate(-40px, 70px) scale(0.94); }
-  100% { transform: translate(30px, -50px) scale(1.04); }
+  33% { transform: translate(4vmax, 3vmax) scale(1.08); }
+  66% { transform: translate(-3vmax, 5vmax) scale(0.94); }
+  100% { transform: translate(2vmax, -4vmax) scale(1.04); }
+}
+@keyframes breathe {
+  from { opacity: 0.7; transform: scale(1); }
+  to { opacity: 1; transform: scale(1.08); }
 }
 
 /* -------------------------------------------------------------------------------------------- */
@@ -298,16 +341,18 @@ button { cursor: pointer; }
   /* Very wide windows (ultrawide, or zoom at its limit): keep the content a readable width, centred. */
   padding-left: max(18px, calc((100% - var(--page-max)) / 2));
   padding-right: max(24px, calc((100% - var(--page-max)) / 2));
-  animation: page-in 0.5s var(--ease);
+  animation: page-in 0.35s var(--ease);
   scrollbar-gutter: stable;
 }
 .page::-webkit-scrollbar { width: 10px; }
 .page::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.18); border-radius: 10px; border: 3px solid transparent; background-clip: padding-box; }
 .page::-webkit-scrollbar-track { background: transparent; }
 
+/* Movement only: fading or blurring the page would turn off the glass blur of every card in it
+   until the animation ends, so cards flickered when you switched pages. */
 @keyframes page-in {
-  from { opacity: 0; transform: translateY(14px) scale(0.99); filter: blur(4px); }
-  to { opacity: 1; transform: none; filter: none; }
+  from { transform: translateY(10px); }
+  to { transform: none; }
 }
 @keyframes pop-in {
   from { opacity: 0; transform: scale(0.85); }
