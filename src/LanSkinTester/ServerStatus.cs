@@ -8,8 +8,6 @@ public class ServerStatus
     public int GameType { get; set; }
     public int GameMode { get; set; }
     public int Humans { get; set; }
-    /// <summary>People whose game is still loading into the server.</summary>
-    public int Connecting { get; set; }
     public int Bots { get; set; }
     public List<string> Players { get; set; } = new();
     public bool SharedLoadout { get; set; } = true;

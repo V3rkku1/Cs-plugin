@@ -1,4 +1,3 @@
-using Microsoft.Extensions.Logging;
 using System.Text.RegularExpressions;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -18,44 +17,15 @@ public partial class LanSkinTester
     /// <summary>Slots we gave a music kit, so picking "default" again can take it away.</summary>
     private readonly HashSet<int> _musicKitSlots = new();
 
-    /// <summary>Agent models precached for this map. Only these are safe to switch to.</summary>
-    private readonly HashSet<string> _precachedAgents = new(StringComparer.OrdinalIgnoreCase);
-
-    /// <summary>Precaches every agent model (agents.txt from the launcher, plus any in a saved loadout).</summary>
-    private void PrecacheAgents(ResourceManifest manifest)
-    {
-        try
-        {
-            _precachedAgents.Clear();
-            var models = new List<string>();
-            try
-            {
-                var file = Path.Combine(ModuleDirectory, "agents.txt");
-                if (File.Exists(file)) models.AddRange(File.ReadAllLines(file));
-            }
-            catch (IOException) { /* the loadouts below still work */ }
-            models.AddRange(_store.AllAgentModels());
-            foreach (var model in models.Select(m => m.Trim()).Where(m => AgentModel.IsMatch(m)).Distinct())
-            {
-                manifest.AddResource(model);
-                _precachedAgents.Add(model);
-            }
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Could not precache the agent models");
-        }
-    }
-
     private void ApplyAgentAndPin(CCSPlayerController player)
     {
         if (!IsHumanPlayer(player)) return;
         var loadout = GetLoadout(player);
 
         var model = player.Team == CsTeam.CounterTerrorist ? loadout.AgentCT : player.Team == CsTeam.Terrorist ? loadout.AgentT : null;
-        if (model != null && AgentModel.IsMatch(model) && _precachedAgents.Contains(model))
+        if (model != null && AgentModel.IsMatch(model))
         {
-            NextFrame(() =>
+            Server.NextFrame(() =>
             {
                 var pawn = player.IsValid ? player.PlayerPawn.Value : null;
                 if (pawn != null && pawn.IsValid && player.PawnIsAlive) pawn.SetModel(model);

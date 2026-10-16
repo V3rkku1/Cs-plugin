@@ -41,7 +41,7 @@ public partial class LanSkinTester
         var bought = _boughtGuns.TryGetValue(player.SteamID, out var set) ? set : _boughtGuns[player.SteamID] = new();
         if (bought.Add(item)) return HookResult.Continue;
 
-        NextFrame(() =>
+        Server.NextFrame(() =>
         {
             if (!player.IsValid || FindPlayerWeapon(player, w => w.DesignerName == item) is not { } weapon) return;
             var price = weapon.As<CCSWeaponBase>().VData?.Price ?? 0;

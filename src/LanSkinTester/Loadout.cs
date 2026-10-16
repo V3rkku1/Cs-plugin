@@ -131,10 +131,6 @@ public class LoadoutStore
         }
     }
 
-    /// <summary>Every agent model any saved loadout uses.</summary>
-    public IEnumerable<string> AllAgentModels() =>
-        _loadouts.Values.SelectMany(l => new[] { l.AgentT, l.AgentCT }).Where(m => !string.IsNullOrEmpty(m)).Select(m => m!);
-
     public PlayerLoadout Get(string key)
     {
         if (!_loadouts.TryGetValue(key, out var loadout))

@@ -52,7 +52,7 @@ public partial class LanSkinTester
             _voteChoices = null;
             _stats.Clear();
             _roundStats.Clear();
-            if (_qolReady) NextWorldUpdate(() => Server.ExecuteCommand("mp_warmup_pausetimer 1"));
+            if (_qolReady) Server.NextWorldUpdate(() => Server.ExecuteCommand("mp_warmup_pausetimer 1"));
         });
     }
 
@@ -102,7 +102,7 @@ public partial class LanSkinTester
 
     private void Protect(CCSPlayerController player)
     {
-        NextFrame(() =>
+        Server.NextFrame(() =>
         {
             var pawn = player.IsValid ? player.PlayerPawn.Value : null;
             if (pawn == null || !pawn.IsValid || _god.Contains(player.Slot)) return;

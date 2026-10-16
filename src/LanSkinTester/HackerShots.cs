@@ -240,7 +240,7 @@ public partial class LanSkinTester
         }
 
         // point_hurt may hurt on the spot or on its next think: look one frame later.
-        NextFrame(() =>
+        Server.NextFrame(() =>
         {
             if (!victim.IsValid || victim.LifeState != (byte)LifeState_t.LIFE_ALIVE) return;
             if (victim.Health != before) return; // it landed

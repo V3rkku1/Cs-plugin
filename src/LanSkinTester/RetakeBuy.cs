@@ -73,7 +73,7 @@ public partial class LanSkinTester
 
         foreach (var player in Humans())
         {
-            if (!player.PawnIsAlive || player.PlayerPawn.Value is not { IsValid: true }) continue;
+            if (!player.PawnIsAlive) continue;
             StripGuns(player);
             var money = player.InGameMoneyServices;
             if (money != null)
@@ -145,18 +145,20 @@ public partial class LanSkinTester
         return loadout;
     }
 
-    /// <summary>
-    /// Takes every gun and grenade, keeping the knife and the bomb. Uses the game's own RemoveWeapons:
-    /// removing weapons one by one, right after the retakes plugin handed them out, crashed servers.
-    /// </summary>
     private static void StripGuns(CCSPlayerController player)
     {
-        var pawn = player.PlayerPawn.Value;
-        if (pawn is not { IsValid: true } || pawn.WeaponServices?.MyWeapons is not { } weapons) return;
-        var hadBomb = weapons.Any(h => h.Value?.DesignerName == "weapon_c4");
-        player.RemoveWeapons();
-        player.GiveNamedItem(player.Team == CsTeam.Terrorist ? "weapon_knife_t" : "weapon_knife");
-        if (hadBomb) player.GiveNamedItem("weapon_c4");
+        var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
+        if (weapons == null) return;
+        var names = new List<string>();
+        foreach (var handle in weapons)
+        {
+            var name = handle.Value?.DesignerName;
+            // Keep the knife, and the bomb when auto-plant is off and a terrorist still has to plant.
+            if (string.IsNullOrEmpty(name) || ItemData.IsKnifeClassname(name) || name.Contains("c4")) continue;
+            names.Add(name);
+        }
+        foreach (var name in names)
+            Utilities.RemoveItemByDesignerName(player, name);
     }
 
     private static ulong RetakePlayerId(CCSPlayerController player) =>

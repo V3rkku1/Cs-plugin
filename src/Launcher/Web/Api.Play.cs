@@ -57,7 +57,6 @@ public partial class Api
         AnnouncePlayers(status?.Players);
         HandleWorkshopStartup(status);
         HandleJoinWhenUp(status);
-        HandleJoinCheck(status);
         CheckServerCrash();
         _ = RenewRouterPortAsync();
         var g = App.Game;
@@ -295,8 +294,6 @@ public partial class Api
                 new Installer(game, App.Http, App.Log).InstallPlugin();
                 App.Log($"Updated the plugin to v{Installer.BundledPluginVersion()?.ToString(3) ?? "?"} (the one in this launcher).");
             }
-            // CS2 starts only once the server is up and settled. Booting the game while the server was
-            // still loading made the game crash on its start-up screen.
             var startGame = new TestSession(game).Start(server, forFriends);
             SetJoinWhenUp(startGame ? JoinWhenUp.StartGame : JoinWhenUp.None);
             ClearWorkshopWait();
@@ -428,7 +425,7 @@ public partial class Api
         var game = App.Game ?? throw new ApiException("Pick your CS2 folder first.");
         try
         {
-            StartGameAndWatch(game);
+            new TestSession(game).StartGame(App.Settings.Server);
             App.Log("Starting CS2 (VAC off)...");
             Toast("Starting CS2…");
         }
@@ -571,79 +568,25 @@ public partial class Api
             return;
         }
         _joinUpSince ??= now;
-        if (now - _joinUpSince < TimeSpan.FromSeconds(8)) return; // let the map, bots and plugins settle
-        // A game that is still booting can't take the connect yet: give it time to reach the menu.
-        if (_joinWhenUp == JoinWhenUp.Reconnect && TestSession.ClientAge() is { } age && age < TimeSpan.FromSeconds(25)) return;
+        if (now - _joinUpSince < TimeSpan.FromSeconds(3)) return; // let the map finish loading
         var what = _joinWhenUp;
         SetJoinWhenUp(JoinWhenUp.None);
         try
         {
             if (what == JoinWhenUp.StartGame && !TestSession.ClientRunning())
             {
-                StartGameAndWatch(App.Game);
-                App.Log("Server is up - starting CS2 (VAC off)...");
-            }
-            else if (what == JoinWhenUp.Reconnect && !TestSession.ClientRunning())
-            {
-                StartGameAndWatch(App.Game); // the game was closed meanwhile: start it straight onto the server
+                new TestSession(App.Game).StartGame(App.Settings.Server);
                 App.Log("Server is up - starting CS2 (VAC off)...");
             }
             else if (what == JoinWhenUp.Reconnect)
             {
                 TestSession.ReconnectClient(App.Settings.Server.Password);
-                WatchJoin();
                 App.Log("Server is up - CS2 rejoins.");
             }
         }
         catch (Exception ex)
         {
             App.Log("Could not start CS2: " + ex.Message);
-        }
-    }
-
-    // Some modes keep CS2 at the main menu: +connect fires while the server is still changing map, or a
-    // retakes seat wasn't free yet. If nobody has joined a while after CS2 started, ask again.
-    private DateTime? _joinCheckSince;
-    private int _joinRetries;
-
-    private void StartGameAndWatch(GameFolder game)
-    {
-        new TestSession(game).StartGame(App.Settings.Server);
-        WatchJoin();
-    }
-
-    private void WatchJoin()
-    {
-        _joinCheckSince = DateTime.UtcNow;
-        _joinRetries = 0;
-    }
-
-    private void HandleJoinCheck(ServerStatus? status)
-    {
-        if (_joinCheckSince is not { } since) return;
-        var elapsed = DateTime.UtcNow - since;
-        if (!App.TestModeOn || status?.Humans > 0 || status?.Connecting > 0 || (!TestSession.ClientRunning() && elapsed > TimeSpan.FromSeconds(30)))
-        {
-            _joinCheckSince = null; // joined, stopped, or the game was closed
-            return;
-        }
-        if (status == null || elapsed < TimeSpan.FromSeconds(70 + 40 * _joinRetries)) return;
-        if (_joinRetries >= 2)
-        {
-            _joinCheckSince = null;
-            App.Log($"CS2 still hasn't joined. In CS2 open the console (~) and type: connect 127.0.0.1:{ServerSettings.Port}");
-            Toast("CS2 didn't join - press \"Open CS2\" or use the console: connect 127.0.0.1", "warning");
-            return;
-        }
-        _joinRetries++;
-        try
-        {
-            TestSession.ReconnectClient(App.Settings.Server.Password);
-            App.Log("CS2 hasn't joined the server yet - asking it to connect again...");
-        }
-        catch (Exception ex)
-        {
-            App.Log("Could not reconnect CS2: " + ex.Message);
         }
     }
 
@@ -728,7 +671,7 @@ public partial class Api
             Toast($"{status.Map} loaded" + (_startGameAfterWorkshop ? " - starting CS2…" : "."));
             if (_startGameAfterWorkshop)
             {
-                try { StartGameAndWatch(App.Game); }
+                try { new TestSession(App.Game).StartGame(App.Settings.Server); }
                 catch (Exception ex) { App.Log("Could not start CS2: " + ex.Message); }
             }
             ClearWorkshopWait();
@@ -742,38 +685,6 @@ public partial class Api
     }
 
     /// <summary>The server we started is gone without Stop: say so and show its last console lines.</summary>
-    /// <summary>The server console and CounterStrikeSharp's newest log, in one file to send when asking for help.</summary>
-    private string? WriteCrashReport(GameFolder game, int? code)
-    {
-        try
-        {
-            var sb = new System.Text.StringBuilder();
-            sb.AppendLine($"LAN Skin Tester crash report {DateTime.Now:yyyy-MM-dd HH:mm:ss} · launcher {UpdateCheck.ShortVersion}");
-            sb.AppendLine($"Mode: {App.Settings.Server.Summary()} · exit code {(code is { } c ? $"0x{c:X8}" : "?")}");
-            sb.AppendLine().AppendLine("== Server console (last 80 lines) ==");
-            foreach (var line in new TestSession(game).ConsoleTail(80)) sb.AppendLine(line);
-            var logs = Path.Combine(game.Addons, "counterstrikesharp", "logs");
-            // CounterStrikeSharp's main log (log-all...) has the error; each plugin also has its own.
-            var files = Directory.Exists(logs) ? new DirectoryInfo(logs).GetFiles("*.txt") : [];
-            var newest = files.Where(f => f.Name.StartsWith("log-all", StringComparison.OrdinalIgnoreCase))
-                .OrderByDescending(f => f.LastWriteTimeUtc).Take(1)
-                .Concat(files.Where(f => !f.Name.StartsWith("log-all", StringComparison.OrdinalIgnoreCase))
-                    .OrderByDescending(f => f.LastWriteTimeUtc).Take(3));
-            foreach (var log in newest)
-            {
-                sb.AppendLine().AppendLine($"== {log.Name} (last 120 lines) ==");
-                foreach (var line in TestSession.TailLines(log.FullName, 120)) sb.AppendLine(line);
-            }
-            var path = Path.Combine(AppState.LauncherDataDir, "crash-report.txt");
-            File.WriteAllText(path, sb.ToString());
-            return path;
-        }
-        catch (Exception)
-        {
-            return null;
-        }
-    }
-
     private void CheckServerCrash()
     {
         var server = TestSession.Server;
@@ -790,8 +701,6 @@ public partial class Api
         var tail = new TestSession(App.Game).ConsoleTail();
         if (tail.Length == 0) App.Log("   (no console log - it closed before writing one)");
         foreach (var line in tail) App.Log("   " + line);
-        var report = WriteCrashReport(App.Game, code);
-        if (report != null) App.Log("Crash report (console + plugin logs) saved: " + report);
         _startError = "The server closed unexpectedly - its last console lines are in the activity log.";
         Toast("The server closed unexpectedly - see the activity log on Live Server.", "bad");
         App.NotifyChanged();
@@ -909,8 +818,8 @@ public partial class Api
         s.RetakeMaxPlayers = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
         s.RetakeTerroristPercent = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
         s.RetakeScrambleRounds = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
-        s.RetakeWeapons = Math.Clamp(s.RetakeWeapons, 0, ServerSettings.RetakeWeaponChoices.Length - 1);
-        s.RetakeBuy = s.RetakeWeapons == 0;
+        s.RetakeWeapons = s.RetakeWeapons == 1 ? 1 : 0;
+        s.RetakeBuy = s.RetakeWeapons != 1;
         s.RetakeBuySeconds = Math.Clamp(s.RetakeBuySeconds, 4, 20);
         s.RetakeBombTimer = Math.Clamp(s.RetakeBombTimer, 15, 60);
         s.WorkshopMap = (s.WorkshopMap ?? "").Trim();

@@ -64,17 +64,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         Logger.LogInformation("Loaded {Count} skin names from the skins folder", _catalog.Count);
         if (CoreConfig.FollowCS2ServerGuidelines) Logger.LogError(GuidelinesMessage);
 
-        RegisterListener<Listeners.OnMapStart>(_ =>
-        {
-            _warnedSlots.Clear();
-            _connectingSlots.Clear();
-        });
-        RegisterListener<Listeners.OnServerPrecacheResources>(PrecacheAgents);
-        RegisterListener<Listeners.OnClientConnect>((slot, _, ip) =>
-        {
-            if (!string.IsNullOrEmpty(ip) && !ip.Equals("BOT", StringComparison.OrdinalIgnoreCase)) _connectingSlots.Add(slot);
-        });
-        RegisterListener<Listeners.OnClientDisconnect>(slot => _connectingSlots.Remove(slot));
+        RegisterListener<Listeners.OnMapStart>(_ => _warnedSlots.Clear());
 
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
         AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
@@ -85,36 +75,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         LoadHackerMode();
         LoadPractice();
         LoadExtras();
-        // Loaded while people are already playing (plugin update, hot reload): they're past loading.
-        foreach (var p in Utilities.GetPlayers())
-            if (p.IsValid && p.Connected == PlayerConnectedState.Connected) _inGameSlots.Add(p.Slot);
     }
-
-    // ---------------------------------------------------------------------------------------------
-    // Safe callbacks. An exception that escapes a timer or next-frame callback isn't caught on the way
-    // back to the game: .NET fail-fasts the whole server (exit code 0x80131623) and everyone is
-    // disconnected. Plugin retakes kills people the moment they spawn, so a timer that then touches
-    // their pawn did exactly that. Every timer and next-frame callback here goes through Guard.
-    // ---------------------------------------------------------------------------------------------
-
-    private new CounterStrikeSharp.API.Modules.Timers.Timer AddTimer(float interval, Action callback, TimerFlags? flags = null) =>
-        base.AddTimer(interval, Guard(callback), flags);
-
-    private void NextFrame(Action task) => Server.NextFrame(Guard(task));
-
-    private void NextWorldUpdate(Action task) => Server.NextWorldUpdate(Guard(task));
-
-    private Action Guard(Action callback) => () =>
-    {
-        try
-        {
-            callback();
-        }
-        catch (Exception ex)
-        {
-            Logger.LogError(ex, "Error in a delayed callback (ignored so the server keeps running)");
-        }
-    };
 
     public override void Unload(bool hotReload)
     {
@@ -137,8 +98,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
 
             var pawn = itemServices.Pawn.Value;
             var player = pawn?.Controller.Value?.As<CCSPlayerController>();
-            // Not while their game is still loading: connect-full refreshes the guns once it's done.
-            if (player != null && IsHumanPlayer(player) && _inGameSlots.Contains(player.Slot))
+            if (player != null && IsHumanPlayer(player))
                 ApplyWeaponSkin(player, weapon);
         }
         catch (Exception ex)
@@ -154,7 +114,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     {
         if (entity.DesignerName?.StartsWith("weapon_") != true) return;
 
-        NextWorldUpdate(() =>
+        Server.NextWorldUpdate(() =>
         {
             try
             {
@@ -162,7 +122,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 if (!weapon.IsValid) return;
 
                 var player = FindWeaponOwner(weapon);
-                if (player != null && IsHumanPlayer(player) && _inGameSlots.Contains(player.Slot))
+                if (player != null && IsHumanPlayer(player))
                     ApplyWeaponSkin(player, weapon);
             }
             catch (Exception ex)
@@ -179,28 +139,21 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         RefreshEveryone("Loadout updated from the launcher.");
     }
 
-    /// <summary>Gives a player fresh copies of their skinnable weapons. False when they have none.</summary>
-    private bool RefreshGuns(CCSPlayerController player)
-    {
-        var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
-        if (weapons == null) return false;
-
-        var skinnable = weapons
-            .Select(h => h.Value)
-            .Where(w => w != null && w.IsValid &&
-                        (ItemData.Weapons.ContainsKey(w.AttributeManager.Item.ItemDefinitionIndex) || ItemData.IsKnifeClassname(w.DesignerName)))
-            .ToList();
-
-        foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
-        return true;
-    }
-
     /// <summary>Gives every living human fresh copies of their weapons so the current loadout shows.</summary>
     private void RefreshEveryone(string message)
     {
         foreach (var player in Utilities.GetPlayers().Where(p => IsHumanPlayer(p) && p.PawnIsAlive))
         {
-            if (!RefreshGuns(player)) continue;
+            var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
+            if (weapons == null) continue;
+
+            var skinnable = weapons
+                .Select(h => h.Value)
+                .Where(w => w != null && w.IsValid &&
+                            (ItemData.Weapons.ContainsKey(w.AttributeManager.Item.ItemDefinitionIndex) || ItemData.IsKnifeClassname(w.DesignerName)))
+                .ToList();
+
+            foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
             ApplyAgentAndPin(player);
             ApplyGloves(player);
             Reply(player, message);
@@ -219,7 +172,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 GameType = CvarInt("game_type"),
                 GameMode = CvarInt("game_mode"),
                 Humans = players.Count(p => !IsBotPlayer(p)),
-                Connecting = _connectingSlots.Count(slot => Utilities.GetPlayerFromSlot(slot) is not { IsValid: true } p || !IsBotPlayer(p)),
                 Bots = players.Count(IsBotPlayer),
                 Players = players.Where(p => !IsBotPlayer(p)).Select(p => p.PlayerName).ToList(),
                 SharedLoadout = SharedLoadout,
@@ -457,48 +409,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             return HookResult.Continue;
         }
 
-        // A spawn while the game is still loading (warmup, retakes) waits: changing the model and
-        // gloves of someone mid-load can crash their game. Connect-full applies them instead.
-        if (!_inGameSlots.Contains(player.Slot)) return HookResult.Continue;
         ApplyAgentAndPin(player);
         AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
-        return HookResult.Continue;
-    }
-
-    /// <summary>People who started connecting and haven't finished loading (for the launcher's join check).</summary>
-    private readonly HashSet<int> _connectingSlots = new();
-
-    /// <summary>Humans whose game has finished loading this map.</summary>
-    private readonly HashSet<int> _inGameSlots = new();
-
-    [GameEventHandler]
-    public HookResult OnPlayerConnectFullCosmetics(EventPlayerConnectFull @event, GameEventInfo info)
-    {
-        var player = @event.Userid;
-        if (player == null || !player.IsValid) return HookResult.Continue;
-        var slot = player.Slot;
-        _connectingSlots.Remove(slot);
-        // A moment after loading, then their agent, pin, music kit and gloves.
-        AddTimer(1.5f, () =>
-        {
-            if (!player.IsValid || !IsHumanPlayer(player)) return;
-            _inGameSlots.Add(slot);
-            if (DisabledReason() != null || !player.PawnIsAlive) return;
-            RefreshGuns(player);
-            ApplyAgentAndPin(player);
-            AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
-        }, TimerFlags.STOP_ON_MAPCHANGE);
-        return HookResult.Continue;
-    }
-
-    [GameEventHandler]
-    public HookResult OnPlayerDisconnectCosmetics(EventPlayerDisconnect @event, GameEventInfo info)
-    {
-        if (@event.Userid is { } player)
-        {
-            _inGameSlots.Remove(player.Slot);
-            _connectingSlots.Remove(player.Slot);
-        }
         return HookResult.Continue;
     }
 
@@ -688,7 +600,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             if (ptr == IntPtr.Zero) return;
 
             var fresh = new CBasePlayerWeapon(ptr);
-            NextFrame(() =>
+            Server.NextFrame(() =>
             {
                 if (!fresh.IsValid || isKnife) return;
                 fresh.Clip1 = clip;

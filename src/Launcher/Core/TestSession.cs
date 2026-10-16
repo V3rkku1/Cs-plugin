@@ -35,21 +35,6 @@ public class TestSession
         return null;
     }
 
-    /// <summary>How long the CS2 game (not the server) has been running, or null when it isn't.</summary>
-    public static TimeSpan? ClientAge()
-    {
-        var server = FindServer()?.Id;
-        try
-        {
-            var started = Process.GetProcessesByName("cs2").Where(p => p.Id != server).Select(p => p.StartTime).DefaultIfEmpty().Min();
-            return started == default ? null : DateTime.Now - started;
-        }
-        catch (Exception)
-        {
-            return ClientRunning() ? TimeSpan.MaxValue : null;
-        }
-    }
-
     /// <summary>A CS2 game window is open (any cs2.exe that isn't the server).</summary>
     public static bool ClientRunning()
     {
@@ -122,11 +107,11 @@ public class TestSession
     }
 
     /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>
-    public void StartGame(ServerSettings settings, bool connect = true)
+    public void StartGame(ServerSettings settings)
     {
         Process.Start(new ProcessStartInfo(_game.Exe)
         {
-            Arguments = settings.GameArguments(_game, connect),
+            Arguments = settings.GameArguments(_game),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
@@ -144,16 +129,9 @@ public class TestSession
     /// <summary>The last lines the server wrote, to show why it stopped.</summary>
     public string[] ConsoleTail(int lines = 12)
     {
-        return TailLines(ConsoleLog, lines);
-    }
-
-    /// <summary>The last lines of a log that may be huge and still open: only its last 256 KB are read.</summary>
-    public static string[] TailLines(string path, int lines)
-    {
         try
         {
-            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-            if (stream.Length > 256 * 1024) stream.Seek(-256 * 1024, SeekOrigin.End);
+            using var stream = new FileStream(ConsoleLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd().Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Trim() != "").TakeLast(lines).ToArray();
         }

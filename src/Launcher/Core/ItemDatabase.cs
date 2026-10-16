@@ -210,17 +210,6 @@ public class ItemDatabase
         File.WriteAllText(Path.Combine(casesDir, "cases.json"), JsonSerializer.Serialize(list));
     }
 
-    /// <summary>
-    /// Every agent model (agents.txt next to the plugin), so the server precaches them when a map loads.
-    /// Switching to a model the server didn't precache can crash the game of whoever sees it.
-    /// </summary>
-    public void WritePluginAgents(string pluginDir)
-    {
-        if (Agents.Count == 0) return;
-        Directory.CreateDirectory(pluginDir);
-        File.WriteAllLines(Path.Combine(pluginDir, "agents.txt"), Agents.Select(a => a.Model).Distinct());
-    }
-
     private Dictionary<string, ushort>? _weaponsByName;
 
     /// <summary>The weapon (or knife / gloves) a "★ Karambit | Fade" style name is for, or null for stickers and such.</summary>

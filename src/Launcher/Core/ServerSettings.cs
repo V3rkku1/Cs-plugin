@@ -82,16 +82,8 @@ public class ServerSettings
     /// <summary>Plugin retakes: skip the team menu and put people straight into the match.</summary>
     public bool RetakeAutoJoin { get; set; } = true;
 
-    /// <summary>0 = freeze-time buy, 1 = the retakes allocator (pistol, half-buy, rifle), 2 = rifles every round.</summary>
-    public int RetakeWeapons { get; set; } = 2;
-
-    public static readonly string[] RetakeWeaponChoices = ["Buy", "Allocator", "Rifles"];
-
-    /// <summary>Plugin retakes: bots with real full buys (rifle mix, grenades, the odd AWP), expert and calm.</summary>
-    public bool RetakeRealisticBots { get; set; } = true;
-
-    /// <summary>Every defuse finishes instantly, in every mode.</summary>
-    public bool InstaDefuse { get; set; }
+    /// <summary>0 = freeze-time buy, 1 = the retakes allocator (pistol, half-buy, rifle).</summary>
+    public int RetakeWeapons { get; set; }
 
     /// <summary>Plugin retakes: freeze time is a buy period. Kept in step with <see cref="RetakeWeapons"/>.</summary>
     public bool RetakeBuy { get; set; } = true;
@@ -103,7 +95,7 @@ public class ServerSettings
     public bool UsesAllocator => IsPluginRetakes && RetakeWeapons == 1;
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesRetakeBuy => IsPluginRetakes && RetakeWeapons == 0;
+    public bool UsesRetakeBuy => IsPluginRetakes && RetakeWeapons != 1;
 
     /// <summary>Seconds of freeze time to buy, when <see cref="RetakeBuy"/> is on.</summary>
     public int RetakeBuySeconds { get; set; } = 12;
@@ -140,14 +132,22 @@ public class ServerSettings
     public bool RoundSummary { get; set; } = true;
     public bool WelcomeMessage { get; set; } = true;
 
+    /// <summary>
+    /// The downloaded bot plugins are switched off for now: with them on, games crashed when joining.
+    /// While this is true every bot plugin reads as off (and is parked out of the plugin folders on the
+    /// next Start), whatever the saved settings say. Set it back to false to bring them back.
+    /// </summary>
+    public const bool BotPluginsPaused = true;
+
     /// <summary>Downloaded plugins: Bot Hider (bots look like players) and NockyCZ's Deathmatch (Deathmatch mode only).</summary>
-    public bool BotHider { get; set; }
+    public bool BotHider { get => !BotPluginsPaused && _botHider; set => _botHider = value; }
     public bool DeathmatchPlugin { get; set; }
 
     /// <summary>Downloaded bot plugins: ed0ard's Bot Improver suite, BotAI on its own, and XBribo's Bot Controller.</summary>
-    public bool BotImprover { get; set; }
-    public bool BotAi { get; set; }
-    public bool BotController { get; set; }
+    public bool BotImprover { get => !BotPluginsPaused && _botImprover; set => _botImprover = value; }
+    public bool BotAi { get => !BotPluginsPaused && _botAi; set => _botAi = value; }
+    public bool BotController { get => !BotPluginsPaused && _botController; set => _botController = value; }
+    private bool _botHider, _botImprover, _botAi, _botController;
 
     /// <summary>Bot Improver's console commands: bot_aim, bot_nades and the forced weapon ("ak47"; "" = normal buying).</summary>
     public static readonly string[] BotAimModes = ["mixed", "head", "body"];
@@ -392,16 +392,14 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 0;
         }),
-        new("Plugin retakes", "Realistic expert bots · rifles · instadefuse", s =>
+        new("Plugin retakes", "Allocator · instadefuse · 8 bots", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
-            s.Difficulty = 3;
-            s.BotNades = 3; // retake players throw a lot of utility
-            s.RetakeRealisticBots = true;
+            s.Difficulty = 2;
             s.MaxMoney = false;
             s.RetakeStyle = 1;
-            s.RetakeWeapons = 2;
+            s.RetakeWeapons = 1;
             s.RetakeBuy = false;
             s.RetakeInstadefuse = true;
         }),
@@ -409,9 +407,7 @@ public class ServerSettings
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
-            s.Difficulty = 3;
-            s.BotNades = 3; // retake players throw a lot of utility
-            s.RetakeRealisticBots = true;
+            s.Difficulty = 2;
             s.MaxMoney = false;
             s.RetakeStyle = 1;
             s.RetakeWeapons = 0;
@@ -527,9 +523,7 @@ public class ServerSettings
         RetakeStyle = 0;
         RetakeMaxPlayers = 9;
         RetakeTerroristPercent = 45;
-        RetakeWeapons = 2;
-        InstaDefuse = false;
-        RetakeRealisticBots = true;
+        RetakeWeapons = 0;
         RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeBuy = RetakeInstadefuse = true;
         RetakeScrambleRounds = 5;
         RetakeBuySeconds = 12;
@@ -580,16 +574,14 @@ public class ServerSettings
     public const int Port = 27015;
 
     /// <summary>127.0.0.1, not "localhost": that can resolve to IPv6 (::1), where the server doesn't listen.</summary>
-    public string GameArguments(GameFolder game, bool connect = true) => JoinArguments(game, connect ? $"127.0.0.1:{Port}" : null, Password);
+    public string GameArguments(GameFolder game) => JoinArguments(game, $"127.0.0.1:{Port}", Password);
 
     /// <summary>CS2 with VAC off for this run only (nothing is saved in Steam), joining a server.</summary>
-    public string JoinArguments(GameFolder game, string? address, string? password)
+    public string JoinArguments(GameFolder game, string address, string? password)
     {
         var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
         var pass = string.IsNullOrWhiteSpace(password) ? "" : $"+password \"{password.Trim()}\" ";
         var exec = WriteClientCfg(game) ? $"+exec {ClientCfg} " : "";
-        // No address: the game boots to the menu while the server loads, and joins once it's up.
-        if (address == null) return $"-insecure {extra} {exec}".Replace("  ", " ").Trim();
         return $"-insecure {extra} {exec}{pass}+connect {address}".Replace("  ", " ");
     }
 
@@ -696,11 +688,9 @@ public class ServerSettings
         sb.AppendLine("bot_kick");
         // Plugin retakes only has seats for MaxPlayers. Leave one for you when bots are on.
         var quota = Math.Clamp(Bots, 0, 31);
-        // Retakes only have so many seats: leave one for you, and the plugin frees one per friend who connects.
-        var seats = RetakeSeats;
-        if (seats > 0) quota = Math.Min(quota, Math.Max(0, seats - 1));
+        if (IsPluginRetakes && quota > 0)
+            quota = Math.Min(quota, Math.Max(0, Math.Clamp(RetakeMaxPlayers, 2, 10) - 1));
         sb.AppendLine($"bot_quota {quota}");
-        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)}{(IsValveRetakes ? " 3 4" : "")}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
@@ -761,11 +751,6 @@ public class ServerSettings
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
-        sb.AppendLine($"lst_retake_rifles {B(IsPluginRetakes && RetakeWeapons == 2)}");
-        sb.AppendLine($"lst_instadefuse {B(InstaDefuse)}");
-        sb.AppendLine($"lst_retake_bots {B(IsPluginRetakes && RetakeRealisticBots)}");
-        sb.AppendLine($"lst_retake_autojoin {B(IsPluginRetakes && RetakeAutoJoin)}");
-        sb.AppendLine($"lst_bomb_timer {(IsPluginRetakes ? Math.Clamp(RetakeBombTimer, 15, 60) : 0)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
@@ -803,10 +788,6 @@ public class ServerSettings
             RetakeScramble, Math.Clamp(RetakeScrambleRounds, 1, 30), RetakeBalance, RetakeAutoPlant, RetakeAnnounce, RetakeAutoJoin,
             RetakeWeapons == 1 ? 1 : 0, RetakeInstadefuse);
     }
-
-    /// <summary>Places in a retakes match (Valve: 3 T + 4 CT), or 0 for modes without a seat limit.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public int RetakeSeats => IsPluginRetakes ? Math.Clamp(RetakeMaxPlayers, 2, 10) : IsValveRetakes ? 7 : 0;
 
     /// <summary>Arms Race, Demolition and both retake styles bring their own guns, money and round length.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
@@ -846,10 +827,8 @@ public class ServerSettings
         Set(root, "TeamSettings", "ShouldPreventTeamChangesMidRound", true);
         Set(root, "MapConfigSettings", "EnableBombsiteAnnouncementCenter", RetakeAnnounce);
         Set(root, "BombSettings", "IsAutoPlantEnabled", RetakeAutoPlant);
-        // The plugin's own auto-join moves people onto a team while their game is still loading, which
-        // crashed games on connect. Ours (lst_retake_autojoin) does it a few seconds after loading.
-        Set(root, "QueueSettings", "ShouldAutoJoinGame", false);
-        Set(root, "QueueSettings", "ShouldAutoJoinSpectators", false);
+        Set(root, "QueueSettings", "ShouldAutoJoinGame", RetakeAutoJoin);
+        Set(root, "QueueSettings", "ShouldAutoJoinSpectators", !RetakeAutoJoin);
         if (root["ConfigVersion"] == null) root["ConfigVersion"] = 2;
 
         File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
