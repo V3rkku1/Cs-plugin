@@ -188,12 +188,36 @@ public class Installer
     {
         SetNativeActive(game, "BotHider", WantHider(server));
         SetTreeActive(game, "plugins/BotHiderImpl", WantHider(server));
+        if (WantHider(server)) SetBotHiderIdentity(game, server.IsPluginRetakes ? "bot" : "player");
         SetNativeActive(game, "BotController", WantController(server));
         SetNativeActive(game, "BotVision", server.BotImprover);
         SetTreeActive(game, "plugins/BotAI", WantBotAi(server));
         foreach (var plugin in ImproverPlugins) SetTreeActive(game, "plugins/" + plugin, WantImproverPlugin(server, plugin));
         SetTreeActive(game, "plugins/Deathmatch", server.UsesDeathmatchPlugin);
         SetTreeActive(game, "shared/DeathmatchAPI", server.UsesDeathmatchPlugin);
+    }
+
+    /// <summary>
+    /// Bot Hider's "player" identity clears the engine's bot flag. B3none's retakes plugin then takes
+    /// the bots for people (it moves them to spectator and holds seats for them), so retakes keeps
+    /// Valve's bot flag ("bot"); names, Steam profiles and ping still come from Bot Hider. Read when
+    /// the server starts.
+    /// </summary>
+    private static void SetBotHiderIdentity(GameFolder game, string mode)
+    {
+        var path = Path.Combine(game.Addons, "BotHider", "config.json");
+        if (!File.Exists(path)) return;
+        try
+        {
+            var root = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(path)) as System.Text.Json.Nodes.JsonObject;
+            if (root == null || root["identity_mode"]?.GetValue<string>() == mode) return;
+            root["identity_mode"] = mode;
+            File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        }
+        catch (Exception ex) when (ex is JsonException or InvalidOperationException)
+        {
+            // A config we can't read: Bot Hider uses its own defaults.
+        }
     }
 
     /// <summary>Metamod only loads *.vdf files, so a parked native plugin is renamed to .vdf.off.</summary>

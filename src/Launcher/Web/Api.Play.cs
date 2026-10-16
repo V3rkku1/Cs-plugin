@@ -51,9 +51,18 @@ public partial class Api
 
     private List<string>? _knownPlayers;
 
+    /// <summary>Once the server is up, CS2 itself must not load Metamod and the server plugins.</summary>
+    private void IsolateClient(ServerStatus? status)
+    {
+        if (App.Game == null) return;
+        try { new TestSession(App.Game).IsolateClient(status); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not update gameinfo.gi: " + ex.Message); }
+    }
+
     private void PollServer()
     {
         var status = App.ReadServerStatus();
+        IsolateClient(status);
         AnnouncePlayers(status?.Players);
         HandleWorkshopStartup(status);
         HandleJoinWhenUp(status);
@@ -425,6 +434,7 @@ public partial class Api
         var game = App.Game ?? throw new ApiException("Pick your CS2 folder first.");
         try
         {
+            IsolateClient(App.ReadServerStatus());
             new TestSession(game).StartGame(App.Settings.Server);
             App.Log("Starting CS2 (VAC off)...");
             Toast("Starting CS2…");

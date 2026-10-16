@@ -101,6 +101,12 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
 - **Valve** (the *Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
 - **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
 
+**Seats for everyone.** Retakes has a fixed number of places (Valve: 3 + 4, Plugin: max players). Bots
+fill the places nobody uses and give one up for every person who connects (`lst_retake_seats`), so a
+second or third friend always gets a team instead of waiting in the queue. In Plugin style the bot
+leaves in warmup or at the end of the round, never mid-round; the new player is in from the next
+round. The team menu never greys out a side (`mp_limitteams 0`): retakes sorts the sides itself.
+
 In the Retakes group, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
 
 **Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Retake buy* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
@@ -213,7 +219,10 @@ float, pattern and a 10% StatTrak chance. Only on your server: your Steam invent
 - *Bot Improver* ([ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver), AGPL-3.0): more
   human bots: aim, grenades, movement, strategy, buying, pro names. Only its plugins are installed (its
   package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
-  restores it for online play). Includes BotAI, Bot Controller and Bot Hider. While it's on, Live Server
+  restores it for online play). Includes BotAI, Bot Controller and Bot Hider. In Plugin retakes, Bot Hider
+  keeps Valve's bot flag (`identity_mode bot`) so the retakes plugin still sees the bots as bots.
+  Only the server loads these plugins: once it is up, the launcher takes the Metamod line back out of
+  `gameinfo.gi` before CS2 starts (every server start puts it back first), so your game never loads them. While it's on, Live Server
   gets a *Bot Improver* section: bot aim (mixed / head / body), how many grenades bots throw, a weapon
   every bot buys, *Bot Skins* (random skins, knives, gloves and agents on bots; off by default, so
   bots look like normal CS2 bots), *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.

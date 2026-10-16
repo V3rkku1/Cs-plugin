@@ -9,7 +9,34 @@ public class TestSession
 
     public TestSession(GameFolder game) => _game = game;
 
-    public bool IsOn => GameInfoPatcher.IsEnabled(_game.GameInfo);
+    /// <summary>
+    /// Test mode: Metamod is in gameinfo.gi, or our server is running (it has read gameinfo.gi already,
+    /// and the line is taken out again so the game doesn't load the server plugins, see <see cref="IsolateClient"/>).
+    /// </summary>
+    public bool IsOn => GameInfoPatcher.IsEnabled(_game.GameInfo) || FindServer() != null;
+
+    /// <summary>
+    /// The game reads the same gameinfo.gi as the server. With the Metamod line in it, CS2 itself loads
+    /// Metamod and every server plugin (Bot Hider, Bot Controller, BotVision and BotAI patch the engine),
+    /// which crashed the game when it joined. The server reads gameinfo.gi only when it starts, so once
+    /// it is up the line comes out; every server start puts it back first.
+    /// </summary>
+    /// <param name="status">The status the plugin wrote. Only one written after this server process
+    /// started counts: a restart leaves the old server's file behind for a few seconds.</param>
+    public void IsolateClient(ServerStatus? status)
+    {
+        if (status == null || FindServer() is not { } server || !GameInfoPatcher.IsEnabled(_game.GameInfo)) return;
+        try
+        {
+            var started = new DateTimeOffset(server.StartTime.ToUniversalTime()).ToUnixTimeSeconds();
+            if (status.Time <= started + 2) return;
+        }
+        catch (Exception)
+        {
+            return; // no access to the process: leave gameinfo.gi as it is
+        }
+        GameInfoPatcher.Disable(_game.GameInfo);
+    }
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 

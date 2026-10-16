@@ -216,7 +216,14 @@ export function LivePage() {
             <${Toggle} value=${s.autoBhop} onChange=${v => set("autoBhop", v)} /><//>
           <${Row} icon=${{ name: "person", color: "purple" }} title="Welcome Message" subtitle="Tells new players which commands they can use">
             <${Toggle} value=${s.welcomeMessage} onChange=${v => set("welcomeMessage", v)} /><//>
-          <${Row} icon=${{ name: "bot", color: "green" }} title="Bot Plugins" subtitle="Bot Improver, BotAI, Bot Controller and Bot Hider are switched off for now while a crash is fixed" />
+          <${Row} icon=${{ name: "bot", color: "green" }} title="Bot Improver" subtitle="Human-like bots: better aim, grenades, movement, strategy and buying, pro names · includes BotAI, Bot Controller and Bot Hider">
+            <${Toggle} value=${s.botImprover} onChange=${v => set("botImprover", v)} /><//>
+          <${Row} icon=${{ name: "bot", color: "teal" }} title="BotAI" subtitle=${s.botImprover ? "Included in Bot Improver" : "Lighter: bots stop knife-running, peek and dodge better, play the bomb smarter"}>
+            <${Toggle} value=${s.botAi || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botAi", v)} /><//>
+          <${Row} icon=${{ name: "bot", color: "orange" }} title="Bot Controller" subtitle=${s.botImprover ? "Included in Bot Improver" : "!record your movement, then !replay <bot slot> so a bot copies it"}>
+            <${Toggle} value=${s.botController || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botController", v)} /><//>
+          <${Row} icon=${{ name: "bot", color: "indigo" }} title="Bot Hider" subtitle=${s.botImprover ? "Included in Bot Improver" : "Bots look like real players: no BOT tag, names, avatars, ping · downloads from GitHub on first Start"}>
+            <${Toggle} value=${s.botHider || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botHider", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Deathmatch Plugin"
               subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, custom modes (only AWP, pistols…), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>

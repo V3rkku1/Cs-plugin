@@ -132,22 +132,14 @@ public class ServerSettings
     public bool RoundSummary { get; set; } = true;
     public bool WelcomeMessage { get; set; } = true;
 
-    /// <summary>
-    /// The downloaded bot plugins are switched off for now: with them on, games crashed when joining.
-    /// While this is true every bot plugin reads as off (and is parked out of the plugin folders on the
-    /// next Start), whatever the saved settings say. Set it back to false to bring them back.
-    /// </summary>
-    public const bool BotPluginsPaused = true;
-
     /// <summary>Downloaded plugins: Bot Hider (bots look like players) and NockyCZ's Deathmatch (Deathmatch mode only).</summary>
-    public bool BotHider { get => !BotPluginsPaused && _botHider; set => _botHider = value; }
+    public bool BotHider { get; set; }
     public bool DeathmatchPlugin { get; set; }
 
     /// <summary>Downloaded bot plugins: ed0ard's Bot Improver suite, BotAI on its own, and XBribo's Bot Controller.</summary>
-    public bool BotImprover { get => !BotPluginsPaused && _botImprover; set => _botImprover = value; }
-    public bool BotAi { get => !BotPluginsPaused && _botAi; set => _botAi = value; }
-    public bool BotController { get => !BotPluginsPaused && _botController; set => _botController = value; }
-    private bool _botHider, _botImprover, _botAi, _botController;
+    public bool BotImprover { get; set; }
+    public bool BotAi { get; set; }
+    public bool BotController { get; set; }
 
     /// <summary>Bot Improver's console commands: bot_aim, bot_nades and the forced weapon ("ak47"; "" = normal buying).</summary>
     public static readonly string[] BotAimModes = ["mixed", "head", "body"];
@@ -686,11 +678,15 @@ public class ServerSettings
         if (BotHider || BotImprover) sb.AppendLine("bh_namesource 1");
         sb.AppendLine($"lst_bot_calm {B(CalmBots)}");
         sb.AppendLine("bot_kick");
-        // Plugin retakes only has seats for MaxPlayers. Leave one for you when bots are on.
+        // Retakes only have so many seats: leave one for you. The plugin (lst_retake_seats) lets one more
+        // bot go for every friend who connects, so everybody gets a team.
         var quota = Math.Clamp(Bots, 0, 31);
-        if (IsPluginRetakes && quota > 0)
-            quota = Math.Min(quota, Math.Max(0, Math.Clamp(RetakeMaxPlayers, 2, 10) - 1));
+        var seats = RetakeSeats;
+        if (seats > 0) quota = Math.Min(quota, Math.Max(0, seats - 1));
         sb.AppendLine($"bot_quota {quota}");
+        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)} {(IsValveRetakes ? 1 : 0)}");
+        // A side that already has more players must not grey out in the team menu: retakes picks the sides.
+        sb.AppendLine($"mp_limitteams {(IsRetakes ? 0 : 2)}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
@@ -788,6 +784,10 @@ public class ServerSettings
             RetakeScramble, Math.Clamp(RetakeScrambleRounds, 1, 30), RetakeBalance, RetakeAutoPlant, RetakeAnnounce, RetakeAutoJoin,
             RetakeWeapons == 1 ? 1 : 0, RetakeInstadefuse);
     }
+
+    /// <summary>Places in a retakes match (plugin: its MaxPlayers, Valve: 3 T + 4 CT), or 0 for other modes.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int RetakeSeats => IsPluginRetakes ? Math.Clamp(RetakeMaxPlayers, 2, 10) : IsValveRetakes ? 7 : 0;
 
     /// <summary>Arms Race, Demolition and both retake styles bring their own guns, money and round length.</summary>
     [System.Text.Json.Serialization.JsonIgnore]
