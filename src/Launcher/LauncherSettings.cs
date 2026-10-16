@@ -39,8 +39,11 @@ public class LauncherSettings
     /// <summary>The name friends see when this PC hosts (in their launcher's friends list).</summary>
     public string HostName { get; set; } = Environment.UserName;
 
-    /// <summary>Cases page: every container (capsules, souvenirs...) unlocked with the secret code, and how many were opened.</summary>
-    public bool CasesUnlocked { get; set; }
+    /// <summary>
+    /// The owner's admin code was entered on this PC: every skin, knife, glove, sticker and agent can be used.
+    /// Without it, the Skins page only offers what was unboxed on the Cases page ("unbox only").
+    /// </summary>
+    public bool AdminUnlocked { get; set; }
     public int CasesOpened { get; set; }
 
     private static string FilePath => Path.Combine(
@@ -50,10 +53,13 @@ public class LauncherSettings
     {
         try
         {
-            return JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(FilePath)) ?? new();
+            var settings = JsonSerializer.Deserialize<LauncherSettings>(File.ReadAllText(FilePath)) ?? new();
+            ServerSettings.SkinCommands = settings.AdminUnlocked;
+            return settings;
         }
         catch (Exception)
         {
+            ServerSettings.SkinCommands = false;
             return new();
         }
     }

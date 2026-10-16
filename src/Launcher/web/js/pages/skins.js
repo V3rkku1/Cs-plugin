@@ -144,7 +144,9 @@ export function SkinsPage() {
 
   return html`<div class="page skins-page">
     <header class="page-header">
-      <div><h1>Skins</h1><p>Pick a finish, tune it, press Equip. It changes in game within a second.</p></div>
+      <div><h1>Skins</h1><p>${state?.unboxOnly
+        ? html`Unbox only: you can use the skins you opened on the <a href="#" onClick=${e => { e.preventDefault(); window.dispatchEvent(new CustomEvent("navigate", { detail: "cases" })); }}>Cases</a> page.`
+        : "Pick a finish, tune it, press Equip. It changes in game within a second."}</p></div>
       <div class="actions">${actions}</div>
     </header>
     ${!state ? null : html`<div class="skins-layout">
@@ -233,6 +235,9 @@ function Gallery({ state, weapon, skin, search, setSearch, onPick }) {
         <div class="faint small">You can still import items with a !gen code or inspect link.</div>
         <div style="margin-top:12px"><${Button} size="sm" kind="prominent" onClick=${goSetup}>Open Setup<//></div>
       </div>`}
+      ${state.unboxOnly && !state.dbEmpty && finishes.length === 0 && words.length === 0 && html`<div class="empty grid-wide">
+        <${Icon} name="key" size=${30} /><div>No ${weapon.name} skins unboxed yet.</div>
+        <div class="faint small">Open cases on the Cases page: what you get shows up here.</div></div>`}
       ${!state.dbEmpty && finishes.length === 0 && words.length > 0 && html`<div class="empty grid-wide">
         <${Icon} name="search" size=${30} /><div>No skins match your search.</div></div>`}
     </div>

@@ -8,9 +8,9 @@ namespace LanSkinTester.Launcher.Web;
 
 /// <summary>
 /// Cases page: open CS2 containers like in the game (reel, real odds, floats, StatTrak), keep what you
-/// unbox in an inventory and equip it on the local server. Weapon cases are for everyone; every other
-/// container (sticker and autograph capsules, souvenir packages, pins, patches, music kits, graffiti)
-/// opens with a secret code. Nothing here touches a Steam inventory.
+/// unbox in an inventory and equip it on the local server. Every container can be opened. Without the
+/// owner's admin code the Skins page only offers what was unboxed here; the code unlocks every skin.
+/// Nothing here touches a Steam inventory.
 /// </summary>
 public partial class Api
 {
@@ -27,7 +27,7 @@ public partial class Api
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
     public record InventoryItem(string Uid, string Kind, string Name, string Image, string Grade, string Color,
         ushort Def, int Paint, float Wear, int Seed, bool StatTrak, bool Souvenir, string? Phase, string CaseName,
-        int CollectibleId, DateTime Opened);
+        int CollectibleId, DateTime Opened, string? ItemId = null);
 
     public record ReelItem(string Name, string Image, string Color, bool Rare);
     public record OpenResult(List<ReelItem> Reel, int Win, InventoryItem Item);
@@ -53,14 +53,13 @@ public partial class Api
         catch (IOException ex) { App.Log("Could not save the inventory: " + ex.Message); }
     }
 
-    private bool CaseAllowed(CaseInfo c) => c.Type == "Case" || App.Settings.CasesUnlocked;
 
     [Call("cases.state")]
     private CasesState CasesStateNow()
     {
-        var unlocked = App.Settings.CasesUnlocked;
+        var unlocked = App.Settings.AdminUnlocked;
         // Newest first, like the game's store.
-        var rows = App.Db.Cases.Where(CaseAllowed)
+        var rows = App.Db.Cases
             .Select((c, i) => (c, i))
             .OrderBy(x => x.c.Type == "Case" ? 0 : 1).ThenByDescending(x => x.i)
             .Select(x => new CaseRow(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0))
@@ -69,7 +68,7 @@ public partial class Api
     }
 
     private CaseInfo FindCase(string id) =>
-        App.Db.Cases.FirstOrDefault(c => c.Id == id && CaseAllowed(c)) ?? throw new ApiException("That case isn't available.");
+        App.Db.Cases.FirstOrDefault(c => c.Id == id) ?? throw new ApiException("That case isn't available.");
 
     [Call("cases.contents")]
     private CaseContents Contents(string id)
@@ -143,7 +142,7 @@ public partial class Api
         if (kind == "music") statTrak = drop.Id.EndsWith("_st");
         var grade = rare ? drop.Rarity : drop.Rarity;
         return new InventoryItem(Guid.NewGuid().ToString("N")[..12], kind, drop.Name.Replace("StatTrak™ ", ""), drop.Image, grade, drop.Color,
-            def, drop.Paint, wear, seed, statTrak, souvenir, drop.Phase, box.Name, collectible, DateTime.UtcNow);
+            def, drop.Paint, wear, seed, statTrak, souvenir, drop.Phase, box.Name, collectible, DateTime.UtcNow, drop.Id);
     }
 
     [Call("cases.inventory")]
@@ -188,7 +187,7 @@ public partial class Api
         App.NotifyChanged();
     }
 
-    /// <summary>The secret code unlocks every container. Wrong codes get no hint.</summary>
+    /// <summary>The owner's admin code unlocks every skin on this PC. Wrong codes get no hint.</summary>
     [Call("cases.unlock")]
     private bool UnlockCases(string code)
     {
@@ -198,10 +197,53 @@ public partial class Api
             Toast("That code doesn't work.", "bad");
             return false;
         }
-        App.Settings.CasesUnlocked = true;
+        App.Settings.AdminUnlocked = true;
+        ServerSettings.SkinCommands = true;
         SaveSettingsQuietly();
-        Toast("Unlocked: every capsule, souvenir package and box can be opened.", "good");
+        if (App.Game != null)
+        {
+            App.Settings.Server.WriteCfg(App.Game);
+            SendIfRunning("lst_skin_commands 1");
+        }
+        Toast("Admin: every skin, knife, glove, sticker and agent is unlocked on this PC.", "good");
         App.NotifyChanged();
         return true;
+    }
+
+    [Call("cases.lock")]
+    private void LockAdmin()
+    {
+        App.Settings.AdminUnlocked = false;
+        ServerSettings.SkinCommands = false;
+        SaveSettingsQuietly();
+        if (App.Game != null)
+        {
+            App.Settings.Server.WriteCfg(App.Game);
+            SendIfRunning("lst_skin_commands 0");
+        }
+        Toast("Back to unbox only.");
+        App.NotifyChanged();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Unbox only: what the Skins page may offer without the admin code
+    // ---------------------------------------------------------------------------------------------
+
+    private bool UnboxOnly => !App.Settings.AdminUnlocked;
+
+    /// <summary>Weapon / knife / glove finishes unboxed (def, paint). Paint 0 = a vanilla knife.</summary>
+    private HashSet<(ushort Def, int Paint)> OwnedSkins() =>
+        Inventory().Where(i => i.Kind == "skin" && i.Def != 0).Select(i => (i.Def, i.Paint)).ToHashSet();
+
+    /// <summary>Numbers of unboxed items of a kind ("sticker-123" gives 123; pins and music kits by their id).</summary>
+    private HashSet<int> OwnedIds(string kind) =>
+        Inventory().Where(i => i.Kind == kind)
+            .Select(i => i.CollectibleId > 0 ? i.CollectibleId
+                : int.TryParse(i.ItemId?.Split('-').ElementAtOrDefault(1)?.Split('_')[0], out var n) ? n : 0)
+            .Where(n => n > 0).ToHashSet();
+
+    private void RequireAdmin(string what)
+    {
+        if (UnboxOnly) throw new ApiException($"{what} needs the admin code (Cases page). Without it, skins come from opening cases.");
     }
 }

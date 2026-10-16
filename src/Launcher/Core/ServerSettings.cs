@@ -184,6 +184,9 @@ public class ServerSettings
     /// <summary>Low gravity and fast air movement (Flying Scoutsman style).</summary>
     public bool LowGravity { get; set; }
 
+    /// <summary>!skin, !gen, !knife and !gloves in chat. Off in "unbox only" mode (no admin code on this PC).</summary>
+    public static bool SkinCommands { get; set; } = true;
+
     /// <summary>Server helpers: dropped guns disappear after 15 s, no fall damage, everyone bunnyhops by holding jump.</summary>
     public bool CleanupGuns { get; set; } = true;
     public bool NoFallDamage { get; set; }
@@ -723,7 +726,8 @@ public class ServerSettings
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
-        sb.AppendLine($"lst_fire_relay {FireRelay.Port}"); // the triggerbot presses fire through the launcher on this PC
+        sb.AppendLine($"lst_fire_relay {FireRelay.Port}");
+        sb.AppendLine($"lst_skin_commands {B(SkinCommands)}"); // the triggerbot presses fire through the launcher on this PC
         foreach (var line in BotImproverCommands()) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");

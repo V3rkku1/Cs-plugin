@@ -163,7 +163,7 @@ export function CasesPage() {
   const shown = state.cases.filter(c => (types.length < 2 || c.type === type) && (!q || c.name.toLowerCase().includes(q.toLowerCase())));
   const openCase = id => sheet(close => html`<${CaseSheet} id=${id} close=${close} />`, { wide: true });
   const enterCode = async () => {
-    const code = await prompt({ title: "Code", message: "Enter the code.", placeholder: "Code", ok: "OK" });
+    const code = await prompt({ title: "Admin Code", message: "Enter the admin code.", placeholder: "Code", ok: "OK" });
     if (code?.trim()) tryCall("cases.unlock", code.trim());
   };
 
@@ -183,7 +183,9 @@ export function CasesPage() {
             <div class="faint small">${c.count} items${c.rare ? " · ★ knives / gloves" : ""}</div>
           </button>`)}
         </div>
-        ${!state.unlocked && html`<div class="case-code faint small"><a href="#" onClick=${e => { e.preventDefault(); enterCode(); }}>Have a code?</a></div>`}
+        <div class="case-code faint small">${state.unlocked
+          ? html`Admin: every skin is unlocked on this PC · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.lock"); }}>back to unbox only</a>`
+          : html`<a href="#" onClick=${e => { e.preventDefault(); enterCode(); }}>Admin code</a>`}</div>
       </div>`}
   <//>`;
 }

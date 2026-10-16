@@ -161,9 +161,14 @@ Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife or gloves 0.26%); knife
 likely, Doppler phases follow the community-measured split; the float is made the way CS2 does it (a wear
 band first: FN 3%, MW 24%, FT 33%, WW 24%, BS 16%, then squeezed into the skin's own range), pattern
 0-1000, StatTrak 10% in weapon cases. Everything you unbox goes to the page's *Inventory*, where
-**Equip** puts a gun skin, knife, gloves, pin or music kit on in game. All weapon cases are open to
-everyone; sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and graffiti
-need the owner's code. Nothing touches a Steam inventory.
+**Equip** puts a gun skin, knife, gloves, pin or music kit on in game. Every container can be opened:
+weapon cases, sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and
+graffiti. Nothing touches a Steam inventory.
+
+**Unbox only and the admin code:** by default the Skins page only offers what you unboxed on the Cases page
+(plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on
+your server (`!case` still works). The owner's admin code (Cases page › *Admin code*) unlocks every skin,
+knife, glove, sticker, charm and agent on that PC; *back to unbox only* locks it again.
 
 **Cases in game:** type `!cases` to list the real CS2 weapon cases and `!case <number>` to open one. It
 spins on your screen with Valve's odds (knife or gloves 0.26%) and equips what you unbox with a random

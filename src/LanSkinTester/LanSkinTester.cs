@@ -744,7 +744,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     [CommandHelper(minArgs: 1, usage: "<gen code | inspect link>", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnImportCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (!CheckAllowed(player) || !player!.PawnIsAlive)
+        if (!CheckSkinCommands(player) || !player!.PawnIsAlive)
         {
             if (player is { IsValid: true, PawnIsAlive: false }) Reply(player, "You must be alive.");
             return;
@@ -817,7 +817,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     [CommandHelper(minArgs: 1, usage: "<name | default | list>", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnKnifeCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (!CheckAllowed(player)) return;
+        if (!CheckSkinCommands(player)) return;
 
         var name = cmd.GetArg(1);
         var loadout = GetLoadout(player!);
@@ -846,7 +846,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     [CommandHelper(minArgs: 1, usage: "<type> <paint id | name> [wear] [seed] | off | list", whoCanExecute: CommandUsage.CLIENT_ONLY)]
     public void OnGlovesCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (!CheckAllowed(player)) return;
+        if (!CheckSkinCommands(player)) return;
 
         var args = Args(cmd);
         var loadout = GetLoadout(player!);
@@ -979,10 +979,28 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         return false;
     }
 
+    /// <summary>
+    /// lst_skin_commands 0: the launcher's "unbox only" mode (no admin code on the host's launcher). Skins then
+    /// come only from cases (the launcher's Cases page, or !case), so !skin, !gen, !knife and !gloves are off.
+    /// </summary>
+    private bool _skinCommands = true;
+
+    [ConsoleCommand("lst_skin_commands", "0 = !skin, !gen, !knife, !gloves are off (skins only from cases)")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnSkinCommandsCommand(CCSPlayerController? caller, CommandInfo cmd) => _skinCommands = cmd.GetArg(1) != "0";
+
+    private bool CheckSkinCommands(CCSPlayerController? player)
+    {
+        if (!CheckAllowed(player)) return false;
+        if (_skinCommands) return true;
+        Reply(player!, "Skins come from cases on this server: type !cases, or open cases in the launcher.");
+        return false;
+    }
+
     private bool TryGetHeldWeapon(CCSPlayerController? player, out CBasePlayerWeapon weapon)
     {
         weapon = null!;
-        if (!CheckAllowed(player)) return false;
+        if (!CheckSkinCommands(player)) return false;
 
         var active = player!.PlayerPawn.Value?.WeaponServices?.ActiveWeapon.Value;
         if (!player.PawnIsAlive || active == null || !active.IsValid)

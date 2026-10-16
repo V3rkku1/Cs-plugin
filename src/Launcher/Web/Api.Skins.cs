@@ -29,8 +29,9 @@ public partial class Api
     public record SkinCategory(string Name, List<SkinWeaponRow> Weapons);
 
     /// <param name="DataKey">Changes when the CS2 folder or the item data changes (the page starts over).</param>
+    /// <param name="UnboxOnly">No admin code: only unboxed skins (and vanilla guns) can be picked.</param>
     public record SkinsState(string DataKey, bool HasGame, bool PluginInstalled, bool DbEmpty, ushort Knife, ushort Gloves,
-        List<SkinCategory> Categories);
+        List<SkinCategory> Categories, bool UnboxOnly);
 
     public record FinishInfo(int Paint, string Name, string Rarity, string Color, string Image, float Min, float Max, bool StatTrak, bool Legacy);
     public record AttachmentInfo(int Id, string Name, string Rarity, string Color, string Image);
@@ -43,6 +44,8 @@ public partial class Api
     {
         var db = App.Db;
         var loadout = ReadLoadout();
+        var owned = OwnedSkins();
+        var ownedTypes = owned.Select(o => o.Def).ToHashSet();
         var categories = SkinCategories.Select(category =>
         {
             IEnumerable<(ushort Def, string Name, string Image)> rows;
@@ -51,6 +54,8 @@ public partial class Api
                 rows = db.Weapons
                     .Where(w => w.Category == category || (category == "Heavy" && w.Category == "Equipment"))
                     .Where(w => category is "Knives" or "Gloves" || ItemData.Weapons.ContainsKey(w.DefIndex))
+                    // Unbox only: knives and gloves you have unboxed.
+                    .Where(w => !UnboxOnly || category is not ("Knives" or "Gloves") || ownedTypes.Contains(w.DefIndex))
                     .Select(w => (w.DefIndex, w.Name, w.Image));
             }
             else
@@ -78,7 +83,7 @@ public partial class Api
 
         var g = App.Game;
         return new SkinsState($"{g?.Root}|{RuntimeHelpers.GetHashCode(db)}", g != null, g?.PluginInstalled == true, db.IsEmpty,
-            loadout.Knife, loadout.Gloves, categories);
+            loadout.Knife, loadout.Gloves, categories, UnboxOnly);
     }
 
     [Call("skins.weapon")]
@@ -87,7 +92,9 @@ public partial class Api
         var db = App.Db;
         var loadout = ReadLoadout();
         var saved = loadout.Skins.GetValueOrDefault(def);
+        var owned = UnboxOnly ? OwnedSkins() : null;
         var finishes = db.SkinsFor(def)
+            .Where(s => owned == null || owned.Contains((def, s.Paint)))
             .OrderBy(s => RarityOrder.GetValueOrDefault(s.Rarity, 9))
             .ThenBy(s => s.DisplayFinish)
             .Select(s => new FinishInfo(s.Paint, s.DisplayFinish, s.Rarity, s.RarityColor, s.Image, s.MinFloat, s.MaxFloat, s.CanStatTrak, s.Legacy))
@@ -109,7 +116,9 @@ public partial class Api
         var words = (q.Search ?? "").Split(' ', StringSplitOptions.RemoveEmptyEntries);
         // The data calls paper stickers "Other".
         var effect = q.Effect is null or "All" ? null : q.Effect == "Paper" ? "Other" : q.Effect;
+        var owned = UnboxOnly ? OwnedIds(q.Kind == "charm" ? "charm" : "sticker") : null;
         var matches = (q.Kind == "charm" ? App.Db.Charms : App.Db.Stickers)
+            .Where(s => owned == null || owned.Contains(s.Id))
             .Where(s => effect == null || s.Effect.Equals(effect, StringComparison.OrdinalIgnoreCase))
             .Where(s => words.All(w => s.Name.Contains(w, StringComparison.OrdinalIgnoreCase)))
             .ToList();
@@ -126,6 +135,16 @@ public partial class Api
         var game = RequirePlugin();
         if (a.Def == 0 || a.Skin == null) throw new ApiException("Pick a weapon first.");
         if (IsGloveType(a.Def) && a.Skin.Paint == 0) throw new ApiException("Pick a glove skin first - gloves can't be vanilla.");
+        if (UnboxOnly)
+        {
+            if (a.Imported) RequireAdmin("Importing items");
+            var owned = OwnedSkins();
+            if ((a.Skin.Paint != 0 || IsKnifeType(a.Def)) && !owned.Contains((a.Def, a.Skin.Paint)))
+                throw new ApiException("You haven't unboxed that one. Open cases on the Cases page to get it.");
+            var stickers = OwnedIds("sticker");
+            if ((a.Skin.Stickers ?? new List<StickerSettings>()).Any(s => !stickers.Contains(s.Id)) || a.Skin.Keychain is { } k && !OwnedIds("charm").Contains(k.Id))
+                throw new ApiException("Only stickers and charms you have unboxed can be used.");
+        }
 
         var store = new LoadoutStore(game.LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
@@ -167,8 +186,12 @@ public partial class Api
     private CosmeticsState Cosmetics()
     {
         var loadout = ReadLoadout();
-        return new CosmeticsState(App.Db.Agents.OrderBy(a => a.Team).ThenBy(a => a.Name).ToList(),
-            App.Db.Pins.OrderBy(p => p.Name).ToList(), App.Db.MusicKits.OrderBy(m => m.Name).ToList(),
+        var pins = UnboxOnly ? OwnedIds("pin") : null;
+        var kits = UnboxOnly ? OwnedIds("music") : null;
+        // Agents don't come from cases: they need the admin code.
+        return new CosmeticsState(UnboxOnly ? new List<AgentInfo>() : App.Db.Agents.OrderBy(a => a.Team).ThenBy(a => a.Name).ToList(),
+            App.Db.Pins.Where(p => pins == null || pins.Contains(p.Id)).OrderBy(p => p.Name).ToList(),
+            App.Db.MusicKits.Where(m => kits == null || kits.Contains(m.Id)).OrderBy(m => m.Name).ToList(),
             loadout.AgentT, loadout.AgentCT, loadout.Pin, loadout.MusicKit);
     }
 
@@ -179,6 +202,7 @@ public partial class Api
     private void SetAgent(AgentArgs a)
     {
         if (a.Model != null && App.Db.Agents.All(x => x.Model != a.Model)) throw new ApiException("Unknown agent.");
+        if (a.Model != null) RequireAdmin("Agents");
         var store = new LoadoutStore(RequirePlugin().LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         if (a.Team == "CT") loadout.AgentCT = a.Model;
@@ -192,6 +216,7 @@ public partial class Api
     private void SetPin(ushort id)
     {
         if (id != 0 && App.Db.Pins.All(p => p.Id != id)) throw new ApiException("Unknown pin.");
+        if (id != 0 && UnboxOnly && !OwnedIds("pin").Contains(id)) throw new ApiException("You haven't unboxed that pin.");
         var store = new LoadoutStore(RequirePlugin().LoadoutFile);
         store.Get(LoadoutStore.LocalKey).Pin = id;
         store.Save();
@@ -203,6 +228,7 @@ public partial class Api
     private void SetMusicKit(ushort id)
     {
         if (id != 0 && App.Db.MusicKits.All(m => m.Id != id)) throw new ApiException("Unknown music kit.");
+        if (id != 0 && UnboxOnly && !OwnedIds("music").Contains(id)) throw new ApiException("You haven't unboxed that music kit.");
         var store = new LoadoutStore(RequirePlugin().LoadoutFile);
         store.Get(LoadoutStore.LocalKey).MusicKit = id;
         store.Save();
@@ -335,6 +361,7 @@ public partial class Api
     private void RandomizeAll()
     {
         var game = RequirePlugin();
+        RequireAdmin("Random skins");
         if (App.Db.IsEmpty) throw new ApiException("Download the skin list first (Setup > Install Everything).");
         LoadoutPresets.Apply(game, LoadoutPresets.Random(App.Db));
         AfterWholeLoadoutChange("Random skins on everything! (Save it from Loadouts if you like it.)");
