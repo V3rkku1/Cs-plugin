@@ -16,14 +16,6 @@ public partial class LanSkinTester
 
     private readonly List<CEntityInstance> _smokes = new();
 
-    /// <summary>Hits a player model. World geometry is left out so the result is the body, not the wall.</summary>
-    private static readonly TraceOptions PlayerHitTrace = new()
-    {
-        InteractsAs = Contents.Player,
-        InteractsWith = Contents.Player | Contents.Hitbox,
-        InteractsExclude = Contents.Debris | Contents.CarriedWeapon | Contents.CarriedObject,
-    };
-
     private static bool TryReadView(CCSPlayerPawn pawn, out float pitch, out float yaw)
     {
         // Current CS2 keeps the real view in v_angle. EyeAngles is the older field and can throw after a schema change.
@@ -160,55 +152,4 @@ public partial class LanSkinTester
         }
     }
 
-    /// <summary>True when a shot trace from the eyes hits an enemy. Walls block it unless aim-through-walls is on.</summary>
-    private bool CrosshairOnEnemy(CCSPlayerController hacker, CCSPlayerPawn pawn, bool walls)
-    {
-        if (!TryReadView(pawn, out var pitch, out var yaw)) return false;
-        return CrosshairOnEnemy(hacker, pawn, walls, pitch, yaw);
-    }
-
-    private bool CrosshairOnEnemy(CCSPlayerController hacker, CCSPlayerPawn pawn, bool walls, float pitch, float yaw)
-    {
-        if (walls) return CrosshairAngleOnEnemy(hacker, pawn, walls: true, pitch, yaw);
-        if (pawn.AbsOrigin is not { } origin) return false;
-        var eye = new Vector(origin.X, origin.Y, origin.Z + EyeHeight(pawn));
-        try
-        {
-            var hit = Trace.TraceShape(eye, new QAngle(pitch, yaw, 0), pawn, PlayerHitTrace);
-            if (hit.DidHit())
-            {
-                var entity = hit.HitEntity();
-                var name = entity is { IsValid: true } ? entity.DesignerName : null;
-                if (name != null && name.Contains("player", StringComparison.OrdinalIgnoreCase))
-                {
-                    var victim = new CCSPlayerPawn(entity!.Handle).Controller.Value?.As<CCSPlayerController>();
-                    if (victim != null && victim.IsValid && IsEnemy(hacker, victim)) return true;
-                }
-            }
-        }
-        catch (Exception)
-        {
-            // The trace data changed. The angle test below still fires when the crosshair is on a body.
-        }
-        return CrosshairAngleOnEnemy(hacker, pawn, walls: false, pitch, yaw);
-    }
-
-    private bool CrosshairAngleOnEnemy(CCSPlayerController hacker, CCSPlayerPawn pawn, bool walls, float pitch, float yaw)
-    {
-        foreach (var enemy in Utilities.GetPlayers())
-        {
-            if (!enemy.IsValid || !enemy.PawnIsAlive || !IsEnemy(hacker, enemy)) continue;
-            var enemyPawn = enemy.PlayerPawn.Value;
-            if (enemyPawn == null || !enemyPawn.IsValid) continue;
-            if (!walls && !IsVisibleTo(enemyPawn, pawn)) continue;
-            // Head, chest and hips, so the shot fires when the crosshair is on the body, not only the eyes.
-            foreach (var drop in new[] { 2f, 16f, 32f })
-            {
-                if (AnglesTo(pawn, enemyPawn, new AimLock { OffsetZ = drop }) is not { } angles) continue;
-                var score = Math.Max(Math.Abs(AngleDiff(angles.Yaw, yaw)), Math.Abs(AngleDiff(angles.Pitch, pitch)));
-                if (score < 5.5f) return true;
-            }
-        }
-        return false;
-    }
 }

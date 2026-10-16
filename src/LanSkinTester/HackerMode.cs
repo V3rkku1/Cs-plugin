@@ -288,8 +288,8 @@ public partial class LanSkinTester
             _triggers.Clear();
             _silentRestore.Clear();
             _attackHeld.Clear();
-            _lastShotTick.Clear();
             _forcedSince.Clear();
+            _nextServerShot.Clear();
             _bhopReleased.Clear();
             _smokes.Clear();
         });
@@ -312,8 +312,7 @@ public partial class LanSkinTester
             _triggers.Remove(slot);
             _silentRestore.Remove(slot);
             _attackHeld.Remove(slot);
-            _lastShotTick.Remove(slot);
-            _forcedSince.Remove(slot);
+            ForgetShots(slot);
             _bhopReleased.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
@@ -607,9 +606,12 @@ public partial class LanSkinTester
 
                 var menu = _cheatMenus.ContainsKey(hacker.Slot);
                 var triggerFire = false;
-                if (!menu && Has(hacker, Power.Trigger)) triggerFire = Triggerbot(hacker, pawn);
-                else _triggers.Remove(hacker.Slot);
-                TriggerFallback(hacker, pawn, triggerFire);
+                if (!menu && Has(hacker, Power.Trigger)) triggerFire = TriggerTick(hacker, pawn);
+                else
+                {
+                    _triggers.Remove(hacker.Slot);
+                    _forcedSince.Remove(hacker.Slot);
+                }
 
                 var fire = triggerFire;
                 if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
@@ -989,43 +991,6 @@ public partial class LanSkinTester
         if (AnglesTo(enemy, me, null) is not { } angles) return 180f;
         if (!TryReadView(enemy, out var pitch, out var yaw)) return 180f;
         return Math.Max(Math.Abs(AngleDiff(angles.Yaw, yaw)), Math.Abs(AngleDiff(angles.Pitch, pitch)));
-    }
-
-    /// <summary>Fires after a short random delay once a shot trace hits an enemy. True when it is time to shoot.</summary>
-    private bool Triggerbot(CCSPlayerController hacker, CCSPlayerPawn pawn)
-    {
-        if (!TryReadView(pawn, out var pitch, out var yaw))
-        {
-            _triggers.Remove(hacker.Slot);
-            return false;
-        }
-        return TriggerbotAt(hacker, pawn, pitch, yaw);
-    }
-
-    /// <summary>Same delay as <see cref="Triggerbot"/>, using the view angles already read from the pawn.</summary>
-    private bool TriggerbotAt(CCSPlayerController hacker, CCSPlayerPawn pawn, float pitch, float yaw)
-    {
-        var walls = Has(hacker, Power.AimWalls);
-        if (!CrosshairOnEnemy(hacker, pawn, walls, pitch, yaw))
-        {
-            _triggers.Remove(hacker.Slot);
-            return false;
-        }
-        const int anyEnemy = -2;
-        if (!_triggers.TryGetValue(hacker.Slot, out var wait) || wait.TargetSlot != anyEnemy)
-        {
-            var aggression = AggressionOf(hacker);
-            var min = 95.0 - 8.0 * aggression;
-            var max = min + 35.0 + (10 - aggression) * 9.0;
-            wait = new TriggerLock
-            {
-                TargetSlot = anyEnemy,
-                SeenAt = DateTime.UtcNow,
-                DelayMs = min + Random.Shared.NextDouble() * (max - min),
-            };
-            _triggers[hacker.Slot] = wait;
-        }
-        return (DateTime.UtcNow - wait.SeenAt).TotalMilliseconds >= wait.DelayMs;
     }
 
     private static float EyeHeight(CCSPlayerPawn pawn)
