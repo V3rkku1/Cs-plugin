@@ -98,6 +98,30 @@ public partial class LanSkinTester
         return HookResult.Continue;
     }
 
+    private bool _retakeAutoJoin;
+
+    [ConsoleCommand("lst_retake_autojoin", "1 = people join a retake team by themselves, a few seconds after loading")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnRetakeAutoJoinCommand(CCSPlayerController? caller, CommandInfo cmd) => _retakeAutoJoin = cmd.GetArg(1) == "1";
+
+    [GameEventHandler]
+    public HookResult OnRetakeAutoJoinConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
+    {
+        if (!_retakeAutoJoin || @event.Userid is not { IsValid: true } player || IsBotPlayer(player)) return HookResult.Continue;
+        // Well after loading (joining a team mid-load crashed games). The retakes plugin's queue takes
+        // the jointeam like a click in the team menu and seats them now or next round.
+        AddTimer(3f, () =>
+        {
+            if (!player.IsValid || player.Connected != PlayerConnectedState.Connected) return;
+            if (player.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist) return;
+            var players = Utilities.GetPlayers().Where(p => p.IsValid && !p.IsHLTV).ToList();
+            var t = players.Count(p => p.Team == CsTeam.Terrorist);
+            var ct = players.Count(p => p.Team == CsTeam.CounterTerrorist);
+            player.ExecuteClientCommandFromServer($"jointeam {(t <= ct ? 2 : 3)} 1");
+        }, TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
     [GameEventHandler]
     public HookResult OnRetakeSeatsTeam(EventPlayerTeam @event, GameEventInfo info)
     {

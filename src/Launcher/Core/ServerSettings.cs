@@ -764,6 +764,7 @@ public class ServerSettings
         sb.AppendLine($"lst_retake_rifles {B(IsPluginRetakes && RetakeWeapons == 2)}");
         sb.AppendLine($"lst_instadefuse {B(InstaDefuse)}");
         sb.AppendLine($"lst_retake_bots {B(IsPluginRetakes && RetakeRealisticBots)}");
+        sb.AppendLine($"lst_retake_autojoin {B(IsPluginRetakes && RetakeAutoJoin)}");
         sb.AppendLine($"lst_bomb_timer {(IsPluginRetakes ? Math.Clamp(RetakeBombTimer, 15, 60) : 0)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
@@ -845,8 +846,10 @@ public class ServerSettings
         Set(root, "TeamSettings", "ShouldPreventTeamChangesMidRound", true);
         Set(root, "MapConfigSettings", "EnableBombsiteAnnouncementCenter", RetakeAnnounce);
         Set(root, "BombSettings", "IsAutoPlantEnabled", RetakeAutoPlant);
-        Set(root, "QueueSettings", "ShouldAutoJoinGame", RetakeAutoJoin);
-        Set(root, "QueueSettings", "ShouldAutoJoinSpectators", !RetakeAutoJoin);
+        // The plugin's own auto-join moves people onto a team while their game is still loading, which
+        // crashed games on connect. Ours (lst_retake_autojoin) does it a few seconds after loading.
+        Set(root, "QueueSettings", "ShouldAutoJoinGame", false);
+        Set(root, "QueueSettings", "ShouldAutoJoinSpectators", false);
         if (root["ConfigVersion"] == null) root["ConfigVersion"] = 2;
 
         File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
