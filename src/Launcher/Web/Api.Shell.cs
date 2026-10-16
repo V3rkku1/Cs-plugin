@@ -11,6 +11,7 @@ public partial class Api
     private string? _updateProgress;
     private UpdateCheck.Update? _update;
     private bool _checkingUpdate;
+    private DateTime? _lastUpdateCheck;
     private int _cs2GoneTicks;
 
     /// <summary>Called once the server is up: find CS2 and look for a launcher update.</summary>
@@ -30,7 +31,7 @@ public partial class Api
 
     public record ShellState(string Version, string Page, bool Ready, bool TestMode, string StatusKind, string StatusTitle,
         string StatusDetail, bool UpdateAvailable, string? UpdateProgress, string? UpdateCommit, List<string> UpdateNotes,
-        bool AutoUpdate, bool CheckingUpdate);
+        bool AutoUpdate, bool CheckingUpdate, string? LastUpdateCheck);
 
     [Call("app.state")]
     private ShellState State()
@@ -41,7 +42,8 @@ public partial class Api
         // First run (or something missing): start on Setup; otherwise where you left off.
         var page = Program.StartPage ?? (!App.Ready || App.Db.IsEmpty ? "setup" : App.Settings.LastPage ?? "play");
         return new ShellState(UpdateCheck.ShortVersion, page, App.Ready, App.TestModeOn, kind, title, detail, _updateAvailable, _updateProgress,
-            _update?.Commit[..7], _update?.Notes ?? new List<string>(), App.Settings.AutoUpdate, _checkingUpdate);
+            _update?.Commit[..7], _update?.Notes ?? new List<string>(), App.Settings.AutoUpdate, _checkingUpdate,
+            _lastUpdateCheck?.ToString("HH:mm"));
     }
 
     [Call("app.fullscreen")]
@@ -83,15 +85,17 @@ public partial class Api
     /// Looks for a newer build. At start-up (nothing running yet) it installs it right away when automatic
     /// updates are on; while the launcher is open it only shows it, so nothing restarts under you.
     /// </summary>
-    private async Task CheckForUpdateAsync(bool startup)
+    private async Task<string?> CheckForUpdateAsync(bool startup)
     {
-        if (_checkingUpdate) return;
+        if (_checkingUpdate) return null;
         _checkingUpdate = true;
         App.NotifyChanged();
         UpdateCheck.Update? found;
+        string? error;
         try
         {
-            found = await UpdateCheck.FindAsync(App.Http);
+            (found, error) = await UpdateCheck.CheckAsync(App.Http);
+            _lastUpdateCheck = DateTime.Now;
         }
         finally
         {
@@ -100,7 +104,7 @@ public partial class Api
         if (found == null)
         {
             App.NotifyChanged();
-            return;
+            return error;
         }
         var isNew = _update?.Commit != found.Commit;
         _update = found;
@@ -114,7 +118,7 @@ public partial class Api
             App.Log($"Newer launcher build {found.Commit[..7]} on GitHub - updating automatically.");
             App.NotifyChanged();
             await InstallUpdateAsync(automatic: true);
-            return;
+            return null;
         }
         if (isNew)
         {
@@ -122,6 +126,7 @@ public partial class Api
             Toast("Launcher update available.");
         }
         App.NotifyChanged();
+        return null;
     }
 
     /// <summary>Says how the last self-update went (the swap script leaves a note for this start).</summary>
@@ -144,8 +149,15 @@ public partial class Api
     [Call("app.checkUpdate")]
     private async Task<bool> CheckUpdateNow()
     {
-        if (UpdateCheck.LocalCommit == null) throw new ApiException("This is a dev build - it can't tell which build is newer.");
-        await CheckForUpdateAsync(startup: false);
+        if (_updating) return true;
+        var error = await CheckForUpdateAsync(startup: false);
+        if (error != null)
+        {
+            App.Log("Could not check for a launcher update: " + error + ".");
+            throw new ApiException("Couldn't check for updates: " + error + ".");
+        }
+        if (_updateAvailable) Toast($"Build {_update?.Commit[..7]} is out - click Update.", "info");
+        else Toast($"You have the newest launcher ({UpdateCheck.ShortVersion}).", "good");
         return _updateAvailable;
     }
 

@@ -1000,3 +1000,22 @@ kbd { font-family: var(--font); }
   cursor: pointer;
 }
 .update-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+
+/* Sidebar: check for a launcher update */
+.check-update {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 4px;
+  padding: 2px 8px 2px 6px;
+  border: 1px solid var(--hairline);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  font-size: 0.74em;
+  cursor: pointer;
+}
+.check-update:hover:not(:disabled) { color: var(--text); border-color: var(--blue); }
+.check-update.busy svg { animation: check-spin 0.9s linear infinite; }
+@keyframes check-spin { to { transform: rotate(360deg); } }

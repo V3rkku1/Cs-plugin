@@ -43,6 +43,11 @@ function Sidebar({ page, setPage, state }) {
       <div>
         <div class="name">Skin Tester</div>
         <div class="version">CS2 · ${state?.version ?? ""}</div>
+        ${state && !state.updateAvailable && html`<button class=${"check-update" + (state.checkingUpdate ? " busy" : "")}
+            disabled=${state.checkingUpdate} onClick=${() => tryCall("app.checkUpdate")}
+            title=${state.lastUpdateCheck ? `Last checked ${state.lastUpdateCheck}` : "Look for a newer launcher"}>
+          <${Icon} name="refresh" size=${12} stroke=${2.2} /> ${state.checkingUpdate ? "Checking…" : "Check for updates"}
+        </button>`}
       </div>
     </div>
     <button class="search-button" onClick=${() => openPalette(setPage)}>

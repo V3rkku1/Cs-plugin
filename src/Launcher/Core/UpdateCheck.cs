@@ -32,20 +32,37 @@ public static class UpdateCheck
     public record Update(string Commit, List<string> Notes);
 
     /// <summary>The newer build on GitHub, or null. Fails quietly (offline, rate limit) as "no update".</summary>
-    public static async Task<Update?> FindAsync(HttpClient http)
+    public static async Task<Update?> FindAsync(HttpClient http) => (await CheckAsync(http)).Update;
+
+    /// <summary>The newer build (or null when this is the newest), or why GitHub couldn't be asked.</summary>
+    public static async Task<(Update? Update, string? Error)> CheckAsync(HttpClient http)
     {
         var local = LocalCommit;
-        if (local == null) return null;
+        if (local == null) return (null, "this is a dev build, so it can't tell which build is newer");
         try
         {
-            using var doc = await GetJsonAsync(http, TagApi);
-            var remote = doc?.RootElement.GetProperty("object").GetProperty("sha").GetString();
-            if (remote == null || remote.Equals(local, StringComparison.OrdinalIgnoreCase)) return null;
-            return new Update(remote, await NotesAsync(http, local, remote));
+            using var request = new HttpRequestMessage(HttpMethod.Get, TagApi);
+            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
+            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
+            using var response = await http.SendAsync(request);
+            if (!response.IsSuccessStatusCode)
+            {
+                var limited = response.Headers.TryGetValues("x-ratelimit-remaining", out var left) && left.FirstOrDefault() == "0";
+                return (null, limited ? "GitHub's limit for this network is used up - try again in an hour"
+                    : $"GitHub answered {(int)response.StatusCode} {response.ReasonPhrase}");
+            }
+            using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+            var remote = doc.RootElement.GetProperty("object").GetProperty("sha").GetString();
+            if (remote == null || remote.Equals(local, StringComparison.OrdinalIgnoreCase)) return (null, null);
+            return (new Update(remote, await NotesAsync(http, local, remote)), null);
         }
-        catch (Exception)
+        catch (Exception ex) when (ex is HttpRequestException or TaskCanceledException)
         {
-            return null;
+            return (null, "no connection to GitHub");
+        }
+        catch (Exception ex)
+        {
+            return (null, ex.Message);
         }
     }
 
