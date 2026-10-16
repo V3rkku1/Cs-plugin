@@ -40,9 +40,12 @@ public partial class Api
         RouterPort.Changed += App.NotifyChanged;
     }
 
+    private List<string>? _knownPlayers;
+
     private void PollServer()
     {
         var status = App.ReadServerStatus();
+        AnnouncePlayers(status?.Players);
         HandleWorkshopStartup(status);
         CheckServerCrash();
         _ = RenewRouterPortAsync();
@@ -57,6 +60,22 @@ public partial class Api
         if (tick == _lastTick) return;
         _lastTick = tick;
         Push("play.tick", null);
+    }
+
+    /// <summary>A toast when a friend joins or leaves the running server (not for the first list after a start).</summary>
+    private void AnnouncePlayers(List<string>? players)
+    {
+        if (players == null)
+        {
+            _knownPlayers = null;
+            return;
+        }
+        if (_knownPlayers != null)
+        {
+            foreach (var name in players.Except(_knownPlayers)) Toast($"{name} joined the server", "good");
+            foreach (var name in _knownPlayers.Except(players)) Toast($"{name} left the server");
+        }
+        _knownPlayers = [.. players];
     }
 
     private static async Task RenewRouterPortAsync()

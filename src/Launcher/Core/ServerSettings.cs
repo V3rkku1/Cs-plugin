@@ -124,6 +124,14 @@ public class ServerSettings
     /// <summary>Chat line for the damage you deal (practice / retake quality of life).</summary>
     public bool ShowDamage { get; set; }
 
+    /// <summary>Built-in server plugins (lst_qol): kept across quick starts, they're how you like your server.</summary>
+    public bool SpawnProtection { get; set; } = true;
+    public bool GunMenu { get; set; } = true;
+    public bool ReadyUp { get; set; }
+    public bool MapVote { get; set; } = true;
+    public bool RoundSummary { get; set; } = true;
+    public bool WelcomeMessage { get; set; } = true;
+
     /// <summary>Round length in minutes; 0 = the game mode's default.</summary>
     public int RoundTime { get; set; }
     public bool FriendlyFire { get; set; }
@@ -493,6 +501,8 @@ public class ServerSettings
         }
     }
 
+    private static int B(bool on) => on ? 1 : 0;
+
     public string ToCfg()
     {
         var mode = GetMode();
@@ -580,6 +590,8 @@ public class ServerSettings
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
+        sb.AppendLine($"lst_qol spawn={B(SpawnProtection)} guns={B(GunMenu)} ready={B(ReadyUp)} vote={B(MapVote)} " +
+                      $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 

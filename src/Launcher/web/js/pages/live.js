@@ -171,6 +171,21 @@ export function LivePage() {
             <${Toggle} value=${s.showDamage} onChange=${v => set("showDamage", v)} /><//>
         <//>
 
+        <${Section} title="Server Plugins" note="built in · players use them in chat" footer="Applied on the next Start or Apply Changes.">
+          <${Row} icon=${{ name: "shield", color: "blue" }} title="Spawn Protection" subtitle="2.5 s of safety after spawning · shooting ends it">
+            <${Toggle} value=${s.spawnProtection} onChange=${v => set("spawnProtection", v)} /><//>
+          <${Row} icon=${{ name: "crosshair", color: "orange" }} title="!guns" subtitle="Players pick their Deathmatch weapons: !guns ak47 deagle">
+            <${Toggle} value=${s.gunMenu} onChange=${v => set("gunMenu", v)} /><//>
+          <${Row} icon=${{ name: "check", color: "green" }} title="!ready" subtitle="Warmup waits until every player typed !ready">
+            <${Toggle} value=${s.readyUp} onChange=${v => set("readyUp", v)} /><//>
+          <${Row} icon=${{ name: "map", color: "teal" }} title="!rtv Map Vote" subtitle="Half the players type !rtv, then everyone votes the next map">
+            <${Toggle} value=${s.mapVote} onChange=${v => set("mapVote", v)} /><//>
+          <${Row} icon=${{ name: "star", color: "yellow" }} title="Round MVP and !stats" subtitle="MVP line after each round · !stats and !top for the map">
+            <${Toggle} value=${s.roundSummary} onChange=${v => set("roundSummary", v)} /><//>
+          <${Row} icon=${{ name: "person", color: "purple" }} title="Welcome Message" subtitle="Tells new players which commands they can use">
+            <${Toggle} value=${s.welcomeMessage} onChange=${v => set("welcomeMessage", v)} /><//>
+        <//>
+
         <${Section} title="Hacker Mode">
           <${Row} icon=${{ name: "hacker", color: "green" }} title="Hacker Mode" subtitle=${state.hackerDetail}
               subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => go("hacker")}>

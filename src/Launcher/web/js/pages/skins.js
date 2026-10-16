@@ -110,6 +110,13 @@ export function SkinsPage() {
     setDef(item.def);
   };
 
+  // Ctrl+K "Import an item" opens the sheet here.
+  useEffect(() => {
+    const open = () => openImport();
+    window.addEventListener("open-import", open);
+    return () => window.removeEventListener("open-import", open);
+  });
+
   const openLoadouts = async () => {
     const info = await call("skins.loadouts").catch(() => null);
     if (!info) return;

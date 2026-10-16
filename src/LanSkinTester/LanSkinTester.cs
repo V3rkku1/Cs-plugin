@@ -31,7 +31,7 @@ public class LanSkinTesterConfig : BasePluginConfig
 public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "2.10.1";
+    public override string ModuleVersion => "2.11.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 
@@ -74,6 +74,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
         LoadHackerMode();
         LoadPractice();
+        LoadExtras();
     }
 
     public override void Unload(bool hotReload)
@@ -932,6 +933,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
             "!save [name]  !load [name]  !spots  !rethrow  !damage  !armor  !nades  !clear  !swap",
+            "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
             "!hacks - hacker mode status",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);

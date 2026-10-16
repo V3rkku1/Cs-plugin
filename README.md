@@ -35,7 +35,9 @@ Pick one:
   If you don't have it, Windows offers a download link the first time you open it.
 
 The launcher has six pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Friends and Setup
-(Ctrl+1 to Ctrl+6). On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
+(Ctrl+1 to Ctrl+6). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
+type "dm" and press Enter to start Deathmatch. The launcher shows a toast when a friend joins or
+leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
 Windows 10 and 11 already have; without it the launcher opens in your web browser instead.
 
 **SETUP page**
@@ -126,6 +128,17 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
 **Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (solid panels instead of
 glass) and *Reduce Motion* (no animations). They apply right away.
+
+**Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
+
+- *Spawn protection:* 2.5 seconds without damage after spawning (you look see-through); shooting ends it.
+- *!guns:* `!guns ak47 deagle` gives you those weapons on every Deathmatch respawn. `!guns off` stops it.
+- *!ready:* the warmup waits until every player typed `!ready` (off by default). `!unready` takes it back.
+- *!rtv map vote:* when half the players type `!rtv`, everyone votes the next map from the mode's list
+  with `!vote 1`-`!vote 6` (20 seconds, or as soon as everyone voted).
+- *Round MVP and !stats:* the round's best player in chat after each round; `!stats` shows your kills,
+  deaths, headshot % and damage on this map, `!top` the best three.
+- *Welcome message:* new players get one line with the commands they can use.
 
 **Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts (or use the quick starts *Hacker vs bots* and
 *Catch the hacker*). Changes there apply to the running server right away, no Apply needed.

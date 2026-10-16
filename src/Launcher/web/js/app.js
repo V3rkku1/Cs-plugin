@@ -2,6 +2,7 @@
 import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./vendor/preact-htm.js";
 import { call, tryCall, useApi, on } from "./api.js";
 import { Icon, Toasts, sheen } from "./ui.js";
+import { openPalette } from "./palette.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
 import { SkinsPage } from "./pages/skins.js";
@@ -38,6 +39,9 @@ function Sidebar({ page, setPage, state }) {
         <div class="version">CS2 · ${state?.version ?? ""}</div>
       </div>
     </div>
+    <button class="search-button" onClick=${() => openPalette(setPage)}>
+      <${Icon} name="search" size=${16} /> Search <kbd>Ctrl K</kbd>
+    </button>
     <nav class="nav" ref=${nav}>
       <div class="nav-indicator" style=${`transform: translateY(${y}px)`}></div>
       ${pages.map((p, i) => html`<button class=${"nav-item" + (p.id === page ? " active" : "")} onClick=${() => setPage(p.id)}>
@@ -73,7 +77,8 @@ function App() {
     const go = e => setPage(e.detail);
     window.addEventListener("navigate", go);
     const keys = e => {
-      if (e.ctrlKey && e.key >= "1" && e.key <= "6") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
+      if (e.ctrlKey && e.key.toLowerCase() === "k") { openPalette(setPage); e.preventDefault(); }
+      else if (e.ctrlKey && e.key >= "1" && e.key <= "6") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
       else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("skins"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
       else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
       else if (e.key === "F5" && e.shiftKey) { tryCall("play.stop"); e.preventDefault(); }
