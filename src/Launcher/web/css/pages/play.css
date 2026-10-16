@@ -183,9 +183,3 @@
 .live-status { flex-wrap: wrap; }
 .live-error { flex-basis: 100%; display: flex; gap: 8px; align-items: flex-start; color: color-mix(in srgb, var(--red) 55%, white); font-size: 0.88em; user-select: text; }
 .live-error .icon { flex: none; margin-top: 1px; }
-
-/* A Select's menu is position: fixed, but backdrop-filter on its glass card makes the card its
-   containing block (offset and clipped). While a menu is open the card drops the blur.
-   shortcut: belongs in glass.css / ui.js (render the menu at the body); remove once that is done. */
-.card.glass:has(.menu) { -webkit-backdrop-filter: none; backdrop-filter: none; overflow: visible; }
-.section:has(.menu) { position: relative; z-index: 10; }

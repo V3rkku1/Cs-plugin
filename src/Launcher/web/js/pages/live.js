@@ -1,9 +1,8 @@
 // Live Server: the server settings (most used first) and the controls for the running match.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall } from "../api.js";
-import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt } from "../ui.js";
+import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt, LogView } from "../ui.js";
 import { usePlay, go } from "./play.js";
-import { LogView } from "./setup.js";
 
 const set = (key, value) => tryCall("live.set", { [key]: value });
 const send = command => tryCall("live.command", command);

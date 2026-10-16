@@ -1,7 +1,7 @@
 // Liquid Glass components shared by every page. Keep pages built from these so the look stays one system.
 import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./vendor/preact-htm.js";
 import { Icon } from "./icons.js";
-import { on } from "./api.js";
+import { call, on } from "./api.js";
 
 export { Icon };
 
@@ -158,22 +158,30 @@ export function Select({ options, value, onChange, placeholder = "Choose…", di
   };
   useEffect(() => {
     if (!open) return;
-    const close = e => { if (!e.target.closest?.(".menu")) setOpen(null); };
-    setTimeout(() => window.addEventListener("pointerdown", close), 0);
-    window.addEventListener("resize", () => setOpen(null), { once: true });
-    return () => window.removeEventListener("pointerdown", close);
-  }, [open]);
-  return html`<div class="select">
-    <button ref=${button} disabled=${disabled} onClick=${show} style=${width ? `width:${width}px` : undefined}>
-      <span>${current?.label ?? placeholder}</span><${Icon} name="chevronUpDown" size=${15} />
-    </button>
-    ${open && html`<div class="menu glass" style=${`left:${open.left}px;${open.top != null ? `top:${open.top}px;` : `bottom:${open.bottom}px;`}min-width:${open.width}px`}
+    // Rendered at the body: a glass card's backdrop-filter would otherwise offset and clip a fixed menu.
+    const host = document.body.appendChild(document.createElement("div"));
+    render(html`<div class="menu glass" style=${`left:${open.left}px;${open.top != null ? `top:${open.top}px;` : `bottom:${open.bottom}px;`}min-width:${open.width}px`}
         ref=${el => el?.querySelector(".active")?.scrollIntoView({ block: "nearest" })}>
       ${items.map(o => html`<button class=${o.value === value ? "active" : ""} onClick=${() => { setOpen(null); onChange?.(o.value); }}>
         ${o.label}${o.note && html`<small>${o.note}</small>`}
         ${o.value === value && html`<${Icon} name="check" size=${15} stroke=${2.2} class="check" />`}
       </button>`)}
-    </div>`}
+    </div>`, host);
+    const close = e => { if (!host.contains(e.target) && !button.current?.contains(e.target)) setOpen(null); };
+    const resize = () => setOpen(null);
+    setTimeout(() => window.addEventListener("pointerdown", close), 0);
+    window.addEventListener("resize", resize);
+    return () => {
+      window.removeEventListener("pointerdown", close);
+      window.removeEventListener("resize", resize);
+      render(null, host);
+      host.remove();
+    };
+  }, [open, value]);
+  return html`<div class="select">
+    <button ref=${button} disabled=${disabled} onClick=${() => open ? setOpen(null) : show()} style=${width ? `width:${width}px` : undefined}>
+      <span>${current?.label ?? placeholder}</span><${Icon} name="chevronUpDown" size=${15} />
+    </button>
   </div>`;
 }
 
@@ -252,4 +260,36 @@ export function prompt({ title, message, value = "", placeholder, ok = "OK" }) {
     };
     return html`<${Body} />`;
   }).then(v => v ?? null);
+}
+
+// ------------------------------------------------------------------------------------------------
+// Activity log
+// ------------------------------------------------------------------------------------------------
+
+/** The activity log is kept for the whole session, whichever page is open. */
+const logLines = [];
+const logListeners = new Set();
+call("app.log").then(lines => {
+  logLines.unshift(...lines.filter(l => !logLines.includes(l)));
+  logListeners.forEach(fn => fn());
+}).catch(() => {});
+on("log", line => {
+  logLines.push(line);
+  if (logLines.length > 600) logLines.splice(0, logLines.length - 600);
+  logListeners.forEach(fn => fn());
+});
+
+export function LogView({ height = 420 }) {
+  const [, setTick] = useState(0);
+  const box = useRef();
+  useEffect(() => {
+    const fn = () => setTick(t => t + 1);
+    logListeners.add(fn);
+    return () => logListeners.delete(fn);
+  }, []);
+  useEffect(() => { box.current && (box.current.scrollTop = box.current.scrollHeight); });
+  return html`<div class="log" ref=${box} style=${`height:${height}px`}>
+    ${logLines.length === 0 ? html`<span class="faint">Nothing yet.</span>`
+      : logLines.map(l => html`<div class=${/FAILED/.test(l) ? "fail" : ""}>${l}</div>`)}
+  </div>`;
 }

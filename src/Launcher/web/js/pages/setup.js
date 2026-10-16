@@ -1,35 +1,7 @@
 // Setup: CS2 folder, the install checklist, maintenance, folders and the activity log.
-import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, useEvent, on } from "../api.js";
-import { Page, Section, Row, Button, Segmented, Toggle, StateIcon, Progress, Icon, confirm } from "../ui.js";
-
-/** The activity log is kept for the whole session, whichever page is open. */
-const logLines = [];
-const logListeners = new Set();
-call("app.log").then(lines => {
-  logLines.unshift(...lines.filter(l => !logLines.includes(l)));
-  logListeners.forEach(fn => fn());
-}).catch(() => {});
-on("log", line => {
-  logLines.push(line);
-  if (logLines.length > 600) logLines.splice(0, logLines.length - 600);
-  logListeners.forEach(fn => fn());
-});
-
-export function LogView({ height = 420 }) {
-  const [, setTick] = useState(0);
-  const box = useRef();
-  useEffect(() => {
-    const fn = () => setTick(t => t + 1);
-    logListeners.add(fn);
-    return () => logListeners.delete(fn);
-  }, []);
-  useEffect(() => { box.current && (box.current.scrollTop = box.current.scrollHeight); });
-  return html`<div class="log" ref=${box} style=${`height:${height}px`}>
-    ${logLines.length === 0 ? html`<span class="faint">Nothing yet.</span>`
-      : logLines.map(l => html`<div class=${/FAILED/.test(l) ? "fail" : ""}>${l}</div>`)}
-  </div>`;
-}
+import { html, useState } from "../vendor/preact-htm.js";
+import { tryCall, useApi, useEvent } from "../api.js";
+import { Page, Section, Row, Button, Segmented, Toggle, StateIcon, Progress, LogView, confirm } from "../ui.js";
 
 export function SetupPage() {
   const [state] = useApi("setup.state");
