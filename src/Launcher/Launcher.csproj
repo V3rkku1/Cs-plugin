@@ -16,6 +16,13 @@
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
 
+  <!-- The UI: HTML/CSS/JS in web/, served from the exe by a local ASP.NET server and shown in WebView2. -->
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <EmbeddedResource Include="web\**\*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
   <!-- Same item tables / loadout format as the plugin. -->
   <ItemGroup>
     <Compile Include="..\LanSkinTester\ItemData.cs" Link="Shared\ItemData.cs" />

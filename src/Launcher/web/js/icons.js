@@ -1,0 +1,65 @@
+// SF Symbols-style line icons, drawn as inline SVG so they take the current text colour.
+import { html } from "./vendor/preact-htm.js";
+
+const paths = {
+  play: `<circle cx="12" cy="12" r="9.2"/><path d="M10 8.6v6.8l5.4-3.4z" fill="currentColor" stroke="none"/>`,
+  server: `<rect x="4" y="4" width="16" height="6.5" rx="2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2"/><circle cx="8" cy="7.25" r="1" fill="currentColor"/><circle cx="8" cy="16.75" r="1" fill="currentColor"/><path d="M12 7.25h5M12 16.75h5"/>`,
+  skins: `<path d="M6.5 4h11l3.5 5-9 11L3 9z"/><path d="M3 9h18M9 4l3 16 3-16M6.5 4 9 9l3-5 3 5 2.5-5"/>`,
+  hacker: `<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>`,
+  friends: `<circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.5c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><circle cx="17" cy="9" r="2.6"/><path d="M15.8 14.2c2.8-.4 4.9 1.3 5.4 4.3"/>`,
+  setup: `<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/>`,
+  check: `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,
+  x: `<path d="M6 6l12 12M18 6 6 18"/>`,
+  warning: `<path d="M12 3.5 2.5 20h19z"/><path d="M12 9.5v5"/><circle cx="12" cy="17.2" r=".9" fill="currentColor"/>`,
+  info: `<circle cx="12" cy="12" r="9.2"/><path d="M12 11v6"/><circle cx="12" cy="7.8" r=".9" fill="currentColor"/>`,
+  folder: `<path d="M3 7.5a2 2 0 0 1 2-2h4.2l2 2.2H19a2 2 0 0 1 2 2V17a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/>`,
+  link: `<path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/>`,
+  download: `<path d="M12 4v11M7 10.5l5 5 5-5M5 20h14"/>`,
+  refresh: `<path d="M20 11.5A8 8 0 1 0 17.6 17"/><path d="M20 5v6.5h-6.5"/>`,
+  wrench: `<path d="M14.7 6.3a4.2 4.2 0 0 0 5 5.6l-8.9 8.9a2.1 2.1 0 0 1-3-3l8.9-8.9a4.2 4.2 0 0 1 5.6-5z"/>`,
+  trash: `<path d="M4 7h16M9 7V4.5h6V7M6.5 7l1 13h9l1-13M10 11v6M14 11v6"/>`,
+  zip: `<rect x="5" y="3" width="14" height="18" rx="2.5"/><path d="M12 3v2M12 7v2M12 11v2"/><rect x="10.5" y="14" width="3" height="3.5" rx="1"/>`,
+  chevronRight: `<path d="m9 5 7 7-7 7"/>`,
+  chevronDown: `<path d="m6 9 6 6 6-6"/>`,
+  chevronUpDown: `<path d="m8 9.5 4-4 4 4M8 14.5l4 4 4-4"/>`,
+  search: `<circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/>`,
+  plus: `<path d="M12 5v14M5 12h14"/>`,
+  minus: `<path d="M5 12h14"/>`,
+  stop: `<rect x="6" y="6" width="12" height="12" rx="2.5" fill="currentColor" stroke="none"/>`,
+  bolt: `<path d="M13 2.5 4.5 13.5H11l-1 8L19.5 10H13z"/>`,
+  game: `<path d="M7 8h10a4.5 4.5 0 0 1 4.3 5.8l-1.1 3.6a2.2 2.2 0 0 1-3.7.9L14.8 16H9.2l-1.7 2.3a2.2 2.2 0 0 1-3.7-.9l-1.1-3.6A4.5 4.5 0 0 1 7 8z"/><path d="M8 11v3M6.5 12.5h3"/><circle cx="16" cy="11.5" r=".9" fill="currentColor"/><circle cx="17.5" cy="13.5" r=".9" fill="currentColor"/>`,
+  map: `<path d="m3 6 6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/>`,
+  bot: `<rect x="5" y="8" width="14" height="11" rx="3"/><path d="M12 4v4"/><circle cx="12" cy="3.5" r="1"/><circle cx="9.5" cy="13" r="1.2" fill="currentColor"/><circle cx="14.5" cy="13" r="1.2" fill="currentColor"/><path d="M2.5 12.5v3M21.5 12.5v3"/>`,
+  copy: `<rect x="8" y="8" width="12" height="12" rx="2.5"/><path d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"/>`,
+  terminal: `<rect x="3" y="4.5" width="18" height="15" rx="2.5"/><path d="m7 9.5 3 2.5-3 2.5M12 15h5"/>`,
+  eye: `<path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/>`,
+  target: `<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="4.5"/><circle cx="12" cy="12" r="1" fill="currentColor"/>`,
+  sparkles: `<path d="M12 3.5 13.8 9 19.5 11 13.8 13 12 18.5 10.2 13 4.5 11 10.2 9z"/><path d="M19 3v4M17 5h4"/>`,
+  shield: `<path d="M12 3 4.5 6v5.5c0 4.6 3.2 8.3 7.5 9.5 4.3-1.2 7.5-4.9 7.5-9.5V6z"/>`,
+  globe: `<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.6 2.5 3.8 5.5 3.8 9s-1.2 6.5-3.8 9c-2.6-2.5-3.8-5.5-3.8-9S9.4 5.5 12 3z"/>`,
+  wifi: `<path d="M2.5 9a14 14 0 0 1 19 0M5.5 12.5a9.5 9.5 0 0 1 13 0M8.6 16a5 5 0 0 1 6.8 0"/><circle cx="12" cy="19" r="1.1" fill="currentColor"/>`,
+  person: `<circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.8-4 3.8-6.2 7.5-6.2s6.7 2.2 7.5 6.2"/>`,
+  star: `<path d="m12 3.5 2.6 5.4 5.9.8-4.3 4.1 1 5.8L12 16.8 6.8 19.6l1-5.8L3.5 9.7l5.9-.8z"/>`,
+  dice: `<rect x="4" y="4" width="16" height="16" rx="3.5"/><circle cx="8.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1.2" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1.2" fill="currentColor"/>`,
+  tag: `<path d="M3.5 12.5V5a1.5 1.5 0 0 1 1.5-1.5h7.5L21 12l-8.5 8.5z"/><circle cx="8" cy="8" r="1.4"/>`,
+  layers: `<path d="m12 3.5 9 4.5-9 4.5L3 8z"/><path d="m3 12.5 9 4.5 9-4.5M3 16.5l9 4.5 9-4.5"/>`,
+  import: `<path d="M12 3v11M7.5 9.5 12 14l4.5-4.5"/><path d="M4 14v3.5A2.5 2.5 0 0 0 6.5 20h11a2.5 2.5 0 0 0 2.5-2.5V14"/>`,
+  sliders: `<path d="M4 7h10M18 7h2M4 17h4M12 17h8"/><circle cx="16" cy="7" r="2"/><circle cx="10" cy="17" r="2"/>`,
+  clock: `<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3.5 2"/>`,
+  crosshair: `<circle cx="12" cy="12" r="8"/><path d="M12 2.5v6M12 15.5v6M2.5 12h6M15.5 12h6"/>`,
+  run: `<circle cx="14" cy="4.5" r="1.8"/><path d="m6 21 3.5-6.5 3 2V21M9.5 14.5 11 9l-3 1.5L6.5 13M11 9l3.5 2 2-2.5 3 1.5"/>`,
+  key: `<circle cx="8" cy="15" r="4.5"/><path d="m11.5 11.5 8-8M16 7l2.5 2.5M14 9l2 2"/>`,
+  sun: `<circle cx="12" cy="12" r="4"/><path d="M12 2.5v2.5M12 19v2.5M2.5 12H5M19 12h2.5M5.3 5.3l1.8 1.8M16.9 16.9l1.8 1.8M18.7 5.3l-1.8 1.8M7.1 16.9l-1.8 1.8"/>`,
+  textsize: `<path d="M3 18 8 6l5 12M4.8 14h6.4M14 18l3.5-8.5L21 18M15.2 15.5h4.6"/>`,
+  ellipsis: `<circle cx="6" cy="12" r="1.4" fill="currentColor"/><circle cx="12" cy="12" r="1.4" fill="currentColor"/><circle cx="18" cy="12" r="1.4" fill="currentColor"/>`,
+  sticker: `<path d="M20.5 12A8.5 8.5 0 1 1 12 3.5h3l5.5 5.5z"/><path d="M14.5 3.5v3a2.5 2.5 0 0 0 2.5 2.5h3.5"/>`,
+  shuffle: `<path d="M3 7h3.5c4.5 0 6.5 10 11 10H21M3 17h3.5c1.8 0 3-1.5 4.2-3.5M13.3 10.5C14.5 8.5 15.7 7 17.5 7H21M18.5 4.5 21 7l-2.5 2.5M18.5 14.5 21 17l-2.5 2.5"/>`,
+  save: `<path d="M5 4h11l3 3v13H5z"/><path d="M8 4v5h7V4M8 20v-6h8v6"/>`,
+};
+
+/** <Icon name="play" size=20 />  */
+export function Icon({ name, size = 20, stroke = 1.7, class: cls = "" }) {
+  return html`<svg class=${"icon " + cls} width=${size} height=${size} viewBox="0 0 24 24" fill="none" stroke="currentColor"
+    stroke-width=${stroke} stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"
+    dangerouslySetInnerHTML=${{ __html: paths[name] ?? paths.info }} />`;
+}

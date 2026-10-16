@@ -70,6 +70,32 @@ public class ImageCache
         return image;
     }
 
+    /// <summary>The picture's file bytes (disk cache first), or null when it can't be downloaded.</summary>
+    public async Task<byte[]?> GetBytesAsync(string url, int size)
+    {
+        url = Sized(url, size);
+        var file = Path.Combine(_dir, Hash(url) + ".png");
+        try
+        {
+            if (File.Exists(file)) return await File.ReadAllBytesAsync(file);
+            await _downloads.WaitAsync();
+            try
+            {
+                var bytes = await _http.GetByteArrayAsync(url);
+                await File.WriteAllBytesAsync(file, bytes);
+                return bytes;
+            }
+            finally
+            {
+                _downloads.Release();
+            }
+        }
+        catch (Exception)
+        {
+            return null; // offline or missing picture
+        }
+    }
+
     private static Image FromBytes(byte[] bytes)
     {
         using var ms = new MemoryStream(bytes);

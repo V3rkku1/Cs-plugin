@@ -19,6 +19,10 @@ public class LauncherSettings
     public string TextRendering { get; set; } = "sharp";
     public string TextSize { get; set; } = "normal";
 
+    /// <summary>Accessibility: solid panels instead of see-through glass, and no animations.</summary>
+    public bool ReduceGlass { get; set; }
+    public bool ReduceMotion { get; set; }
+
     /// <summary>The settings tab last open on the Play page.</summary>
     public int PlayTab { get; set; }
 
