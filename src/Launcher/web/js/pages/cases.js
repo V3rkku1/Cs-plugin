@@ -6,7 +6,7 @@ import { money } from "./inventory.js";
 import { navigate } from "../app.js";
 
 const CARD = 168; // reel card width incl. gap
-const SPIN_MS = 6500;
+const SPIN_MS = 7200;
 const TYPE_NAMES = {
   "Case": "Weapon Cases", "Sticker Capsule": "Sticker Capsules", "Autograph Capsule": "Autographs", "Souvenir": "Souvenirs",
   "Souvenir Highlight": "Highlights", "Music Kit Box": "Music Kits", "Pins": "Pins", "Patch Capsule": "Patches", "Graffiti": "Graffiti",
@@ -15,25 +15,92 @@ const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w <
 const pct = c => c >= 0.01 ? `${(c * 100).toFixed(2)}%` : `${(c * 100).toFixed(2)}%`;
 const equippable = i => (i.kind === "skin" && i.def) || ((i.kind === "pin" || i.kind === "music") && i.collectibleId);
 
-// ---- sounds (Web Audio, no files) ----
-let audio;
-function beep(freq, ms, gain = 0.05, type = "square") {
-  try {
-    audio ??= new AudioContext();
-    const o = audio.createOscillator(), g = audio.createGain();
-    o.type = type; o.frequency.value = freq;
-    g.gain.setValueAtTime(gain, audio.currentTime);
-    g.gain.exponentialRampToValueAtTime(0.0001, audio.currentTime + ms / 1000);
-    o.connect(g).connect(audio.destination);
-    o.start(); o.stop(audio.currentTime + ms / 1000);
-  } catch { /* no sound */ }
+// ---- sounds: synthesized with Web Audio (no game files), shaped after CS2's case sounds ----
+let audio, master;
+let muted = (() => { try { return localStorage.getItem("cases.muted") === "1"; } catch { return false; } })();
+export const isMuted = () => muted;
+export function setMuted(v) { muted = v; try { localStorage.setItem("cases.muted", v ? "1" : "0"); } catch { /* no storage */ } }
+function ctx() {
+  if (!audio) {
+    audio = new AudioContext();
+    master = audio.createGain();
+    master.gain.value = 0.9;
+    // A little room so it doesn't sound dry.
+    const comp = audio.createDynamicsCompressor();
+    master.connect(comp).connect(audio.destination);
+  }
+  audio.resume?.();
+  return audio;
 }
-const tick = () => beep(2100, 22, 0.035);
-function fanfare(color) {
-  const rare = color === "#e4ae39" || color === "#ffd700";
-  const notes = rare ? [523, 659, 784, 1047, 1319] : color === "#eb4b4b" ? [523, 659, 784, 1047] : [523, 659, 784];
-  notes.forEach((n, i) => setTimeout(() => beep(n, 260, 0.06, "triangle"), i * 110));
+let noiseBuffer;
+function noise(a) {
+  if (!noiseBuffer) {
+    noiseBuffer = a.createBuffer(1, a.sampleRate * 0.5, a.sampleRate);
+    const d = noiseBuffer.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+  }
+  const n = a.createBufferSource();
+  n.buffer = noiseBuffer;
+  return n;
 }
+/** A short filtered noise hit: clicks, ticks, metal. */
+function hit(at, { freq = 3200, q = 6, gain = 0.25, decay = 0.03, type = "bandpass" } = {}) {
+  const a = ctx(), n = noise(a), f = a.createBiquadFilter(), g = a.createGain();
+  f.type = type; f.frequency.value = freq; f.Q.value = q;
+  g.gain.setValueAtTime(gain, at);
+  g.gain.exponentialRampToValueAtTime(0.0001, at + decay);
+  n.connect(f).connect(g).connect(master);
+  n.start(at, Math.random() * 0.3); n.stop(at + decay + 0.02);
+}
+/** A bell-like tone: a few partials that ring out. */
+function bell(at, freq, { gain = 0.12, decay = 1.2 } = {}) {
+  const a = ctx();
+  [[1, 1], [2.01, 0.45], [3.02, 0.22], [4.5, 0.08]].forEach(([mult, amp]) => {
+    const o = a.createOscillator(), g = a.createGain();
+    o.type = "sine"; o.frequency.value = freq * mult;
+    g.gain.setValueAtTime(0.0001, at);
+    g.gain.exponentialRampToValueAtTime(gain * amp, at + 0.008);
+    g.gain.exponentialRampToValueAtTime(0.0001, at + decay / mult);
+    o.connect(g).connect(master);
+    o.start(at); o.stop(at + decay + 0.05);
+  });
+}
+/** A low thump for big drops. */
+function thump(at, gain = 0.5) {
+  const a = ctx(), o = a.createOscillator(), g = a.createGain();
+  o.type = "sine"; o.frequency.setValueAtTime(120, at); o.frequency.exponentialRampToValueAtTime(40, at + 0.35);
+  g.gain.setValueAtTime(gain, at); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
+  o.connect(g).connect(master); o.start(at); o.stop(at + 0.5);
+}
+const sound = {
+  /** The reel passing an item: a crisp plastic tick, a little different every time. */
+  tick() {
+    if (muted) return;
+    const a = ctx(), t = a.currentTime;
+    hit(t, { freq: 3800 + Math.random() * 700, q: 9, gain: 0.32, decay: 0.022 });
+    hit(t, { freq: 900, q: 2, gain: 0.08, decay: 0.03, type: "lowpass" });
+  },
+  /** Turning the key: two metal clicks, a clunk and the lid. */
+  unlock() {
+    if (muted) return;
+    const a = ctx(), t = a.currentTime;
+    hit(t, { freq: 5200, q: 12, gain: 0.25, decay: 0.03 });
+    hit(t + 0.09, { freq: 4300, q: 12, gain: 0.22, decay: 0.035 });
+    hit(t + 0.22, { freq: 600, q: 1.5, gain: 0.35, decay: 0.12, type: "lowpass" });
+    thump(t + 0.22, 0.25);
+    hit(t + 0.32, { freq: 2000, q: 0.7, gain: 0.08, decay: 0.45 });
+  },
+  /** The drop, by grade: one soft tone for blue, up to a full chord with sparkle for gold. */
+  reveal(color) {
+    if (muted) return;
+    const a = ctx(), t = a.currentTime + 0.02;
+    const level = { "#e4ae39": 5, "#ffd700": 5, "#eb4b4b": 4, "#d32ce6": 3, "#8847ff": 2 }[color] ?? 1;
+    const chords = [[523.3], [523.3, 659.3], [523.3, 659.3, 784], [392, 523.3, 659.3, 784, 1046.5], [392, 523.3, 659.3, 784, 1046.5, 1318.5]];
+    if (level >= 4) thump(t, level === 5 ? 0.6 : 0.45);
+    chords[level - 1].forEach((f, i) => bell(t + i * (level >= 4 ? 0.07 : 0.11), f, { gain: 0.1 + level * 0.015, decay: 1.2 + level * 0.3 }));
+    if (level === 5) for (let i = 0; i < 14; i++) hit(t + 0.25 + i * 0.06, { freq: 6000 + Math.random() * 3000, q: 15, gain: 0.06, decay: 0.08 });
+  },
+};
 
 function ItemPic({ src, size = 256 }) {
   const [bad, setBad] = useState(false);
@@ -43,30 +110,35 @@ function ItemPic({ src, size = 256 }) {
 // ---- the reel ----
 function Reel({ result, onDone }) {
   const strip = useRef(), box = useRef();
+  const [landed, setLanded] = useState(false);
   useEffect(() => {
     const width = box.current.clientWidth;
-    const target = result.win * CARD + CARD * (0.12 + Math.random() * 0.76) - width / 2;
+    // Stop somewhere on the winning card, not always the middle (like the game).
+    const target = result.win * CARD + CARD * (0.08 + Math.random() * 0.84) - width / 2;
     const start = performance.now();
-    let last = -1, frame;
-    // Fast start, long slow end like CS2's case reel.
-    const ease = t => 1 - Math.pow(1 - t, 4.2);
+    let last = -1, lastX = 0, frame;
+    // Quick start, long slow end: CS2's reel slows down over its last few seconds.
+    const ease = t => 1 - Math.pow(1 - t, 4.6);
     const step = now => {
       const t = Math.min(1, (now - start) / SPIN_MS);
       const x = target * ease(t);
-      strip.current.style.transform = `translateX(${-x}px)`;
+      strip.current.style.transform = `translate3d(${-x}px,0,0)`;
+      // Motion blur while it's fast.
+      const speed = x - lastX;
+      lastX = x;
+      strip.current.style.filter = speed > 18 ? `blur(${Math.min(3, speed / 22).toFixed(1)}px)` : "none";
       const under = Math.floor((x + width / 2) / CARD);
-      if (under !== last) { last = under; if (t < 1) tick(); }
+      if (under !== last) { last = under; if (t < 1) sound.tick(); }
       if (t < 1) frame = requestAnimationFrame(step);
-      else setTimeout(onDone, 450);
+      else { setLanded(true); setTimeout(onDone, 1100); }
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, []);
-  return html`<div class="reel" ref=${box}>
+  return html`<div class=${"reel" + (landed ? " landed" : "")} ref=${box}>
     <div class="reel-strip" ref=${strip}>
-      ${result.reel.map((r, i) => html`<div key=${i} class=${"reel-card" + (r.rare ? " rare" : "")} style=${`--c:${r.color}`}>
+      ${result.reel.map((r, i) => html`<div key=${i} class=${"reel-card" + (r.rare ? " rare" : "") + (landed && i === result.win ? " winner" : "")} style=${`--c:${r.color}`}>
         <div class="pic">${r.rare ? html`<span class="rare-star">★</span>` : html`<${ItemPic} src=${r.image} size=${256} />`}</div>
-        <div class="name">${r.name}</div>
       </div>`)}
     </div>
     <div class="reel-marker"></div>
@@ -75,7 +147,7 @@ function Reel({ result, onDone }) {
 
 function Reveal({ view, cur, onAgain, onBack, onInventory }) {
   const item = view.item;
-  useEffect(() => fanfare(item.color), []);
+  useEffect(() => sound.reveal(item.color), []);
   const title = (item.souvenir ? "Souvenir " : "") + (item.statTrak && item.kind === "skin" ? "StatTrak™ " : "") + item.name;
   return html`<div class="reveal" style=${`--c:${item.color}`}>
     <div class="reveal-glow"></div>
@@ -100,9 +172,11 @@ function CaseSheet({ id, close }) {
   const [phase, setPhase] = useState("view"); // view | spin | reveal
   const [result, setResult] = useState(null);
   const open = async () => {
-    try { audio ??= new AudioContext(); audio.resume?.(); } catch { /* no sound */ }
-    const r = await call("cases.open", id).catch(() => null);
-    if (!r) return;
+    try { ctx(); } catch { /* no sound */ }
+    setPhase("unlock");
+    sound.unlock();
+    const [r] = await Promise.all([call("cases.open", id).catch(() => null), new Promise(ok => setTimeout(ok, 900))]);
+    if (!r) { setPhase("view"); return; }
     setResult(r);
     setPhase("spin");
   };
@@ -113,6 +187,7 @@ function CaseSheet({ id, close }) {
       <div class="grow"><h2>${contents.name}</h2><div class="faint small">${TYPE_NAMES[contents.type] ?? contents.type}</div></div>
       <${Button} kind="plain" icon="x" onClick=${() => close(undefined)} title="Close" />
     </div>
+    ${phase === "unlock" && html`<div class="case-unlocking"><div class="pic"><${ItemPic} src=${contents.image} size=${512} /></div></div>`}
     ${phase === "spin" && html`<${Reel} result=${result} onDone=${() => setPhase("reveal")} />`}
     ${phase === "reveal" && html`<${Reveal} view=${result.item} cur=${contents.currency} onAgain=${open} onBack=${() => setPhase("view")}
       onInventory=${() => { close(undefined); navigate("inventory"); }} />`}
@@ -142,6 +217,7 @@ function CaseSheet({ id, close }) {
 export function CasesPage() {
   const [state] = useApi("cases.state");
   const [type, setType] = useState("Case");
+  const [mute, setMute] = useState(isMuted());
   const [q, setQ] = useState("");
   if (!state) return html`<${Page} title="Cases" />`;
 
@@ -158,6 +234,7 @@ export function CasesPage() {
   return html`<${Page} title="Cases" subtitle=${html`${state.opened} opened · spent ${money(state.spent, cur)} · unboxed ${money(state.inventoryValue, cur)} ·
         <span class=${profit >= 0 ? "profit" : "loss"}>${profit >= 0 ? "+" : "−"}${money(Math.abs(profit), cur)}</span>`}
       actions=${html`
+        <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
         <${Button} icon="skins" onClick=${() => navigate("inventory")}>Inventory (${state.inventoryCount})<//>`}>
     ${state.dbEmpty

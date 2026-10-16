@@ -29,7 +29,7 @@ public partial class Api
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
     public record InventoryItem(string Uid, string Kind, string Name, string Image, string Grade, string Color,
         ushort Def, int Paint, float Wear, int Seed, bool StatTrak, bool Souvenir, string? Phase, string CaseName,
-        int CollectibleId, DateTime Opened, string? ItemId = null);
+        int CollectibleId, DateTime Opened, string? ItemId = null, string? Team = null);
 
     public record ReelItem(string Name, string Image, string Color, bool Rare);
     public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item, double Cost);
@@ -200,6 +200,10 @@ public partial class Api
                 break;
             case "pin": loadout.Pin = 0; break;
             case "music": loadout.MusicKit = 0; break;
+            case "agent":
+                if (loadout.AgentCT == item.ItemId) loadout.AgentCT = null;
+                if (loadout.AgentT == item.ItemId) loadout.AgentT = null;
+                break;
         }
         store.Save();
         Toast("Unequipped.");
@@ -238,6 +242,7 @@ public partial class Api
                       && (!IsKnifeType(i.Def) || loadout.Knife == i.Def) && (!IsGloveType(i.Def) || loadout.Gloves == i.Def),
             "pin" => loadout.Pin == i.CollectibleId && i.CollectibleId > 0,
             "music" => loadout.MusicKit == i.CollectibleId && i.CollectibleId > 0,
+            "agent" => i.ItemId != null && (loadout.AgentCT == i.ItemId || loadout.AgentT == i.ItemId),
             _ => false,
         };
         var name = i.Name.Replace("★", "").Trim();
@@ -252,7 +257,7 @@ public partial class Api
 
     private static string KindName(string kind) => kind switch
     {
-        "sticker" => "Sticker", "patch" => "Patch", "graffiti" => "Graffiti", "music" => "Music Kit", "pin" => "Pin", "charm" => "Charm", _ => "Item",
+        "agent" => "Agent", "sticker" => "Sticker", "patch" => "Patch", "graffiti" => "Graffiti", "music" => "Music Kit", "pin" => "Pin", "charm" => "Charm", _ => "Item",
     };
 
     /// <summary>Puts an unboxed item on: weapon skin, knife or gloves into the loadout; pin or music kit too.</summary>
@@ -275,6 +280,10 @@ public partial class Api
                 break;
             case "music" when item.CollectibleId > 0:
                 loadout.MusicKit = (ushort)item.CollectibleId;
+                break;
+            case "agent" when item.ItemId != null:
+                if (item.Team == "CT") loadout.AgentCT = item.ItemId;
+                else loadout.AgentT = item.ItemId;
                 break;
             default:
                 throw new ApiException(item.Kind == "sticker" || item.Kind == "patch"
@@ -352,5 +361,93 @@ public partial class Api
     private void RequireAdmin(string what)
     {
         if (UnboxOnly) throw new ApiException($"{what} needs the admin code (Cases page). Without it, skins come from opening cases.");
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Admin: put any item into the inventory (Inventory page › Add Item)
+    // ---------------------------------------------------------------------------------------------
+
+    public record CatalogItem(string Kind, string Key, string Name, string Image, string Grade, string Color,
+        ushort Def, int Paint, float Min, float Max, bool CanStatTrak, int Id, string? Team, string? Model);
+
+    public record CatalogQuery(string? Kind, string? Search);
+
+    [Call("inventory.catalog")]
+    private List<CatalogItem> Catalog(CatalogQuery q)
+    {
+        RequireAdmin("Adding items");
+        var db = App.Db;
+        var words = (q.Search ?? "").ToLowerInvariant().Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        bool Match(string name) => words.All(w => name.Contains(w, StringComparison.OrdinalIgnoreCase));
+        IEnumerable<CatalogItem> list = q.Kind switch
+        {
+            "sticker" => db.Stickers.Where(s => Match(s.Name)).OrderByDescending(s => s.Id)
+                .Select(s => new CatalogItem("sticker", $"sticker-{s.Id}", "Sticker | " + s.Name, s.Image, s.Rarity, s.RarityColor, 0, 0, 0, 0, false, s.Id, null, null)),
+            "agent" => db.Agents.Where(a => Match(a.Name))
+                .Select(a => new CatalogItem("agent", a.Model, a.Name, a.Image, a.Rarity, a.RarityColor, 0, 0, 0, 0, false, 0, a.Team, a.Model)),
+            "pin" => db.Pins.Where(p => Match(p.Name))
+                .Select(p => new CatalogItem("pin", $"collectible-{p.Id}", p.Name, p.Image, p.Rarity, p.RarityColor, 0, 0, 0, 0, false, p.Id, null, null)),
+            "music" => db.MusicKits.Where(m => Match(m.Name))
+                .Select(m => new CatalogItem("music", $"music_kit-{m.Id}", "Music Kit | " + m.Name, m.Image, m.Rarity, m.RarityColor, 0, 0, 0, 0, true, m.Id, null, null)),
+            _ => db.Skins.Where(s => Match(s.FullName))
+                .OrderBy(s => s.Weapon).ThenBy(s => s.DisplayFinish)
+                .Select(s => new CatalogItem("skin", $"skin-{s.DefIndex}-{s.Paint}", (IsKnifeType(s.DefIndex) || IsGloveType(s.DefIndex) ? "★ " : "") + s.FullName,
+                    s.Image, s.Rarity, s.RarityColor, s.DefIndex, s.Paint, s.MinFloat, s.MaxFloat, s.CanStatTrak, 0, null, null))
+                // Vanilla knives too.
+                .Concat(db.Weapons.Where(w => w.Category == "Knives" && Match(w.Name))
+                    .Select(w => new CatalogItem("skin", $"skin-{w.DefIndex}-0", "★ " + w.Name, w.Image, "Covert", "#eb4b4b", w.DefIndex, 0, 0, 0, true, 0, null, null))),
+        };
+        return list.Take(180).ToList();
+    }
+
+    /// <summary>One catalog entry by its key ("skin-7-44", "sticker-123", an agent model, "collectible-6110", "music_kit-32").</summary>
+    private CatalogItem? ResolveCatalog(string kind, string key)
+    {
+        var db = App.Db;
+        var parts = key.Split('-');
+        int Num(int i) => int.TryParse(parts.ElementAtOrDefault(i), out var n) ? n : -1;
+        switch (kind)
+        {
+            case "skin":
+                if (parts.Length != 3 || !ushort.TryParse(parts[1], out var d)) return null;
+                var paint = Num(2);
+                var star = IsKnifeType(d) || IsGloveType(d) ? "★ " : "";
+                if (paint == 0 && IsKnifeType(d) && db.Weapon(d) is { } knife)
+                    return new CatalogItem("skin", key, "★ " + knife.Name, knife.Image, "Covert", "#eb4b4b", d, 0, 0, 0, true, 0, null, null);
+                return db.Find(d, paint) is { } s
+                    ? new CatalogItem("skin", key, star + s.FullName, s.Image, s.Rarity, s.RarityColor, d, paint, s.MinFloat, s.MaxFloat, s.CanStatTrak, 0, null, null)
+                    : null;
+            case "sticker":
+                return db.Sticker(Num(1)) is { } st
+                    ? new CatalogItem("sticker", key, "Sticker | " + st.Name, st.Image, st.Rarity, st.RarityColor, 0, 0, 0, 0, false, st.Id, null, null) : null;
+            case "agent":
+                return db.Agents.FirstOrDefault(x => x.Model == key) is { } ag
+                    ? new CatalogItem("agent", key, ag.Name, ag.Image, ag.Rarity, ag.RarityColor, 0, 0, 0, 0, false, 0, ag.Team, ag.Model) : null;
+            case "pin":
+                return db.Pins.FirstOrDefault(x => x.Id == Num(1)) is { } pin
+                    ? new CatalogItem("pin", key, pin.Name, pin.Image, pin.Rarity, pin.RarityColor, 0, 0, 0, 0, false, pin.Id, null, null) : null;
+            case "music":
+                return db.MusicKits.FirstOrDefault(x => x.Id == Num(1)) is { } kit
+                    ? new CatalogItem("music", key, "Music Kit | " + kit.Name, kit.Image, kit.Rarity, kit.RarityColor, 0, 0, 0, 0, true, kit.Id, null, null) : null;
+        }
+        return null;
+    }
+
+    public record AddItemArgs(string Kind, string Key, float Wear, int Seed, bool StatTrak, bool Souvenir);
+
+    [Call("inventory.add")]
+    private InventoryView AddToInventory(AddItemArgs a)
+    {
+        RequireAdmin("Adding items");
+        var c = ResolveCatalog(a.Kind, a.Key);
+        if (c == null) throw new ApiException("Unknown item.");
+        var wear = c.Kind == "skin" && c.Paint != 0 ? Math.Clamp(a.Wear, Math.Max(c.Min, 0.000001f), Math.Min(c.Max, 0.999999f)) : 0;
+        var item = new InventoryItem(Guid.NewGuid().ToString("N")[..12], c.Kind, c.Name, c.Image, c.Grade, c.Color,
+            c.Def, c.Paint, wear, Math.Clamp(a.Seed, 0, 1000), a.StatTrak && c.CanStatTrak, a.Souvenir && c.Kind == "skin", null, "Admin",
+            c.Kind is "pin" or "music" ? c.Id : 0, DateTime.UtcNow, c.Kind == "agent" ? c.Model : c.Key, c.Team);
+        Inventory().Insert(0, item);
+        SaveInventory();
+        App.NotifyChanged();
+        return View(item, ReadLoadout());
     }
 }

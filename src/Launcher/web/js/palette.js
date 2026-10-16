@@ -26,7 +26,6 @@ async function actions(navigate) {
     for (const p of play.presets)
       list.push({ label: p.title, note: p.subtitle, icon: "bolt", group: "Quick starts", run: () => tryCall("play.preset", { title: p.title, saved: p.saved }) });
   }
-  list.push({ label: "Import an item (!gen code or inspect link)", icon: "import", group: "Skins", run: () => { navigate("skins"); setTimeout(() => window.dispatchEvent(new Event("open-import")), 300); } });
   list.push({ label: "Full screen on / off (F11)", icon: "sparkles", group: "Window", run: () => tryCall("app.fullscreen") });
   list.push({ label: "Check for component updates", icon: "refresh", group: "Setup", run: () => tryCall("setup.checkUpdates") });
   return list;

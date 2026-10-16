@@ -6,7 +6,6 @@ import { openPalette } from "./palette.js";
 import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
-import { SkinsPage } from "./pages/skins.js";
 import { HackerPage } from "./pages/hacker.js";
 import { FriendsPage } from "./pages/friends.js";
 import { WorkshopPage } from "./pages/workshop.js";
@@ -75,7 +74,7 @@ function App() {
   useEffect(() => { if (page == null && state) setPageState(state.page); }, [state]);
 
   // Every page's data is ready before you click it: no empty page while it loads.
-  useEffect(() => prefetch(["play.state", "skins.state", "hacker.state", "friends.state"]), []);
+  useEffect(() => prefetch(["play.state", "cases.inventory", "hacker.state", "friends.state"]), []);
 
   const setPage = id => {
     setPageState(id);
@@ -117,8 +116,8 @@ function App() {
     return () => window.removeEventListener("pointermove", move);
   }, []);
 
-  // The free skin editor: only from the Inventory page with the admin code (not in the sidebar).
-  const Current = page === "skins" ? SkinsPage : pages.find(p => p.id === page)?.component;
+  // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page).
+  const Current = pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component;
   return html`<div class="app">
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>

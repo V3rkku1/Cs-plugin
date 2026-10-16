@@ -1,7 +1,7 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
-import { html, useState } from "../vendor/preact-htm.js";
-import { tryCall, useApi, img } from "../api.js";
-import { Page, Button, Segmented, Select, TextField, Icon, confirm } from "../ui.js";
+import { html, useState, useEffect } from "../vendor/preact-htm.js";
+import { call, tryCall, useApi, img } from "../api.js";
+import { Page, Button, Segmented, Select, TextField, Icon, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
 import { navigate } from "../app.js";
 
 const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
@@ -52,6 +52,64 @@ function Inspect({ v, cur, close }) {
   </aside>`;
 }
 
+const KINDS = [{ value: "skin", label: "Skins" }, { value: "sticker", label: "Stickers" }, { value: "agent", label: "Agents" },
+  { value: "pin", label: "Pins" }, { value: "music", label: "Music Kits" }];
+
+/** Admin: search any item and put it in the inventory, with the float, pattern and StatTrak you pick. */
+function AddItemSheet({ close }) {
+  const [kind, setKind] = useState("skin");
+  const [q, setQ] = useState("");
+  const [list, setList] = useState(null);
+  const [pick, setPick] = useState(null);
+  const [wear, setWear] = useState(0.01);
+  const [seed, setSeed] = useState(0);
+  const [st, setSt] = useState(false);
+  const [sv, setSv] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => call("inventory.catalog", { kind, search: q }).then(setList, () => setList([])), 180);
+    return () => clearTimeout(t);
+  }, [kind, q]);
+  const choose = c => { setPick(c); setWear(c.paint ? Math.max(c.min, Math.min(c.max, 0.01)) : 0); setSeed(0); setSt(false); setSv(false); };
+  const add = async () => {
+    const v = await call("inventory.add", { kind: pick.kind, key: pick.key, wear, seed, statTrak: st, souvenir: sv }).catch(() => null);
+    if (v) close(v.item.uid);
+  };
+  return html`<div class="picker add-item">
+    <div class="picker-head"><h2>Add Item</h2><span class="faint small">Admin: any item, straight into your inventory.</span></div>
+    <div class="hstack picker-filters">
+      <${Segmented} options=${KINDS} value=${kind} onChange=${v => { setKind(v); setPick(null); }} />
+      <div class="grow"><${TextField} icon="search" placeholder="Search: ak redline, karambit fade, sticker…" value=${q} onInput=${setQ} autofocus /></div>
+    </div>
+    ${pick ? html`<div class="add-detail" style=${`--c:${pick.color}`}>
+        <div class="inspect-pic"><${Pic} src=${pick.image} size=${512} /></div>
+        <div class="add-form">
+          <div class="inspect-grade">${pick.grade}</div>
+          <h2 class="inspect-finish">${pick.name}</h2>
+          ${pick.kind === "skin" && pick.paint > 0 && html`
+            <div class="inspect-row"><span>Float · ${wearName(wear)}</span><b class="mono">${wear.toFixed(6)}</b></div>
+            <${Slider} min=${pick.min} max=${pick.max} step=${0.0001} value=${wear} onChange=${setWear} format=${v => v.toFixed(4)} />
+            <${WearBar} wear=${wear} />
+            <div class="inspect-row"><span>Pattern</span><${Stepper} value=${seed} min=${0} max=${1000} onChange=${setSeed} /></div>`}
+          ${pick.kind === "skin" && html`
+            <div class="inspect-row"><span>StatTrak™</span><${Toggle} value=${st} onChange=${v => { setSt(v); if (v) setSv(false); }} /></div>
+            ${!pick.name.startsWith("★") && html`<div class="inspect-row"><span>Souvenir</span><${Toggle} value=${sv} onChange=${v => { setSv(v); if (v) setSt(false); }} /></div>`}`}
+          <div class="hstack" style="margin-top:12px">
+            <${Button} onClick=${() => setPick(null)}>Back<//>
+            <${Button} kind="prominent" icon="plus" onClick=${add}>Add to Inventory<//>
+          </div>
+        </div>
+      </div>`
+      : html`<div class="picker-grid scroll">
+        ${list == null ? html`<div class="empty small">Loading…</div>` : list.length === 0 ? html`<div class="empty small">Nothing found.</div>`
+          : list.map(c => html`<button key=${c.key} class="cs-item" style=${`--c:${c.color}`} onClick=${() => choose(c)} title=${c.name}>
+              <div class="pic"><${Pic} src=${c.image} size=${256} /></div>
+              <div class="text"><div class="fin">${c.name}</div><div class="weapon">${c.grade}${c.team ? ` · ${c.team}` : ""}</div></div>
+            </button>`)}
+      </div>`}
+    <div class="picker-foot"><div class="grow"></div><${Button} onClick=${() => close(undefined)}>Close<//></div>
+  </div>`;
+}
+
 export function InventoryPage() {
   const [state] = useApi("cases.inventory");
   const [tab, setTab] = useState("all");
@@ -72,12 +130,16 @@ export function InventoryPage() {
   };
   items = [...items].sort(by[sort]);
   const selected = state.items.find(v => v.item.uid === open);
+  const addItem = async () => {
+    const added = await sheet(close => html`<${AddItemSheet} close=${close} />`, { wide: true });
+    if (added) setOpen(added);
+  };
 
   return html`<${Page} title="Inventory" class="inventory-page"
       subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}`}
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
-        ${state.admin && html`<${Button} icon="skins" onClick=${() => navigate("skins")} title="Admin: pick any skin">All Skins<//>`}`}>
+        ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
         { value: "graphics", label: "Stickers & Graffiti" }, { value: "other", label: "Collectibles" }]} value=${tab} onChange=${setTab} />

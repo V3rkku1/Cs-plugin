@@ -168,7 +168,9 @@ graffiti. Nothing touches a Steam inventory.
 **INVENTORY page** (the old Skins tab): what you unboxed, laid out like CS2's inventory: All Items,
 Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
 an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
-came from) and **Equip** / **Unequip** it. With the admin code, *All Skins* opens the free skin editor.
+came from) and **Equip** / **Unequip** it. It replaces the old Skins page. With the admin code, **Add Item**
+puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
+pattern, StatTrak or Souvenir you pick.
 
 **Prices** are real market prices: Skinport's public price list (refreshed every 12 hours, cached), with
 the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page). Opening a weapon case
@@ -177,8 +179,8 @@ of what you spent against what you unboxed.
 
 **Unbox only and the admin code:** by default the Skins page only offers what you unboxed on the Cases page
 (plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on
-your server (`!case` still works). The owner's admin code (Cases page › *Admin code*) unlocks every skin,
-knife, glove, sticker, charm and agent on that PC; *back to unbox only* locks it again.
+your server (`!case` still works). The owner's admin code (Cases page › *Admin code*) turns on Inventory ›
+*Add Item* (any skin, knife, glove, sticker, agent, pin or music kit) on that PC; *back to unbox only* locks it again.
 
 **Cases in game:** type `!cases` to list the real CS2 weapon cases and `!case <number>` to open one. It
 spins on your screen with Valve's odds (knife or gloves 0.26%) and equips what you unbox with a random
