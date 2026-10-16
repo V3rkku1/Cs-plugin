@@ -29,9 +29,9 @@ Pick one:
   (no admin prompt) into `%LocalAppData%\Programs\LAN Skin Tester`, adds a Start menu shortcut and an
   optional desktop shortcut, and appears in Windows' *Installed apps*, so it can be uninstalled
   there. Uninstalling keeps your loadouts and settings.
-- `LanSkinTesterLauncher.exe` (about 50 MB): the same launcher as one portable file.
-- `LanSkinTesterLauncher-small.zip` (about 0.1 MB): extract it and run `LanSkinTesterLauncher.exe`.
-  It needs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
+- `LanSkinTesterLauncher.exe` (about 65 MB): the same launcher as one portable file.
+- `LanSkinTesterLauncher-small.zip` (about 1 MB): extract it and run `LanSkinTesterLauncher.exe`.
+  It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
 The launcher has four pages: Play, Skins, Friends and Setup. On first start it opens on **SETUP**.
