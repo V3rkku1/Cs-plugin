@@ -71,9 +71,6 @@ function App() {
   // Every page's data is ready before you click it: no empty page while it loads.
   useEffect(() => prefetch(["play.state", "skins.state", "hacker.state", "friends.state"]), []);
 
-  // The backdrop's glow takes the page's colour.
-  useEffect(() => { if (page) document.querySelector(".backdrop")?.setAttribute("data-page", page); }, [page]);
-
   const setPage = id => {
     setPageState(id);
     tryCall("app.page", id);

@@ -183,6 +183,8 @@ export function LivePage() {
             <${Toggle} value=${s.headshotOnly} onChange=${v => set("headshotOnly", v)} /><//>
           <${Row} icon=${{ name: "target", color: "orange" }} title="Pistols Only" subtitle="Deagle, Tec-9, Five-SeveN, USP-S, Glock… other guns can't be bought or picked up">
             <${Toggle} value=${s.pistolsOnly} onChange=${v => set("pistolsOnly", v)} /><//>
+          <${Row} icon=${{ name: "refresh", color: "green" }} title="Reload on Kill" subtitle=${s.infiniteAmmo ? "Infinite Ammo already never empties the magazine" : "A kill refills your magazine at once · spare ammo never runs out"}>
+            <${Toggle} value=${s.reloadOnKill} onChange=${v => set("reloadOnKill", v)} /><//>
           <${Row} icon=${{ name: "target", color: "pink" }} title="Damage Report" subtitle="Chat shows the damage you deal">
             <${Toggle} value=${s.showDamage} onChange=${v => set("showDamage", v)} /><//>
         <//>

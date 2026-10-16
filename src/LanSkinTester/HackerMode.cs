@@ -288,6 +288,8 @@ public partial class LanSkinTester
             _triggers.Clear();
             _silentRestore.Clear();
             _attackHeld.Clear();
+            _lastShotTick.Clear();
+            _forcedSince.Clear();
             _bhopReleased.Clear();
             _smokes.Clear();
         });
@@ -310,6 +312,8 @@ public partial class LanSkinTester
             _triggers.Remove(slot);
             _silentRestore.Remove(slot);
             _attackHeld.Remove(slot);
+            _lastShotTick.Remove(slot);
+            _forcedSince.Remove(slot);
             _bhopReleased.Remove(slot);
         });
         RegisterEventHandler<EventRoundStart>(OnHackRoundStart);
@@ -520,6 +524,12 @@ public partial class LanSkinTester
     private HookResult OnHackWeaponFire(EventWeaponFire @event, GameEventInfo info)
     {
         var player = @event.Userid;
+        if (player is { IsValid: true }) NoteRealShot(player);
+        if (IsHacker(player) && Has(player!, Power.Aimbot) && AimStyleOf(player!) == AimStyle.Silent)
+        {
+            try { SilentShot(player!); }
+            catch (Exception ex) { Logger.LogDebug(ex, "Silent aim shot"); }
+        }
         if (!IsHacker(player) || !Has(player!, Power.Ammo)) return HookResult.Continue;
 
         Server.NextFrame(() =>
@@ -599,6 +609,7 @@ public partial class LanSkinTester
                 var triggerFire = false;
                 if (!menu && Has(hacker, Power.Trigger)) triggerFire = Triggerbot(hacker, pawn);
                 else _triggers.Remove(hacker.Slot);
+                TriggerFallback(hacker, pawn, triggerFire);
 
                 var fire = triggerFire;
                 if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
@@ -940,12 +951,7 @@ public partial class LanSkinTester
 
         if (style == AimStyle.Silent)
         {
-            // The client owns its view, so a truly hidden shot isn't possible from the server. Snap only
-            // while firing; OnHackTick puts the player's own view back when they stop.
-            var shooting = triggerWantsShot || (hacker.Buttons & PlayerButtons.Attack) != 0;
-            if (!shooting) return false;
-            _silentRestore.TryAdd(hacker.Slot, (currentPitch, currentYaw));
-            TurnView(pawn, goal.Pitch, goal.Yaw);
+            // The view never moves: each real shot hits the target server-side (SilentShot, on weapon_fire).
             return false;
         }
 

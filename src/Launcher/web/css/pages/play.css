@@ -20,7 +20,7 @@
   width: 640px;
   height: 420px;
   border-radius: 50%;
-  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 34%, transparent), transparent);
+  background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 12%, transparent), transparent);
   pointer-events: none;
   z-index: 0;
   transition: background 0.6s var(--ease);

@@ -127,8 +127,7 @@ The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!
 reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
 CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
-**Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (solid panels instead of
-glass) and *Reduce Motion* (no animations). They apply right away.
+**Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (fully opaque panels) and *Reduce Motion* (no animations). They apply right away.
 
 **Agents, pins and music kits:** Skins › *Agents, Pins & Music* sets your agent for each side, a
 collectible pin on the scoreboard and a music kit (round music and your MVP anthem, from the next round).
@@ -138,6 +137,9 @@ The data comes from ByMykel's CSGO-API; press *Update* on Setup's item lists onc
 only headshots (and knives) hurt players, and only pistols (Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250,
 CZ75, Dualies, R8, P2000) can be bought; other guns are greyed out in the buy menu, refunded if bought
 and taken away if picked up. Bots get pistols too.
+
+**Reload on kill** (Live Server › Rules, on in the *Pistol HS Deathmatch* quick start): a kill refills
+your magazine at once, and spare ammo never runs out.
 
 **Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
 
@@ -180,8 +182,9 @@ and taken away if picked up. Bots get pistols too.
   - *Skeleton ESP:* a stick figure on the body (crouch and facing). The server has no client bone
     overlay, so this is drawn in the world and only sent to hackers.
   - *Name tags:* name, HP, armor, gun and grenades (including the bomb) floating above each player.
-  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** aims the
-    shot on the server pawn and puts your own view back. **Rage** snaps onto the target and shoots.
+  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** never moves
+    your view: when a shot of yours would miss, the enemy nearest your crosshair (inside the aim area)
+    takes the hit. **Rage** snaps onto the target and shoots.
     The triggerbot presses attack when an enemy is under the crosshair, after a short random delay.
   - *Body:* head, neck or chest. Legit and silent still miss by a little at low aggression.
   - *Aim at:* **closest enemy**, **nearest crosshair**, **lowest HP**, or **highest threat** (the enemy
@@ -195,7 +198,8 @@ and taken away if picked up. Bots get pistols too.
     Otherwise a line-of-sight trace from your eyes to their head or chest has to be clear (walls,
     floors, props and glass block it; smokes don't).
   - *Triggerbot:* fires the moment an enemy model sits on your crosshair, after a small random delay
-    so it is less instant. Higher aggression shortens that delay.
+    so it is less instant. Higher aggression shortens that delay. If CS2 ignores the fire press the
+    server sends, the plugin shoots for you instead (same damage, ammo and fire rate as your gun).
   - *Damage boost:* 2× damage (off by default).
   - *Recoil control:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
     tick, and the server-wide recoil cvars are set too.

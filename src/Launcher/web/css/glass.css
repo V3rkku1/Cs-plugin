@@ -25,20 +25,24 @@
   --indigo: #5e5ce6;
 
   --text: #ffffff;
-  --text-2: rgba(235, 235, 245, 0.68);
-  --text-3: rgba(235, 235, 245, 0.42);
+  --text-2: rgba(235, 235, 245, 0.82);
+  --text-3: rgba(235, 235, 245, 0.60);
   --hairline: rgba(255, 255, 255, 0.10);
+
+  /* The window's background: solid, no moving light behind the panels. */
+  --bg: #0f1117;
 
   /* Glass */
   /* Dark-mode glass: a smoky tint keeps text readable over the bright backdrop. */
-  --glass-tint: rgba(34, 36, 52, 0.42);
-  --glass-tint-2: rgba(20, 22, 34, 0.50);
+  /* Panels are solid now (over a solid background a see-through blur only made text harder to read). */
+  --glass-tint: #1a1d26;
+  --glass-tint-2: #171a22;
   --glass-strong: rgba(255, 255, 255, 0.14);
-  --glass-blur: 30px;
-  --glass-sat: 185%;
-  --rim-hi: rgba(255, 255, 255, 0.55);
+  --glass-blur: 0px;
+  --glass-sat: 100%;
+  --rim-hi: rgba(255, 255, 255, 0.12);
   --rim-lo: rgba(255, 255, 255, 0.06);
-  --shadow: 0 18px 50px rgba(0, 0, 0, 0.35), 0 2px 8px rgba(0, 0, 0, 0.25);
+  --shadow: 0 8px 24px rgba(0, 0, 0, 0.30), 0 1px 3px rgba(0, 0, 0, 0.25);
 
   --r-xl: 30px;
   --r-lg: 22px;
@@ -73,7 +77,7 @@ html, body {
   margin: 0;
   height: 100%;
   overflow: hidden;
-  background: #05060c;
+  background: var(--bg);
   color: var(--text);
   font-family: var(--font);
   font-size: calc(14px * var(--text-scale));
@@ -90,88 +94,14 @@ button { cursor: pointer; }
 ::selection { background: color-mix(in srgb, var(--blue) 55%, transparent); }
 
 /* -------------------------------------------------------------------------------------------- */
-/* Backdrop: slow, colourful light for the glass to refract                                     */
+/* Backdrop: one calm solid colour, so text and panels are easy to read                        */
 /* -------------------------------------------------------------------------------------------- */
 
-/* The glow colour follows the page (app.js sets data-page); registered so it fades between pages. */
-@property --accent { syntax: "<color>"; inherits: true; initial-value: #2e6bff; }
-
 .backdrop {
-  --accent: #2e6bff;
   position: fixed;
   inset: 0;
   z-index: 0;
-  overflow: hidden;
-  background:
-    radial-gradient(90vmax 60vmax at 85% -10%, #1b2a6b 0%, transparent 60%),
-    radial-gradient(70vmax 55vmax at -10% 110%, #3a1450 0%, transparent 60%),
-    linear-gradient(160deg, #070a18 0%, #0b0d1c 45%, #120a14 100%);
-  transition: --accent 1.4s var(--ease);
-}
-.backdrop[data-page="play"] { --accent: #ff7a1a; }
-.backdrop[data-page="live"] { --accent: #2e6bff; }
-.backdrop[data-page="skins"] { --accent: #b43cff; }
-.backdrop[data-page="hacker"] { --accent: #30d158; }
-.backdrop[data-page="friends"] { --accent: #00c2d1; }
-.backdrop[data-page="setup"] { --accent: #5e5ce6; }
-
-/* Soft light. Sized to the screen (vmax) so big and zoomed windows are covered too. The gradients
-   are already soft, so no blur filter: big blurred layers made switching pages stutter. */
-.backdrop .blob {
-  position: absolute;
-  border-radius: 50%;
-  opacity: 0.75;
-  mix-blend-mode: screen;
-  will-change: transform;
-  animation: drift 36s ease-in-out infinite alternate;
-}
-.backdrop .b1 { width: 50vmax; height: 50vmax; left: 4%; top: -18%; background: radial-gradient(circle closest-side, #ff7a1a 0%, rgba(255, 61, 0, 0.55) 40%, rgba(255, 61, 0, 0.12) 70%, transparent 100%); animation-duration: 42s; }
-.backdrop .b2 { width: 60vmax; height: 60vmax; right: -14%; top: 10%; background: radial-gradient(circle closest-side, #2e6bff 0%, rgba(16, 55, 200, 0.55) 42%, rgba(16, 55, 200, 0.12) 72%, transparent 100%); animation-duration: 50s; animation-delay: -12s; }
-.backdrop .b3 { width: 46vmax; height: 46vmax; left: 28%; bottom: -26%; background: radial-gradient(circle closest-side, #b43cff 0%, rgba(106, 17, 203, 0.55) 42%, rgba(106, 17, 203, 0.12) 72%, transparent 100%); animation-duration: 46s; animation-delay: -24s; }
-.backdrop .b4 { width: 32vmax; height: 32vmax; left: -8%; top: 38%; background: radial-gradient(circle closest-side, #00d1b2 0%, rgba(0, 122, 138, 0.5) 45%, transparent 100%); opacity: 0.55; animation-duration: 38s; animation-delay: -6s; }
-
-/* The page's colour, breathing slowly in the middle. */
-.backdrop .accent {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(60vmax 45vmax at 62% 42%, color-mix(in srgb, var(--accent) 42%, transparent) 0%, transparent 72%);
-  mix-blend-mode: screen;
-  animation: breathe 14s ease-in-out infinite alternate;
-}
-
-/* A faint dot grid, strongest in the middle: depth for the glass, like a tactical map. */
-.backdrop .grid {
-  position: absolute;
-  inset: 0;
-  background-image: radial-gradient(rgba(255, 255, 255, 0.09) 1px, transparent 1.4px);
-  background-size: 26px 26px;
-  -webkit-mask-image: radial-gradient(ellipse 70% 65% at 58% 42%, #000 0%, transparent 100%);
-  mask-image: radial-gradient(ellipse 70% 65% at 58% 42%, #000 0%, transparent 100%);
-}
-
-/* Darker edges keep text readable and frame the window. */
-.backdrop .vignette {
-  position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 85% 80% at 55% 45%, transparent 55%, rgba(2, 3, 8, 0.45) 100%);
-}
-
-.backdrop .grain {
-  position: absolute;
-  inset: 0;
-  opacity: 0.07;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>");
-}
-
-@keyframes drift {
-  0% { transform: translate(0, 0) scale(1); }
-  33% { transform: translate(4vmax, 3vmax) scale(1.08); }
-  66% { transform: translate(-3vmax, 5vmax) scale(0.94); }
-  100% { transform: translate(2vmax, -4vmax) scale(1.04); }
-}
-@keyframes breathe {
-  from { opacity: 0.7; transform: scale(1); }
-  to { opacity: 1; transform: scale(1.08); }
+  background: var(--bg);
 }
 
 /* -------------------------------------------------------------------------------------------- */
@@ -185,8 +115,7 @@ button { cursor: pointer; }
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   border-radius: var(--r-lg);
   box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.22),
-    inset 0 -1px 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.06),
     var(--shadow);
   isolation: isolate;
 }
@@ -198,7 +127,7 @@ button { cursor: pointer; }
   inset: 0;
   border-radius: inherit;
   padding: 1px;
-  background: linear-gradient(140deg, var(--rim-hi) 0%, rgba(255, 255, 255, 0.12) 22%, var(--rim-lo) 50%, rgba(255, 255, 255, 0.10) 80%, rgba(255, 255, 255, 0.32) 100%);
+  background: linear-gradient(180deg, var(--rim-hi), var(--rim-lo));
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
   mask-composite: exclude;
@@ -206,12 +135,8 @@ button { cursor: pointer; }
   z-index: 2;
 }
 
-/* Liquid: the backdrop bends a little at the edges (Chromium supports SVG filters here). */
-.glass.liquid {
-  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) url(#liquid-refract);
-  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat)) url(#liquid-refract);
-}
-:root.reduce-glass .glass.liquid { backdrop-filter: none; }
+/* "Liquid" panels used to bend the backdrop; with a solid background they are plain panels. */
+.glass.liquid { -webkit-backdrop-filter: none; backdrop-filter: none; }
 
 /* A soft sheen that follows the pointer over interactive glass. */
 .sheen { overflow: hidden; }
@@ -226,7 +151,7 @@ button { cursor: pointer; }
   pointer-events: none;
   z-index: 1;
 }
-.sheen:hover::after { opacity: 1; }
+.sheen:hover::after { opacity: 0.35; }
 
 /* -------------------------------------------------------------------------------------------- */
 /* App shell                                                                                     */

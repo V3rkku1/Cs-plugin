@@ -9,12 +9,37 @@ namespace LanSkinTester;
 /// Match rules the launcher can switch on:
 ///   lst_hsonly 1    only headshots (and knives) do damage between players
 ///   lst_pistols 1   pistols only: other guns can't be bought or picked up (bought ones are refunded)
+///   lst_reload_on_kill 1   a kill refills the killer's magazine at once
 /// </summary>
 public partial class LanSkinTester
 {
     private bool _headshotOnly;
     private bool _pistolsOnly;
     private bool _rulesListening;
+    private bool _reloadOnKill;
+
+    [ConsoleCommand("lst_reload_on_kill", "1 = a kill refills the killer's magazine at once")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnReloadOnKillCommand(CCSPlayerController? caller, CommandInfo cmd) => _reloadOnKill = cmd.GetArg(1) == "1";
+
+    [GameEventHandler]
+    public HookResult OnRulesKill(EventPlayerDeath @event, GameEventInfo info)
+    {
+        var killer = @event.Attacker;
+        if (!_reloadOnKill || killer is not { IsValid: true } || killer.Slot == @event.Userid?.Slot) return HookResult.Continue;
+        // Next frame: the killing shot has taken its bullet by then.
+        Server.NextFrame(() =>
+        {
+            if (!killer.IsValid || !killer.PawnIsAlive) return;
+            var weapon = killer.PlayerPawn.Value?.WeaponServices?.ActiveWeapon.Value;
+            if (weapon is not { IsValid: true }) return;
+            var max = weapon.VData?.MaxClip1 ?? 0;
+            if (max <= 0 || weapon.Clip1 >= max) return;
+            weapon.Clip1 = max;
+            Utilities.SetStateChanged(weapon, "CBasePlayerWeapon", "m_iClip1");
+        });
+        return HookResult.Continue;
+    }
 
     [ConsoleCommand("lst_hsonly", "1 = only headshots (and knives) hurt players")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]

@@ -167,6 +167,9 @@ public class ServerSettings
     public bool HeadshotOnly { get; set; }
     public bool PistolsOnly { get; set; }
 
+    /// <summary>A kill refills the gun's magazine at once, and the spare ammo never runs out.</summary>
+    public bool ReloadOnKill { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
 
@@ -396,13 +399,14 @@ public class ServerSettings
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
-        new("Pistol HS Deathmatch", "Headshots only · pistols only · 10 hard bots", s =>
+        new("Pistol HS Deathmatch", "Headshots only · pistols only · infinite ammo, reload on kill · 10 hard bots", s =>
         {
             s.Reset("Deathmatch", "de_dust2");
             s.Bots = 10;
             s.Difficulty = 2;
             s.HeadshotOnly = true;
             s.PistolsOnly = true;
+            s.ReloadOnKill = true;
         }),
         new("Rush 3v3", "Valve's tower mode · you + 2 bots vs 3", s =>
         {
@@ -428,7 +432,7 @@ public class ServerSettings
         Map = map;
         WorkshopMap = "";
         BotTeam = BotWeapons = RoundTime = 0;
-        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = false;
+        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = ReloadOnKill = false;
         MaxMoney = AllowCheats = true;
         ShowDamage = false;
         RetakeStyle = 0;
@@ -457,7 +461,7 @@ public class ServerSettings
 
     private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
 
-    private bool NeedsCheats => AllowCheats || InfiniteAmmo || BotsDontShoot || HackRecoilOrSpread;
+    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || BotsDontShoot || HackRecoilOrSpread;
 
     public string StartArguments()
     {
@@ -564,7 +568,8 @@ public class ServerSettings
 
         // Cheat-protected settings need sv_cheats 1 while they're set (and turning it off resets them).
         sb.AppendLine("sv_cheats 1");
-        sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : 0)}");
+        // 1 = the magazine never empties; 2 = spare ammo never runs out (you still reload).
+        sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : ReloadOnKill ? 2 : 0)}");
         sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
         foreach (var line in RecoilCvars()) sb.AppendLine(line);
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
@@ -639,6 +644,7 @@ public class ServerSettings
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
         sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
+        sb.AppendLine($"lst_reload_on_kill {B(ReloadOnKill)}");
         // Greys the other guns out in the buy menu; the plugin also takes away any that get through.
         sb.AppendLine($"mp_items_prohibited \"{(PistolsOnly ? string.Join(",", ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31)) : "")}\"");
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
