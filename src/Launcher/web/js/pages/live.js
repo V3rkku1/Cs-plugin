@@ -167,6 +167,10 @@ export function LivePage() {
           <${Row} icon=${{ name: "friends", color: "red" }} title="Friendly Fire"><${Toggle} value=${s.friendlyFire} onChange=${v => set("friendlyFire", v)} /><//>
           <${Row} icon=${{ name: "clock", color: "blue" }} title="Round Time" subtitle=${owns ? "This mode keeps its own round length" : "Minutes · 0 = game mode default"}>
             <${Stepper} value=${s.roundTime} min=${0} max=${60} disabled=${owns} onChange=${v => set("roundTime", v)} /><//>
+          <${Row} icon=${{ name: "crosshair", color: "red" }} title="Headshot Only" subtitle="Only headshots (and knives) hurt players">
+            <${Toggle} value=${s.headshotOnly} onChange=${v => set("headshotOnly", v)} /><//>
+          <${Row} icon=${{ name: "target", color: "orange" }} title="Pistols Only" subtitle="Deagle, Tec-9, Five-SeveN, USP-S, Glock… other guns can't be bought or picked up">
+            <${Toggle} value=${s.pistolsOnly} onChange=${v => set("pistolsOnly", v)} /><//>
           <${Row} icon=${{ name: "target", color: "pink" }} title="Damage Report" subtitle="Chat shows the damage you deal">
             <${Toggle} value=${s.showDamage} onChange=${v => set("showDamage", v)} /><//>
         <//>

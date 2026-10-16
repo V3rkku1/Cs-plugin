@@ -132,6 +132,11 @@ glass) and *Reduce Motion* (no animations). They apply right away.
 **Agents and pins:** Skins › *Agents & Pins* sets your agent for each side and a collectible pin on the
 scoreboard (data from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them).
 
+**Headshot only and pistols only** (Live Server › Rules, or the *Pistol HS Deathmatch* quick start):
+only headshots (and knives) hurt players, and only pistols (Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250,
+CZ75, Dualies, R8, P2000) can be bought; other guns are greyed out in the buy menu, refunded if bought
+and taken away if picked up. Bots get pistols too.
+
 **Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
 
 - *Spawn protection:* 2.5 seconds without damage after spawning (you look see-through); shooting ends it.

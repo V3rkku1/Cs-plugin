@@ -136,6 +136,10 @@ public class ServerSettings
     public bool BotHider { get; set; }
     public bool DeathmatchPlugin { get; set; }
 
+    /// <summary>Rules (reset by quick starts): only headshots hurt, and only pistols can be bought or picked up.</summary>
+    public bool HeadshotOnly { get; set; }
+    public bool PistolsOnly { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
 
@@ -365,6 +369,14 @@ public class ServerSettings
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
+        new("Pistol HS Deathmatch", "Headshots only · pistols only · 10 hard bots", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 10;
+            s.Difficulty = 2;
+            s.HeadshotOnly = true;
+            s.PistolsOnly = true;
+        }),
         new("Rush 3v3", "Valve's tower mode · you + 2 bots vs 3", s =>
         {
             var rush = Modes.FirstOrDefault(m => m.Name == RushMode);
@@ -389,7 +401,7 @@ public class ServerSettings
         Map = map;
         WorkshopMap = "";
         BotTeam = BotWeapons = RoundTime = 0;
-        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = false;
+        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = false;
         MaxMoney = AllowCheats = true;
         ShowDamage = false;
         RetakeStyle = 0;
@@ -538,7 +550,7 @@ public class ServerSettings
         // Retakes, Arms Race and Demolition hand out their own guns.
         var rifles = !OwnsLoadout && BotWeapons == 0;
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 && !OwnsLoadout ? 1 : 0)}");
-        sb.AppendLine($"bot_pistols_only {(BotWeapons == 1 && !OwnsLoadout ? 1 : 0)}");
+        sb.AppendLine($"bot_pistols_only {((BotWeapons == 1 || PistolsOnly) && !OwnsLoadout ? 1 : 0)}");
         sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 && !OwnsLoadout ? 1 : 0)}");
         sb.AppendLine($"bot_allow_snipers {(rifles ? 0 : 1)}");
         sb.AppendLine($"bot_allow_shotguns {(rifles ? 0 : 1)}");
@@ -597,6 +609,10 @@ public class ServerSettings
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
+        sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
+        sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
+        // Greys the other guns out in the buy menu; the plugin also takes away any that get through.
+        sb.AppendLine($"mp_items_prohibited \"{(PistolsOnly ? string.Join(",", ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31)) : "")}\"");
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
