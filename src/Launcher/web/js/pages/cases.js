@@ -170,10 +170,26 @@ function Reveal({ view, cur, onAgain, onBack, onInventory }) {
   </div>`;
 }
 
+/** "AK-47 | Redline" -> ["AK-47", "Redline"]; "★ Karambit" -> ["★ Karambit", ""]. */
+const splitName = n => { const b = n.indexOf("|"); return b < 0 ? [n, ""] : [n.slice(0, b).trim(), n.slice(b + 1).trim()]; };
+
+function ContentCard({ name, image, color, price, cur, rare, count }) {
+  const [weapon, finish] = splitName(name);
+  return html`<div class=${"content-card" + (rare ? " rare" : "")} style=${`--c:${color}`} title=${name}>
+    <div class="pic">${image ? html`<${ItemPic} src=${image} size=${256} />` : html`<span class="rare-star">★</span>`}</div>
+    ${price != null && html`<div class="price">${money(price, cur)}+</div>`}
+    <div class="cc-text">${rare
+      ? html`<div class="cc-finish">Rare Special Item</div><div class="cc-weapon">${count} knives / gloves</div>`
+      : html`<div class="cc-weapon">${finish ? weapon : ""}</div><div class="cc-finish">${finish || weapon}</div>`}</div>
+  </div>`;
+}
+
 function CaseSheet({ id, close }) {
   const [contents] = useApi("cases.contents", id);
-  const [phase, setPhase] = useState("view"); // view | spin | reveal
+  const [state] = useApi("cases.state");
+  const [phase, setPhase] = useState("view"); // view | unlock | spin | reveal
   const [result, setResult] = useState(null);
+  const [recent, setRecent] = useState([]);
   const open = async () => {
     try { ctx(); } catch { /* no sound */ }
     setPhase("unlock");
@@ -183,37 +199,61 @@ function CaseSheet({ id, close }) {
     setResult(r);
     setPhase("spin");
   };
+  const landed = () => { setRecent(list => [result.item, ...list].slice(0, 12)); setPhase("reveal"); };
   if (!contents) return html`<div class="case-sheet"><div class="empty small">Loading…</div></div>`;
-  return html`<div class="case-sheet">
-    <div class="case-head">
-      <div class="case-head-pic"><${ItemPic} src=${contents.image} size=${256} /></div>
-      <div class="grow"><h2>${contents.name}</h2><div class="faint small">${TYPE_NAMES[contents.type] ?? contents.type}</div></div>
+  const cur = contents.currency;
+  const cost = (contents.casePrice ?? 0) + (contents.needsKey ? contents.keyPrice : 0);
+  const short = state?.useWallet && state.wallet < cost;
+
+  return html`<div class=${"case-sheet phase-" + phase}>
+    <div class="case-topbar">
+      <div class="grow"><h2>${contents.name}</h2><div class="faint small">${TYPE_NAMES[contents.type] ?? contents.type} · Odds as in CS2</div></div>
+      ${state?.useWallet && html`<span class="wallet">Wallet <b>${money(state.wallet, cur)}</b></span>`}
       <${Button} kind="plain" icon="x" onClick=${() => close(undefined)} title="Close" />
     </div>
-    ${phase === "unlock" && html`<div class="case-unlocking"><div class="pic"><${ItemPic} src=${contents.image} size=${512} /></div></div>`}
-    ${phase === "spin" && html`<${Reel} result=${result} onDone=${() => setPhase("reveal")} />`}
-    ${phase === "reveal" && html`<${Reveal} view=${result.item} cur=${contents.currency} onAgain=${open} onBack=${() => setPhase("view")}
-      onInventory=${() => { close(undefined); navigate("inventory"); }} />`}
-    ${phase === "view" && html`
-      <div class="case-open-row">
-        <${Button} kind="prominent" size="lg" icon="key" onClick=${open}>Unlock Container<//>
-        <span class="faint small">${contents.needsKey
-          ? `Costs ${money((contents.casePrice ?? 0) + contents.keyPrice, contents.currency)}: case ${money(contents.casePrice, contents.currency)} + key ${money(contents.keyPrice, contents.currency)}`
-          : `Costs ${money(contents.casePrice, contents.currency)}`} · Odds as in CS2 · Goes to your Inventory here, not on Steam</span>
+
+    ${phase === "view" && html`<div class="case-hero">
+      <div class="case-hero-pic"><${ItemPic} src=${contents.image} size=${512} /></div>
+      <div class="case-hero-side">
+        <div class="odds-legend">${contents.groups.map(g => html`<div class="odd" style=${`--c:${g.color}`}>
+          <span class="dot"></span><span class="grow">${g.grade}</span><b>${pct(g.chance)}</b></div>`)}</div>
+        <div class="case-cost">
+          ${contents.needsKey
+            ? html`<div class="inspect-row"><span>Container</span><b>${money(contents.casePrice, cur)}</b></div>
+                <div class="inspect-row"><span>Key</span><b>${money(contents.keyPrice, cur)}</b></div>`
+            : html`<div class="inspect-row"><span>No key needed</span><b></b></div>`}
+          <div class="inspect-row total"><span>Total</span><b>${money(cost, cur)}</b></div>
+        </div>
+        <${Button} kind="prominent" size="lg" block icon="key" disabled=${short} onClick=${open}>Unlock Container<//>
+        ${short && html`<div class="small note-warn">Not enough in your wallet: add funds on the Cases page or sell items.</div>`}
+        <div class="faint small">What you unbox goes to your Inventory here, not to Steam.</div>
       </div>
-      <div class="case-contents scroll">
-        ${contents.groups.map(g => html`<div class="grade-group">
-          <div class="grade-head" style=${`--c:${g.color}`}><span class="dot"></span>${g.grade}<span class="faint">${pct(g.chance)}</span></div>
-          <div class="grade-items">
-            ${g.grade === "Rare Special Item"
-              ? html`<div class="content-card rare" style="--c:#e4ae39"><div class="pic">${g.image ? html`<${ItemPic} src=${g.image} size=${256} />` : html`<span class="rare-star">★</span>`}</div>
-                  <div class="name">${g.items.length} knives / gloves</div></div>`
-              : g.items.map(i => html`<div class="content-card" style=${`--c:${i.color}`} title=${i.name}>
-                  <div class="pic"><${ItemPic} src=${i.image} size=${256} /></div><div class="name">${i.name}</div>
-                  ${i.price != null && html`<div class="price">${money(i.price, contents.currency)}+</div>`}</div>`)}
-          </div>
-        </div>`)}
-      </div>`}
+    </div>
+    <div class="case-contents scroll">
+      ${contents.groups.map(g => html`<div class="grade-group">
+        <div class="grade-head" style=${`--c:${g.color}`}><span class="dot"></span>${g.grade}<span class="faint">${pct(g.chance)}</span></div>
+        <div class="grade-items">
+          ${g.grade === "Rare Special Item"
+            ? html`<${ContentCard} name="" image=${g.image} color="#e4ae39" rare count=${g.items.length} />`
+            : g.items.map(i => html`<${ContentCard} name=${i.name} image=${i.image} color=${i.color} price=${i.price} cur=${cur} />`)}
+        </div>
+      </div>`)}
+    </div>`}
+
+    ${phase === "unlock" && html`<div class="case-stage"><div class="case-unlocking"><div class="pic"><${ItemPic} src=${contents.image} size=${512} /></div></div>
+      <div class="stage-caption">Unlocking…</div></div>`}
+    ${phase === "spin" && html`<div class="case-stage">
+      <div class="stage-case"><${ItemPic} src=${contents.image} size=${256} /></div>
+      <${Reel} result=${result} onDone=${landed} />
+      <div class="stage-caption">Unlocking ${contents.name}…</div></div>`}
+    ${phase === "reveal" && html`<div class="case-stage"><${Reveal} view=${result.item} cur=${cur} onAgain=${open} onBack=${() => setPhase("view")}
+      onInventory=${() => { close(undefined); navigate("inventory"); }} /></div>`}
+
+    ${recent.length > 0 && phase !== "spin" && html`<div class="recent-drops">
+      <span class="faint small">This session</span>
+      ${recent.map((v, n) => html`<div key=${n} class="recent" style=${`--c:${v.item.color}`} title=${`${v.item.statTrak ? "StatTrak™ " : ""}${v.item.name}${v.price != null ? " · " + money(v.price, cur) : ""}`}>
+        <${ItemPic} src=${v.item.image} size=${128} /></div>`)}
+    </div>`}
   </div>`;
 }
 
