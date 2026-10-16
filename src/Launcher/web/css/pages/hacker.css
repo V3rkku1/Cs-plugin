@@ -1,0 +1,84 @@
+/* Hacker Mode page */
+
+.hk .warn { color: var(--orange); }
+.hk .hk-good { color: var(--green); }
+
+/* Live status pill in the header */
+.hk-live {
+  display: inline-flex; align-items: center; gap: 9px; height: 34px; padding: 0 14px;
+  border-radius: 999px; font-weight: 600; font-size: 0.9em; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.08); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+}
+.hk-live .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--c, #8e8e93); box-shadow: 0 0 10px var(--c, transparent); }
+
+/* Hero: who hacks + quick profiles */
+.hk-hero { padding: 22px 22px 20px; border-radius: var(--r-xl); margin-bottom: 26px; }
+.hk-hero-head { display: flex; align-items: center; gap: 16px; margin-bottom: 18px; }
+.hk-hero-head h2 { margin: 0; font-size: 1.45em; font-weight: 800; letter-spacing: -0.02em; }
+.hk-hero-head p { margin: 3px 0 0; color: var(--text-2); }
+.hk-hero-icon {
+  width: 54px; height: 54px; border-radius: 16px; display: grid; place-items: center; flex: none; color: #fff;
+  background: linear-gradient(145deg, #34e07a, #0a9e4a 60%, #067a3a);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), 0 10px 26px rgba(48, 209, 88, 0.35);
+}
+
+.hk-modes { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.hk-mode, .hk-profile { cursor: pointer; overflow: hidden; }
+.hk-mode { min-height: 112px; padding: 16px 18px; }
+.hk-mode .title { font-size: 1.08em; margin-top: 6px; }
+.hk-mode-icon, .hk-profile-icon {
+  width: 38px; height: 38px; border-radius: 12px; display: grid; place-items: center; color: #fff;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 100%, white 14%), var(--c));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0 6px 16px color-mix(in srgb, var(--c) 35%, transparent);
+}
+.hk-mode.selected, .hk-profile.selected {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--c) 30%, var(--glass-tint)), color-mix(in srgb, var(--c) 14%, var(--glass-tint-2)));
+  box-shadow: inset 0 0 0 2px var(--c), 0 0 0 4px color-mix(in srgb, var(--c) 22%, transparent), 0 12px 34px color-mix(in srgb, var(--c) 28%, transparent);
+}
+.hk-check {
+  position: absolute; top: 14px; right: 14px; width: 22px; height: 22px; border-radius: 50%;
+  display: grid; place-items: center; color: #fff; background: var(--c); box-shadow: 0 0 12px var(--c);
+  animation: pop-in 0.45s var(--spring);
+}
+
+.hk-caption { margin: 22px 4px 10px; color: var(--text-2); font-size: 0.8em; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; }
+.hk-caption span { margin-left: 8px; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--text-3); }
+
+.hk-profiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+.hk-profile { padding: 13px 14px; gap: 3px; }
+.hk-profile-icon { width: 32px; height: 32px; border-radius: 10px; margin-bottom: 6px; }
+.hk-profile .subtitle { font-size: 0.8em; line-height: 1.3; }
+.hk-profile.hk-danger .title { color: var(--red); }
+
+.hk-ingame { margin-top: 22px; }
+
+/* Groups: dimmed while hacker mode (or the aimbot / triggerbot) is off */
+.hk-dim { opacity: 0.5; transition: opacity 0.3s var(--ease); }
+.hk-dim:hover { opacity: 0.8; }
+.hk-powers, .hk-targeting { transition: opacity 0.3s var(--ease); }
+
+/* Sub-options fold away under their main toggle */
+.hk-fold { display: grid; grid-template-rows: 0fr; transition: grid-template-rows 0.45s var(--ease), opacity 0.3s; opacity: 0; }
+.hk-fold.open { grid-template-rows: 1fr; opacity: 1; }
+.hk-fold > div { overflow: hidden; min-height: 0; background: rgba(0, 0, 0, 0.12); }
+.hk-subrow { padding-left: 30px; }
+.hk-fold .hk-subrow:first-child::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 1px; background: var(--hairline); }
+.hk .row.with-icon.hk-subrow + .row.with-icon.hk-subrow::before { left: 74px; }
+
+.hk-slider-row { align-items: flex-start; }
+.hk-slider-row .row-icon { margin-top: 2px; }
+.hk-slider-row .slider { margin-top: 8px; max-width: 420px; }
+
+/* In-game command help */
+.hk-cmd { min-height: 48px; }
+.hk-chip {
+  flex: none; min-width: 96px; padding: 4px 10px; border-radius: 9px; text-align: center;
+  font: 600 0.88em var(--mono); color: var(--green);
+  background: rgba(48, 209, 88, 0.12); box-shadow: inset 0 0 0 1px rgba(48, 209, 88, 0.25);
+}
+.hk-cmd .subtitle { margin: 0; color: var(--text); font-size: 0.92em; }
+.hk-bind {
+  display: inline-flex; align-items: center; gap: 7px; flex: none; height: 28px; padding: 0 10px; border: 0; border-radius: 999px;
+  color: var(--text-2); font-size: 0.8em; background: rgba(118, 118, 128, 0.22); transition: background 0.2s, color 0.2s;
+}
+.hk-bind:hover { color: var(--text); background: rgba(118, 118, 128, 0.36); }
