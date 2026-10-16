@@ -48,7 +48,8 @@ public class AppState
             // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
             if (!Db.IsEmpty && Game.PluginInstalled && !File.Exists(Path.Combine(Game.SkinNamesDir, "skins.json")))
                 Db.WritePluginSkinNames(Game.SkinNamesDir);
-            if (Game.PluginInstalled && !File.Exists(Path.Combine(Game.PluginDir, "cases", "cases.json")))
+            if (Game.PluginInstalled && (!File.Exists(Path.Combine(Game.PluginDir, "cases", "cases.json"))
+                                         || !File.Exists(Path.Combine(Game.PluginDir, "agents.txt"))))
                 TryWriteCases();
             if (ServerSettings.DiscoverModes(Game)) Log("Found Valve's Rush mode in your CS2 files.");
         }
@@ -70,6 +71,8 @@ public class AppState
     public void TryWriteCases()
     {
         if (Game == null) return;
+        try { Db.WritePluginAgents(Game.PluginDir); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log("Could not write the agent list: " + ex.Message); }
         try { Db.WritePluginCases(Path.Combine(Game.PluginDir, "cases")); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log("Could not write the case list: " + ex.Message); }
     }

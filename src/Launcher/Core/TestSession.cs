@@ -35,6 +35,21 @@ public class TestSession
         return null;
     }
 
+    /// <summary>How long the CS2 game (not the server) has been running, or null when it isn't.</summary>
+    public static TimeSpan? ClientAge()
+    {
+        var server = FindServer()?.Id;
+        try
+        {
+            var started = Process.GetProcessesByName("cs2").Where(p => p.Id != server).Select(p => p.StartTime).DefaultIfEmpty().Min();
+            return started == default ? null : DateTime.Now - started;
+        }
+        catch (Exception)
+        {
+            return ClientRunning() ? TimeSpan.MaxValue : null;
+        }
+    }
+
     /// <summary>A CS2 game window is open (any cs2.exe that isn't the server).</summary>
     public static bool ClientRunning()
     {
@@ -107,11 +122,11 @@ public class TestSession
     }
 
     /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>
-    public void StartGame(ServerSettings settings)
+    public void StartGame(ServerSettings settings, bool connect = true)
     {
         Process.Start(new ProcessStartInfo(_game.Exe)
         {
-            Arguments = settings.GameArguments(_game),
+            Arguments = settings.GameArguments(_game, connect),
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });

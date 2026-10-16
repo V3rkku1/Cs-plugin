@@ -295,8 +295,12 @@ public partial class Api
                 new Installer(game, App.Http, App.Log).InstallPlugin();
                 App.Log($"Updated the plugin to v{Installer.BundledPluginVersion()?.ToString(3) ?? "?"} (the one in this launcher).");
             }
-            var startGame = new TestSession(game).Start(server, forFriends);
-            SetJoinWhenUp(startGame ? JoinWhenUp.StartGame : JoinWhenUp.None);
+            var session = new TestSession(game);
+            var startGame = session.Start(server, forFriends);
+            // Faster: the game boots to its menu while the server loads (both take a while), then joins
+            // once the server is up. Joining a server that is still loading is what crashed games before.
+            if (startGame) session.StartGame(server, connect: false);
+            SetJoinWhenUp(startGame ? JoinWhenUp.Reconnect : JoinWhenUp.None);
             ClearWorkshopWait();
             if (server.WorkshopNeedsDownload)
             {
@@ -319,7 +323,7 @@ public partial class Api
             if (server.Friends != ServerSettings.FriendsNetwork.Lan)
                 App.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             App.Log(!server.AutoStartGame ? "Server only - press \"Open CS2\" when you want to join."
-                : startGame ? $"CS2 starts as soon as the server has loaded. If it doesn't join: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
+                : startGame ? $"CS2 is starting and joins as soon as the server has loaded. If it doesn't join: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
                 : "CS2 starts by itself as soon as the server has downloaded and loaded the Workshop map.");
         }
         catch (Exception ex)
@@ -570,6 +574,8 @@ public partial class Api
         }
         _joinUpSince ??= now;
         if (now - _joinUpSince < TimeSpan.FromSeconds(3)) return; // let the map finish loading
+        // A game that is still booting can't take the connect yet: give it time to reach the menu.
+        if (_joinWhenUp == JoinWhenUp.Reconnect && TestSession.ClientAge() is { } age && age < TimeSpan.FromSeconds(25)) return;
         var what = _joinWhenUp;
         SetJoinWhenUp(JoinWhenUp.None);
         try
@@ -577,6 +583,11 @@ public partial class Api
             if (what == JoinWhenUp.StartGame && !TestSession.ClientRunning())
             {
                 StartGameAndWatch(App.Game);
+                App.Log("Server is up - starting CS2 (VAC off)...");
+            }
+            else if (what == JoinWhenUp.Reconnect && !TestSession.ClientRunning())
+            {
+                StartGameAndWatch(App.Game); // the game was closed meanwhile: start it straight onto the server
                 App.Log("Server is up - starting CS2 (VAC off)...");
             }
             else if (what == JoinWhenUp.Reconnect)
@@ -613,7 +624,7 @@ public partial class Api
     {
         if (_joinCheckSince is not { } since) return;
         var elapsed = DateTime.UtcNow - since;
-        if (!App.TestModeOn || status?.Humans > 0 || (!TestSession.ClientRunning() && elapsed > TimeSpan.FromSeconds(30)))
+        if (!App.TestModeOn || status?.Humans > 0 || status?.Connecting > 0 || (!TestSession.ClientRunning() && elapsed > TimeSpan.FromSeconds(30)))
         {
             _joinCheckSince = null; // joined, stopped, or the game was closed
             return;

@@ -580,14 +580,16 @@ public class ServerSettings
     public const int Port = 27015;
 
     /// <summary>127.0.0.1, not "localhost": that can resolve to IPv6 (::1), where the server doesn't listen.</summary>
-    public string GameArguments(GameFolder game) => JoinArguments(game, $"127.0.0.1:{Port}", Password);
+    public string GameArguments(GameFolder game, bool connect = true) => JoinArguments(game, connect ? $"127.0.0.1:{Port}" : null, Password);
 
     /// <summary>CS2 with VAC off for this run only (nothing is saved in Steam), joining a server.</summary>
-    public string JoinArguments(GameFolder game, string address, string? password)
+    public string JoinArguments(GameFolder game, string? address, string? password)
     {
         var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
         var pass = string.IsNullOrWhiteSpace(password) ? "" : $"+password \"{password.Trim()}\" ";
         var exec = WriteClientCfg(game) ? $"+exec {ClientCfg} " : "";
+        // No address: the game boots to the menu while the server loads, and joins once it's up.
+        if (address == null) return $"-insecure {extra} {exec}".Replace("  ", " ").Trim();
         return $"-insecure {extra} {exec}{pass}+connect {address}".Replace("  ", " ");
     }
 
@@ -698,7 +700,7 @@ public class ServerSettings
         var seats = RetakeSeats;
         if (seats > 0) quota = Math.Min(quota, Math.Max(0, seats - 1));
         sb.AppendLine($"bot_quota {quota}");
-        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)}");
+        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)}{(IsValveRetakes ? " 3 4" : "")}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");

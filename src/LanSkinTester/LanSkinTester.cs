@@ -64,7 +64,18 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         Logger.LogInformation("Loaded {Count} skin names from the skins folder", _catalog.Count);
         if (CoreConfig.FollowCS2ServerGuidelines) Logger.LogError(GuidelinesMessage);
 
-        RegisterListener<Listeners.OnMapStart>(_ => _warnedSlots.Clear());
+        RegisterListener<Listeners.OnMapStart>(_ =>
+        {
+            _warnedSlots.Clear();
+            _inGameSlots.Clear();
+            _connectingSlots.Clear();
+        });
+        RegisterListener<Listeners.OnServerPrecacheResources>(PrecacheAgents);
+        RegisterListener<Listeners.OnClientConnect>((slot, _, ip) =>
+        {
+            if (!string.IsNullOrEmpty(ip) && !ip.Equals("BOT", StringComparison.OrdinalIgnoreCase)) _connectingSlots.Add(slot);
+        });
+        RegisterListener<Listeners.OnClientDisconnect>(slot => _connectingSlots.Remove(slot));
 
         RegisterListener<Listeners.OnEntitySpawned>(OnEntitySpawned);
         AddTimer(1.0f, CheckLauncherChanges, TimerFlags.REPEAT);
@@ -172,6 +183,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 GameType = CvarInt("game_type"),
                 GameMode = CvarInt("game_mode"),
                 Humans = players.Count(p => !IsBotPlayer(p)),
+                Connecting = _connectingSlots.Count,
                 Bots = players.Count(IsBotPlayer),
                 Players = players.Where(p => !IsBotPlayer(p)).Select(p => p.PlayerName).ToList(),
                 SharedLoadout = SharedLoadout,
@@ -409,8 +421,47 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             return HookResult.Continue;
         }
 
+        // A spawn while the game is still loading (warmup, retakes) waits: changing the model and
+        // gloves of someone mid-load can crash their game. Connect-full applies them instead.
+        if (!_inGameSlots.Contains(player.Slot)) return HookResult.Continue;
         ApplyAgentAndPin(player);
         AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
+    /// <summary>People who started connecting and haven't finished loading (for the launcher's join check).</summary>
+    private readonly HashSet<int> _connectingSlots = new();
+
+    /// <summary>Humans whose game has finished loading this map.</summary>
+    private readonly HashSet<int> _inGameSlots = new();
+
+    [GameEventHandler]
+    public HookResult OnPlayerConnectFullCosmetics(EventPlayerConnectFull @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        if (player == null || !player.IsValid) return HookResult.Continue;
+        var slot = player.Slot;
+        _connectingSlots.Remove(slot);
+        // A moment after loading, then their agent, pin, music kit and gloves.
+        AddTimer(1.5f, () =>
+        {
+            if (!player.IsValid || !IsHumanPlayer(player)) return;
+            _inGameSlots.Add(slot);
+            if (DisabledReason() != null || !player.PawnIsAlive) return;
+            ApplyAgentAndPin(player);
+            AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
+        }, TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnPlayerDisconnectCosmetics(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        if (@event.Userid is { } player)
+        {
+            _inGameSlots.Remove(player.Slot);
+            _connectingSlots.Remove(player.Slot);
+        }
         return HookResult.Continue;
     }
 
