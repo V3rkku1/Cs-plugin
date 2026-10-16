@@ -24,6 +24,8 @@ public class AppState
     public AppState()
     {
         Images = new ImageCache(Http);
+        // Steam's community pages (Workshop search) refuse requests that don't say what they are.
+        Http.DefaultRequestHeaders.TryAddWithoutValidation("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) LanSkinTester/2");
         Prices = new PriceList(ItemDatabase.DataDir, Log, NotifyChanged);
         // Hacker mode is never carried over from last time: it is on only when picked in this session.
         Settings.Server.HackerMode = 0;

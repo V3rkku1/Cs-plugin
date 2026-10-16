@@ -20,7 +20,7 @@ public partial class Api
     public record CaseRow(string Id, string Name, string Image, string Type, int Count, bool Rare);
     public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare, double? Price);
     public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
-        string Currency, double KeyPrice, double Spent, double InventoryValue);
+        string Currency, double KeyPrice, double Spent, double InventoryValue, double Wallet, bool UseWallet);
 
     public record ContentItem(string Name, string Image, string Color, string? Phase, double? Price);
     public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items, string? Image = null);
@@ -39,7 +39,7 @@ public partial class Api
 
     /// <summary>An inventory item as the pages show it: its price now, whether it's equipped, and its name split like CS2 shows it.</summary>
     public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category);
-    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin);
+    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin, double Wallet, bool UseWallet);
 
     private static string InventoryFile => Path.Combine(AppState.LauncherDataDir, "inventory.json");
     private List<InventoryItem>? _inventory;
@@ -76,7 +76,8 @@ public partial class Api
             .ToList();
         var value = Inventory().Sum(i => PriceOf(i) ?? 0);
         return new CasesState(App.Db.Cases.Count == 0, unlocked, App.Settings.CasesOpened, rows, Inventory().Count,
-            App.Settings.Currency, PriceList.KeyPrice(App.Settings.Currency), Math.Round(App.Settings.CasesSpent, 2), Math.Round(value, 2));
+            App.Settings.Currency, PriceList.KeyPrice(App.Settings.Currency), Math.Round(App.Settings.CasesSpent, 2), Math.Round(value, 2),
+            Math.Round(App.Settings.Wallet, 2), App.Settings.UseWallet);
     }
 
     private CaseInfo FindCase(string id) =>
@@ -103,6 +104,10 @@ public partial class Api
     private OpenResult OpenCase(string id)
     {
         var box = FindCase(id);
+        // What it costs in the game: the container from the market, plus a key for cases.
+        var cost = Math.Round((PricesNow().Price(box.Name) ?? 0) + (NeedsKey(box) ? PriceList.KeyPrice(App.Settings.Currency) : 0), 2);
+        if (App.Settings.UseWallet && App.Settings.Wallet + 0.0001 < cost)
+            throw new ApiException($"Not enough money in your wallet ({App.Settings.Wallet:0.00} for {cost:0.00}). Add funds or sell items on the Inventory page.");
         var random = Random.Shared;
         var (drop, rare) = CaseRoller.Roll(box, random);
 
@@ -123,10 +128,9 @@ public partial class Api
         Inventory().Insert(0, item);
         if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
         SaveInventory();
-        // What it cost in the game: the container from the market, plus a key for cases.
-        var cost = (PricesNow().Price(box.Name) ?? 0) + (NeedsKey(box) ? PriceList.KeyPrice(App.Settings.Currency) : 0);
         App.Settings.CasesOpened++;
         App.Settings.CasesSpent += cost;
+        if (App.Settings.UseWallet) App.Settings.Wallet = Math.Round(App.Settings.Wallet - cost, 2);
         SaveSettingsQuietly();
         return new OpenResult(reel, win, View(item, ReadLoadout()), Math.Round(cost, 2));
     }
@@ -166,7 +170,8 @@ public partial class Api
     {
         var loadout = ReadLoadout();
         var items = Inventory().Select(i => View(i, loadout)).ToList();
-        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked);
+        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked,
+            Math.Round(App.Settings.Wallet, 2), App.Settings.UseWallet);
     }
 
     [Call("cases.currency")]
@@ -176,6 +181,38 @@ public partial class Api
         App.Settings.Currency = currency;
         SaveSettingsQuietly();
         App.NotifyChanged();
+    }
+
+    public record WalletArgs(double? Add, bool? Use);
+
+    /// <summary>Play money: add funds (free) or switch the wallet off (opening is then free).</summary>
+    [Call("cases.wallet")]
+    private void SetWallet(WalletArgs a)
+    {
+        if (a.Add is { } add && add > 0 && add <= 10_000) App.Settings.Wallet = Math.Round(App.Settings.Wallet + add, 2);
+        if (a.Use is { } use) App.Settings.UseWallet = use;
+        SaveSettingsQuietly();
+        App.NotifyChanged();
+    }
+
+    /// <summary>Steam keeps about 13% (5% Steam + 10% CS2): the seller gets the price divided by 1.15.</summary>
+    private static double SellerGets(double price) => Math.Max(0.01, Math.Floor(price / 1.15 * 100) / 100);
+
+    /// <summary>Sells an item at its market price minus Steam's fee; the money goes to the wallet.</summary>
+    [Call("cases.sell")]
+    private double SellItem(string uid)
+    {
+        var item = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That item isn't in your inventory any more.");
+        var price = PriceOf(item) ?? throw new ApiException("No market price for this item yet, so it can't be sold.");
+        if (View(item, ReadLoadout()).Equipped) UnequipUnboxed(uid);
+        var gets = SellerGets(price);
+        Inventory().Remove(item);
+        SaveInventory();
+        App.Settings.Wallet = Math.Round(App.Settings.Wallet + gets, 2);
+        SaveSettingsQuietly();
+        Toast($"Sold for {gets:0.00} (market {price:0.00} minus Steam's fee).", "good");
+        App.NotifyChanged();
+        return gets;
     }
 
     [Call("cases.resetStats")]

@@ -182,7 +182,9 @@ pattern, StatTrak or Souvenir you pick.
 **Prices** are real market prices: Skinport's public price list (refreshed every 12 hours, cached), with
 the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page). Opening a weapon case
 costs the case's market price plus a key (2.49 USD / 2.35 EUR / 2.05 GBP); the Cases page keeps a tally
-of what you spent against what you unboxed.
+of what you spent against what you unboxed. A play **wallet** (starts at 100, *Add Funds* is free) pays for openings; **Sell** in the
+Inventory pays an item's market price minus Steam's fee (about 13%) into it. The wallet can be switched off
+to open for free.
 
 **Unbox only and the admin code:** by default the Skins page only offers what you unboxed on the Cases page
 (plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on

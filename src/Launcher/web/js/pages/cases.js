@@ -234,9 +234,20 @@ export function CasesPage() {
 
   const cur = state.currency;
   const profit = state.inventoryValue - state.spent;
+  const addFunds = async () => {
+    const r = await sheet(close => html`<div class="sheet-body">
+      <h2>Add Funds</h2><p class="muted">Play money for opening cases. Free, and only in this launcher.</p>
+      <div class="hstack">${[10, 25, 50, 100, 250].map(a => html`<${Button} onClick=${() => close(a)}>+${money(a, cur)}<//>`)}</div>
+      <div class="hstack" style="margin-top:14px"><${Button} kind="plain" onClick=${() => close("off")}>Open cases for free (no wallet)<//><div class="grow"></div>
+        <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`);
+    if (r === "off") tryCall("cases.wallet", { use: false });
+    else if (r) tryCall("cases.wallet", { add: r });
+  };
   return html`<${Page} title="Cases" subtitle=${html`${state.opened} opened · spent ${money(state.spent, cur)} · unboxed ${money(state.inventoryValue, cur)} ·
         <span class=${profit >= 0 ? "profit" : "loss"}>${profit >= 0 ? "+" : "−"}${money(Math.abs(profit), cur)}</span>`}
       actions=${html`
+        ${state.useWallet && html`<span class="wallet" title="Play money: opening costs money, selling items pays">Wallet <b>${money(state.wallet, cur)}</b></span>
+          <${Button} icon="plus" onClick=${addFunds}>Add Funds<//>`}
         <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
         <${Button} icon="skins" onClick=${() => navigate("inventory")}>Inventory (${state.inventoryCount})<//>`}>
@@ -255,6 +266,7 @@ export function CasesPage() {
             <div class="case-price">${c.price != null ? money(c.price, cur) : ""}</div>
           </button>`)}
         </div>
+        ${!state.useWallet && html`<div class="case-code faint small">Opening is free · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.wallet", { use: true }); }}>use a wallet</a></div>`}
         <div class="case-code faint small">${state.unlocked
           ? html`Admin: every skin is unlocked on this PC · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.lock"); }}>back to unbox only</a>`
           : html`<a href="#" onClick=${e => { e.preventDefault(); enterCode(); }}>Admin code</a>`}</div>

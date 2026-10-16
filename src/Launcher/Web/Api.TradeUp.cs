@@ -27,12 +27,15 @@ public partial class Api
     public record TradeResult(InventoryView Item, List<TradeOutcome> Outcomes);
 
     private Dictionary<(ushort, int), CaseInfo>? _collectionOf;
+    private ItemDatabase? _collectionDb;
 
     /// <summary>The container (collection) a skin comes from: a weapon case first, else a souvenir package.</summary>
     private CaseInfo? CollectionOf(ushort def, int paint)
     {
-        if (_collectionOf == null)
+        // Rebuilt when the item lists were updated.
+        if (_collectionOf == null || !ReferenceEquals(_collectionDb, App.Db))
         {
+            _collectionDb = App.Db;
             var map = new Dictionary<(ushort, int), CaseInfo>();
             foreach (var box in App.Db.Cases.Where(c => c.Type == "Case").Concat(App.Db.Cases.Where(c => c.Type.StartsWith("Souvenir"))))
                 foreach (var item in box.Items)

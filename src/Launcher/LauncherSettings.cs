@@ -50,6 +50,10 @@ public class LauncherSettings
     public string Currency { get; set; } = "USD";
     public double CasesSpent { get; set; }
 
+    /// <summary>The play wallet (Cases / Inventory): opening costs money, selling pays the market price minus Steam's fee.</summary>
+    public double Wallet { get; set; } = 100;
+    public bool UseWallet { get; set; } = true;
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 

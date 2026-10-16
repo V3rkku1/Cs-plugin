@@ -49,6 +49,12 @@ function Inspect({ v, cur, close }) {
       ${equippable(v) && (v.equipped
         ? html`<${Button} block onClick=${() => tryCall("cases.unequip", i.uid)}>Unequip<//>`
         : html`<${Button} kind="prominent" block icon="check" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>`)}
+      ${v.price != null && html`<${Button} block icon="tag" onClick=${async () => {
+        const gets = Math.max(0.01, Math.floor(v.price / 1.15 * 100) / 100);
+        if (await confirm({ title: "Sell item?", message: `Sell ${i.name} on the market for ${money(v.price, cur)}?\nYou receive ${money(gets, cur)} (after Steam's fee) in your wallet.`, ok: "Sell" })) {
+          await tryCall("cases.sell", i.uid); close();
+        }
+      }}>Sell · ${money(v.price, cur)}<//>`}
       <${Button} kind="destructive" block icon="trash" onClick=${async () => {
         if (await confirm({ title: "Delete item?", message: `Remove ${i.name} from your inventory?`, ok: "Delete", danger: true })) { await tryCall("cases.remove", i.uid); close(); }
       }}>Delete<//>
@@ -321,7 +327,7 @@ export function InventoryPage() {
   };
 
   return html`<${Page} title="Inventory" class="inventory-page"
-      subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}`}
+      subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}${state.useWallet ? ` · wallet ${money(state.wallet, cur)}` : ""}`}
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
