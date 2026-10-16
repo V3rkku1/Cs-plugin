@@ -165,7 +165,8 @@ your magazine at once, and spare ammo never runs out.
   package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
   restores it for online play). Includes BotAI, Bot Controller and Bot Hider. While it's on, Live Server
   gets a *Bot Improver* section: bot aim (mixed / head / body), how many grenades bots throw, a weapon
-  every bot buys, *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.
+  every bot buys, *Bot Skins* (random skins, knives, gloves and agents on bots; off by default, so
+  bots look like normal CS2 bots), *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.
 - *BotAI* ([ed0ard/CS2-BotAI](https://github.com/ed0ard/CS2-BotAI), the maintained fork of
   [Austinbots/CS2-BotAI](https://github.com/Austinbots/CS2-BotAI)): just the smarter bot decisions.
 - *Bot Controller* ([XBribo/CS2-Bot-Controller](https://github.com/XBribo/CS2-Bot-Controller), AGPL-3.0):

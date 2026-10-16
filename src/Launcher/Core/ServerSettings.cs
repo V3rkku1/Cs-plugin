@@ -154,6 +154,9 @@ public class ServerSettings
     public int BotNades { get; set; } = 2;
     public string BotForceWeapon { get; set; } = "";
 
+    /// <summary>Bot Improver's random bot skins, knives, gloves and agents. Off: bots look like normal CS2 bots.</summary>
+    public bool BotSkins { get; set; }
+
     /// <summary>Bot Improver settings as console commands; none while it is off (its commands only exist when it is loaded).</summary>
     public IEnumerable<string> BotImproverCommands()
     {

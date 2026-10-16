@@ -226,8 +226,11 @@ export function LivePage() {
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bots Buy" subtitle="Every bot gets this weapon, or buys like normal">
             <${Select} width=${190} value=${s.botForceWeapon} options=${BOT_GUNS}
               onChange=${v => { set("botForceWeapon", v); if (up) send(v || "bot_buy"); }} /><//>
+          <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins" subtitle=${s.botSkins ? "Random skins, knives, gloves and agents on every bot" : "Off: bots use default skins and agents"}>
+            <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} /><//>
           <${ActionGrid} disabled=${!up} actions=${[
-            ["Reroll Bot Skins", "br_reroll", "shuffle"], ["Flying Scoutsman On", "scouts_on", "sparkles"], ["Flying Scoutsman Off", "scouts_off", "stop"]]} />
+            ...(s.botSkins ? [["Reroll Bot Skins", "br_reroll", "shuffle"]] : []),
+            ["Flying Scoutsman On", "scouts_on", "sparkles"], ["Flying Scoutsman Off", "scouts_off", "stop"]]} />
         <//>`}
 
         <${Section} title="Hacker Mode">

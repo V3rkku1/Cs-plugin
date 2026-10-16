@@ -168,6 +168,10 @@ public class Installer
     private static bool WantController(ServerSettings s) => s.BotController || s.BotImprover;
     private static bool WantBotAi(ServerSettings s) => s.BotAi || s.BotImprover;
 
+    /// <summary>BotRandomizer gives bots random skins, knives, gloves, agents and music kits: only when Bot Skins is on.</summary>
+    private static bool WantImproverPlugin(ServerSettings s, string plugin) =>
+        s.BotImprover && (plugin != "BotRandomizer" || s.BotSkins);
+
     /// <summary>True when an installed optional plugin is loaded / parked differently from these settings.</summary>
     public static bool ExtraPluginsMismatch(GameFolder game, ServerSettings server)
     {
@@ -176,7 +180,7 @@ public class Installer
         return Native("BotHider", WantHider(server)) || Native("BotController", WantController(server))
             || Native("BotVision", server.BotImprover) || Tree("plugins/BotAI", WantBotAi(server))
             || Tree("plugins/Deathmatch", server.UsesDeathmatchPlugin)
-            || ImproverPlugins.Any(p => Tree("plugins/" + p, server.BotImprover));
+            || ImproverPlugins.Any(p => Tree("plugins/" + p, WantImproverPlugin(server, p)));
     }
 
     /// <summary>Loads or parks every optional plugin to match the current settings.</summary>
@@ -187,7 +191,7 @@ public class Installer
         SetNativeActive(game, "BotController", WantController(server));
         SetNativeActive(game, "BotVision", server.BotImprover);
         SetTreeActive(game, "plugins/BotAI", WantBotAi(server));
-        foreach (var plugin in ImproverPlugins) SetTreeActive(game, "plugins/" + plugin, server.BotImprover);
+        foreach (var plugin in ImproverPlugins) SetTreeActive(game, "plugins/" + plugin, WantImproverPlugin(server, plugin));
         SetTreeActive(game, "plugins/Deathmatch", server.UsesDeathmatchPlugin);
         SetTreeActive(game, "shared/DeathmatchAPI", server.UsesDeathmatchPlugin);
     }
