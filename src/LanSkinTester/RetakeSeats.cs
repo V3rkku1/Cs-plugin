@@ -2,6 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 
 namespace LanSkinTester;
@@ -10,7 +11,8 @@ namespace LanSkinTester;
 /// Retakes extras:
 ///   lst_retake_seats SEATS BOTS [T CT]  retakes only has SEATS places. Bots give theirs up the moment a
 ///                                 person connects, so you and your friends always get a team (0 = off).
-///                                 With team sizes (Valve retakes: 3 4), picking a full side swaps out a bot.
+///                                 With team sizes (Valve retakes: 3 4), while someone is on the team menu
+///                                 each full side lets one bot go, so both sides can be picked.
 ///   lst_retake_rifles 0|1         every round: a rifle, a pistol, armor (and a kit on CT) for everyone.
 ///   lst_retake_bots 0|1           realistic bots: mixed full buys, grenades, sometimes an AWP (also gives
 ///                                 bots a loadout in buy mode, where only people buy).
@@ -21,62 +23,24 @@ namespace LanSkinTester;
 public partial class LanSkinTester
 {
     private int _retakeSeats, _retakeBotsWanted, _retakeTSize, _retakeCtSize;
-    private readonly HashSet<int> _rejoining = new();
     private bool _retakeRifles, _instaDefuse, _retakeExtrasListening;
     private int _bombTimer;
     private readonly HashSet<int> _humanSlots = new();
+
+    private int _lastQuota = -1;
 
     private void ListenRetakeExtras()
     {
         if (_retakeExtrasListening) return;
         _retakeExtrasListening = true;
-        RegisterListener<Listeners.OnClientConnect>((slot, _, ip) =>
+        RegisterListener<Listeners.OnMapStart>(_ =>
         {
-            // Bots don't have an address. Free a seat before the person reaches the team menu.
-            if (string.IsNullOrEmpty(ip) || ip.Equals("BOT", StringComparison.OrdinalIgnoreCase)) return;
-            _humanSlots.Add(slot);
-            UpdateRetakeBots();
-            // Safety net: if that was a bot after all, give the seat back to bots.
-            AddTimer(1f, () =>
-            {
-                var player = Utilities.GetPlayerFromSlot(slot);
-                if (player is { IsValid: true } && IsBotPlayer(player) && _humanSlots.Remove(slot)) UpdateRetakeBots();
-            });
+            _lastQuota = -1;
+            AddTimer(1f, RecountHumans, TimerFlags.STOP_ON_MAPCHANGE);
         });
-        RegisterListener<Listeners.OnClientDisconnect>(slot =>
-        {
-            if (_humanSlots.Remove(slot)) UpdateRetakeBots();
-        });
-        RegisterListener<Listeners.OnMapStart>(_ => Server.NextFrame(RecountHumans));
-        AddCommandListener("jointeam", OnJoinTeam);
     }
 
-    /// <summary>A person picks a side that bots have filled: one of those bots makes room.</summary>
-    private HookResult OnJoinTeam(CCSPlayerController? player, CommandInfo cmd)
-    {
-        if (player is not { IsValid: true } || IsBotPlayer(player) || _retakeSeats <= 0) return HookResult.Continue;
-        if (_rejoining.Remove(player.Slot)) return HookResult.Continue;
-        if (!int.TryParse(cmd.GetArg(1), out var wanted) || wanted is not (2 or 3) || (int)player.Team == wanted) return HookResult.Continue;
-        var team = (CsTeam)wanted;
-        var size = team == CsTeam.Terrorist ? _retakeTSize : _retakeCtSize;
-        if (size <= 0) return HookResult.Continue;
-        var onTeam = Utilities.GetPlayers().Where(p => p.IsValid && !p.IsHLTV && p.Team == team).ToList();
-        if (onTeam.Count < size) return HookResult.Continue;
-        var bot = onTeam.FirstOrDefault(IsBotPlayer);
-        if (bot == null) return HookResult.Continue; // full of people: nothing to do
-
-        // Swap: the bot leaves, then the same jointeam runs again once its seat is free.
-        Server.ExecuteCommand($"kickid {bot.UserId}");
-        var slot = player.Slot;
-        AddTimer(0.3f, () =>
-        {
-            if (!player.IsValid) return;
-            _rejoining.Add(slot);
-            player.ExecuteClientCommandFromServer($"jointeam {wanted} 1");
-        });
-        return HookResult.Handled;
-    }
-
+    /// <summary>People in the server (bots never count, so kicking or adding one can't feed back).</summary>
     private void RecountHumans()
     {
         _humanSlots.Clear();
@@ -85,11 +49,62 @@ public partial class LanSkinTester
         UpdateRetakeBots();
     }
 
+    [GameEventHandler]
+    public HookResult OnRetakeSeatsDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        if (_retakeSeats > 0 && @event.Userid is { IsValid: true } player && !IsBotPlayer(player))
+            AddTimer(0.3f, RecountHumans, TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
     private void UpdateRetakeBots()
     {
         if (_retakeSeats <= 0) return;
         var quota = Math.Clamp(Math.Min(_retakeBotsWanted, _retakeSeats - _humanSlots.Count), 0, 31);
+        // Someone is on the team menu: the game greys out a full side, so a bot leaves each full side
+        // first. Once they've picked, the quota goes back up and a bot fills the side they didn't take.
+        if (_retakeTSize > 0 && AnyonePickingTeam()) quota = Math.Min(quota, MakeRoomOnBothSides());
+        if (quota == _lastQuota) return;
+        _lastQuota = quota;
         Server.ExecuteCommand($"bot_quota {quota}");
+    }
+
+    private static bool AnyonePickingTeam() => Utilities.GetPlayers().Any(p =>
+        p.IsValid && !p.IsHLTV && !IsBotPlayer(p) && p.Connected == PlayerConnectedState.Connected
+        && p.Team is CsTeam.None or CsTeam.Spectator);
+
+    /// <summary>Kicks one bot from each side that is full. Returns how many bots stay.</summary>
+    private int MakeRoomOnBothSides()
+    {
+        var players = Utilities.GetPlayers().Where(p => p.IsValid && !p.IsHLTV).ToList();
+        var bots = players.Count(IsBotPlayer);
+        foreach (var (team, size) in new[] { (CsTeam.Terrorist, _retakeTSize), (CsTeam.CounterTerrorist, _retakeCtSize) })
+        {
+            var side = players.Where(p => p.Team == team).ToList();
+            if (side.Count < size || side.FirstOrDefault(IsBotPlayer) is not { } bot) continue;
+            Server.ExecuteCommand($"kickid {bot.UserId}");
+            bots--;
+        }
+        return Math.Max(0, bots);
+    }
+
+    [GameEventHandler]
+    public HookResult OnRetakeSeatsConnectFull(EventPlayerConnectFull @event, GameEventInfo info)
+    {
+        // A person finished loading: a bot gives up its seat before they pick a side.
+        if (_retakeSeats > 0 && @event.Userid is { IsValid: true } player && !IsBotPlayer(player))
+            AddTimer(0.2f, RecountHumans, TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnRetakeSeatsTeam(EventPlayerTeam @event, GameEventInfo info)
+    {
+        if (_retakeSeats <= 0 || _retakeTSize <= 0 || @event.Userid is not { } player || !player.IsValid || IsBotPlayer(player))
+            return HookResult.Continue;
+        // Picked a side (or went to spectator): settle the bots after the switch has gone through.
+        AddTimer(0.5f, UpdateRetakeBots, TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
     }
 
     [ConsoleCommand("lst_retake_seats", "Retakes seats: lst_retake_seats SEATS BOTS (0 = off)")]
@@ -101,6 +116,7 @@ public partial class LanSkinTester
         _retakeBotsWanted = cmd.ArgCount > 2 && int.TryParse(cmd.GetArg(2), out var bots) ? Math.Max(0, bots) : 0;
         _retakeTSize = cmd.ArgCount > 3 && int.TryParse(cmd.GetArg(3), out var t) ? Math.Max(0, t) : 0;
         _retakeCtSize = cmd.ArgCount > 4 && int.TryParse(cmd.GetArg(4), out var ct) ? Math.Max(0, ct) : 0;
+        _lastQuota = -1;
         RecountHumans();
     }
 

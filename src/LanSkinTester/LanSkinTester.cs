@@ -194,7 +194,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 GameType = CvarInt("game_type"),
                 GameMode = CvarInt("game_mode"),
                 Humans = players.Count(p => !IsBotPlayer(p)),
-                Connecting = _connectingSlots.Count,
+                Connecting = _connectingSlots.Count(slot => Utilities.GetPlayerFromSlot(slot) is not { IsValid: true } p || !IsBotPlayer(p)),
                 Bots = players.Count(IsBotPlayer),
                 Players = players.Where(p => !IsBotPlayer(p)).Select(p => p.PlayerName).ToList(),
                 SharedLoadout = SharedLoadout,
