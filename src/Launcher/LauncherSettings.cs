@@ -14,12 +14,18 @@ public class LauncherSettings
     public bool Maximized { get; set; }
     public string? LastPage { get; set; }
 
-    /// <summary>Text size: "normal" or "large".</summary>
+    /// <summary>Text size: "small", "normal" or "large".</summary>
     public string TextSize { get; set; } = "normal";
 
     /// <summary>Accessibility: solid panels instead of see-through glass, and no animations.</summary>
     public bool ReduceGlass { get; set; }
     public bool ReduceMotion { get; set; }
+
+    /// <summary>
+    /// The launcher's look (Setup › Appearance): accent, background and panel colours, panel opacity,
+    /// corner roundness, font and a background picture. Missing keys use the default look.
+    /// </summary>
+    public Dictionary<string, string> Theme { get; set; } = new();
 
     /// <summary>Quick starts the user saved from the Play page (mode, map, bots, rules).</summary>
     public List<SavedSetup> SavedSetups { get; set; } = new();

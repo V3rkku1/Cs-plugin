@@ -127,7 +127,13 @@ The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!
 reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
 CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 
-**Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (fully opaque panels) and *Reduce Motion* (no animations). They apply right away.
+**Appearance:** Setup → *Theme* and *Appearance*: ready-made themes (Midnight, OLED Black, Slate, CS2
+Orange, Green Ops, Violet, Crimson, Ocean), your own accent, background and panel colours, panel opacity,
+corners, font, text size, a background picture (with a darken slider), *Reduce Transparency* and *Reduce
+Motion*. Everything applies right away. *Theme Code › Copy* puts your look on the clipboard as a short
+`LST1-…` code; a friend presses *Paste…* to use it. For full control, *Open custom.css* creates
+`%LocalAppData%\LanSkinTester\custom.css` (with notes and examples); it loads after the built-in styles
+and reloads when you click back into the launcher.
 
 **Agents, pins and music kits:** Skins › *Agents, Pins & Music* sets your agent for each side, a
 collectible pin on the scoreboard and a music kit (round music and your MVP anthem, from the next round).

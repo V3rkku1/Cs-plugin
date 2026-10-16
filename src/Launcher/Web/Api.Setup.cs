@@ -15,7 +15,7 @@ public partial class Api
     public record SetupStep(string Id, string Title, string State, string Detail, string Action, bool Enabled);
 
     public record SetupState(string? Folder, bool Busy, List<SetupStep> Steps, bool HasGame, string TextSize,
-        bool ReduceGlass, bool ReduceMotion, string MetamodPage, string CssPage);
+        bool ReduceGlass, bool ReduceMotion, string MetamodPage, string CssPage, Dictionary<string, string> Theme);
 
     [Call("setup.state")]
     private SetupState SetupStateNow()
@@ -69,7 +69,7 @@ public partial class Api
 
         var s = App.Settings;
         return new SetupState(g?.Root, _setupBusy, steps, g != null, s.TextSize, s.ReduceGlass, s.ReduceMotion,
-            Installer.MetamodPage, Installer.CounterStrikeSharpPage);
+            Installer.MetamodPage, Installer.CounterStrikeSharpPage, s.Theme);
     }
 
     private static string V(Version? v) => v == null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
@@ -218,7 +218,7 @@ public partial class Api
     private void SetAppearance(AppearanceArgs a)
     {
         var s = App.Settings;
-        if (a.TextSize is "normal" or "large") s.TextSize = a.TextSize;
+        if (a.TextSize is "small" or "normal" or "large") s.TextSize = a.TextSize;
         if (a.ReduceGlass is { } glass) s.ReduceGlass = glass;
         if (a.ReduceMotion is { } motion) s.ReduceMotion = motion;
         try { s.Save(); }

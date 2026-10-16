@@ -50,7 +50,7 @@ public sealed class WebHost : IAsyncDisposable
                 return;
             }
             var path = context.Request.Path.Value ?? "";
-            var needsToken = path.StartsWith("/api/") || path == "/events" || path == "/img";
+            var needsToken = path.StartsWith("/api/") || path == "/events" || path == "/img" || path.StartsWith("/theme/");
             var token = context.Request.Headers["X-Token"].FirstOrDefault() ?? context.Request.Query["t"].FirstOrDefault();
             if (needsToken && !CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(token ?? ""), Encoding.ASCII.GetBytes(Token)))
             {
@@ -122,6 +122,22 @@ public sealed class WebHost : IAsyncDisposable
             if (bytes == null) return Results.NotFound();
             context.Response.Headers.CacheControl = "max-age=86400";
             return Results.File(bytes, ContentType(bytes));
+        });
+
+        // Setup › Appearance: the background picture and custom.css from the launcher's data folder.
+        app.MapGet("/theme/background", (HttpContext context) =>
+        {
+            var file = Api.BackgroundPath();
+            if (file == null) return Results.NotFound();
+            context.Response.Headers.CacheControl = "no-cache";
+            var type = Path.GetExtension(file) switch { ".webp" => "image/webp", ".png" => "image/png", _ => "image/jpeg" };
+            return Results.File(File.ReadAllBytes(file), type);
+        });
+        app.MapGet("/theme/custom.css", (HttpContext context) =>
+        {
+            context.Response.Headers.CacheControl = "no-cache";
+            var file = Api.CustomCssFile;
+            return Results.Text(File.Exists(file) ? File.ReadAllText(file) : "", "text/css; charset=utf-8");
         });
 
         app.MapGet("/{**path}", (string? path) =>

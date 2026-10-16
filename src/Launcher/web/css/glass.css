@@ -58,6 +58,7 @@
 }
 
 :root.large-text { --text-scale: 1.12; }
+:root.small-text { --text-scale: 0.92; }
 
 :root.reduce-glass {
   --glass-tint: rgba(44, 44, 50, 0.96);
@@ -101,7 +102,14 @@ button { cursor: pointer; }
   position: fixed;
   inset: 0;
   z-index: 0;
-  background: var(--bg);
+  background: var(--bg) var(--bg-image, none) center / cover no-repeat;
+}
+/* A background picture is darkened (Setup › Appearance › Darken picture) so text stays readable. */
+.backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, var(--bg-dim, 0));
 }
 
 /* -------------------------------------------------------------------------------------------- */
@@ -691,3 +699,24 @@ kbd { font-family: var(--font); }
 .palette-item .group { margin-left: auto; color: var(--text-3); font-size: 0.78em; white-space: nowrap; padding-left: 10px; }
 .palette-item.active { background: color-mix(in srgb, var(--blue) 30%, transparent); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 45%, transparent); }
 .palette-item.active .icon { color: #fff; }
+
+/* -------------------------------------------------------------------------------------------- */
+/* Setup › Appearance                                                                            */
+/* -------------------------------------------------------------------------------------------- */
+
+.theme-presets { display: grid; grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; padding: 12px; }
+.theme-preset {
+  display: flex; flex-direction: column; gap: 8px; padding: 8px; border: 0; border-radius: var(--r-md);
+  background: rgba(255, 255, 255, 0.04); box-shadow: inset 0 0 0 1px var(--hairline); color: var(--text-2); text-align: left;
+}
+.theme-preset:hover { background: rgba(255, 255, 255, 0.08); color: var(--text); }
+.theme-preset.selected { box-shadow: inset 0 0 0 2px var(--blue); color: var(--text); }
+.theme-preset .preview { position: relative; display: block; height: 46px; border-radius: calc(var(--r-md) - 4px); background: var(--p-bg); overflow: hidden; }
+.theme-preset .bar { position: absolute; left: 8px; right: 8px; top: 8px; height: 16px; border-radius: 6px; background: var(--p-panel); }
+.theme-preset .dot { position: absolute; right: 12px; bottom: 7px; width: 22px; height: 10px; border-radius: 5px; background: var(--p-accent); }
+.theme-preset .name { font-size: 0.86em; font-weight: 600; }
+
+.color-field { display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px; border-radius: 999px; background: rgba(255, 255, 255, 0.06); cursor: pointer; font-size: 0.86em; color: var(--text-2); }
+.color-field input { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
+.color-field input::-webkit-color-swatch-wrapper { padding: 0; }
+.color-field input::-webkit-color-swatch { border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 50%; }

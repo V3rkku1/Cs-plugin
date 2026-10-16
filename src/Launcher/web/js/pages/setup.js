@@ -1,7 +1,88 @@
 // Setup: CS2 folder, the install checklist, maintenance, folders and the activity log.
-import { html, useState } from "../vendor/preact-htm.js";
+import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall, useApi, useEvent } from "../api.js";
-import { Page, Section, Row, Button, Segmented, Toggle, StateIcon, Progress, LogView, confirm } from "../ui.js";
+import { Page, Section, Row, Button, Segmented, Toggle, Slider, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
+import { PRESETS, DEFAULTS } from "../theme.js";
+
+const setTheme = changes => tryCall("setup.theme", changes);
+
+/** Colour swatch that opens the system colour picker; saves when the picker closes. */
+function ColorField({ value, onCommit }) {
+  return html`<label class="color-field" style=${`--swatch:${value}`}>
+    <input type="color" value=${value} onChange=${e => onCommit(e.currentTarget.value)} />
+    <span class="mono">${value.toUpperCase()}</span>
+  </label>`;
+}
+
+/** Slider that saves when released and shows the dragged value meanwhile. */
+function ThemeSlider({ value, onCommit, ...props }) {
+  const [v, setV] = useState(null);
+  useEffect(() => setV(null), [value]);
+  return html`<${Slider} ...${props} width=${200} value=${v ?? value} onChange=${setV} onCommit=${onCommit} />`;
+}
+
+function Appearance({ state }) {
+  const t = { ...DEFAULTS, ...state.theme };
+  const preset = PRESETS.find(p => p.accent === t.accent && p.background === t.background && p.panel === t.panel)?.id;
+  const reset = async () => {
+    if (await confirm({ title: "Reset appearance?", message: "Back to the default colours, corners and font, and no background picture?\n(custom.css is kept.)", ok: "Reset" }))
+      tryCall("setup.themeReset");
+  };
+  const paste = async () => {
+    const code = await prompt({ title: "Use a Theme Code", message: "Paste a theme code a friend sent you (it starts with LST1-).", placeholder: "LST1-…", ok: "Apply" });
+    if (code?.trim()) tryCall("setup.themeImport", code.trim());
+  };
+  const num = v => String(Math.round(v));
+  return html`
+    <${Section} title="Theme" footer="Applies right away. Each colour can still be changed after picking a theme.">
+      <div class="theme-presets">
+        ${PRESETS.map(p => html`<button key=${p.id} class=${"theme-preset" + (p.id === preset ? " selected" : "")}
+            style=${`--p-bg:${p.background};--p-panel:${p.panel};--p-accent:${p.accent}`}
+            onClick=${() => setTheme({ accent: p.accent, background: p.background, panel: p.panel })}>
+          <span class="preview"><span class="bar"></span><span class="dot"></span></span>
+          <span class="name">${p.name}</span>
+        </button>`)}
+      </div>
+    <//>
+    <${Section} title="Appearance">
+      <${Row} icon=${{ name: "sparkles", color: "blue" }} title="Accent Colour" subtitle="Main buttons, links and selected items">
+        <${ColorField} value=${t.accent} onCommit=${v => setTheme({ accent: v })} /><//>
+      <${Row} icon=${{ name: "layers", color: "indigo" }} title="Background Colour">
+        <${ColorField} value=${t.background} onCommit=${v => setTheme({ background: v })} /><//>
+      <${Row} icon=${{ name: "layers", color: "teal" }} title="Panel Colour" subtitle="Cards and the sidebar">
+        <${ColorField} value=${t.panel} onCommit=${v => setTheme({ panel: v })} /><//>
+      <${Row} icon=${{ name: "eye", color: "purple" }} title="Panel Opacity"
+          subtitle=${state.reduceGlass ? "Reduce Transparency is on: panels stay solid" : "Lower lets the background (or your picture) show through"}>
+        <${ThemeSlider} min=${40} max=${100} value=${Number(t.opacity)} format=${v => `${Math.round(v)}%`} onCommit=${v => setTheme({ opacity: num(v) })} /><//>
+      <${Row} icon=${{ name: "shield", color: "orange" }} title="Corners">
+        <${Segmented} options=${[{ value: "0", label: "Square" }, { value: "50", label: "Small" }, { value: "100", label: "Round" }, { value: "140", label: "Rounder" }]}
+          value=${t.radius} onChange=${v => setTheme({ radius: v })} /><//>
+      <${Row} icon=${{ name: "textsize", color: "blue" }} title="Font">
+        <${Segmented} options=${[{ value: "inter", label: "Inter" }, { value: "segoe", label: "Segoe UI" }, { value: "system", label: "System" }, { value: "mono", label: "Mono" }]}
+          value=${t.font} onChange=${v => setTheme({ font: v })} /><//>
+      <${Row} icon=${{ name: "textsize", color: "green" }} title="Text Size">
+        <${Segmented} options=${[{ value: "small", label: "Small" }, { value: "normal", label: "Normal" }, { value: "large", label: "Large" }]} value=${state.textSize}
+          onChange=${v => tryCall("setup.appearance", { textSize: v })} /><//>
+      <${Row} icon=${{ name: "import", color: "pink" }} title="Background Picture" subtitle=${state.theme.image ? "Your picture is the background" : "Any PNG, JPG or WebP"}>
+        ${state.theme.image && html`<${Button} size="sm" onClick=${() => tryCall("setup.themeImageRemove")}>Remove<//>`}
+        <${Button} size="sm" onClick=${() => tryCall("setup.themeImage")}>Choose…<//><//>
+      ${state.theme.image && html`<${Row} icon=${{ name: "sun", color: "yellow" }} title="Darken Picture" subtitle="Keeps text readable over a bright picture">
+        <${ThemeSlider} min=${0} max=${90} value=${Number(t.dim)} format=${v => `${Math.round(v)}%`} onCommit=${v => setTheme({ dim: num(v) })} /><//>`}
+      <${Row} icon=${{ name: "layers", color: "indigo" }} title="Reduce Transparency" subtitle="Always fully solid panels">
+        <${Toggle} value=${state.reduceGlass} onChange=${v => tryCall("setup.appearance", { reduceGlass: v })} /><//>
+      <${Row} icon=${{ name: "sparkles", color: "pink" }} title="Reduce Motion" subtitle="No animations">
+        <${Toggle} value=${state.reduceMotion} onChange=${v => tryCall("setup.appearance", { reduceMotion: v })} /><//>
+    <//>
+    <${Section} title="Share and Customize" footer="custom.css is in the launcher's data folder and loads after the built-in styles: change anything. Click the launcher after saving it.">
+      <${Row} icon=${{ name: "copy", color: "blue" }} title="Theme Code" subtitle="Share your look, or use a friend's">
+        <${Button} size="sm" onClick=${() => tryCall("setup.themeExport")}>Copy<//>
+        <${Button} size="sm" onClick=${paste}>Paste…<//><//>
+      <${Row} icon=${{ name: "terminal", color: "green" }} title="Custom CSS" subtitle="For full control: your own styles file">
+        <${Button} size="sm" onClick=${() => tryCall("setup.customCss")}>Open custom.css<//><//>
+      <${Row} icon=${{ name: "refresh", color: "red" }} title="Reset Appearance" subtitle="Default colours, corners and font">
+        <${Button} size="sm" kind="destructive" onClick=${reset}>Reset<//><//>
+    <//>`;
+}
 
 export function SetupPage() {
   const [state] = useApi("setup.state");
@@ -79,18 +160,7 @@ export function SetupPage() {
       </div>
 
       <div class="stack">
-        <${Section} title="Appearance">
-          <${Row} icon=${{ name: "textsize", color: "blue" }} title="Text Size">
-            <${Segmented} options=${[{ value: "normal", label: "Normal" }, { value: "large", label: "Large" }]} value=${state.textSize}
-              onChange=${v => tryCall("setup.appearance", { textSize: v })} />
-          <//>
-          <${Row} icon=${{ name: "layers", color: "indigo" }} title="Reduce Transparency" subtitle="Solid panels instead of glass">
-            <${Toggle} value=${state.reduceGlass} onChange=${v => tryCall("setup.appearance", { reduceGlass: v })} />
-          <//>
-          <${Row} icon=${{ name: "sparkles", color: "pink" }} title="Reduce Motion" subtitle="No animations">
-            <${Toggle} value=${state.reduceMotion} onChange=${v => tryCall("setup.appearance", { reduceMotion: v })} />
-          <//>
-        <//>
+        <${Appearance} state=${state} />
 
         <${Section} title="Log">
           <${LogView} height=${520} />

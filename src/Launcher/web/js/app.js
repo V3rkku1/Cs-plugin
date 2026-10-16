@@ -3,6 +3,7 @@ import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./ve
 import { call, tryCall, useApi, on, prefetch } from "./api.js";
 import { Icon, Toasts, sheen } from "./ui.js";
 import { openPalette } from "./palette.js";
+import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
 import { SkinsPage } from "./pages/skins.js";
@@ -95,9 +96,14 @@ function App() {
   useEffect(() => {
     if (!settings) return;
     document.documentElement.classList.toggle("large-text", settings.textSize === "large");
+    document.documentElement.classList.toggle("small-text", settings.textSize === "small");
     document.documentElement.classList.toggle("reduce-glass", settings.reduceGlass);
     document.documentElement.classList.toggle("reduce-motion", settings.reduceMotion);
   }, [settings?.textSize, settings?.reduceGlass, settings?.reduceMotion]);
+
+  // Theme colours, corners, font and background picture from Setup › Appearance.
+  useEffect(() => { if (settings) applyTheme(settings.theme, settings.reduceGlass); }, [JSON.stringify(settings?.theme ?? null), settings?.reduceGlass]);
+  useEffect(() => watchCustomCss(), []);
 
   // The sheen on glass buttons and tiles follows the pointer.
   useEffect(() => {
