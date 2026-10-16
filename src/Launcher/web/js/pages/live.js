@@ -7,6 +7,18 @@ import { usePlay, go } from "./play.js";
 const set = (key, value) => tryCall("live.set", { [key]: value });
 const send = command => tryCall("live.command", command);
 
+// Bot Improver's own console commands (its plugins must be loaded for them to exist).
+const BOT_AIM = [{ value: 0, label: "Mixed" }, { value: 1, label: "Head" }, { value: 2, label: "Body" }];
+const BOT_AIM_CMD = ["mixed", "head", "body"];
+const BOT_NADES = ["Off", "Less", "Normal", "More", "Max"];
+const BOT_GUNS = [
+  ["", "Normal buying"], ["ak47", "AK-47"], ["m4a1", "M4A4"], ["m4a1s", "M4A1-S"], ["awp", "AWP"], ["ssg08", "SSG 08"],
+  ["famas", "FAMAS"], ["galilar", "Galil AR"], ["aug", "AUG"], ["sg556", "SG 553"], ["scar20", "SCAR-20"], ["g3sg1", "G3SG1"],
+  ["mp9", "MP9"], ["mac10", "MAC-10"], ["mp7", "MP7"], ["mp5sd", "MP5-SD"], ["ump45", "UMP-45"], ["p90", "P90"], ["bizon", "PP-Bizon"],
+  ["nova", "Nova"], ["xm1014", "XM1014"], ["mag7", "MAG-7"], ["sawedoff", "Sawed-Off"], ["negev", "Negev"], ["m249", "M249"],
+  ["deagle", "Desert Eagle"], ["r8", "R8 Revolver"], ["p250", "P250"], ["fn57", "Five-SeveN"], ["cz75a", "CZ75-Auto"], ["elite", "Dual Berettas"],
+].map(([value, label]) => ({ value, label }));
+
 /** A text field that saves when you press Enter or leave it. */
 function CommitField({ value, onCommit, ...props }) {
   const [text, setText] = useState(null);
@@ -200,6 +212,21 @@ export function LivePage() {
               subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, custom modes (only AWP, pistols…), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
+
+        ${s.botImprover && html`<${Section} title="Bot Improver" note=${up ? "changes reach the running server right away" : ""}
+            footer="Bot Improver's settings. Forced weapons start the next round.">
+          <${Row} icon=${{ name: "crosshair", color: "red" }} title="Bot Aim" subtitle="Where bots aim: mixed picks the spot for the situation">
+            <${Segmented} options=${BOT_AIM} value=${s.botAim}
+              onChange=${v => { set("botAim", v); if (up) send("bot_aim " + BOT_AIM_CMD[v]); }} /><//>
+          <${Row} icon=${{ name: "target", color: "orange" }} title="Bot Grenades" subtitle="How many smokes, flashes, HEs and molotovs bots throw">
+            <${Select} width=${150} value=${s.botNades} options=${BOT_NADES.map((label, value) => ({ value, label }))}
+              onChange=${v => { set("botNades", v); if (up) send("bot_nades " + BOT_NADES[v].toLowerCase()); }} /><//>
+          <${Row} icon=${{ name: "bot", color: "green" }} title="Bots Buy" subtitle="Every bot gets this weapon, or buys like normal">
+            <${Select} width=${190} value=${s.botForceWeapon} options=${BOT_GUNS}
+              onChange=${v => { set("botForceWeapon", v); if (up) send(v || "bot_buy"); }} /><//>
+          <${ActionGrid} disabled=${!up} actions=${[
+            ["Reroll Bot Skins", "br_reroll", "shuffle"], ["Flying Scoutsman On", "scouts_on", "sparkles"], ["Flying Scoutsman Off", "scouts_off", "stop"]]} />
+        <//>`}
 
         <${Section} title="Hacker Mode">
           <${Row} icon=${{ name: "hacker", color: "green" }} title="Hacker Mode" subtitle=${state.hackerDetail}

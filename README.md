@@ -129,8 +129,9 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 **Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (solid panels instead of
 glass) and *Reduce Motion* (no animations). They apply right away.
 
-**Agents and pins:** Skins › *Agents & Pins* sets your agent for each side and a collectible pin on the
-scoreboard (data from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them).
+**Agents, pins and music kits:** Skins › *Agents, Pins & Music* sets your agent for each side, a
+collectible pin on the scoreboard and a music kit (round music and your MVP anthem, from the next round).
+The data comes from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them.
 
 **Headshot only and pistols only** (Live Server › Rules, or the *Pistol HS Deathmatch* quick start):
 only headshots (and knives) hurt players, and only pistols (Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250,
@@ -153,7 +154,9 @@ and taken away if picked up. Bots get pistols too.
 - *Bot Improver* ([ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver), AGPL-3.0): more
   human bots: aim, grenades, movement, strategy, buying, pro names. Only its plugins are installed (its
   package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
-  restores it for online play). Includes BotAI, Bot Controller and Bot Hider.
+  restores it for online play). Includes BotAI, Bot Controller and Bot Hider. While it's on, Live Server
+  gets a *Bot Improver* section: bot aim (mixed / head / body), how many grenades bots throw, a weapon
+  every bot buys, *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.
 - *BotAI* ([ed0ard/CS2-BotAI](https://github.com/ed0ard/CS2-BotAI), the maintained fork of
   [Austinbots/CS2-BotAI](https://github.com/Austinbots/CS2-BotAI)): just the smarter bot decisions.
 - *Bot Controller* ([XBribo/CS2-Bot-Controller](https://github.com/XBribo/CS2-Bot-Controller), AGPL-3.0):

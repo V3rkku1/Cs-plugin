@@ -141,6 +141,28 @@ public class ServerSettings
     public bool BotAi { get; set; }
     public bool BotController { get; set; }
 
+    /// <summary>Bot Improver's console commands: bot_aim, bot_nades and the forced weapon ("ak47"; "" = normal buying).</summary>
+    public static readonly string[] BotAimModes = ["mixed", "head", "body"];
+    public static readonly string[] BotNadeModes = ["off", "less", "normal", "more", "max"];
+    public static readonly string[] BotForcedWeapons =
+    [
+        "elite", "p250", "fn57", "deagle", "cz75a", "r8", "bizon", "p90", "mp5sd", "mp9", "mp7", "mac10", "ump45",
+        "mag7", "sawedoff", "nova", "xm1014", "famas", "galilar", "m4a1", "m4a1s", "ak47", "aug", "sg556",
+        "ssg08", "awp", "scar20", "g3sg1", "negev", "m249",
+    ];
+    public int BotAim { get; set; }
+    public int BotNades { get; set; } = 2;
+    public string BotForceWeapon { get; set; } = "";
+
+    /// <summary>Bot Improver settings as console commands; none while it is off (its commands only exist when it is loaded).</summary>
+    public IEnumerable<string> BotImproverCommands()
+    {
+        if (!BotImprover) yield break;
+        yield return $"bot_aim {BotAimModes[Math.Clamp(BotAim, 0, BotAimModes.Length - 1)]}";
+        yield return $"bot_nades {BotNadeModes[Math.Clamp(BotNades, 0, BotNadeModes.Length - 1)]}";
+        yield return BotForcedWeapons.Contains(BotForceWeapon) ? BotForceWeapon : "bot_buy";
+    }
+
     /// <summary>Rules (reset by quick starts): only headshots hurt, and only pistols can be bought or picked up.</summary>
     public bool HeadshotOnly { get; set; }
     public bool PistolsOnly { get; set; }
@@ -613,6 +635,7 @@ public class ServerSettings
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+        foreach (var line in BotImproverCommands()) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
         sb.AppendLine($"lst_pistols {B(PistolsOnly)}");

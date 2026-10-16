@@ -72,6 +72,9 @@ public class PlayerLoadout
     /// <summary>Collectible pin shown on the scoreboard (its definition index, 0 = none).</summary>
     public ushort Pin { get; set; }
 
+    /// <summary>Music kit (its definition index, 0 = the game's default): round music and your MVP anthem.</summary>
+    public ushort MusicKit { get; set; }
+
     public SkinSettings GetOrCreate(ushort defIndex)
     {
         if (!Skins.TryGetValue(defIndex, out var skin))

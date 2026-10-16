@@ -21,6 +21,8 @@ public record AgentInfo(string Name, string Team, string Model, string Rarity, s
 
 public record PinInfo(int Id, string Name, string Rarity, string RarityColor, string Image);
 
+public record MusicKitInfo(int Id, string Name, string Rarity, string RarityColor, string Image);
+
 /// <summary>
 /// Skin, sticker and charm data from ByMykel's CSGO-API (MIT). Downloaded once, then kept as a small
 /// cache in %LocalAppData%\LanSkinTester\data. Also writes the plugin's skins\skins.json (names + legacy flags).
@@ -38,6 +40,7 @@ public class ItemDatabase
     public List<StickerInfo> Charms { get; private set; } = new();
     public List<AgentInfo> Agents { get; private set; } = new();
     public List<PinInfo> Pins { get; private set; } = new();
+    public List<MusicKitInfo> MusicKits { get; private set; } = new();
 
     public bool IsEmpty => Skins.Count == 0;
 
@@ -62,6 +65,7 @@ public class ItemDatabase
             db.Charms = Read<List<StickerInfo>>(Path.Combine(dir, "charms.json")) ?? new();
             db.Agents = Read<List<AgentInfo>>(Path.Combine(dir, "agents.json")) ?? new();
             db.Pins = Read<List<PinInfo>>(Path.Combine(dir, "pins.json")) ?? new();
+            db.MusicKits = Read<List<MusicKitInfo>>(Path.Combine(dir, "musickits.json")) ?? new();
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
@@ -87,6 +91,8 @@ public class ItemDatabase
         log("Downloading agents and pins...");
         var agents = Convert(await GetArray(http, "agents.json"), ParseAgent);
         var pins = Convert(await GetArray(http, "collectibles.json"), ParsePin);
+        log("Downloading music kits...");
+        var musicKits = Convert(await GetArray(http, "music_kits.json"), ParseMusicKit);
 
         Write(Path.Combine(dir, "weapons.json"), weapons);
         Write(Path.Combine(dir, "skins.json"), skins);
@@ -94,7 +100,9 @@ public class ItemDatabase
         Write(Path.Combine(dir, "charms.json"), charms);
         Write(Path.Combine(dir, "agents.json"), agents);
         Write(Path.Combine(dir, "pins.json"), pins);
-        log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms, {agents.Count} agents, {pins.Count} pins.");
+        Write(Path.Combine(dir, "musickits.json"), musicKits);
+        log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms, {agents.Count} agents, " +
+            $"{pins.Count} pins, {musicKits.Count} music kits.");
     }
 
     /// <summary>The plugin reads names + legacy-model flags from its skins folder (cs2-WeaponPaints format).</summary>
@@ -147,6 +155,15 @@ public class ItemDatabase
         var id = Int(n["def_index"]);
         if (Str(n["type"]) != "Pin" || id is <= 0 or > ushort.MaxValue) return null;
         return new PinInfo(id, Str(n["name"]), Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
+    }
+
+    /// <summary>Each kit is listed twice, plain and StatTrak ("music_kit-3_st"); the plain one is enough.</summary>
+    private static MusicKitInfo? ParseMusicKit(JsonNode n)
+    {
+        var id = Int(n["def_index"]);
+        if (id is <= 0 or > ushort.MaxValue || Str(n["id"]).EndsWith("_st")) return null;
+        var name = Str(n["name"]).Replace("StatTrak™ ", "").Replace("Music Kit | ", "");
+        return new MusicKitInfo(id, name, Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
     }
 
     private static SkinInfo? ParseSkin(JsonNode n)

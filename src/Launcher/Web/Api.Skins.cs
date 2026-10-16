@@ -160,14 +160,16 @@ public partial class Api
     // Agents and pins
     // ---------------------------------------------------------------------------------------------
 
-    public record CosmeticsState(List<AgentInfo> Agents, List<PinInfo> Pins, string? AgentT, string? AgentCT, ushort Pin);
+    public record CosmeticsState(List<AgentInfo> Agents, List<PinInfo> Pins, List<MusicKitInfo> MusicKits,
+        string? AgentT, string? AgentCT, ushort Pin, ushort MusicKit);
 
     [Call("skins.cosmetics")]
     private CosmeticsState Cosmetics()
     {
         var loadout = ReadLoadout();
         return new CosmeticsState(App.Db.Agents.OrderBy(a => a.Team).ThenBy(a => a.Name).ToList(),
-            App.Db.Pins.OrderBy(p => p.Name).ToList(), loadout.AgentT, loadout.AgentCT, loadout.Pin);
+            App.Db.Pins.OrderBy(p => p.Name).ToList(), App.Db.MusicKits.OrderBy(m => m.Name).ToList(),
+            loadout.AgentT, loadout.AgentCT, loadout.Pin, loadout.MusicKit);
     }
 
     public record AgentArgs(string Team, string? Model);
@@ -194,6 +196,17 @@ public partial class Api
         store.Get(LoadoutStore.LocalKey).Pin = id;
         store.Save();
         Toast(id == 0 ? "No pin." : "Pin set - it shows on the scoreboard.", "good");
+        App.NotifyChanged();
+    }
+
+    [Call("skins.setMusicKit")]
+    private void SetMusicKit(ushort id)
+    {
+        if (id != 0 && App.Db.MusicKits.All(m => m.Id != id)) throw new ApiException("Unknown music kit.");
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        store.Get(LoadoutStore.LocalKey).MusicKit = id;
+        store.Save();
+        Toast(id == 0 ? "Default music." : "Music kit set - it plays from the next round, and when you're MVP.", "good");
         App.NotifyChanged();
     }
 

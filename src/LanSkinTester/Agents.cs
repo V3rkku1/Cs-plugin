@@ -6,12 +6,16 @@ using CounterStrikeSharp.API.Modules.Utils;
 namespace LanSkinTester;
 
 /// <summary>
-/// Agents (player models) and collectible pins from the loadout. The technique (SetModel on the pawn on
-/// spawn, the pin in the inventory rank slot 5) comes from cs2-WeaponPaints by Nereziel.
+/// Agents (player models), collectible pins and music kits from the loadout. The technique (SetModel on the
+/// pawn on spawn, the pin in the inventory rank slot 5, the music kit id on the controller and in the
+/// inventory) comes from cs2-WeaponPaints by Nereziel.
 /// </summary>
 public partial class LanSkinTester
 {
     private static readonly Regex AgentModel = new(@"^agents/models/[a-z0-9_/]+\.vmdl$");
+
+    /// <summary>Slots we gave a music kit, so picking "default" again can take it away.</summary>
+    private readonly HashSet<int> _musicKitSlots = new();
 
     private void ApplyAgentAndPin(CCSPlayerController player)
     {
@@ -39,6 +43,28 @@ public partial class LanSkinTester
         catch (Exception)
         {
             // The inventory layout moved after a CS2 update: no pin, everything else still works.
+        }
+
+        ApplyMusicKit(player, loadout.MusicKit);
+    }
+
+    private void ApplyMusicKit(CCSPlayerController player, ushort kit)
+    {
+        if (kit == 0 && !_musicKitSlots.Remove(player.Slot)) return;
+        if (kit != 0) _musicKitSlots.Add(player.Slot);
+        try
+        {
+            if (player.InventoryServices is { } inventory)
+            {
+                inventory.MusicID = kit;
+                Utilities.SetStateChanged(player, "CCSPlayerController", "m_pInventoryServices");
+            }
+            player.MusicKitID = kit;
+            Utilities.SetStateChanged(player, "CCSPlayerController", "m_iMusicKitID");
+        }
+        catch (Exception)
+        {
+            // Same as the pin: a moved field after a CS2 update only costs the music kit.
         }
     }
 }
