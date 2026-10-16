@@ -275,7 +275,7 @@ public partial class LanSkinTester
     {
         if (!_instaDefuse) return HookResult.Continue;
         // The defuse timer is set right after this event: finish it on the next frame.
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             var bomb = Utilities.FindAllEntitiesByDesignerName<CPlantedC4>("planted_c4").FirstOrDefault(b => b.IsValid && b.BeingDefused);
             if (bomb == null) return;
@@ -296,7 +296,7 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnBombTimerPlanted(EventBombPlanted @event, GameEventInfo info)
     {
-        if (_bombTimer > 0) Server.NextFrame(ResetBombClock);
+        if (_bombTimer > 0) NextFrame(ResetBombClock);
         return HookResult.Continue;
     }
 
@@ -304,7 +304,7 @@ public partial class LanSkinTester
     public HookResult OnBombTimerFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
     {
         if (_bombTimer <= 0) return HookResult.Continue;
-        Server.NextFrame(ResetBombClock);
+        NextFrame(ResetBombClock);
         // In case auto-plant runs on freeze end too, after this handler.
         AddTimer(0.3f, ResetBombClock, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;

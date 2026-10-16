@@ -27,7 +27,7 @@ public partial class LanSkinTester
         var item = (@event.Item ?? "").Replace("weapon_", "");
         if (!_botNoSnipers || bot == null || !bot.IsValid || !bot.IsBot || !SniperRifles.Contains(item)) return HookResult.Continue;
 
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             if (!bot.IsValid || !bot.PawnIsAlive) return;
             Utilities.RemoveItemByDesignerName(bot, "weapon_" + item);
@@ -64,7 +64,7 @@ public partial class LanSkinTester
             return HookResult.Continue;
         }
         // Too soon after the last jump: take the upward speed away so it stays on the ground.
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             var pawn = bot.IsValid ? bot.PlayerPawn.Value : null;
             if (pawn is not { IsValid: true } || pawn.AbsVelocity is not { } v || v.Z <= 0) return;

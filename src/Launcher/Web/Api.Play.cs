@@ -573,7 +573,7 @@ public partial class Api
             return;
         }
         _joinUpSince ??= now;
-        if (now - _joinUpSince < TimeSpan.FromSeconds(3)) return; // let the map finish loading
+        if (now - _joinUpSince < TimeSpan.FromSeconds(8)) return; // let the map, bots and plugins settle
         // A game that is still booting can't take the connect yet: give it time to reach the menu.
         if (_joinWhenUp == JoinWhenUp.Reconnect && TestSession.ClientAge() is { } age && age < TimeSpan.FromSeconds(25)) return;
         var what = _joinWhenUp;
@@ -755,12 +755,18 @@ public partial class Api
             sb.AppendLine().AppendLine("== Server console (last 80 lines) ==");
             foreach (var line in new TestSession(game).ConsoleTail(80)) sb.AppendLine(line);
             var logs = Path.Combine(game.Addons, "counterstrikesharp", "logs");
-            if (Directory.Exists(logs) && new DirectoryInfo(logs).GetFiles("*.txt").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault() is { } log)
+            // CounterStrikeSharp's main log (log-all...) has the error; each plugin also has its own.
+            var files = Directory.Exists(logs) ? new DirectoryInfo(logs).GetFiles("*.txt") : [];
+            var newest = files.Where(f => f.Name.StartsWith("log-all", StringComparison.OrdinalIgnoreCase))
+                .OrderByDescending(f => f.LastWriteTimeUtc).Take(1)
+                .Concat(files.Where(f => !f.Name.StartsWith("log-all", StringComparison.OrdinalIgnoreCase))
+                    .OrderByDescending(f => f.LastWriteTimeUtc).Take(3));
+            foreach (var log in newest)
             {
-                sb.AppendLine().AppendLine($"== {log.Name} (last 80 lines) ==");
+                sb.AppendLine().AppendLine($"== {log.Name} (last 120 lines) ==");
                 using var stream = new FileStream(log.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
                 using var reader = new StreamReader(stream);
-                foreach (var line in reader.ReadToEnd().Split('\n').TakeLast(80)) sb.AppendLine(line.TrimEnd('\r'));
+                foreach (var line in reader.ReadToEnd().Split('\n').TakeLast(120)) sb.AppendLine(line.TrimEnd('\r'));
             }
             var path = Path.Combine(AppState.LauncherDataDir, "crash-report.txt");
             File.WriteAllText(path, sb.ToString());

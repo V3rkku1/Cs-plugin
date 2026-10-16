@@ -28,7 +28,7 @@ public partial class LanSkinTester
         var killer = @event.Attacker;
         if (!_reloadOnKill || killer is not { IsValid: true } || killer.Slot == @event.Userid?.Slot) return HookResult.Continue;
         // Next frame: the killing shot has taken its bullet by then.
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             if (!killer.IsValid || !killer.PawnIsAlive) return;
             var weapon = killer.PlayerPawn.Value?.WeaponServices?.ActiveWeapon.Value;
@@ -96,7 +96,7 @@ public partial class LanSkinTester
     {
         if (!_pistolsOnly || @event.Userid is not { IsValid: true } player) return HookResult.Continue;
         var item = @event.Weapon ?? "";
-        if (IsNonPistolGun(item)) Server.NextFrame(() => DropNonPistols(player, refund: true));
+        if (IsNonPistolGun(item)) NextFrame(() => DropNonPistols(player, refund: true));
         return HookResult.Continue;
     }
 
@@ -105,7 +105,7 @@ public partial class LanSkinTester
     {
         if (!_pistolsOnly || @event.Userid is not { IsValid: true } player) return HookResult.Continue;
         if (IsNonPistolGun("weapon_" + (@event.Item ?? "").Replace("weapon_", "")))
-            Server.NextFrame(() => DropNonPistols(player, refund: false));
+            NextFrame(() => DropNonPistols(player, refund: false));
         return HookResult.Continue;
     }
 
@@ -162,7 +162,7 @@ public partial class LanSkinTester
     {
         if (_onlyWeapon == "" || @event.Userid is not { IsValid: true } player) return HookResult.Continue;
         var item = "weapon_" + (@event.Item ?? "").Replace("weapon_", "");
-        if (IsOtherGun(item)) Server.NextFrame(() => GiveOnlyWeapon(player));
+        if (IsOtherGun(item)) NextFrame(() => GiveOnlyWeapon(player));
         return HookResult.Continue;
     }
 

@@ -529,7 +529,7 @@ public partial class LanSkinTester
         }
         if (!IsHacker(player) || !Has(player!, Power.Ammo)) return HookResult.Continue;
 
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             var weapon = player!.IsValid ? player.PlayerPawn.Value?.WeaponServices?.ActiveWeapon.Value : null;
             if (weapon == null || !weapon.IsValid) return;
@@ -780,7 +780,7 @@ public partial class LanSkinTester
     {
         var player = @event.Userid;
         if (!IsHacker(player) || !Has(player!, Power.NoFlash)) return HookResult.Continue;
-        Server.NextFrame(() =>
+        NextFrame(() =>
         {
             var pawn = player!.IsValid ? player.PlayerPawn.Value : null;
             if (pawn == null || !pawn.IsValid) return;

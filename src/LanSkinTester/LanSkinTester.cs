@@ -91,6 +91,32 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             if (p.IsValid && p.Connected == PlayerConnectedState.Connected) _inGameSlots.Add(p.Slot);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Safe callbacks. An exception that escapes a timer or next-frame callback isn't caught on the way
+    // back to the game: .NET fail-fasts the whole server (exit code 0x80131623) and everyone is
+    // disconnected. Plugin retakes kills people the moment they spawn, so a timer that then touches
+    // their pawn did exactly that. Every timer and next-frame callback here goes through Guard.
+    // ---------------------------------------------------------------------------------------------
+
+    private new CounterStrikeSharp.API.Modules.Timers.Timer AddTimer(float interval, Action callback, TimerFlags? flags = null) =>
+        base.AddTimer(interval, Guard(callback), flags);
+
+    private void NextFrame(Action task) => Server.NextFrame(Guard(task));
+
+    private void NextWorldUpdate(Action task) => Server.NextWorldUpdate(Guard(task));
+
+    private Action Guard(Action callback) => () =>
+    {
+        try
+        {
+            callback();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error in a delayed callback (ignored so the server keeps running)");
+        }
+    };
+
     public override void Unload(bool hotReload)
     {
         VirtualFunctions.GiveNamedItemFunc.Unhook(OnGiveNamedItemPost, HookMode.Post);
@@ -129,7 +155,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     {
         if (entity.DesignerName?.StartsWith("weapon_") != true) return;
 
-        Server.NextWorldUpdate(() =>
+        NextWorldUpdate(() =>
         {
             try
             {
@@ -663,7 +689,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             if (ptr == IntPtr.Zero) return;
 
             var fresh = new CBasePlayerWeapon(ptr);
-            Server.NextFrame(() =>
+            NextFrame(() =>
             {
                 if (!fresh.IsValid || isKnife) return;
                 fresh.Clip1 = clip;
