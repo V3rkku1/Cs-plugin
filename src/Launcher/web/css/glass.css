@@ -720,3 +720,21 @@ kbd { font-family: var(--font); }
 .color-field input { width: 26px; height: 26px; padding: 0; border: 0; border-radius: 50%; background: none; cursor: pointer; }
 .color-field input::-webkit-color-swatch-wrapper { padding: 0; }
 .color-field input::-webkit-color-swatch { border: 1px solid rgba(255, 255, 255, 0.25); border-radius: 50%; }
+
+/* -------------------------------------------------------------------------------------------- */
+/* Workshop page                                                                                 */
+/* -------------------------------------------------------------------------------------------- */
+
+.ws-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 14px; padding: 14px; }
+.ws-card { display: flex; flex-direction: column; overflow: hidden; border-radius: var(--r-lg); }
+.ws-card.live { box-shadow: inset 0 0 0 2px var(--green), var(--shadow); }
+.ws-pic { position: relative; aspect-ratio: 16 / 9; display: grid; place-items: center; background: rgba(255, 255, 255, 0.04); color: var(--text-3); }
+.ws-pic img { width: 100%; height: 100%; object-fit: cover; }
+.ws-badge { position: absolute; top: 8px; left: 8px; padding: 2px 8px; border-radius: 999px; font-size: 0.75em; font-weight: 700; background: rgba(0, 0, 0, 0.6); }
+.ws-badge.good { color: var(--green); left: auto; right: 8px; }
+.ws-badge.warn { color: var(--orange); }
+.ws-body { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 12px; }
+.ws-title { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-meta { min-height: 1.2em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ws-actions { display: flex; gap: 6px; margin-top: 6px; }
+.ws-search { padding: 12px 14px 0; }

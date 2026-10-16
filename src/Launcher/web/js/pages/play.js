@@ -56,6 +56,12 @@ const tileLooks = {
   "Retake buy": ["tag", "yellow"],
   "Demolition": ["map", "orange"],
   "Weapons Expert": ["star", "yellow"],
+  "AWP Deathmatch": ["crosshair", "green"],
+  "Flying Scoutsman": ["sparkles", "teal"],
+  "Knife Fight": ["skins", "red"],
+  "Deagle Headshots": ["target", "red"],
+  "1v1 Aim Duel": ["person", "indigo"],
+  "Wingman 2v2": ["friends", "blue"],
   "Rush 3v3": ["run", "pink"],
   "Catch the hacker": ["eye", "purple"],
 };

@@ -16,6 +16,29 @@ public static class WorkshopMaps
 
     public static string SubscribeUrl(string id) => $"steam://url/CommunityFilePage/{id}";
 
+    /// <summary>Every Workshop item Steam has downloaded for CS2 that contains a map (.vpk): id and folder.</summary>
+    public static List<(string Id, string Vpk, long Bytes, DateTime Updated)> AllDownloaded(GameFolder game)
+    {
+        var root = Path.GetFullPath(Path.Combine(game.Root, "..", "..", "workshop", "content", "730"));
+        var list = new List<(string, string, long, DateTime)>();
+        if (!Directory.Exists(root)) return list;
+        foreach (var dir in Directory.GetDirectories(root))
+        {
+            var id = Path.GetFileName(dir);
+            if (!id.All(char.IsDigit)) continue;
+            try
+            {
+                var vpk = FindDownloaded(game, id);
+                if (vpk == null) continue;
+                var info = new FileInfo(vpk);
+                list.Add((id, vpk, info.Length, info.LastWriteTimeUtc));
+            }
+            catch (IOException) { /* being updated by Steam */ }
+            catch (UnauthorizedAccessException) { }
+        }
+        return list;
+    }
+
     /// <summary>The map's .vpk if Steam has downloaded it, else null.</summary>
     public static string? FindDownloaded(GameFolder game, string id)
     {
