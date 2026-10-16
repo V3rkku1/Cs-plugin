@@ -287,7 +287,7 @@ button { cursor: pointer; }
 .update-card .title { font-weight: 600; }
 .update-card .detail { font-size: 0.85em; opacity: 0.85; }
 
-.main { position: relative; min-width: 0; min-height: 0; }
+.main { position: relative; min-width: 0; min-height: 0; --page-max: 1760px; }
 
 .page {
   position: absolute;
@@ -295,6 +295,9 @@ button { cursor: pointer; }
   overflow-y: auto;
   overflow-x: hidden;
   padding: 26px 24px 40px 18px;
+  /* Very wide windows (ultrawide, or zoom at its limit): keep the content a readable width, centred. */
+  padding-left: max(18px, calc((100% - var(--page-max)) / 2));
+  padding-right: max(24px, calc((100% - var(--page-max)) / 2));
   animation: page-in 0.5s var(--ease);
   scrollbar-gutter: stable;
 }

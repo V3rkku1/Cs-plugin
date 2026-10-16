@@ -20,6 +20,12 @@ public sealed class ShellForm : Form
     private Api _api = null!;
     private WebHost _host = null!;
     private bool _closing;
+    private WebView2? _view;
+    private bool _fullscreen;
+    private FormWindowState _beforeFullscreen;
+
+    /// <summary>The layout is made for about this much room; bigger windows zoom the whole page instead of stretching it.</summary>
+    private const double DesignWidth = 1480, DesignHeight = 920, MaxZoom = 1.6;
 
     public ShellForm(int port = 0, string? token = null, bool serveOnly = false)
     {
@@ -27,8 +33,12 @@ public sealed class ShellForm : Form
         _token = token;
         _serveOnly = serveOnly;
         Text = "LAN Skin Tester";
-        Size = new Size(1400, 900);
-        MinimumSize = new Size(1080, 700);
+        // Sizes are in pixels: scale them for the screen's DPI (150% on many laptops), but keep the window on the screen.
+        var scale = DeviceDpi / 96.0;
+        var area = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1040);
+        Size Fit(int w, int h) => new((int)Math.Min(w * scale, area.Width * 0.94), (int)Math.Min(h * scale, area.Height * 0.94));
+        Size = Fit(1400, 900);
+        MinimumSize = Fit(1080, 700);
         StartPosition = FormStartPosition.CenterScreen;
         BackColor = Color.FromArgb(8, 10, 18);
         ForeColor = Color.White;
@@ -44,6 +54,8 @@ public sealed class ShellForm : Form
         else RestoreWindow();
 
         HandleCreated += (_, _) => DarkTitleBar();
+        Resize += (_, _) => FitZoom();
+        DpiChanged += (_, _) => FitZoom();
         Load += async (_, _) => await StartAsync();
         FormClosing += OnClosing;
     }
@@ -65,6 +77,7 @@ public sealed class ShellForm : Form
         }
 
         var view = new WebView2 { Dock = DockStyle.Fill, DefaultBackgroundColor = BackColor };
+        _view = view;
         Controls.Add(view);
         try
         {
@@ -74,6 +87,7 @@ public sealed class ShellForm : Form
         catch (Exception ex) when (ex is WebView2RuntimeNotFoundException or COMException or FileNotFoundException)
         {
             Controls.Remove(view);
+            _view = null;
             ShowBrowserFallback();
             return;
         }
@@ -96,7 +110,44 @@ public sealed class ShellForm : Form
             e.Cancel = true;
             OpenExternal(e.Uri);
         };
+        web.NavigationCompleted += (_, _) => FitZoom();
         web.Navigate(_host.Url);
+        FitZoom();
+    }
+
+    /// <summary>
+    /// Maximized or full screen on a big monitor the page would otherwise stay small and stretch across
+    /// the screen: zoom it so it fills the window like it does at the normal size.
+    /// </summary>
+    private void FitZoom()
+    {
+        if (_view?.CoreWebView2 == null || WindowState == FormWindowState.Minimized) return;
+        var scale = DeviceDpi / 96.0;
+        var width = ClientSize.Width / scale;
+        var height = ClientSize.Height / scale;
+        var zoom = Math.Clamp(Math.Min(width / DesignWidth, height / DesignHeight), 1, MaxZoom);
+        zoom = Math.Round(zoom * 20) / 20; // steps of 5%, so small resizes don't keep re-zooming
+        if (Math.Abs(_view.ZoomFactor - zoom) > 0.001) _view.ZoomFactor = zoom;
+    }
+
+    /// <summary>F11: borderless full screen (covers the taskbar), and back.</summary>
+    public void ToggleFullscreen()
+    {
+        if (!_fullscreen)
+        {
+            _beforeFullscreen = WindowState;
+            // Maximizing again after the border change makes Windows size it to the whole monitor.
+            WindowState = FormWindowState.Normal;
+            FormBorderStyle = FormBorderStyle.None;
+            WindowState = FormWindowState.Maximized;
+        }
+        else
+        {
+            FormBorderStyle = FormBorderStyle.Sizable;
+            WindowState = _beforeFullscreen;
+        }
+        _fullscreen = !_fullscreen;
+        FitZoom();
     }
 
     private void ShowBrowserFallback()

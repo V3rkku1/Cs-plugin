@@ -36,7 +36,8 @@ Pick one:
 
 The launcher has six pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Friends and Setup
 (Ctrl+1 to Ctrl+6). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
-type "dm" and press Enter to start Deathmatch. The launcher shows a toast when a friend joins or
+type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
+whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
 leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
 Windows 10 and 11 already have; without it the launcher opens in your web browser instead.
 

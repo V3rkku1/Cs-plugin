@@ -9,7 +9,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>LanSkinTesterLauncher</AssemblyName>
     <RootNamespace>LanSkinTester.Launcher</RootNamespace>
-    <ApplicationHighDpiMode>SystemAware</ApplicationHighDpiMode>
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
     <Product>LAN Skin Tester</Product>
     <!-- No designer files: controls are built in code. -->

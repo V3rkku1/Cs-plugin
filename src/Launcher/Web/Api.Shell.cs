@@ -39,6 +39,9 @@ public partial class Api
         return new ShellState(UpdateCheck.ShortVersion, page, App.Ready, App.TestModeOn, kind, title, detail, _updateAvailable, _updateProgress);
     }
 
+    [Call("app.fullscreen")]
+    private Task ToggleFullscreen() => OnUi(() => (Window as ShellForm)?.ToggleFullscreen());
+
     [Call("app.page")]
     private void SavePage(string page)
     {

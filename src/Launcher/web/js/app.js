@@ -80,6 +80,7 @@ function App() {
       if (e.ctrlKey && e.key.toLowerCase() === "k") { openPalette(setPage); e.preventDefault(); }
       else if (e.ctrlKey && e.key >= "1" && e.key <= "6") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
       else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("skins"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
+      else if (e.key === "F11") { tryCall("app.fullscreen"); e.preventDefault(); }
       else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
       else if (e.key === "F5" && e.shiftKey) { tryCall("play.stop"); e.preventDefault(); }
     };
