@@ -129,6 +129,9 @@ CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
 **Appearance:** Setup → *Appearance*: *Large* text, *Reduce Transparency* (solid panels instead of
 glass) and *Reduce Motion* (no animations). They apply right away.
 
+**Agents and pins:** Skins › *Agents & Pins* sets your agent for each side and a collectible pin on the
+scoreboard (data from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them).
+
 **Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
 
 - *Spawn protection:* 2.5 seconds without damage after spawning (you look see-through); shooting ends it.
@@ -139,6 +142,12 @@ glass) and *Reduce Motion* (no animations). They apply right away.
 - *Round MVP and !stats:* the round's best player in chat after each round; `!stats` shows your kills,
   deaths, headshot % and damage on this map, `!top` the best three.
 - *Welcome message:* new players get one line with the commands they can use.
+- *Bot Hider* ([XBribo/CS2-Bot-Hider](https://github.com/XBribo/CS2-Bot-Hider), AGPL-3.0): bots look like
+  real players (no BOT tag, names, avatars, ping). Downloaded from its GitHub release on the first Start,
+  and parked (not loaded) while switched off.
+- *Deathmatch plugin* ([NockyCZ/CS2-Deathmatch](https://github.com/NockyCZ/CS2-Deathmatch), MIT, Deathmatch
+  mode only): `!gun` weapon menu, custom modes (only AWP, pistols, ...), kill sounds and a spawn editor. It
+  replaces the built-in spawn protection and `!guns`. Downloaded on first use like Bot Hider.
 
 **Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts (or use the quick starts *Hacker vs bots* and
 *Catch the hacker*). Changes there apply to the running server right away, no Apply needed.
@@ -572,8 +581,8 @@ browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
 ## Credits
 
 - Launcher UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
-- Skin, sticker and charm data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
+- Skin, sticker, charm, agent and pin data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
-- The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms)
+- The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms, agents, pins)
   and the function signature come from [cs2-WeaponPaints](https://github.com/Nereziel/cs2-WeaponPaints) by Nereziel.
 - Launcher font: [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License, `assets/fonts/Inter-LICENSE.txt`).

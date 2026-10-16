@@ -16,6 +16,11 @@ public record SkinInfo(
 
 public record StickerInfo(int Id, string Name, string Rarity, string RarityColor, string Image, string Effect);
 
+/// <summary>An agent: Team is "T" or "CT", Model the path the server sets on the player.</summary>
+public record AgentInfo(string Name, string Team, string Model, string Rarity, string RarityColor, string Image);
+
+public record PinInfo(int Id, string Name, string Rarity, string RarityColor, string Image);
+
 /// <summary>
 /// Skin, sticker and charm data from ByMykel's CSGO-API (MIT). Downloaded once, then kept as a small
 /// cache in %LocalAppData%\LanSkinTester\data. Also writes the plugin's skins\skins.json (names + legacy flags).
@@ -31,6 +36,8 @@ public class ItemDatabase
     public List<SkinInfo> Skins { get; private set; } = new();
     public List<StickerInfo> Stickers { get; private set; } = new();
     public List<StickerInfo> Charms { get; private set; } = new();
+    public List<AgentInfo> Agents { get; private set; } = new();
+    public List<PinInfo> Pins { get; private set; } = new();
 
     public bool IsEmpty => Skins.Count == 0;
 
@@ -53,6 +60,8 @@ public class ItemDatabase
             db.Skins = Read<List<SkinInfo>>(Path.Combine(dir, "skins.json")) ?? new();
             db.Stickers = Read<List<StickerInfo>>(Path.Combine(dir, "stickers.json")) ?? new();
             db.Charms = Read<List<StickerInfo>>(Path.Combine(dir, "charms.json")) ?? new();
+            db.Agents = Read<List<AgentInfo>>(Path.Combine(dir, "agents.json")) ?? new();
+            db.Pins = Read<List<PinInfo>>(Path.Combine(dir, "pins.json")) ?? new();
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
@@ -75,12 +84,17 @@ public class ItemDatabase
         var stickers = Convert(await GetArray(http, "stickers.json"), ParseSticker);
         log("Downloading charm list...");
         var charms = Convert(await GetArray(http, "keychains.json"), ParseSticker);
+        log("Downloading agents and pins...");
+        var agents = Convert(await GetArray(http, "agents.json"), ParseAgent);
+        var pins = Convert(await GetArray(http, "collectibles.json"), ParsePin);
 
         Write(Path.Combine(dir, "weapons.json"), weapons);
         Write(Path.Combine(dir, "skins.json"), skins);
         Write(Path.Combine(dir, "stickers.json"), stickers);
         Write(Path.Combine(dir, "charms.json"), charms);
-        log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms.");
+        Write(Path.Combine(dir, "agents.json"), agents);
+        Write(Path.Combine(dir, "pins.json"), pins);
+        log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms, {agents.Count} agents, {pins.Count} pins.");
     }
 
     /// <summary>The plugin reads names + legacy-model flags from its skins folder (cs2-WeaponPaints format).</summary>
@@ -118,6 +132,21 @@ public class ItemDatabase
         if (def == 0 || category is not ("Pistols" or "Rifles" or "SMGs" or "Heavy" or "Knives" or "Gloves" or "Equipment")) return null;
         if (def is 42 or 59 or 5028 or 5029) return null; // default team knives/gloves
         return new WeaponInfo((ushort)def, Str(n["name"]), category, Str(n["image"]));
+    }
+
+    private static AgentInfo? ParseAgent(JsonNode n)
+    {
+        var model = Str(n["model_player"]);
+        var team = Str(n["team"]?["id"]) switch { "terrorists" => "T", "counter-terrorists" => "CT", _ => "" };
+        if (!model.StartsWith("agents/models/") || team == "") return null;
+        return new AgentInfo(Str(n["name"]), team, model, Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
+    }
+
+    private static PinInfo? ParsePin(JsonNode n)
+    {
+        var id = Int(n["def_index"]);
+        if (Str(n["type"]) != "Pin" || id is <= 0 or > ushort.MaxValue) return null;
+        return new PinInfo(id, Str(n["name"]), Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
     }
 
     private static SkinInfo? ParseSkin(JsonNode n)

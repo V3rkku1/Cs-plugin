@@ -132,6 +132,13 @@ public class ServerSettings
     public bool RoundSummary { get; set; } = true;
     public bool WelcomeMessage { get; set; } = true;
 
+    /// <summary>Downloaded plugins: Bot Hider (bots look like players) and NockyCZ's Deathmatch (Deathmatch mode only).</summary>
+    public bool BotHider { get; set; }
+    public bool DeathmatchPlugin { get; set; }
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
+
     /// <summary>Round length in minutes; 0 = the game mode's default.</summary>
     public int RoundTime { get; set; }
     public bool FriendlyFire { get; set; }
@@ -590,7 +597,7 @@ public class ServerSettings
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
-        sb.AppendLine($"lst_qol spawn={B(SpawnProtection)} guns={B(GunMenu)} ready={B(ReadyUp)} vote={B(MapVote)} " +
+        sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");

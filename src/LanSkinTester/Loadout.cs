@@ -65,6 +65,13 @@ public class PlayerLoadout
     /// <summary>Selected gloves definition index (0 = default gloves).</summary>
     public ushort Gloves { get; set; }
 
+    /// <summary>Agent model per side ("agents/models/....vmdl"), or null for the default agent.</summary>
+    public string? AgentT { get; set; }
+    public string? AgentCT { get; set; }
+
+    /// <summary>Collectible pin shown on the scoreboard (its definition index, 0 = none).</summary>
+    public ushort Pin { get; set; }
+
     public SkinSettings GetOrCreate(ushort defIndex)
     {
         if (!Skins.TryGetValue(defIndex, out var skin))

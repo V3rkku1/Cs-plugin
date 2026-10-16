@@ -338,13 +338,13 @@ public partial class Api
         {
             if (!a.Confirmed)
             {
-                var why = Installer.RetakePluginsMismatch(game, server)
-                    ? "A retakes plugin has to load or unload, so the server needs a restart."
+                var why = Installer.RetakePluginsMismatch(game, server) || Installer.ExtraPluginsMismatch(game, server)
+                    ? "A server plugin has to load or unload, so the server needs a restart."
                     : "These retakes settings are read when the plugin loads, so the server needs a restart.";
                 Ask("Restart the server?", why, "Restart", "play.apply", new AskArgs(Confirmed: true));
                 return;
             }
-            App.Log("Restarting so the retakes plugin matches these settings.");
+            App.Log("Restarting so the server plugins match these settings.");
             await RestartServerAsync();
             return;
         }
@@ -473,10 +473,18 @@ public partial class Api
                     i => i.InstallAllocatorAsync(), "Check your internet connection, or switch Guns to Buy.");
         }
 
+        if (server.BotHider)
+            await DownloadRetakePlugin(game, "Bot Hider", () => Installer.BotHiderInstalled(game),
+                i => i.InstallBotHiderAsync(), "Check your internet connection, or turn Bot Hider off (Live Server › Server Plugins).");
+        if (server.UsesDeathmatchPlugin)
+            await DownloadRetakePlugin(game, "the Deathmatch plugin", () => Installer.DeathmatchInstalled(game),
+                i => i.InstallDeathmatchAsync(), "Check your internet connection, or turn the Deathmatch plugin off.");
+
         // A running CS2 refuses to start anyway. Leave its plugin folder alone until it is closed.
         if (TestSession.Cs2Running()) return true;
         try
         {
+            Installer.SetExtraPlugins(game, server);
             Installer.SetRetakesSuite(game, server);
             if (server.IsPluginRetakes) server.WriteRetakesConfig(game);
         }
@@ -512,7 +520,7 @@ public partial class Api
     /// </summary>
     private bool RetakesNeedRestart(GameFolder game, ServerSettings server)
     {
-        var mismatch = Installer.RetakePluginsMismatch(game, server);
+        var mismatch = Installer.RetakePluginsMismatch(game, server) || Installer.ExtraPluginsMismatch(game, server);
         var key = server.PluginRetakeKey();
         if (_runningRetakeKey == null && !mismatch) return false;
         var pluginSettingsChanged = _runningRetakeKey != null && _runningRetakeKey != key

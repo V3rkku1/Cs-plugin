@@ -135,7 +135,10 @@ export function SkinsPage() {
     if (await call(...calls[r.choice]).then(() => true, () => false)) afterWholeChange();
   };
 
+  const openCosmetics = () => sheet(close => html`<${CosmeticsSheet} close=${close} />`, { wide: true });
+
   const actions = html`
+    <${Button} icon="person" onClick=${openCosmetics}>Agents & Pins<//>
     <${Button} icon="import" onClick=${openImport}>Import Item<//>
     <${Button} icon="layers" onClick=${openLoadouts}>Loadouts<//>`;
 
@@ -435,6 +438,56 @@ function AttachmentPicker({ kind, title, currentId, currentWear, close }) {
       <${Button} onClick=${() => close(undefined)}>Cancel<//>
       <${Button} kind="prominent" disabled=${!sel} onClick=${() => use(sel)}>Use<//>
     </div>
+  </div>`;
+}
+
+// ------------------------------------------------------------------------------------------------
+// Agents (one per side) and the scoreboard pin
+// ------------------------------------------------------------------------------------------------
+
+function CosmeticsSheet({ close }) {
+  const [state, reload] = useApi("skins.cosmetics");
+  const [tab, setTab] = useState("T");
+  const [search, setSearch] = useState("");
+  if (!state) return html`<div class="picker"><div class="picker-head"><h2>Agents & Pins</h2></div></div>`;
+
+  const isPin = tab === "PIN";
+  const current = isPin ? state.pin : tab === "CT" ? state.agentCT : state.agentT;
+  const q = search.trim().toLowerCase();
+  const items = (isPin
+    ? state.pins.map(p => ({ key: p.id, value: p.id, name: p.name, rarity: p.rarity, color: p.rarityColor, image: p.image }))
+    : state.agents.filter(a => a.team === tab).map(a => ({ key: a.model, value: a.model, name: a.name, rarity: a.rarity, color: a.rarityColor, image: a.image })))
+    .filter(i => !q || i.name.toLowerCase().includes(q));
+  const pick = value => (isPin ? call("skins.setPin", value ?? 0) : call("skins.setAgent", { team: tab, model: value }))
+    .then(reload).catch(() => {});
+  const none = isPin ? 0 : null;
+
+  return html`<div class="picker">
+    <div class="picker-head">
+      <h2>Agents & Pins</h2>
+      <span class="faint small">Applies in game within a second. Your agent shows to everyone; the pin on the scoreboard.</span>
+    </div>
+    <div class="hstack picker-filters">
+      <${Segmented} options=${[{ value: "T", label: "T Agent" }, { value: "CT", label: "CT Agent" }, { value: "PIN", label: "Pin" }]}
+        value=${tab} onChange=${v => { setTab(v); setSearch(""); }} />
+      <div class="grow"><${TextField} icon="search" placeholder=${isPin ? "Search pins" : "Search agents"} value=${search} onInput=${setSearch} /></div>
+    </div>
+    ${state.agents.length === 0 && state.pins.length === 0 ? html`<div class="empty">
+        <${Icon} name="download" size=${30} /><div>Agent and pin lists aren't downloaded yet. Press Update on Setup › Skin, sticker and charm lists.</div></div>`
+      : html`<div class="picker-grid scroll">
+        <button class=${"finish small-card" + ((current ?? none) === none ? " selected" : "")} style="--c:#8e8e93" onClick=${() => pick(null)}>
+          <div class="pic"><${Pic} src="" size=${128} icon=${isPin ? "star" : "person"} /></div>
+          <div class="name">${isPin ? "No pin" : "Default agent"}</div>
+          <div class="rarity">Stock</div>
+        </button>
+        ${items.map(i => html`<button key=${i.key} class=${"finish small-card" + (i.value === current ? " selected" : "")}
+            style=${`--c:${i.color || "#8e8e93"}`} onClick=${() => pick(i.value)} title=${i.name}>
+          <div class="pic"><${Pic} src=${i.image} size=${128} icon=${isPin ? "star" : "person"} /></div>
+          <div class="name">${i.name}</div>
+          <div class="rarity">${i.rarity}</div>
+        </button>`)}
+      </div>`}
+    <div class="picker-foot"><div class="grow"></div><${Button} kind="prominent" onClick=${() => close(undefined)}>Done<//></div>
   </div>`;
 }
 

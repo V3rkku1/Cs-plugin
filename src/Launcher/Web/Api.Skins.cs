@@ -157,6 +157,47 @@ public partial class Api
     }
 
     // ---------------------------------------------------------------------------------------------
+    // Agents and pins
+    // ---------------------------------------------------------------------------------------------
+
+    public record CosmeticsState(List<AgentInfo> Agents, List<PinInfo> Pins, string? AgentT, string? AgentCT, ushort Pin);
+
+    [Call("skins.cosmetics")]
+    private CosmeticsState Cosmetics()
+    {
+        var loadout = ReadLoadout();
+        return new CosmeticsState(App.Db.Agents.OrderBy(a => a.Team).ThenBy(a => a.Name).ToList(),
+            App.Db.Pins.OrderBy(p => p.Name).ToList(), loadout.AgentT, loadout.AgentCT, loadout.Pin);
+    }
+
+    public record AgentArgs(string Team, string? Model);
+
+    /// <summary>Model null = the default agent for that side.</summary>
+    [Call("skins.setAgent")]
+    private void SetAgent(AgentArgs a)
+    {
+        if (a.Model != null && App.Db.Agents.All(x => x.Model != a.Model)) throw new ApiException("Unknown agent.");
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var loadout = store.Get(LoadoutStore.LocalKey);
+        if (a.Team == "CT") loadout.AgentCT = a.Model;
+        else loadout.AgentT = a.Model;
+        store.Save();
+        Toast(a.Model == null ? "Default agent." : "Agent set.", "good");
+        App.NotifyChanged();
+    }
+
+    [Call("skins.setPin")]
+    private void SetPin(ushort id)
+    {
+        if (id != 0 && App.Db.Pins.All(p => p.Id != id)) throw new ApiException("Unknown pin.");
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        store.Get(LoadoutStore.LocalKey).Pin = id;
+        store.Save();
+        Toast(id == 0 ? "No pin." : "Pin set - it shows on the scoreboard.", "good");
+        App.NotifyChanged();
+    }
+
+    // ---------------------------------------------------------------------------------------------
     // Import and sharing
     // ---------------------------------------------------------------------------------------------
 

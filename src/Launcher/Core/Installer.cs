@@ -122,6 +122,57 @@ public class Installer
             SetTreeActive(game, tree, server.UsesAllocator);
     }
 
+    // ---------------------------------------------------------------------------------------------
+    // Optional server plugins, downloaded on first use and parked when switched off:
+    // Bot Hider (XBribo, AGPL-3.0, a Metamod plugin + a CounterStrikeSharp part) makes bots look like
+    // players; NockyCZ's Deathmatch (MIT) adds a weapon menu, custom modes, kill sounds and spawn editing.
+    // ---------------------------------------------------------------------------------------------
+
+    public const string BotHiderPage = "https://github.com/XBribo/CS2-Bot-Hider";
+    public const string DeathmatchPage = "https://github.com/NockyCZ/CS2-Deathmatch";
+    private const string BotHiderApi = "https://api.github.com/repos/XBribo/CS2-Bot-Hider/releases/latest";
+    private const string DeathmatchApi = "https://api.github.com/repos/NockyCZ/CS2-Deathmatch/releases/latest";
+
+    private static string BotHiderVdf(GameFolder game) => Path.Combine(game.Addons, "metamod", "BotHider.vdf");
+
+    public static bool BotHiderInstalled(GameFolder game) =>
+        File.Exists(Path.Combine(game.Addons, "BotHider", "bin", "win64", "BotHider.dll"));
+
+    public static bool DeathmatchInstalled(GameFolder game) => TreeInstalled(game, "plugins/Deathmatch", "Deathmatch.dll");
+
+    /// <summary>True when Bot Hider or the Deathmatch plugin is loaded / parked differently from these settings.</summary>
+    public static bool ExtraPluginsMismatch(GameFolder game, ServerSettings server) =>
+        (BotHiderInstalled(game) && File.Exists(BotHiderVdf(game)) != server.BotHider)
+        || (DeathmatchInstalled(game) && TreeLoaded(game, "plugins/Deathmatch") != server.UsesDeathmatchPlugin);
+
+    public async Task InstallBotHiderAsync()
+    {
+        _log("Looking up the latest Bot Hider release...");
+        using var doc = JsonDocument.Parse(await _http.GetStringAsync(BotHiderApi));
+        var url = doc.RootElement.GetProperty("assets").EnumerateArray()
+            .Where(a => a.GetProperty("name").GetString()?.Contains("windows", StringComparison.OrdinalIgnoreCase) == true)
+            .Select(a => a.GetProperty("browser_download_url").GetString()).FirstOrDefault(u => !string.IsNullOrEmpty(u))
+            ?? throw new InvalidOperationException("No Windows zip in the latest Bot Hider release.");
+        _log("Downloading Bot Hider...");
+        await InstallZipAsync(await DownloadAsync(url)); // the zip has addons/ at its root
+        _log("Bot Hider installed.");
+    }
+
+    public async Task InstallDeathmatchAsync() =>
+        await InstallReleaseAsync(DeathmatchApi, "Deathmatch plugin", name => name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>Loads or parks Bot Hider and the Deathmatch plugin to match the current settings.</summary>
+    public static void SetExtraPlugins(GameFolder game, ServerSettings server)
+    {
+        var vdf = BotHiderVdf(game);
+        var parked = vdf + ".off"; // Metamod only loads *.vdf
+        if (server.BotHider && File.Exists(parked) && !File.Exists(vdf)) File.Move(parked, vdf);
+        else if (!server.BotHider && File.Exists(vdf)) File.Move(vdf, parked, overwrite: true);
+        SetTreeActive(game, "plugins/BotHiderImpl", server.BotHider);
+        SetTreeActive(game, "plugins/Deathmatch", server.UsesDeathmatchPlugin);
+        SetTreeActive(game, "shared/DeathmatchAPI", server.UsesDeathmatchPlugin);
+    }
+
     private async Task InstallReleaseAsync(string api, string label, Func<string, bool> pick)
     {
         _log($"Looking up the latest {label} release...");

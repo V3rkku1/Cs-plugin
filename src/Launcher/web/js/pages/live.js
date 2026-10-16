@@ -171,7 +171,7 @@ export function LivePage() {
             <${Toggle} value=${s.showDamage} onChange=${v => set("showDamage", v)} /><//>
         <//>
 
-        <${Section} title="Server Plugins" note="built in · players use them in chat" footer="Applied on the next Start or Apply Changes.">
+        <${Section} title="Server Plugins" note="built in · players use them in chat" footer="Applied on the next Start or Apply Changes. Bot Hider and the Deathmatch plugin restart the server when they load or unload.">
           <${Row} icon=${{ name: "shield", color: "blue" }} title="Spawn Protection" subtitle="2.5 s of safety after spawning · shooting ends it">
             <${Toggle} value=${s.spawnProtection} onChange=${v => set("spawnProtection", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "orange" }} title="!guns" subtitle="Players pick their Deathmatch weapons: !guns ak47 deagle">
@@ -184,6 +184,11 @@ export function LivePage() {
             <${Toggle} value=${s.roundSummary} onChange=${v => set("roundSummary", v)} /><//>
           <${Row} icon=${{ name: "person", color: "purple" }} title="Welcome Message" subtitle="Tells new players which commands they can use">
             <${Toggle} value=${s.welcomeMessage} onChange=${v => set("welcomeMessage", v)} /><//>
+          <${Row} icon=${{ name: "bot", color: "indigo" }} title="Bot Hider" subtitle="Bots look like real players: no BOT tag, names, avatars, ping · downloads from GitHub on first Start">
+            <${Toggle} value=${s.botHider} onChange=${v => set("botHider", v)} /><//>
+          <${Row} icon=${{ name: "crosshair", color: "red" }} title="Deathmatch Plugin"
+              subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, custom modes (only AWP, pistols…), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
+            <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
 
         <${Section} title="Hacker Mode">

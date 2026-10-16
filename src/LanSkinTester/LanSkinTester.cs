@@ -31,7 +31,7 @@ public class LanSkinTesterConfig : BasePluginConfig
 public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConfig>
 {
     public override string ModuleName => "LAN Skin Tester";
-    public override string ModuleVersion => "2.11.0";
+    public override string ModuleVersion => "2.12.0";
     public override string ModuleAuthor => "Cs-plugin";
     public override string ModuleDescription => "Preview CS2 weapon, knife and glove skins on your own LAN / offline server.";
 
@@ -154,6 +154,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 .ToList();
 
             foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
+            ApplyAgentAndPin(player);
             ApplyGloves(player);
             Reply(player, message);
         }
@@ -408,6 +409,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             return HookResult.Continue;
         }
 
+        ApplyAgentAndPin(player);
         AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
     }
