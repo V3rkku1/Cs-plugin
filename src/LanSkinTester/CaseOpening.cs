@@ -152,6 +152,21 @@ public partial class LanSkinTester
         return (common.Count > 0 ? common : box.Items)[Random.Shared.Next(common.Count > 0 ? common.Count : box.Items.Count)];
     }
 
+    /// <summary>Like CS2: a wear band first (FN 3%, MW 24%, FT 33%, WW 24%, BS 16%), then into the skin's float range.</summary>
+    private static float RollWear(float min, float max)
+    {
+        (double Low, double High, double Chance)[] bands = [(0, 0.07, 0.03), (0.07, 0.15, 0.24), (0.15, 0.38, 0.33), (0.38, 0.45, 0.24), (0.45, 1, 0.16)];
+        var roll = Random.Shared.NextDouble();
+        var band = bands[^1];
+        foreach (var b in bands)
+        {
+            roll -= b.Chance;
+            if (roll < 0) { band = b; break; }
+        }
+        var value = band.Low + Random.Shared.NextDouble() * (band.High - band.Low);
+        return (float)Math.Clamp(min + value * (max - min), 0.000001, 0.999999);
+    }
+
     private static string RarityOf(CaseDrop item, WeaponCase box) => box.Rare.Contains(item) ? "Rare" : item.Rarity;
 
     /// <summary>Equips the unboxed item and tells everyone.</summary>
@@ -160,7 +175,7 @@ public partial class LanSkinTester
         var isKnife = ItemData.Knives.ContainsValue(drop.Def);
         var isGloves = ItemData.Gloves.ContainsValue(drop.Def);
         var statTrak = !isGloves && Random.Shared.NextDouble() < 0.10;
-        var wear = Math.Clamp(drop.Min + (float)Random.Shared.NextDouble() * (drop.Max - drop.Min), 0.00001f, 0.99999f);
+        var wear = RollWear(drop.Min, drop.Max);
 
         var loadout = GetLoadout(player);
         var skin = new SkinSettings

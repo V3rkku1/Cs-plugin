@@ -23,9 +23,14 @@ public record PinInfo(int Id, string Name, string Rarity, string RarityColor, st
 
 public record MusicKitInfo(int Id, string Name, string Rarity, string RarityColor, string Image);
 
-/// <summary>A weapon case: its skins ("Weapon | Finish", paint kit, rarity) and the rare knives / gloves.</summary>
-public record CaseInfo(string Name, string Image, List<CaseItem> Items, List<CaseItem> Rare);
-public record CaseItem(string Name, int Paint, string Rarity);
+/// <summary>
+/// A container: weapon case, sticker / autograph capsule, souvenir package, music kit box, pins, patches or
+/// graffiti. Items are what it drops ("Weapon | Finish", paint kit, rarity); Rare are a case's knives / gloves.
+/// </summary>
+public record CaseInfo(string Id, string Name, string Image, string Type, List<CaseItem> Items, List<CaseItem> Rare);
+
+/// <summary>Id is the item data's id ("skin-…", "sticker-123", "music_kit-32", "collectible-6110"...).</summary>
+public record CaseItem(string Id, string Name, int Paint, string Rarity, string Color, string Image, string? Phase);
 
 /// <summary>
 /// Skin, sticker and charm data from ByMykel's CSGO-API (MIT). Downloaded once, then kept as a small
@@ -72,6 +77,8 @@ public class ItemDatabase
             db.Pins = Read<List<PinInfo>>(Path.Combine(dir, "pins.json")) ?? new();
             db.MusicKits = Read<List<MusicKitInfo>>(Path.Combine(dir, "musickits.json")) ?? new();
             db.Cases = Read<List<CaseInfo>>(Path.Combine(dir, "cases.json")) ?? new();
+            // An older launcher saved cases without their type and pictures: download again to get them.
+            if (db.Cases.Any(c => c.Type == null || c.Items.Any(i => i.Id == null))) db.Cases = new();
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
@@ -168,11 +175,14 @@ public class ItemDatabase
 
     private static CaseInfo? ParseCase(JsonNode n)
     {
-        if (Str(n["type"]) != "Case" || n["contains"] is not JsonArray contains || contains.Count == 0) return null;
+        var type = Str(n["type"]);
+        if (type == "" || n["contains"] is not JsonArray contains || contains.Count == 0) return null;
         static List<CaseItem> Items(JsonNode? list) => list is JsonArray a
-            ? a.Where(x => x != null).Select(x => new CaseItem(Str(x!["name"]), Int(x["paint_index"]), Str(x["rarity"]?["name"]))).Where(i => i.Name != "").ToList()
+            ? a.Where(x => x != null).Select(x => new CaseItem(Str(x!["id"]), Str(x["name"]), Int(x["paint_index"]), Str(x["rarity"]?["name"]),
+                Str(x["rarity"]?["color"]), Str(x["image"]), x["phase"]?.GetValueKind() == JsonValueKind.String ? x["phase"]!.GetValue<string>() : null))
+                .Where(i => i.Name != "").ToList()
             : new List<CaseItem>();
-        return new CaseInfo(Str(n["name"]), Str(n["image"]), Items(contains), Items(n["contains_rare"]));
+        return new CaseInfo(Str(n["id"]), Str(n["name"]), Str(n["image"]), type, Items(contains), Items(n["contains_rare"]));
     }
 
     /// <summary>
@@ -183,23 +193,31 @@ public class ItemDatabase
     {
         if (Cases.Count == 0) return;
         Directory.CreateDirectory(casesDir);
-        var byName = Weapons.GroupBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToDictionary(g => g.Key, g => g.First().DefIndex, StringComparer.OrdinalIgnoreCase);
         object? Item(CaseItem item)
         {
-            var name = item.Name.Replace("★", "").Trim();
-            var bar = name.IndexOf('|');
-            var weapon = (bar < 0 ? name : name[..bar]).Trim();
-            if (!byName.TryGetValue(weapon, out var def)) return null;
+            if (WeaponOfItem(item.Name) is not { } def) return null;
             var skin = item.Paint != 0 ? Find(def, item.Paint) : null;
-            return new { def, paint = item.Paint, name, rarity = item.Rarity, min = skin?.MinFloat ?? 0f, max = skin?.MaxFloat ?? 1f };
+            return new { def, paint = item.Paint, name = item.Name.Replace("★", "").Trim(), rarity = item.Rarity, min = skin?.MinFloat ?? 0f, max = skin?.MaxFloat ?? 1f };
         }
-        var list = Cases.Select(c => new
+        var list = Cases.Where(c => c.Type == "Case").Select(c => new
         {
             name = c.Name,
             items = c.Items.Select(Item).Where(i => i != null).ToList(),
             rare = c.Rare.Select(Item).Where(i => i != null).ToList(),
         }).Where(c => c.items.Count > 0).ToList();
         File.WriteAllText(Path.Combine(casesDir, "cases.json"), JsonSerializer.Serialize(list));
+    }
+
+    private Dictionary<string, ushort>? _weaponsByName;
+
+    /// <summary>The weapon (or knife / gloves) a "★ Karambit | Fade" style name is for, or null for stickers and such.</summary>
+    public ushort? WeaponOfItem(string itemName)
+    {
+        _weaponsByName ??= Weapons.GroupBy(w => w.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(g => g.Key, g => g.First().DefIndex, StringComparer.OrdinalIgnoreCase);
+        var name = itemName.Replace("★", "").Replace("StatTrak™", "").Replace("Souvenir", "").Trim();
+        var bar = name.IndexOf('|');
+        return _weaponsByName.TryGetValue((bar < 0 ? name : name[..bar]).Trim(), out var def) ? def : null;
     }
 
     /// <summary>Each kit is listed twice, plain and StatTrak ("music_kit-3_st"); the plain one is enough.</summary>

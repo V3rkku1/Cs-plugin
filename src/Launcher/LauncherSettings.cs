@@ -39,6 +39,10 @@ public class LauncherSettings
     /// <summary>The name friends see when this PC hosts (in their launcher's friends list).</summary>
     public string HostName { get; set; } = Environment.UserName;
 
+    /// <summary>Cases page: every container (capsules, souvenirs...) unlocked with the secret code, and how many were opened.</summary>
+    public bool CasesUnlocked { get; set; }
+    public int CasesOpened { get; set; }
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 

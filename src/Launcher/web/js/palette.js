@@ -4,7 +4,7 @@ import { call, tryCall } from "./api.js";
 import { Icon, sheet } from "./ui.js";
 
 const pageItems = [
-  ["play", "Play", "play"], ["live", "Live Server", "server"], ["skins", "Skins", "skins"],
+  ["play", "Play", "play"], ["live", "Live Server", "server"], ["skins", "Skins", "skins"], ["cases", "Cases", "key"],
   ["hacker", "Hacker Mode", "hacker"], ["workshop", "Workshop", "map"], ["friends", "Friends", "friends"], ["setup", "Setup", "setup"],
 ];
 

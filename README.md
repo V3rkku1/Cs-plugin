@@ -34,8 +34,8 @@ Pick one:
   It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-The launcher has seven pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Workshop, Friends
-and Setup (Ctrl+1 to Ctrl+7). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
+The launcher has eight pages in its sidebar: Play, Live Server, Skins, Cases, Hacker Mode, Workshop,
+Friends and Setup (Ctrl+1 to Ctrl+8). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
 type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
 whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
 leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
@@ -154,6 +154,16 @@ low gravity. Quick starts: *AWP Deathmatch*, *Flying Scoutsman*, *Knife Fight*, 
 
 **Calm Bots** (Live Server › Bots, on by default): a bot jumps at most once every 3 seconds, so bots stop
 hopping around.
+
+**CASES page**: open CS2 containers like in the game. Pick a case, see what it holds and the odds, press
+*Unlock Container*: the reel spins and stops on what you got. Odds are Valve's (Mil-Spec 79.92%,
+Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife or gloves 0.26%); knife finishes are equally
+likely, Doppler phases follow the community-measured split; the float is made the way CS2 does it (a wear
+band first: FN 3%, MW 24%, FT 33%, WW 24%, BS 16%, then squeezed into the skin's own range), pattern
+0-1000, StatTrak 10% in weapon cases. Everything you unbox goes to the page's *Inventory*, where
+**Equip** puts a gun skin, knife, gloves, pin or music kit on in game. All weapon cases are open to
+everyone; sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and graffiti
+need the owner's code. Nothing touches a Steam inventory.
 
 **Cases in game:** type `!cases` to list the real CS2 weapon cases and `!case <number>` to open one. It
 spins on your screen with Valve's odds (knife or gloves 0.26%) and equips what you unbox with a random
