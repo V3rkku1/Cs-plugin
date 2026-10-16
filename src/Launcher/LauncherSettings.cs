@@ -33,6 +33,12 @@ public class LauncherSettings
     /// <summary>Servers joined lately (newest first), for one-click rejoin on the Friends page.</summary>
     public List<JoinTarget> RecentServers { get; set; } = new();
 
+    /// <summary>Saved friends (Friends page): a name and their server address and password.</summary>
+    public List<FriendContact> FriendsList { get; set; } = new();
+
+    /// <summary>The name friends see when this PC hosts (in their launcher's friends list).</summary>
+    public string HostName { get; set; } = Environment.UserName;
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 
@@ -60,4 +66,12 @@ public class SavedSetup
 {
     public string Name { get; set; } = "";
     public ServerSettings Settings { get; set; } = new();
+}
+
+/// <summary>A friend on the Friends page.</summary>
+public class FriendContact
+{
+    public string Name { get; set; } = "";
+    public string Address { get; set; } = "";
+    public string Password { get; set; } = "";
 }

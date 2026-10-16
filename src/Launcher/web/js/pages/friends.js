@@ -1,7 +1,7 @@
 // Friends: host step by step (connection, address and invite, options, start), or join a friend.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall, useApi } from "../api.js";
-import { Page, Section, Row, Button, Segmented, Select, TextField, Icon, Badge } from "../ui.js";
+import { Page, Section, Row, Button, Segmented, Select, TextField, Icon, Badge, prompt } from "../ui.js";
 import { go, useFlash } from "./play.js";
 
 const networks = [
@@ -16,6 +16,44 @@ const networkHelp = [
 ];
 
 const kindColor = { good: "var(--green)", warning: "var(--orange)", muted: "var(--text-2)", running: "var(--blue)", busy: "var(--blue)", off: "var(--text-3)" };
+
+/** Saved friends (online check) and friends hosting on this network. Refreshes every 8 seconds. */
+function FriendsList({ hasGame }) {
+  const [list, reload] = useApi("friends.list");
+  useEffect(() => { const t = setInterval(reload, 8000); return () => clearInterval(t); }, []);
+  const add = async () => {
+    const text = await prompt({ title: "Add a Friend", message: "Paste their invite code (LST-…) or server address. They copy it on their Friends page.", placeholder: "LST-… or 26.12.34.56", ok: "Next" });
+    if (!text?.trim()) return;
+    const name = await prompt({ title: "Add a Friend", message: "Their name:", placeholder: "Name", ok: "Add" });
+    if (name != null) tryCall("friends.add", { name, text });
+  };
+  const joinLan = async h => {
+    let password = "";
+    if (h.password) {
+      password = await prompt({ title: `Join ${h.name}`, message: "Their server has a password:", placeholder: "Password", ok: "Join" });
+      if (password == null) return;
+    }
+    tryCall("friends.joinLan", { address: h.address, password });
+  };
+  const rename = async () => {
+    const name = await prompt({ title: "Your Name", message: "The name friends see when you host:", value: list?.hostName ?? "", ok: "Save" });
+    if (name != null) { await tryCall("friends.hostName", name); reload(); }
+  };
+  if (!list) return html`<${Section} title="Friends List"><div class="empty small">Looking for friends…</div><//>`;
+  const none = list.friends.length === 0 && list.lan.length === 0;
+  return html`<${Section} title="Friends List" note="who is hosting right now"
+      footer=${html`Friends on your Wi-Fi or Radmin network show up by themselves while they host. You show up as <b>${list.hostName}</b> · <a href="#" onClick=${e => { e.preventDefault(); rename(); }}>change</a>`}>
+    ${list.lan.map(h => html`<${Row} key=${h.address} icon=${{ name: "play", color: "green" }} title=${h.name}
+        subtitle=${`Hosting ${h.map} · ${h.players} player${h.players === 1 ? "" : "s"} · same network`} subtitleClass="note-good">
+      <${Button} size="sm" kind="prominent" disabled=${!hasGame} onClick=${() => joinLan(h)}>Join<//><//>`)}
+    ${list.friends.map(f => html`<${Row} key=${f.address} icon=${{ name: "person", color: f.online ? "green" : "indigo" }} title=${f.name}
+        subtitle=${f.online ? f.detail : `${f.detail} · ${f.address}`} subtitleClass=${f.online ? "note-good" : ""}>
+      ${f.online && html`<${Button} size="sm" kind="prominent" disabled=${!hasGame} onClick=${() => tryCall("friends.joinSaved", f.index)}>Join<//>`}
+      <${Button} size="sm" kind="plain" icon="x" title="Remove" onClick=${() => tryCall("friends.remove", f.index)} /><//>`)}
+    ${none && html`<div class="empty small"><${Icon} name="friends" size=${26} /><div>No friends hosting yet. Add a friend with their invite code, or wait for someone on your network to host.</div></div>`}
+    <${Row} icon=${{ name: "plus", color: "blue" }} title="Add a Friend" subtitle="With their invite code or address" onClick=${add} />
+  <//>`;
+}
 
 function Step({ n, title, done, children, footer }) {
   return html`<${Section} footer=${footer} title=${html`<span class=${"step-num" + (done ? " done" : "")}>${done ? html`<${Icon} name="check" size=${12} stroke=${3} />` : n}</span>${title}`}>
@@ -108,6 +146,7 @@ export function FriendsPage() {
 
       <div class="stack">
         <div class="col-head"><${Icon} name="friends" size=${18} /> Join a Friend</div>
+        <${FriendsList} hasGame=${state.hasGame} />
         <${Section}>
           <div class="pad-block join-block">
             <label class="field-label">Invite code or address</label>

@@ -186,7 +186,11 @@ public partial class Api
             ? App.Settings.RecentServers.ElementAtOrDefault(i)
             : FriendsInvite.Parse(a.Text ?? "", a.Password ?? "");
         if (target == null) throw new ApiException("Paste the invite code your friend sent (LST-…), or type their address.");
+        JoinServer(game, target);
+    }
 
+    private void JoinServer(GameFolder game, JoinTarget target)
+    {
         try
         {
             if (TestSession.Cs2Running())
@@ -234,5 +238,87 @@ public partial class Api
         list.RemoveAt(index);
         SavePlaySettings();
         App.NotifyChanged();
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Friends list: saved friends (online check) and friends hosting on this network
+    // ---------------------------------------------------------------------------------------------
+
+    public record FriendRow(int Index, string Name, string Address, bool Online, string Detail, bool Password);
+    public record FriendsList(List<FriendRow> Friends, List<LanHost> Lan, string HostName);
+
+    [Call("friends.list")]
+    private async Task<FriendsList> FriendsListNow()
+    {
+        var saved = App.Settings.FriendsList;
+        var checks = saved.Select(f => FriendFinder.QueryAsync(f.Address)).ToList();
+        var infos = await Task.WhenAll(checks);
+        var rows = saved.Select((f, i) => infos[i] is { } info
+                ? new FriendRow(i, f.Name, f.Address, true, $"Hosting {info.Map} · {info.Players}/{info.MaxPlayers} players" + (info.Bots > 0 ? $" + {info.Bots} bots" : ""), info.Password)
+                : new FriendRow(i, f.Name, f.Address, false, "Not hosting right now", false))
+            .OrderByDescending(r => r.Online).ThenBy(r => r.Name)
+            .ToList();
+        return new FriendsList(rows, FriendFinder.LanHosts(), App.Settings.HostName);
+    }
+
+    public record AddFriendArgs(string? Name, string? Text);
+
+    /// <summary>Saves a friend from their invite code or address.</summary>
+    [Call("friends.add")]
+    private void AddFriend(AddFriendArgs a)
+    {
+        var target = FriendsInvite.Parse(a.Text ?? "", "") ?? throw new ApiException("Paste the friend's invite code (LST-…) or address.");
+        var name = (a.Name ?? "").Trim();
+        if (name == "") name = target.Address;
+        var list = App.Settings.FriendsList;
+        list.RemoveAll(f => f.Address == target.Address);
+        list.Add(new FriendContact { Name = name.Length > 32 ? name[..32] : name, Address = target.Address, Password = target.Password });
+        SavePlaySettings();
+        Toast($"{name} added to your friends.", "good");
+        App.NotifyChanged();
+    }
+
+    [Call("friends.remove")]
+    private void RemoveFriend(int index)
+    {
+        var list = App.Settings.FriendsList;
+        if (index < 0 || index >= list.Count) return;
+        list.RemoveAt(index);
+        SavePlaySettings();
+        App.NotifyChanged();
+    }
+
+    [Call("friends.joinSaved")]
+    private void JoinSaved(int index)
+    {
+        var game = App.Game ?? throw new ApiException("Pick your CS2 folder first (Setup page).");
+        var f = App.Settings.FriendsList.ElementAtOrDefault(index) ?? throw new ApiException("That friend isn't in the list any more.");
+        JoinServer(game, new JoinTarget(f.Address, f.Password));
+    }
+
+    public record JoinLanArgs(string Address, string? Password);
+
+    [Call("friends.joinLan")]
+    private void JoinLan(JoinLanArgs a)
+    {
+        var game = App.Game ?? throw new ApiException("Pick your CS2 folder first (Setup page).");
+        if (FriendFinder.LanHosts().All(h => h.Address != a.Address)) throw new ApiException("That server isn't announcing any more.");
+        JoinServer(game, new JoinTarget(a.Address, (a.Password ?? "").Trim()));
+    }
+
+    [Call("friends.hostName")]
+    private void SetHostName(string name)
+    {
+        name = (name ?? "").Trim();
+        App.Settings.HostName = name == "" ? Environment.UserName : name.Length > 32 ? name[..32] : name;
+        SavePlaySettings();
+        App.NotifyChanged();
+    }
+
+    /// <summary>What this PC announces to friends' launchers on the same network while it hosts.</summary>
+    private (string, string, int, int, bool)? HostBeacon()
+    {
+        if (!App.TestModeOn || App.ReadServerStatus() is not { } status) return null;
+        return (App.Settings.HostName, status.Map, status.Humans, 10, App.Settings.Server.Password != "");
     }
 }

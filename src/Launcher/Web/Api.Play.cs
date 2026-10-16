@@ -45,6 +45,8 @@ public partial class Api
         poll.Start();
         RouterPort.Changed += App.NotifyChanged;
         FireRelay.Start(() => App.TestModeOn, App.Log);
+        FriendFinder.StartListening(App.Log);
+        FriendFinder.StartBeacon(HostBeacon);
     }
 
     private List<string>? _knownPlayers;
