@@ -12,11 +12,14 @@ namespace LanSkinTester;
 ///                                 connects, so you and your friends always get a team (0 = off).
 ///   lst_retake_rifles 0|1         every round: a rifle, a pistol, armor (and a kit on CT) for everyone.
 ///   lst_instadefuse 0|1           any defuse finishes instantly, in every mode.
+///   lst_bomb_timer SECONDS        retakes bomb timer, counted from when the round goes live (0 = off).
+///                                 Auto-plant happens during freeze time, so the clock was already running.
 /// </summary>
 public partial class LanSkinTester
 {
     private int _retakeSeats, _retakeBotsWanted;
     private bool _retakeRifles, _instaDefuse, _retakeExtrasListening;
+    private int _bombTimer;
     private readonly HashSet<int> _humanSlots = new();
 
     private void ListenRetakeExtras()
@@ -115,5 +118,43 @@ public partial class LanSkinTester
             Utilities.SetStateChanged(bomb, "CPlantedC4", "m_flDefuseCountDown");
         });
         return HookResult.Continue;
+    }
+
+    [ConsoleCommand("lst_bomb_timer", "Retakes bomb timer in seconds, from when the round goes live (0 = off)")]
+    [CommandHelper(minArgs: 1, usage: "SECONDS", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBombTimerCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _bombTimer = int.TryParse(cmd.GetArg(1), out var seconds) ? Math.Clamp(seconds, 0, 120) : 0;
+        if (_bombTimer > 0) Server.ExecuteCommand($"mp_c4timer {_bombTimer}");
+    }
+
+    [GameEventHandler]
+    public HookResult OnBombTimerPlanted(EventBombPlanted @event, GameEventInfo info)
+    {
+        if (_bombTimer > 0) Server.NextFrame(ResetBombClock);
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnBombTimerFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
+    {
+        if (_bombTimer <= 0) return HookResult.Continue;
+        Server.NextFrame(ResetBombClock);
+        // In case auto-plant runs on freeze end too, after this handler.
+        AddTimer(0.3f, ResetBombClock, CounterStrikeSharp.API.Modules.Timers.TimerFlags.STOP_ON_MAPCHANGE);
+        return HookResult.Continue;
+    }
+
+    /// <summary>Gives a ticking bomb the full timer from now.</summary>
+    private void ResetBombClock()
+    {
+        foreach (var bomb in Utilities.FindAllEntitiesByDesignerName<CPlantedC4>("planted_c4"))
+        {
+            if (!bomb.IsValid || !bomb.BombTicking || bomb.HasExploded || bomb.BombDefused) continue;
+            bomb.C4Blow = Server.CurrentTime + _bombTimer;
+            bomb.TimerLength = _bombTimer;
+            Utilities.SetStateChanged(bomb, "CPlantedC4", "m_flC4Blow");
+            Utilities.SetStateChanged(bomb, "CPlantedC4", "m_flTimerLength");
+        }
     }
 }

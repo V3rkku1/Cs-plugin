@@ -753,6 +753,7 @@ public class ServerSettings
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         sb.AppendLine($"lst_retake_rifles {B(IsPluginRetakes && RetakeWeapons == 2)}");
         sb.AppendLine($"lst_instadefuse {B(InstaDefuse)}");
+        sb.AppendLine($"lst_bomb_timer {(IsPluginRetakes ? Math.Clamp(RetakeBombTimer, 15, 60) : 0)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
