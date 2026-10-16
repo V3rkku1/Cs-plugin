@@ -145,6 +145,94 @@ function StickerSheet({ uid, close }) {
   </div>`;
 }
 
+/** CS2's Trade Up Contract: pick 10 same-grade guns (or 5 Coverts), see the odds, sign. */
+function TradeUpSheet({ close }) {
+  const [inv] = useApi("cases.inventory");
+  const [picked, setPicked] = useState([]);
+  const [check, setCheck] = useState(null);
+  const [phase, setPhase] = useState("pick"); // pick | signing | done
+  const [result, setResult] = useState(null);
+  useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
+  if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
+  const cur = inv.currency;
+  const first = inv.items.find(v => v.item.uid === picked[0]);
+  const needed = first?.item.grade === "Covert" ? 5 : 10;
+  const eligible = inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && v.item.grade !== "Contraband"
+    && (!first || (v.item.grade === first.item.grade && v.item.statTrak === first.item.statTrak)));
+  const toggle = uid => setPicked(p => p.includes(uid) ? p.filter(x => x !== uid) : p.length < needed ? [...p, uid] : p);
+  const sign = async () => {
+    setPhase("signing");
+    const [r] = await Promise.all([call("tradeup.sign", { uids: picked }).catch(() => null), new Promise(ok => setTimeout(ok, 1600))]);
+    if (!r) { setPhase("pick"); return; }
+    setResult(r); setPicked([]); setPhase("done");
+  };
+
+  if (phase === "signing") return html`<div class="picker tradeup"><div class="tradeup-signing"><div class="pen">✍</div><h2>Signing the contract…</h2></div></div>`;
+  if (phase === "done") {
+    const v = result.item, i = v.item;
+    return html`<div class="picker tradeup"><div class="reveal" style=${`--c:${i.color}`}>
+      <div class="reveal-glow"></div>
+      <div class="reveal-pic"><${Pic} src=${i.image} size=${512} /></div>
+      <div class="reveal-grade">${i.grade}${i.phase ? ` · ${i.phase}` : ""}</div>
+      <h2 class="reveal-name">${i.statTrak ? "StatTrak™ " : ""}${i.name}</h2>
+      ${i.paint > 0 && html`<div class="reveal-stats mono"><span>${wearName(i.wear)}</span><span>Float ${i.wear.toFixed(9)}</span><span>Pattern ${i.seed}</span></div>`}
+      <div class="reveal-price">${money(v.price, cur)}</div>
+      <div class="hstack reveal-actions">
+        <${Button} kind="prominent" icon="check" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>
+        <${Button} icon="refresh" onClick=${() => setPhase("pick")}>Another Contract<//>
+        <${Button} kind="plain" onClick=${() => close(i.uid)}>Done<//>
+      </div>
+    </div></div>`;
+  }
+  return html`<div class="picker tradeup">
+    <div class="picker-head"><h2>Trade Up Contract</h2>
+      <span class="faint small">10 guns of one grade for one of the next grade (or 5 Covert for a knife or gloves). All StatTrak™ or none, no souvenirs. The items you put in are gone.</span></div>
+    <div class="tradeup-layout">
+      <div class="tradeup-left">
+        <div class="field-label">Contract (${picked.length}/${needed})</div>
+        <div class="tradeup-slots">
+          ${Array.from({ length: needed }, (_, n) => {
+            const v = inv.items.find(x => x.item.uid === picked[n]);
+            return v ? html`<button class="cs-item" style=${`--c:${v.item.color}`} onClick=${() => toggle(v.item.uid)} title="Take out">
+                <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+                <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
+                <div class="price">${v.item.wear.toFixed(4)}</div></button>`
+              : html`<div class="tradeup-empty">${n + 1}</div>`;
+          })}
+        </div>
+        <div class="field-label">Your eligible items ${first ? `· ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : ""}</div>
+        <div class="tradeup-pool scroll">
+          ${eligible.length === 0 ? html`<div class="faint small">No items that can go in. Open cases for more.</div>`
+            : eligible.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (picked.includes(v.item.uid) ? " selected" : "")} style=${`--c:${v.item.color}`}
+                onClick=${() => toggle(v.item.uid)}>
+                <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+                <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
+                <div class="price">${v.item.wear.toFixed(4)}</div></button>`)}
+        </div>
+      </div>
+      <div class="tradeup-right">
+        <div class="field-label">Possible results</div>
+        <div class="tradeup-outcomes scroll">
+          ${(check?.outcomes ?? []).length === 0 ? html`<div class="faint small">${check?.message ?? ""}</div>`
+            : check.outcomes.map(o => html`<div class="outcome" style=${`--c:${o.color}`}>
+                <div class="pic"><${Pic} src=${o.image} size=${128} /></div>
+                <div class="grow"><div class="fin">${o.name}</div>
+                  <div class="faint small">${o.wear ? `${o.wear} · ${o.float.toFixed(6)} · ` : ""}${o.collection}</div></div>
+                <div class="odds"><b>${(o.chance * 100).toFixed(o.chance < 0.1 ? 2 : 1)}%</b><span>${money(o.price, cur)}</span></div>
+              </div>`)}
+        </div>
+        <div class="tradeup-sum">
+          <div class="inspect-row"><span>Put in</span><b>${money(check?.inputValue, cur)}</b></div>
+          <div class="inspect-row"><span>Average result</span><b>${money(check?.expectedValue, cur)}</b></div>
+          ${check && !check.ok && picked.length > 0 && html`<div class="small note-warn">${check.message}</div>`}
+          <${Button} kind="prominent" size="lg" block icon="check" disabled=${!check?.ok} onClick=${sign}>Sign Contract<//>
+        </div>
+      </div>
+    </div>
+    <div class="picker-foot"><${Button} kind="plain" onClick=${() => setPicked([])}>Clear<//><div class="grow"></div><${Button} onClick=${() => close(undefined)}>Close<//></div>
+  </div>`;
+}
+
 const KINDS = [{ value: "skin", label: "Skins" }, { value: "sticker", label: "Stickers" }, { value: "agent", label: "Agents" },
   { value: "pin", label: "Pins" }, { value: "music", label: "Music Kits" }];
 
@@ -223,6 +311,10 @@ export function InventoryPage() {
   };
   items = [...items].sort(by[sort]);
   const selected = state.items.find(v => v.item.uid === open);
+  const tradeUp = async () => {
+    const got = await sheet(close => html`<${TradeUpSheet} close=${close} />`, { wide: true });
+    if (got) setOpen(got);
+  };
   const addItem = async () => {
     const added = await sheet(close => html`<${AddItemSheet} close=${close} />`, { wide: true });
     if (added) setOpen(added);
@@ -232,6 +324,7 @@ export function InventoryPage() {
       subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}`}
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
+        <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },

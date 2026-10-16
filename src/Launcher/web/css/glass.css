@@ -886,3 +886,27 @@ kbd { font-family: var(--font); }
 .sticker-controls { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: var(--r-sm); background: rgba(255, 255, 255, 0.04); }
 .inspect-stickers { display: flex; gap: 4px; }
 .inspect-stickers img { width: 38px; height: 38px; object-fit: contain; }
+.tradeup { height: min(760px, calc(100vh - 110px)); }
+.tradeup-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+.tradeup-left, .tradeup-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
+.tradeup-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
+.tradeup-slots .cs-item, .tradeup-empty { height: 104px; }
+.tradeup-slots .cs-item .pic { height: 58px; }
+.tradeup-slots .cs-item .pic img { max-height: 54px; }
+.tradeup-empty { display: grid; place-items: center; border-radius: 6px; border: 1px dashed rgba(255, 255, 255, 0.18); color: var(--text-3); font-weight: 700; }
+.tradeup-pool { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; align-content: start; }
+.tradeup-pool .cs-item { height: 120px; }
+.tradeup-pool .cs-item .pic { height: 66px; }
+.tradeup-pool .cs-item .pic img { max-height: 62px; }
+.tradeup-outcomes { flex: 1; min-height: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.outcome { display: flex; align-items: center; gap: 10px; padding: 6px 10px; border-radius: 8px; background: linear-gradient(90deg, color-mix(in srgb, var(--c) 18%, transparent), rgba(255, 255, 255, 0.03)); box-shadow: inset 3px 0 0 var(--c); }
+.outcome .pic { width: 64px; height: 44px; display: grid; place-items: center; }
+.outcome .pic img { max-width: 64px; max-height: 44px; }
+.outcome .fin { font-weight: 600; font-size: 0.88em; }
+.outcome .odds { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.85em; }
+.outcome .odds span { color: #9ee493; font-size: 0.9em; }
+.tradeup-sum { display: flex; flex-direction: column; gap: 6px; }
+.tradeup-signing { flex: 1; display: grid; place-content: center; text-align: center; gap: 12px; }
+.tradeup-signing .pen { font-size: 64px; animation: sign-pen 0.5s ease-in-out infinite alternate; }
+@keyframes sign-pen { from { transform: translate(-30px, 6px) rotate(-8deg); } to { transform: translate(30px, -6px) rotate(8deg); } }
+.note-warn { color: var(--orange); }

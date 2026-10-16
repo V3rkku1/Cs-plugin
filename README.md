@@ -171,7 +171,11 @@ an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, mar
 came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
 from your inventory (applying uses the sticker up, like in the game), drag them anywhere on the gun, turn,
 resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
-within a second (the launcher's preview is a guide). With the admin code, **Add Item**
+within a second (the launcher's preview is a guide). **Trade Up** (Inventory) works like CS2's Trade Up Contract: 10 guns of one grade
+(all StatTrak™ or none, no souvenirs) for one gun of the next grade from the inputs' collections, each
+input adding an equal share to its collection's chances; or 5 Covert guns for a knife or gloves from their
+cases. The float follows CS2's current formula (each input's place in its own float range, averaged, put
+on the new skin's range). Before signing you see every possible result with its chance, float and price. With the admin code, **Add Item**
 puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
 pattern, StatTrak or Souvenir you pick.
 
