@@ -795,3 +795,52 @@ kbd { font-family: var(--font); }
 .inv-card .acts { display: flex; gap: 4px; padding: 6px 8px 8px; }
 .inv-card .st { position: absolute; top: 6px; left: 6px; font-size: 0.68em; font-weight: 800; color: #cf6a32; }
 .inv-card .st.sv { left: auto; right: 6px; color: #ffd700; }
+
+/* -------------------------------------------------------------------------------------------- */
+/* Inventory page (CS2 style)                                                                    */
+/* -------------------------------------------------------------------------------------------- */
+
+.inv-bar { margin-bottom: 14px; flex-wrap: wrap; }
+.inv-bar .segmented { max-width: 100%; overflow-x: auto; }
+.inv-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: start; }
+.inv-layout.with-inspect { grid-template-columns: minmax(0, 1fr) 340px; }
+.cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.cs-item { position: relative; display: flex; flex-direction: column; height: 168px; padding: 0; border: 0; border-radius: 6px; overflow: hidden; text-align: left; color: var(--text);
+  background: linear-gradient(180deg, #2a2d36 0%, #1d1f26 60%, color-mix(in srgb, var(--c) 30%, #1d1f26) 100%); box-shadow: inset 0 -3px 0 var(--c); transition: transform 0.12s, box-shadow 0.12s; }
+.cs-item:hover { transform: translateY(-2px); box-shadow: inset 0 -3px 0 var(--c), 0 0 0 1px rgba(255, 255, 255, 0.25); }
+.cs-item.selected { box-shadow: inset 0 -3px 0 var(--c), 0 0 0 2px var(--blue); }
+.cs-item .pic { height: 96px; display: grid; place-items: center; color: var(--text-3); }
+.cs-item .pic img { max-width: 92%; max-height: 90px; filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.5)); }
+.cs-item .text { padding: 2px 8px; line-height: 1.2; }
+.cs-item .weapon { font-size: 0.72em; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-item .fin { font-size: 0.82em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cs-item .price { position: absolute; right: 8px; bottom: 8px; font-size: 0.72em; font-weight: 700; color: #9ee493; }
+.cs-item .st { position: absolute; top: 6px; left: 6px; font-size: 0.66em; font-weight: 800; color: #cf6a32; }
+.cs-item .st.sv { color: #ffd700; left: auto; right: 6px; }
+.cs-item .equipped { position: absolute; top: 6px; right: 6px; width: 18px; height: 18px; display: grid; place-items: center; border-radius: 50%; background: var(--green); color: #000; }
+.cs-item .st.sv + .text { }
+.inv-inspect { position: sticky; top: 0; display: flex; flex-direction: column; gap: 8px; padding: 14px 16px 16px; border-radius: var(--r-lg); }
+.inspect-pic { height: 180px; display: grid; place-items: center; background: radial-gradient(closest-side, color-mix(in srgb, var(--c) 35%, transparent), transparent); }
+.inspect-pic img { max-height: 170px; max-width: 100%; filter: drop-shadow(0 10px 22px rgba(0, 0, 0, 0.6)); }
+.inspect-grade { color: var(--c); font-size: 0.78em; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.inspect-weapon { color: var(--text-2); }
+.inspect-finish { margin: 0 0 6px; }
+.inspect-row { display: flex; justify-content: space-between; gap: 10px; font-size: 0.88em; color: var(--text-2); }
+.inspect-row b { color: var(--text); font-weight: 600; text-align: right; }
+.inspect-actions { display: flex; flex-direction: column; gap: 8px; margin-top: 8px; }
+.st-tag { color: #cf6a32; font-weight: 700; }
+.sv-tag { color: #ffd700; font-weight: 700; }
+.wear-bar { position: relative; height: 14px; margin: 2px 0 4px; }
+.wear-bar .bands { display: flex; height: 6px; margin-top: 4px; border-radius: 3px; overflow: hidden; }
+.wear-bar .bands span { height: 100%; }
+.wear-bar .fn { width: 7%; background: #3ca33c; }
+.wear-bar .mw { width: 8%; background: #8cc63f; }
+.wear-bar .ft { width: 23%; background: #e7c24b; }
+.wear-bar .ww { width: 7%; background: #e98a35; }
+.wear-bar .bs { width: 55%; background: #d14c3a; }
+.wear-bar .marker { position: absolute; top: 0; width: 2px; height: 14px; margin-left: -1px; background: #fff; box-shadow: 0 0 4px #000; }
+.content-card .price { position: absolute; top: 6px; right: 8px; font-size: 0.7em; font-weight: 700; color: #9ee493; }
+.case-price { font-size: 0.85em; font-weight: 700; color: #9ee493; min-height: 1.2em; }
+.reveal-price { position: relative; font-size: 1.3em; font-weight: 800; color: #9ee493; }
+.profit { color: var(--green); font-weight: 700; }
+.loss { color: var(--red); font-weight: 700; }

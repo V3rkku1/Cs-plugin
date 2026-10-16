@@ -34,7 +34,7 @@ Pick one:
   It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-The launcher has eight pages in its sidebar: Play, Live Server, Skins, Cases, Hacker Mode, Workshop,
+The launcher has eight pages in its sidebar: Play, Live Server, Inventory, Cases, Hacker Mode, Workshop,
 Friends and Setup (Ctrl+1 to Ctrl+8). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
 type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
 whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
@@ -164,6 +164,16 @@ band first: FN 3%, MW 24%, FT 33%, WW 24%, BS 16%, then squeezed into the skin's
 **Equip** puts a gun skin, knife, gloves, pin or music kit on in game. Every container can be opened:
 weapon cases, sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and
 graffiti. Nothing touches a Steam inventory.
+
+**INVENTORY page** (the old Skins tab): what you unboxed, laid out like CS2's inventory: All Items,
+Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
+an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
+came from) and **Equip** / **Unequip** it. With the admin code, *All Skins* opens the free skin editor.
+
+**Prices** are real market prices: Skinport's public price list (refreshed every 12 hours, cached), with
+the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page). Opening a weapon case
+costs the case's market price plus a key (2.49 USD / 2.35 EUR / 2.05 GBP); the Cases page keeps a tally
+of what you spent against what you unboxed.
 
 **Unbox only and the admin code:** by default the Skins page only offers what you unboxed on the Cases page
 (plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on

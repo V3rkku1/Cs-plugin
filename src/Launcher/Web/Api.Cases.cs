@@ -18,11 +18,13 @@ public partial class Api
     private const string UnlockHash = "3a42e485acc4d2705bd2f66f6a7fd3f2694eb41d0b94b1c149d9ed6c0d3b6aef";
 
     public record CaseRow(string Id, string Name, string Image, string Type, int Count, bool Rare);
-    public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow> Cases, int InventoryCount);
+    public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare, double? Price);
+    public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
+        string Currency, double KeyPrice, double Spent, double InventoryValue);
 
-    public record ContentItem(string Name, string Image, string Color, string? Phase);
+    public record ContentItem(string Name, string Image, string Color, string? Phase, double? Price);
     public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items);
-    public record CaseContents(string Id, string Name, string Image, string Type, List<ContentGroup> Groups);
+    public record CaseContents(string Id, string Name, string Image, string Type, List<ContentGroup> Groups, double? CasePrice, double KeyPrice, bool NeedsKey, string Currency);
 
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
     public record InventoryItem(string Uid, string Kind, string Name, string Image, string Grade, string Color,
@@ -30,7 +32,11 @@ public partial class Api
         int CollectibleId, DateTime Opened, string? ItemId = null);
 
     public record ReelItem(string Name, string Image, string Color, bool Rare);
-    public record OpenResult(List<ReelItem> Reel, int Win, InventoryItem Item);
+    public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item, double Cost);
+
+    /// <summary>An inventory item as the pages show it: its price now, whether it's equipped, and its name split like CS2 shows it.</summary>
+    public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category);
+    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin);
 
     private static string InventoryFile => Path.Combine(AppState.LauncherDataDir, "inventory.json");
     private List<InventoryItem>? _inventory;
@@ -58,13 +64,16 @@ public partial class Api
     private CasesState CasesStateNow()
     {
         var unlocked = App.Settings.AdminUnlocked;
+        var prices = PricesNow();
         // Newest first, like the game's store.
         var rows = App.Db.Cases
             .Select((c, i) => (c, i))
             .OrderBy(x => x.c.Type == "Case" ? 0 : 1).ThenByDescending(x => x.i)
-            .Select(x => new CaseRow(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0))
+            .Select(x => new CaseRow2(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0, prices.Price(x.c.Name)))
             .ToList();
-        return new CasesState(App.Db.Cases.Count == 0, unlocked, App.Settings.CasesOpened, rows, Inventory().Count);
+        var value = Inventory().Sum(i => PriceOf(i) ?? 0);
+        return new CasesState(App.Db.Cases.Count == 0, unlocked, App.Settings.CasesOpened, rows, Inventory().Count,
+            App.Settings.Currency, PriceList.KeyPrice(App.Settings.Currency), Math.Round(App.Settings.CasesSpent, 2), Math.Round(value, 2));
     }
 
     private CaseInfo FindCase(string id) =>
@@ -79,11 +88,12 @@ public partial class Api
             var items = o.Grade == "Rare" ? box.Rare : box.Items.Where(i => i.Rarity == o.Grade).ToList();
             // Doppler phases are one finish in the list.
             var shown = items.GroupBy(i => i.Name).Select(g => g.First())
-                .Select(i => new ContentItem(i.Name, i.Image, i.Color, null)).ToList();
+                .Select(i => new ContentItem(i.Name, i.Image, i.Color, null, o.Grade == "Rare" ? null : CheapestPrice(i.Name, box.Type.StartsWith("Souvenir")))).ToList();
             var color = o.Grade == "Rare" ? "#e4ae39" : items.FirstOrDefault()?.Color ?? "#b0c3d9";
             return new ContentGroup(o.Grade == "Rare" ? "Rare Special Item" : o.Grade, color, o.Chance, shown);
         }).ToList();
-        return new CaseContents(box.Id, box.Name, box.Image, box.Type, groups);
+        return new CaseContents(box.Id, box.Name, box.Image, box.Type, groups, PricesNow().Price(box.Name),
+            PriceList.KeyPrice(App.Settings.Currency), NeedsKey(box), App.Settings.Currency);
     }
 
     [Call("cases.open")]
@@ -110,9 +120,12 @@ public partial class Api
         Inventory().Insert(0, item);
         if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
         SaveInventory();
+        // What it cost in the game: the container from the market, plus a key for cases.
+        var cost = (PricesNow().Price(box.Name) ?? 0) + (NeedsKey(box) ? PriceList.KeyPrice(App.Settings.Currency) : 0);
         App.Settings.CasesOpened++;
+        App.Settings.CasesSpent += cost;
         SaveSettingsQuietly();
-        return new OpenResult(reel, win, item);
+        return new OpenResult(reel, win, View(item, ReadLoadout()), Math.Round(cost, 2));
     }
 
     private InventoryItem MakeItem(CaseInfo box, CaseItem drop, bool rare, Random random)
@@ -146,7 +159,101 @@ public partial class Api
     }
 
     [Call("cases.inventory")]
-    private List<InventoryItem> InventoryNow() => Inventory();
+    private InventoryState InventoryNow()
+    {
+        var loadout = ReadLoadout();
+        var items = Inventory().Select(i => View(i, loadout)).ToList();
+        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked);
+    }
+
+    [Call("cases.currency")]
+    private void SetCurrency(string currency)
+    {
+        if (!PriceList.Currencies.Contains(currency)) return;
+        App.Settings.Currency = currency;
+        SaveSettingsQuietly();
+        App.NotifyChanged();
+    }
+
+    [Call("cases.resetStats")]
+    private void ResetCaseStats()
+    {
+        App.Settings.CasesSpent = 0;
+        App.Settings.CasesOpened = 0;
+        SaveSettingsQuietly();
+        App.NotifyChanged();
+    }
+
+    /// <summary>Takes an equipped item off: the gun goes back to default, or the knife / gloves / pin / music kit.</summary>
+    [Call("cases.unequip")]
+    private void UnequipUnboxed(string uid)
+    {
+        var item = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That item isn't in your inventory any more.");
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var loadout = store.Get(LoadoutStore.LocalKey);
+        switch (item.Kind)
+        {
+            case "skin":
+                loadout.Skins.Remove(item.Def);
+                if (loadout.Knife == item.Def) loadout.Knife = 0;
+                if (loadout.Gloves == item.Def) loadout.Gloves = 0;
+                break;
+            case "pin": loadout.Pin = 0; break;
+            case "music": loadout.MusicKit = 0; break;
+        }
+        store.Save();
+        Toast("Unequipped.");
+        App.NotifyChanged();
+    }
+
+    private PriceList PricesNow()
+    {
+        App.Prices.Ensure(App.Settings.Currency);
+        return App.Prices;
+    }
+
+    /// <summary>Cases need a key; capsules, souvenir packages and boxes open without one.</summary>
+    private static bool NeedsKey(CaseInfo box) => box.Type == "Case";
+
+    private double? PriceOf(InventoryItem i) => PricesNow().Price(
+        PriceList.MarketName(i.Name, i.Kind == "skin", i.Paint != 0, i.Wear, i.StatTrak, i.Souvenir));
+
+    /// <summary>The cheapest wear of a skin (what the game's case preview would make you think of), or the item's price.</summary>
+    private double? CheapestPrice(string name, bool souvenir)
+    {
+        var prices = PricesNow();
+        if (!name.Contains('|') || name.StartsWith("Sticker") || name.StartsWith("Patch") || name.StartsWith("Music Kit"))
+            return prices.Price(name);
+        var known = new[] { 0.03f, 0.1f, 0.25f, 0.4f, 0.6f }
+            .Select(w => prices.Price(PriceList.MarketName(name, true, true, w, false, souvenir)))
+            .Where(p => p != null).ToList();
+        return known.Count > 0 ? known.Min() : null;
+    }
+
+    private InventoryView View(InventoryItem i, PlayerLoadout loadout)
+    {
+        var equipped = i.Kind switch
+        {
+            "skin" => loadout.Skins.TryGetValue(i.Def, out var s) && s.Paint == i.Paint && s.Seed == i.Seed && Math.Abs(s.Wear - (i.Wear > 0 ? i.Wear : 0.01f)) < 0.0000005f
+                      && (!IsKnifeType(i.Def) || loadout.Knife == i.Def) && (!IsGloveType(i.Def) || loadout.Gloves == i.Def),
+            "pin" => loadout.Pin == i.CollectibleId && i.CollectibleId > 0,
+            "music" => loadout.MusicKit == i.CollectibleId && i.CollectibleId > 0,
+            _ => false,
+        };
+        var name = i.Name.Replace("★", "").Trim();
+        var bar = name.IndexOf('|');
+        var weapon = bar < 0 ? (i.Kind == "skin" ? name : KindName(i.Kind)) : name[..bar].Trim();
+        var finish = bar < 0 ? (i.Kind == "skin" ? "Vanilla" : name) : name[(bar + 1)..].Trim();
+        var category = i.Kind != "skin" ? i.Kind switch { "sticker" or "patch" or "graffiti" => "graphics", _ => "other" }
+            : IsKnifeType(i.Def) || IsGloveType(i.Def) ? "special" : "weapons";
+        var market = PriceList.MarketName(i.Name, i.Kind == "skin", i.Paint != 0, i.Wear, i.StatTrak, i.Souvenir);
+        return new InventoryView(i, PricesNow().Price(market), equipped, market, weapon, finish, category);
+    }
+
+    private static string KindName(string kind) => kind switch
+    {
+        "sticker" => "Sticker", "patch" => "Patch", "graffiti" => "Graffiti", "music" => "Music Kit", "pin" => "Pin", "charm" => "Charm", _ => "Item",
+    };
 
     /// <summary>Puts an unboxed item on: weapon skin, knife or gloves into the loadout; pin or music kit too.</summary>
     [Call("cases.equip")]

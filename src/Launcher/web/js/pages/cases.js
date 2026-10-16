@@ -1,7 +1,9 @@
 // Cases: open CS2 containers like in the game (reel, real odds), keep what you unbox and equip it.
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, img } from "../api.js";
-import { Page, Section, Button, Segmented, TextField, Icon, prompt, sheet } from "../ui.js";
+import { Page, Section, Button, Segmented, Select, TextField, Icon, prompt, sheet } from "../ui.js";
+import { money } from "./inventory.js";
+import { navigate } from "../app.js";
 
 const CARD = 168; // reel card width incl. gap
 const SPIN_MS = 6500;
@@ -71,7 +73,8 @@ function Reel({ result, onDone }) {
   </div>`;
 }
 
-function Reveal({ item, onAgain, onBack }) {
+function Reveal({ view, cur, onAgain, onBack, onInventory }) {
+  const item = view.item;
   useEffect(() => fanfare(item.color), []);
   const title = (item.souvenir ? "Souvenir " : "") + (item.statTrak && item.kind === "skin" ? "StatTrak™ " : "") + item.name;
   return html`<div class="reveal" style=${`--c:${item.color}`}>
@@ -82,8 +85,10 @@ function Reveal({ item, onAgain, onBack }) {
     ${item.kind === "skin" && item.paint > 0 && html`<div class="reveal-stats mono">
       <span>${wearName(item.wear)}</span><span>Float ${item.wear.toFixed(9)}</span><span>Pattern ${item.seed}</span></div>`}
     ${item.kind === "skin" && item.paint === 0 && html`<div class="reveal-stats mono"><span>Vanilla</span><span>Pattern ${item.seed}</span></div>`}
+    <div class="reveal-price">${view.price != null ? money(view.price, cur) : "No market price yet"}</div>
     <div class="hstack reveal-actions">
       ${equippable(item) && html`<${Button} kind="prominent" icon="check" onClick=${() => tryCall("cases.equip", item.uid)}>Equip<//>`}
+      <${Button} icon="skins" onClick=${onInventory}>Inventory<//>
       <${Button} icon="refresh" onClick=${onAgain}>Open Another<//>
       <${Button} kind="plain" onClick=${onBack}>Back to Case<//>
     </div>
@@ -109,11 +114,14 @@ function CaseSheet({ id, close }) {
       <${Button} kind="plain" icon="x" onClick=${() => close(undefined)} title="Close" />
     </div>
     ${phase === "spin" && html`<${Reel} result=${result} onDone=${() => setPhase("reveal")} />`}
-    ${phase === "reveal" && html`<${Reveal} item=${result.item} onAgain=${open} onBack=${() => setPhase("view")} />`}
+    ${phase === "reveal" && html`<${Reveal} view=${result.item} cur=${contents.currency} onAgain=${open} onBack=${() => setPhase("view")}
+      onInventory=${() => { close(undefined); navigate("inventory"); }} />`}
     ${phase === "view" && html`
       <div class="case-open-row">
         <${Button} kind="prominent" size="lg" icon="key" onClick=${open}>Unlock Container<//>
-        <span class="faint small">Odds as in CS2. What you unbox goes to your inventory here, not on Steam.</span>
+        <span class="faint small">${contents.needsKey
+          ? `Costs ${money((contents.casePrice ?? 0) + contents.keyPrice, contents.currency)}: case ${money(contents.casePrice, contents.currency)} + key ${money(contents.keyPrice, contents.currency)}`
+          : `Costs ${money(contents.casePrice, contents.currency)}`} · Odds as in CS2 · Goes to your Inventory here, not on Steam</span>
       </div>
       <div class="case-contents scroll">
         ${contents.groups.map(g => html`<div class="grade-group">
@@ -123,38 +131,16 @@ function CaseSheet({ id, close }) {
               ? html`<div class="content-card rare" style="--c:#e4ae39"><div class="pic"><span class="rare-star">★</span></div>
                   <div class="name">${g.items.length} knives / gloves</div></div>`
               : g.items.map(i => html`<div class="content-card" style=${`--c:${i.color}`} title=${i.name}>
-                  <div class="pic"><${ItemPic} src=${i.image} size=${256} /></div><div class="name">${i.name}</div></div>`)}
+                  <div class="pic"><${ItemPic} src=${i.image} size=${256} /></div><div class="name">${i.name}</div>
+                  ${i.price != null && html`<div class="price">${money(i.price, contents.currency)}+</div>`}</div>`)}
           </div>
         </div>`)}
       </div>`}
   </div>`;
 }
 
-function Inventory() {
-  const [items, reload] = useApi("cases.inventory");
-  const [q, setQ] = useState("");
-  if (!items) return null;
-  const shown = items.filter(i => !q || `${i.name} ${i.caseName}`.toLowerCase().includes(q.toLowerCase()));
-  return html`<${Section} title="Inventory" note=${`${items.length} item${items.length === 1 ? "" : "s"}`}
-      footer="Equip puts a gun skin, knife, gloves, pin or music kit on in game. Stickers: add them to a gun on the Skins page.">
-    <div class="hstack inv-filter"><div class="grow"><${TextField} icon="search" placeholder="Search your inventory" value=${q} onInput=${setQ} /></div></div>
-    ${shown.length === 0 ? html`<div class="empty small">${items.length ? "Nothing matches." : "Nothing unboxed yet. Open a case!"}</div>`
-      : html`<div class="inv-grid">${shown.map(i => html`<div key=${i.uid} class="inv-card" style=${`--c:${i.color}`}
-          title=${i.kind === "skin" && i.paint ? `${wearName(i.wear)} · ${i.wear.toFixed(9)} · pattern ${i.seed}\nFrom ${i.caseName}` : `From ${i.caseName}`}>
-        <div class="pic"><${ItemPic} src=${i.image} size=${256} />${i.statTrak && html`<span class="st">ST</span>`}${i.souvenir && html`<span class="st sv">SV</span>`}</div>
-        <div class="name">${i.name}</div>
-        <div class="meta faint">${i.kind === "skin" && i.paint ? `${wearName(i.wear)} · ${i.wear.toFixed(4)}` : i.grade}</div>
-        <div class="acts">
-          ${equippable(i) && html`<${Button} size="sm" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>`}
-          <${Button} size="sm" kind="plain" icon="trash" title="Remove" onClick=${() => tryCall("cases.remove", i.uid).then(reload)} />
-        </div>
-      </div>`)}</div>`}
-  <//>`;
-}
-
 export function CasesPage() {
   const [state] = useApi("cases.state");
-  const [view, setView] = useState("cases");
   const [type, setType] = useState("Case");
   const [q, setQ] = useState("");
   if (!state) return html`<${Page} title="Cases" />`;
@@ -167,9 +153,14 @@ export function CasesPage() {
     if (code?.trim()) tryCall("cases.unlock", code.trim());
   };
 
-  return html`<${Page} title="Cases" subtitle=${`Open cases like in CS2 and use what you unbox. ${state.opened} opened so far.`}
-      actions=${html`<${Segmented} options=${[{ value: "cases", label: "Cases" }, { value: "inventory", label: `Inventory (${state.inventoryCount})` }]} value=${view} onChange=${setView} />`}>
-    ${view === "inventory" ? html`<${Inventory} />` : state.dbEmpty
+  const cur = state.currency;
+  const profit = state.inventoryValue - state.spent;
+  return html`<${Page} title="Cases" subtitle=${html`${state.opened} opened · spent ${money(state.spent, cur)} · unboxed ${money(state.inventoryValue, cur)} ·
+        <span class=${profit >= 0 ? "profit" : "loss"}>${profit >= 0 ? "+" : "−"}${money(Math.abs(profit), cur)}</span>`}
+      actions=${html`
+        <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
+        <${Button} icon="skins" onClick=${() => navigate("inventory")}>Inventory (${state.inventoryCount})<//>`}>
+    ${state.dbEmpty
       ? html`<${Section}><div class="empty"><${Icon} name="download" size=${30} /><div>The case list isn't downloaded yet. Press Update on Setup › Skin, sticker and charm lists.</div></div><//>`
       : html`<div class="stack">
         <div class="hstack case-filters">
@@ -180,7 +171,8 @@ export function CasesPage() {
           ${shown.map(c => html`<button key=${c.id} class="case-tile glass" onClick=${() => openCase(c.id)} title=${c.name}>
             <div class="pic"><${ItemPic} src=${c.image} size=${256} /></div>
             <div class="name">${c.name}</div>
-            <div class="faint small">${c.count} items${c.rare ? " · ★ knives / gloves" : ""}</div>
+            <div class="faint small">${c.rare ? "★ knives / gloves" : `${c.count} items`}</div>
+            <div class="case-price">${c.price != null ? money(c.price, cur) : ""}</div>
           </button>`)}
         </div>
         <div class="case-code faint small">${state.unlocked

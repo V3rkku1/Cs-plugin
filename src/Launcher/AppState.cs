@@ -11,6 +11,9 @@ public class AppState
     public ItemDatabase Db { get; private set; } = ItemDatabase.LoadCached(ItemDatabase.DataDir);
     public GameFolder? Game { get; private set; }
 
+    /// <summary>Market prices for the Cases and Inventory pages.</summary>
+    public PriceList Prices { get; }
+
     /// <summary>Folder, install state, test mode or item data changed: pages refresh.</summary>
     public event Action? Changed;
     public event Action<string>? Logged;
@@ -21,6 +24,7 @@ public class AppState
     public AppState()
     {
         Images = new ImageCache(Http);
+        Prices = new PriceList(ItemDatabase.DataDir, Log);
         // Hacker mode is never carried over from last time: it is on only when picked in this session.
         Settings.Server.HackerMode = 0;
     }

@@ -46,6 +46,10 @@ public class LauncherSettings
     public bool AdminUnlocked { get; set; }
     public int CasesOpened { get; set; }
 
+    /// <summary>Prices are shown in this currency (USD, EUR or GBP); what the opened cases and keys cost so far.</summary>
+    public string Currency { get; set; } = "USD";
+    public double CasesSpent { get; set; }
+
     private static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 

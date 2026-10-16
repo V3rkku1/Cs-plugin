@@ -272,7 +272,7 @@ public sealed class ShellForm : Form
 
     private static readonly Dictionary<string, string> PageTitles = new()
     {
-        ["play"] = "Play", ["live"] = "Live Server", ["skins"] = "Skins", ["cases"] = "Cases", ["hacker"] = "Hacker Mode", ["workshop"] = "Workshop",
+        ["play"] = "Play", ["live"] = "Live Server", ["skins"] = "All Skins", ["inventory"] = "Inventory", ["cases"] = "Cases", ["hacker"] = "Hacker Mode", ["workshop"] = "Workshop",
         ["friends"] = "Friends", ["setup"] = "Setup",
     };
 

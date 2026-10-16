@@ -11,12 +11,13 @@ import { HackerPage } from "./pages/hacker.js";
 import { FriendsPage } from "./pages/friends.js";
 import { WorkshopPage } from "./pages/workshop.js";
 import { CasesPage } from "./pages/cases.js";
+import { InventoryPage } from "./pages/inventory.js";
 import { SetupPage } from "./pages/setup.js";
 
 const pages = [
   { id: "play", label: "Play", icon: "play", component: PlayPage },
   { id: "live", label: "Live Server", icon: "server", component: LivePage },
-  { id: "skins", label: "Skins", icon: "skins", component: SkinsPage },
+  { id: "inventory", label: "Inventory", icon: "skins", component: InventoryPage },
   { id: "cases", label: "Cases", icon: "key", component: CasesPage },
   { id: "hacker", label: "Hacker Mode", icon: "hacker", component: HackerPage },
   { id: "workshop", label: "Workshop", icon: "map", component: WorkshopPage },
@@ -87,7 +88,7 @@ function App() {
     const keys = e => {
       if (e.ctrlKey && e.key.toLowerCase() === "k") { openPalette(setPage); e.preventDefault(); }
       else if (e.ctrlKey && e.key >= "1" && e.key <= "8") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
-      else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("skins"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
+      else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("inventory"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
       else if (e.key === "F11") { tryCall("app.fullscreen"); e.preventDefault(); }
       else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
       else if (e.key === "F5" && e.shiftKey) { tryCall("play.stop"); e.preventDefault(); }
@@ -116,7 +117,8 @@ function App() {
     return () => window.removeEventListener("pointermove", move);
   }, []);
 
-  const Current = pages.find(p => p.id === page)?.component;
+  // The free skin editor: only from the Inventory page with the admin code (not in the sidebar).
+  const Current = page === "skins" ? SkinsPage : pages.find(p => p.id === page)?.component;
   return html`<div class="app">
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
