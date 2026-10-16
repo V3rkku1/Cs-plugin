@@ -46,6 +46,7 @@ public partial class LanSkinTester
     {
         _betweenRounds = true;
         try { RecountHumans(); }
+        catch (Exception ex) { Logger.LogError(ex, "Could not update the retake bots"); }
         finally { _betweenRounds = false; }
     }
 
@@ -91,7 +92,7 @@ public partial class LanSkinTester
 
     private static bool AnyonePickingTeam() => Utilities.GetPlayers().Any(p =>
         p.IsValid && !p.IsHLTV && !IsBotPlayer(p) && p.Connected == PlayerConnectedState.Connected
-        && p.Team is CsTeam.None or CsTeam.Spectator);
+        && p.Team == CsTeam.None); // spectators chose to watch: they don't hold bots down
 
     /// <summary>Kicks one bot from each side that is full. Returns how many bots stay.</summary>
     private int MakeRoomOnBothSides()
@@ -114,9 +115,7 @@ public partial class LanSkinTester
     public HookResult OnRetakeSeatsRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         if (!_quotaPending || _retakeSeats <= 0) return HookResult.Continue;
-        _betweenRounds = true;
-        try { UpdateRetakeBots(); }
-        finally { _betweenRounds = false; }
+        RecountNow();
         return HookResult.Continue;
     }
 

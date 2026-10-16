@@ -1,7 +1,7 @@
 // Launcher updates: the "what's new" popup that shows up while the launcher is open, and its details sheet.
 import { html, useState, useEffect } from "./vendor/preact-htm.js";
 import { tryCall } from "./api.js";
-import { Icon, Button, sheet } from "./ui.js";
+import { Icon, Button, sheet, confirm } from "./ui.js";
 
 const DISMISSED = "lst-update-dismissed";
 const dismissed = () => { try { return localStorage.getItem(DISMISSED); } catch { return null; } };
@@ -10,6 +10,16 @@ const dismiss = commit => { try { localStorage.setItem(DISMISSED, commit); } cat
 function Notes({ notes }) {
   if (!notes?.length) return html`<p class="update-none">Fixes and improvements.</p>`;
   return html`<ul class="update-notes">${notes.map(n => html`<li>${n}</li>`)}</ul>`;
+}
+
+/** Installs, after asking first when a test is running (updating closes CS2 and the server). */
+async function install(state) {
+  if (state.testMode && !await confirm({
+    title: "Update now?",
+    message: "A test is running. Updating closes CS2 and the server, restores CS2, then restarts the launcher.",
+    ok: "Close and Update",
+  })) return;
+  tryCall("app.update");
 }
 
 /** The full list and the install button (sidebar card, Setup › Launcher). */
@@ -27,7 +37,7 @@ export function openUpdate(state) {
     <p class="muted small">The launcher closes, swaps in the new version and opens again (a few seconds). Your loadout, inventory and settings stay.</p>
     <div class="buttons">
       <${Button} onClick=${() => close()}>Later<//>
-      <${Button} kind="prominent" icon="download" onClick=${() => { close(); tryCall("app.update"); }}>Update Now<//>
+      <${Button} kind="prominent" icon="download" onClick=${() => { close(); install(state); }}>Update Now<//>
     </div>
   </div>`);
 }
@@ -52,7 +62,7 @@ export function UpdatePopup({ state }) {
     ${notes.length > 4 && html`<button class="link-button" onClick=${() => openUpdate(state)}>See all ${notes.length} changes</button>`}
     <div class="update-actions">
       <${Button} size="sm" onClick=${later}>Later<//>
-      <${Button} size="sm" kind="prominent" icon="download" onClick=${() => tryCall("app.update")}>Update Now<//>
+      <${Button} size="sm" kind="prominent" icon="download" onClick=${() => install(state)}>Update Now<//>
     </div>
   </div>`;
 }

@@ -144,9 +144,16 @@ public class TestSession
     /// <summary>The last lines the server wrote, to show why it stopped.</summary>
     public string[] ConsoleTail(int lines = 12)
     {
+        return TailLines(ConsoleLog, lines);
+    }
+
+    /// <summary>The last lines of a log that may be huge and still open: only its last 256 KB are read.</summary>
+    public static string[] TailLines(string path, int lines)
+    {
         try
         {
-            using var stream = new FileStream(ConsoleLog, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            if (stream.Length > 256 * 1024) stream.Seek(-256 * 1024, SeekOrigin.End);
             using var reader = new StreamReader(stream);
             return reader.ReadToEnd().Split('\n').Select(l => l.TrimEnd('\r')).Where(l => l.Trim() != "").TakeLast(lines).ToArray();
         }

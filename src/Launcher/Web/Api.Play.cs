@@ -762,9 +762,7 @@ public partial class Api
             foreach (var log in newest)
             {
                 sb.AppendLine().AppendLine($"== {log.Name} (last 120 lines) ==");
-                using var stream = new FileStream(log.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-                using var reader = new StreamReader(stream);
-                foreach (var line in reader.ReadToEnd().Split('\n').TakeLast(120)) sb.AppendLine(line.TrimEnd('\r'));
+                foreach (var line in TestSession.TailLines(log.FullName, 120)) sb.AppendLine(line);
             }
             var path = Path.Combine(AppState.LauncherDataDir, "crash-report.txt");
             File.WriteAllText(path, sb.ToString());

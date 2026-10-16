@@ -67,7 +67,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
             _warnedSlots.Clear();
-            _inGameSlots.Clear();
             _connectingSlots.Clear();
         });
         RegisterListener<Listeners.OnServerPrecacheResources>(PrecacheAgents);

@@ -103,6 +103,12 @@ public partial class Api
         }
         if (found == null)
         {
+            if (error == null)
+            {
+                // The newest (again): forget an update that was shown earlier.
+                _updateAvailable = false;
+                _update = null;
+            }
             App.NotifyChanged();
             return error;
         }
