@@ -1,38 +1,39 @@
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Core.Attributes.Registration;
+using CounterStrikeSharp.API.Modules.Commands;
 using Microsoft.Extensions.Logging;
 
 namespace LanSkinTester;
 
 /// <summary>
-/// Triggerbot and silent aim, with hits the server lands itself:
+/// Triggerbot and silent aim:
 /// <list type="bullet">
-/// <item>Triggerbot: when an enemy's head or body is on the crosshair (and visible), it shoots. CS2 rebuilds
-/// the buttons from the client's input, so a fire press from the server often does nothing; when the
-/// pressed gun doesn't fire within a few ticks, the plugin shoots for the player from then on.</item>
+/// <item>Triggerbot: when an enemy's head or body is on the crosshair (and visible), it shoots for real.
+/// CS2 rebuilds the buttons from the client's own input, so for the player on this PC the launcher clicks
+/// fire (lst_fire_relay); no damage is made up.</item>
 /// <item>Silent aim: the view never moves. Each real shot that misses also hits the target nearest the
-/// crosshair, inside the aim area.</item>
+/// crosshair, inside the aim area (a point_hurt with the hacker as attacker; if that leaves the health
+/// unchanged, the health is lowered directly).</item>
 /// </list>
-/// A server hit goes through a point_hurt with the hacker as attacker (their kill). If that leaves the
-/// victim's health unchanged, the health is lowered directly instead.
 /// </summary>
 public partial class LanSkinTester
 {
-    /// <summary>Tick the triggerbot started pressing fire for a slot, while no real shot has come yet.</summary>
-    private readonly Dictionary<int, int> _forcedSince = new();
+    /// <summary>Earliest tick each slot's next triggerbot shot may go (the gun's fire rate).</summary>
+    private readonly Dictionary<int, int> _nextTriggerShot = new();
 
-    /// <summary>Earliest tick each slot's next server-side shot may go (the gun's fire rate).</summary>
-    private readonly Dictionary<int, int> _nextServerShot = new();
-
-    /// <summary>Set once a forced press didn't make the gun fire: from then on the triggerbot shoots server-side.</summary>
-    private bool _serverTrigger;
-
-    /// <summary>point_hurt didn't change health (or failed): hits lower the health directly.</summary>
+    /// <summary>point_hurt didn't change health (or failed): silent-aim hits lower the health directly.</summary>
     private bool _hurtByHealth;
 
-    /// <summary>Ticks to wait for the forced press to fire before shooting server-side.</summary>
-    private const int ForcedShotGraceTicks = 4;
+    /// <summary>The launcher on this PC listens here and clicks fire in CS2 (lst_fire_relay).</summary>
+    private int _fireRelayPort;
+    private System.Net.Sockets.UdpClient? _fireRelay;
+
+    [ConsoleCommand("lst_fire_relay", "Port the launcher listens on to press fire for this PC's player (0 = off)")]
+    [CommandHelper(minArgs: 1, usage: "port", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnFireRelayCommand(CCSPlayerController? caller, CommandInfo cmd) =>
+        _fireRelayPort = int.TryParse(cmd.GetArg(1), out var port) && port is > 0 and < 65536 ? port : 0;
 
     /// <summary>Hit spheres below the eyes: (drop, radius, head). Roughly a standing CS2 player model.</summary>
     private static readonly (float Drop, float Radius, bool Head)[] BodyParts =
@@ -40,17 +41,20 @@ public partial class LanSkinTester
         (2f, 6f, true), (18f, 9f, false), (30f, 10f, false), (44f, 9f, false), (58f, 7f, false),
     ];
 
-    private void NoteRealShot(CCSPlayerController player) => _forcedSince.Remove(player.Slot);
+    private void ForgetShots(int slot) => _nextTriggerShot.Remove(slot);
 
-    private void ForgetShots(int slot)
+    /// <summary>The player plays on this PC (joined the server over 127.0.0.1), where the launcher can press fire.</summary>
+    private static bool PlaysOnThisPc(CCSPlayerController player)
     {
-        _forcedSince.Remove(slot);
-        _nextServerShot.Remove(slot);
+        var ip = player.IpAddress ?? "";
+        return ip.StartsWith("127.") || ip.StartsWith("loopback", StringComparison.OrdinalIgnoreCase) || ip.StartsWith("localhost", StringComparison.OrdinalIgnoreCase);
     }
 
     /// <summary>
-    /// Every tick for a hacker with the triggerbot. Returns true while the server should hold fire for
-    /// them (the normal way); shoots server-side itself once that has shown not to work.
+    /// Every tick for a hacker with the triggerbot: once an enemy is on the crosshair (after a short
+    /// reaction delay) it shoots for real. On this PC the launcher clicks fire, one click per shot at the
+    /// gun's fire rate. For players on other PCs the server holds fire for them (returns true); CS2 may
+    /// ignore that, there is no launcher there to click.
     /// </summary>
     private bool TriggerTick(CCSPlayerController hacker, CCSPlayerPawn pawn)
     {
@@ -58,7 +62,6 @@ public partial class LanSkinTester
         if (hit is not { } target)
         {
             _triggers.Remove(hacker.Slot);
-            _forcedSince.Remove(hacker.Slot);
             return false;
         }
 
@@ -73,25 +76,52 @@ public partial class LanSkinTester
             _triggers[hacker.Slot] = wait;
         }
         if ((DateTime.UtcNow - wait.SeenAt).TotalMilliseconds < wait.DelayMs) return false;
-        if (!HasLoadedGun(pawn, out _)) return false;
+        return !FireOnThisPc(hacker, pawn);
+    }
 
-        if (_serverTrigger)
-        {
-            ServerShot(hacker, pawn, target.Pawn, target.Head);
-            return false;
-        }
-        if (!_forcedSince.TryGetValue(hacker.Slot, out var since))
-        {
-            _forcedSince[hacker.Slot] = Server.TickCount;
-            return true;
-        }
-        if (Server.TickCount - since < ForcedShotGraceTicks) return true;
+    /// <summary>
+    /// For the player on this PC: one real click per shot, at the gun's fire rate. Returns false when the
+    /// launcher can't click for this player (another PC), so the server holds fire for them instead.
+    /// </summary>
+    private bool FireOnThisPc(CCSPlayerController hacker, CCSPlayerPawn pawn)
+    {
+        if (_fireRelayPort <= 0 || !PlaysOnThisPc(hacker)) return false;
+        if (!HasLoadedGun(pawn, out var weapon) || weapon == null) return true;
+        if (_nextTriggerShot.TryGetValue(hacker.Slot, out var next) && Server.TickCount < next) return true;
+        _nextTriggerShot[hacker.Slot] = Server.TickCount + FireDelayTicks(weapon);
+        PressFireOnThisPc();
+        return true;
+    }
 
-        // Fire held with a loaded gun and no shot came: CS2 ignored the forced button.
-        _serverTrigger = true;
-        Logger.LogInformation("Triggerbot: the forced fire button didn't shoot, shooting server-side from now on");
-        ServerShot(hacker, pawn, target.Pawn, target.Head);
-        return false;
+    /// <summary>Ticks between two shots of this gun (at least one).</summary>
+    private static int FireDelayTicks(CBasePlayerWeapon weapon)
+    {
+        var cycle = 0.1f;
+        try
+        {
+            var data = weapon.GetVData<CCSWeaponBaseVData>();
+            if (data != null && data.CycleTime.Values.Length > 0 && data.CycleTime.Values[0] > 0) cycle = data.CycleTime.Values[0];
+        }
+        catch (Exception)
+        {
+            // keep 0.1 s
+        }
+        // A little slower than the gun's best, so pistols are clicked again only after they can fire.
+        return Math.Max(2, (int)Math.Ceiling(cycle * 1.15f / Server.TickInterval));
+    }
+
+    private void PressFireOnThisPc()
+    {
+        try
+        {
+            _fireRelay ??= new System.Net.Sockets.UdpClient();
+            var message = System.Text.Encoding.ASCII.GetBytes("LST fire");
+            _fireRelay.Send(message, message.Length, "127.0.0.1", _fireRelayPort);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogDebug(ex, "Fire relay");
+        }
     }
 
     /// <summary>Silent aim on a real shot: when it would miss, the nearest enemy to the crosshair takes the hit.</summary>
@@ -174,31 +204,6 @@ public partial class LanSkinTester
         var data = pawn.WeaponServices?.ActiveWeapon.Value?.GetVData<CCSWeaponBaseVData>();
         var damage = data?.Damage > 0 ? data.Damage : 30;
         return (int)Math.Round(head ? damage * Math.Max(1f, data?.HeadshotMultiplier ?? 4f) : damage);
-    }
-
-    /// <summary>One shot from the hacker's gun at the victim: uses a bullet and keeps the gun's fire rate.</summary>
-    private void ServerShot(CCSPlayerController hacker, CCSPlayerPawn pawn, CCSPlayerPawn victim, bool head)
-    {
-        if (!HasLoadedGun(pawn, out var weapon) || weapon == null) return;
-        if (_nextServerShot.TryGetValue(hacker.Slot, out var next) && Server.TickCount < next) return;
-
-        var cycle = 0.1f;
-        try
-        {
-            var data = weapon.GetVData<CCSWeaponBaseVData>();
-            if (data != null && data.CycleTime.Values.Length > 0 && data.CycleTime.Values[0] > 0) cycle = data.CycleTime.Values[0];
-        }
-        catch (Exception)
-        {
-            // keep 0.1 s
-        }
-        _nextServerShot[hacker.Slot] = Server.TickCount + Math.Max(1, (int)Math.Ceiling(cycle / Server.TickInterval));
-        if (!Has(hacker, Power.Ammo))
-        {
-            weapon.Clip1--;
-            Utilities.SetStateChanged(weapon, "CBasePlayerWeapon", "m_iClip1");
-        }
-        Hurt(pawn, victim, ShotDamage(pawn, head), hacker, head);
     }
 
     /// <summary>Damages the victim as a bullet from the attacker; checks next frame that it landed.</summary>

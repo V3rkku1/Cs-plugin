@@ -28,6 +28,12 @@ public partial class Api
     private string? _pendingWorkshopId, _bootstrapMap;
     private bool _startGameAfterWorkshop;
     private DateTime? _serverUpSince, _workshopSentAt;
+
+    // CS2 joins only once the server reports it is up: start the game, or (after a server restart with
+    // the game left open) reconnect it.
+    private enum JoinWhenUp { None, StartGame, Reconnect }
+    private JoinWhenUp _joinWhenUp;
+    private DateTime? _joinUpSince, _joinAskedAt;
     private bool WaitingForWorkshop => _pendingWorkshopId != null;
 
     partial void Init()
@@ -38,6 +44,7 @@ public partial class Api
         poll.Tick += (_, _) => PollServer();
         poll.Start();
         RouterPort.Changed += App.NotifyChanged;
+        FireRelay.Start(() => App.TestModeOn, App.Log);
     }
 
     private List<string>? _knownPlayers;
@@ -47,6 +54,7 @@ public partial class Api
         var status = App.ReadServerStatus();
         AnnouncePlayers(status?.Players);
         HandleWorkshopStartup(status);
+        HandleJoinWhenUp(status);
         CheckServerCrash();
         _ = RenewRouterPortAsync();
         var g = App.Game;
@@ -284,7 +292,8 @@ public partial class Api
                 new Installer(game, App.Http, App.Log).InstallPlugin();
                 App.Log($"Updated the plugin to v{Installer.BundledPluginVersion()?.ToString(3) ?? "?"} (the one in this launcher).");
             }
-            var gameStarted = new TestSession(game).Start(server, forFriends);
+            var startGame = new TestSession(game).Start(server, forFriends);
+            SetJoinWhenUp(startGame ? JoinWhenUp.StartGame : JoinWhenUp.None);
             ClearWorkshopWait();
             if (server.WorkshopNeedsDownload)
             {
@@ -307,7 +316,7 @@ public partial class Api
             if (server.Friends != ServerSettings.FriendsNetwork.Lan)
                 App.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             App.Log(!server.AutoStartGame ? "Server only - press \"Open CS2\" when you want to join."
-                : gameStarted ? $"CS2 joins when the server has loaded. If it doesn't: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
+                : startGame ? $"CS2 starts as soon as the server has loaded. If it doesn't join: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
                 : "CS2 starts by itself as soon as the server has downloaded and loaded the Workshop map.");
         }
         catch (Exception ex)
@@ -372,10 +381,36 @@ public partial class Api
         }
     }
 
-    /// <summary>Stops the running server, waits for CS2 to close, then starts again with the current settings.</summary>
+    /// <summary>
+    /// Restarts the server with the current settings. An open CS2 stays open and rejoins the new server;
+    /// only when the plugin files can't be changed while it runs is CS2 closed too.
+    /// </summary>
     private async Task RestartServerAsync()
     {
-        new TestSession(App.Game!).Stop();
+        var game = App.Game!;
+        if (TestSession.ClientRunning())
+        {
+            TestSession.StopServerOnly();
+            try
+            {
+                await PrepareRetakesAsync(App.Settings.Server, gameMayRun: true);
+                new TestSession(game).RestartServer(App.Settings.Server, _runningForFriends);
+                var server = App.Settings.Server;
+                _runningMode = server.Mode;
+                _runningMap = server.WorkshopMapId ?? server.Map;
+                _runningRetakeKey = server.PluginRetakeKey();
+                SetJoinWhenUp(JoinWhenUp.Reconnect);
+                App.Log("Server restarting - CS2 stays open and rejoins when it is up.");
+                Toast("Restarting the server… CS2 rejoins in a moment.");
+                App.NotifyChanged();
+                return;
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                App.Log("The game has the plugin files open, so it closes for the restart: " + ex.Message);
+            }
+        }
+        new TestSession(game).Stop();
         _runningMode = _runningMap = null;
         App.NotifyChanged();
         for (var i = 0; i < 20 && TestSession.Cs2Running(); i++) await Task.Delay(500);
@@ -458,7 +493,7 @@ public partial class Api
     /// Downloads B3none's cs2-retakes the first time Plugin style is used, then loads or parks it.
     /// The plugin reads its JSON when it loads, so the file is written before the server starts.
     /// </summary>
-    private async Task<bool> PrepareRetakesAsync(ServerSettings server)
+    private async Task<bool> PrepareRetakesAsync(ServerSettings server, bool gameMayRun = false)
     {
         var game = App.Game!;
         if (server.IsPluginRetakes)
@@ -491,19 +526,66 @@ public partial class Api
                 i => i.InstallDeathmatchAsync(), "Check your internet connection, or turn the Deathmatch plugin off.");
 
         // A running CS2 refuses to start anyway. Leave its plugin folder alone until it is closed.
-        if (TestSession.Cs2Running()) return true;
+        // (A server-only restart changes the files with the game left open: the game doesn't load them.)
+        if (gameMayRun ? TestSession.FindServer() != null : TestSession.Cs2Running()) return true;
         try
         {
             Installer.SetExtraPlugins(game, server);
             Installer.SetRetakesSuite(game, server);
             if (server.IsPluginRetakes) server.WriteRetakesConfig(game);
         }
-        catch (Exception ex)
+        catch (Exception ex) when (!gameMayRun || ex is not (IOException or UnauthorizedAccessException))
         {
             App.Log("Could not set up the retakes plugin: " + ex.Message);
             throw new ApiException("Could not set up the retakes plugin: " + ex.Message);
         }
         return true;
+    }
+
+    private void SetJoinWhenUp(JoinWhenUp what)
+    {
+        _joinWhenUp = what;
+        _joinUpSince = null;
+        _joinAskedAt = what == JoinWhenUp.None ? null : DateTime.UtcNow;
+    }
+
+    /// <summary>Starts or reconnects CS2 a few seconds after the server reports it is up.</summary>
+    private void HandleJoinWhenUp(ServerStatus? status)
+    {
+        if (_joinWhenUp == JoinWhenUp.None || App.Game == null) return;
+        var now = DateTime.UtcNow;
+        if (!App.TestModeOn || now - _joinAskedAt > TimeSpan.FromMinutes(3))
+        {
+            if (App.TestModeOn) App.Log($"The server took too long to load - press \"Open CS2\" (or connect 127.0.0.1:{ServerSettings.Port}).");
+            SetJoinWhenUp(JoinWhenUp.None);
+            return;
+        }
+        if (status == null)
+        {
+            _joinUpSince = null;
+            return;
+        }
+        _joinUpSince ??= now;
+        if (now - _joinUpSince < TimeSpan.FromSeconds(3)) return; // let the map finish loading
+        var what = _joinWhenUp;
+        SetJoinWhenUp(JoinWhenUp.None);
+        try
+        {
+            if (what == JoinWhenUp.StartGame && !TestSession.ClientRunning())
+            {
+                new TestSession(App.Game).StartGame(App.Settings.Server);
+                App.Log("Server is up - starting CS2 (VAC off)...");
+            }
+            else if (what == JoinWhenUp.Reconnect)
+            {
+                TestSession.ReconnectClient(App.Settings.Server.Password);
+                App.Log("Server is up - CS2 rejoins.");
+            }
+        }
+        catch (Exception ex)
+        {
+            App.Log("Could not start CS2: " + ex.Message);
+        }
     }
 
     /// <summary>Downloads one retakes add-on the first time it is needed (throws with a hint when it can't).</summary>

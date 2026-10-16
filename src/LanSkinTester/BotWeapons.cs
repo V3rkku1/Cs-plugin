@@ -38,4 +38,38 @@ public partial class LanSkinTester
         });
         return HookResult.Continue;
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // Calm bots: lst_bot_calm 1 stops bots from bunny-hopping around. A bot still gets one jump every
+    // few seconds (to climb a box or get unstuck); jumps in between are cancelled as they start.
+    // ---------------------------------------------------------------------------------------------
+
+    private bool _botCalm;
+    private readonly Dictionary<int, DateTime> _botLastJump = new();
+    private static readonly TimeSpan BotJumpGap = TimeSpan.FromSeconds(3);
+
+    [ConsoleCommand("lst_bot_calm", "1 = bots jump at most once every few seconds")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotCalmCommand(CCSPlayerController? caller, CommandInfo cmd) => _botCalm = cmd.GetArg(1) == "1";
+
+    [GameEventHandler]
+    public HookResult OnBotJump(EventPlayerJump @event, GameEventInfo info)
+    {
+        var bot = @event.Userid;
+        if (!_botCalm || bot is not { IsValid: true } || !IsBotPlayer(bot)) return HookResult.Continue;
+        var now = DateTime.UtcNow;
+        if (!_botLastJump.TryGetValue(bot.Slot, out var last) || now - last >= BotJumpGap)
+        {
+            _botLastJump[bot.Slot] = now;
+            return HookResult.Continue;
+        }
+        // Too soon after the last jump: take the upward speed away so it stays on the ground.
+        Server.NextFrame(() =>
+        {
+            var pawn = bot.IsValid ? bot.PlayerPawn.Value : null;
+            if (pawn is not { IsValid: true } || pawn.AbsVelocity is not { } v || v.Z <= 0) return;
+            pawn.Teleport(null, null, new Vector(v.X * 0.8f, v.Y * 0.8f, 0));
+        });
+        return HookResult.Continue;
+    }
 }

@@ -161,6 +161,9 @@ export function LivePage() {
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Weapons" subtitle=${owns ? "This mode hands out its own guns" : ""}>
             <${Select} width=${200} disabled=${owns} value=${s.botWeapons} options=${state.botWeapons.map((t, i) => ({ value: i, label: t }))} onChange=${v => set("botWeapons", v)} />
           <//>
+          <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
+            <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
+          <//>
           <${Row} icon=${{ name: "sun", color: "green" }} title="Peaceful Bots" subtitle="Bots don't shoot - look at your skins in peace">
             <${Toggle} value=${s.botsDontShoot} onChange=${v => set("botsDontShoot", v)} />
           <//>

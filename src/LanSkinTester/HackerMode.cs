@@ -288,8 +288,7 @@ public partial class LanSkinTester
             _triggers.Clear();
             _silentRestore.Clear();
             _attackHeld.Clear();
-            _forcedSince.Clear();
-            _nextServerShot.Clear();
+            _nextTriggerShot.Clear();
             _bhopReleased.Clear();
             _smokes.Clear();
         });
@@ -523,7 +522,6 @@ public partial class LanSkinTester
     private HookResult OnHackWeaponFire(EventWeaponFire @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (player is { IsValid: true }) NoteRealShot(player);
         if (IsHacker(player) && Has(player!, Power.Aimbot) && AimStyleOf(player!) == AimStyle.Silent)
         {
             try { SilentShot(player!); }
@@ -607,15 +605,12 @@ public partial class LanSkinTester
                 var menu = _cheatMenus.ContainsKey(hacker.Slot);
                 var triggerFire = false;
                 if (!menu && Has(hacker, Power.Trigger)) triggerFire = TriggerTick(hacker, pawn);
-                else
-                {
-                    _triggers.Remove(hacker.Slot);
-                    _forcedSince.Remove(hacker.Slot);
-                }
+                else _triggers.Remove(hacker.Slot);
 
                 var fire = triggerFire;
-                if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker)) fire |= Aim(hacker, pawn, triggerFire);
-                else _aimLocks.Remove(hacker.Slot);
+                if (!menu && Has(hacker, Power.Aimbot) && AimPressed(hacker) && Aim(hacker, pawn, triggerFire))
+                    fire |= !FireOnThisPc(hacker, pawn); // rage: a real click on this PC, or the held button
+                else if (menu || !Has(hacker, Power.Aimbot) || !AimPressed(hacker)) _aimLocks.Remove(hacker.Slot);
                 SetForcedAttack(hacker, fire);
 
                 // Silent aim: give the view back once they stop shooting.

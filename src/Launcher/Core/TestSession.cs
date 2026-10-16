@@ -13,10 +13,39 @@ public class TestSession
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 
+    /// <summary>The server's process id and start time, so a restarted launcher still knows which cs2.exe is the server.</summary>
+    private static string PidFile => Path.Combine(AppState.LauncherDataDir, "server.pid");
+
+    /// <summary>The running dedicated server (this launcher's, or the one a previous launcher started), or null.</summary>
+    public static Process? FindServer()
+    {
+        try
+        {
+            if (Server is { HasExited: false } running) return running;
+        }
+        catch (Exception) { /* no access: look it up below */ }
+        try
+        {
+            var parts = File.ReadAllText(PidFile).Split(' ');
+            var p = Process.GetProcessById(int.Parse(parts[0]));
+            if (p.ProcessName.Equals("cs2", StringComparison.OrdinalIgnoreCase) && p.StartTime.ToUniversalTime().Ticks.ToString() == parts[1])
+                return p;
+        }
+        catch (Exception) { /* no file, or that process is gone */ }
+        return null;
+    }
+
+    /// <summary>A CS2 game window is open (any cs2.exe that isn't the server).</summary>
+    public static bool ClientRunning()
+    {
+        var server = FindServer()?.Id;
+        return Process.GetProcessesByName("cs2").Any(p => p.Id != server);
+    }
+
     /// <summary>
-    /// Starts the server, and CS2 too unless the server first has to download a Workshop map: joining
-    /// before it's loaded fails with "unable to establish a connection", so then the caller starts the
-    /// game once the server reports it's up. Returns whether CS2 was started.
+    /// Starts the server. Returns whether the caller should start CS2 once the server reports it's up:
+    /// starting both at once made the game join (and sometimes crash) while the server was still loading,
+    /// and a Workshop map has to be downloaded first anyway (the caller handles that case itself).
     /// </summary>
     public bool Start(ServerSettings settings, bool forFriends = false)
     {
@@ -25,8 +54,35 @@ public class TestSession
 
         settings.PrepareWorkshopMap(_game, forFriends);
         GameInfoPatcher.Enable(_game.GameInfo);
-        settings.WriteCfg(_game);
+        LaunchServer(settings);
+        return settings.AutoStartGame && !settings.WorkshopNeedsDownload;
+    }
 
+    /// <summary>Restarts only the server: an open CS2 stays open (it reconnects when the new server is up).</summary>
+    public void RestartServer(ServerSettings settings, bool forFriends)
+    {
+        StopServerOnly();
+        settings.PrepareWorkshopMap(_game, forFriends);
+        GameInfoPatcher.Enable(_game.GameInfo);
+        LaunchServer(settings);
+    }
+
+    /// <summary>Closes the server process only.</summary>
+    public static void StopServerOnly()
+    {
+        StoppedOnPurpose = true;
+        if (FindServer() is not { } server) return;
+        try
+        {
+            server.Kill();
+            server.WaitForExit(10_000);
+        }
+        catch (Exception) { /* already gone */ }
+    }
+
+    private void LaunchServer(ServerSettings settings)
+    {
+        settings.WriteCfg(_game);
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
         Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {
@@ -34,10 +90,20 @@ public class TestSession
             UseShellExecute = true,
             WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
         });
+        try
+        {
+            if (Server != null)
+                File.WriteAllText(PidFile, $"{Server.Id} {Server.StartTime.ToUniversalTime().Ticks}");
+        }
+        catch (Exception) { /* only needed after a launcher restart */ }
         StoppedOnPurpose = false;
-        if (!settings.AutoStartGame || settings.WorkshopNeedsDownload) return false;
-        StartGame(settings);
-        return true;
+    }
+
+    /// <summary>Makes the open CS2 join the local server again (Steam hands the connect to the running game).</summary>
+    public static void ReconnectClient(string? password)
+    {
+        var pass = string.IsNullOrWhiteSpace(password) ? "" : "/" + Uri.EscapeDataString(password.Trim());
+        Process.Start(new ProcessStartInfo($"steam://connect/127.0.0.1:{ServerSettings.Port}{pass}") { UseShellExecute = true });
     }
 
     /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>

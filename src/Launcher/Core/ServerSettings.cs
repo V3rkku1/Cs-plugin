@@ -157,6 +157,9 @@ public class ServerSettings
     /// <summary>Bot Improver's random bot skins, knives, gloves and agents. Off: bots look like normal CS2 bots.</summary>
     public bool BotSkins { get; set; }
 
+    /// <summary>Bots jump at most once every few seconds (no bunny-hopping around).</summary>
+    public bool CalmBots { get; set; } = true;
+
     /// <summary>Bot Improver settings as console commands; none while it is off (its commands only exist when it is loaded).</summary>
     public IEnumerable<string> BotImproverCommands()
     {
@@ -594,6 +597,11 @@ public class ServerSettings
         sb.AppendLine("bot_allow_rifles 1");
         sb.AppendLine("bot_allow_pistols 1");
         sb.AppendLine($"lst_bot_no_snipers {(rifles ? 1 : 0)}"); // plugin safety net: swaps snipers for AK/M4
+        // Bot Hider gives every bot a Steam identity; take the display name from that same identity, so the
+        // name on the scoreboard matches the profile you see when you click the bot. (Only new bots: set
+        // before the kick and re-add below.)
+        if (BotHider || BotImprover) sb.AppendLine("bh_namesource 1");
+        sb.AppendLine($"lst_bot_calm {B(CalmBots)}");
         sb.AppendLine("bot_kick");
         // Plugin retakes only has seats for MaxPlayers. Leave one for you when bots are on.
         var quota = Math.Clamp(Bots, 0, 31);
@@ -643,6 +651,7 @@ public class ServerSettings
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
         foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+        sb.AppendLine($"lst_fire_relay {FireRelay.Port}"); // the triggerbot presses fire through the launcher on this PC
         foreach (var line in BotImproverCommands()) sb.AppendLine(line);
         sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
