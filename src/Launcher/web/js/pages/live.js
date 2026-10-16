@@ -208,6 +208,12 @@ export function LivePage() {
             <${Toggle} value=${s.mapVote} onChange=${v => set("mapVote", v)} /><//>
           <${Row} icon=${{ name: "star", color: "yellow" }} title="Round MVP and !stats" subtitle="MVP line after each round · !stats and !top for the map">
             <${Toggle} value=${s.roundSummary} onChange=${v => set("roundSummary", v)} /><//>
+          <${Row} icon=${{ name: "trash", color: "orange" }} title="Clean Up Dropped Guns" subtitle="Guns on the ground disappear after 15 seconds: less clutter and lag">
+            <${Toggle} value=${s.cleanupGuns} onChange=${v => set("cleanupGuns", v)} /><//>
+          <${Row} icon=${{ name: "shield", color: "teal" }} title="No Fall Damage">
+            <${Toggle} value=${s.noFallDamage} onChange=${v => set("noFallDamage", v)} /><//>
+          <${Row} icon=${{ name: "run", color: "green" }} title="Auto Bunnyhop" subtitle="Everyone bunnyhops by holding jump">
+            <${Toggle} value=${s.autoBhop} onChange=${v => set("autoBhop", v)} /><//>
           <${Row} icon=${{ name: "person", color: "purple" }} title="Welcome Message" subtitle="Tells new players which commands they can use">
             <${Toggle} value=${s.welcomeMessage} onChange=${v => set("welcomeMessage", v)} /><//>
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bot Improver" subtitle="Human-like bots: better aim, grenades, movement, strategy and buying, pro names · includes BotAI, Bot Controller and Bot Hider">

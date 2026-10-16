@@ -184,6 +184,11 @@ public class ServerSettings
     /// <summary>Low gravity and fast air movement (Flying Scoutsman style).</summary>
     public bool LowGravity { get; set; }
 
+    /// <summary>Server helpers: dropped guns disappear after 15 s, no fall damage, everyone bunnyhops by holding jump.</summary>
+    public bool CleanupGuns { get; set; } = true;
+    public bool NoFallDamage { get; set; }
+    public bool AutoBhop { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
 
@@ -530,7 +535,7 @@ public class ServerSettings
 
     private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
 
-    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || LowGravity || BotsDontShoot || HackRecoilOrSpread;
+    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || LowGravity || AutoBhop || BotsDontShoot || HackRecoilOrSpread;
 
     public string StartArguments()
     {
@@ -641,7 +646,9 @@ public class ServerSettings
         sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : ReloadOnKill ? 2 : 0)}");
         sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
         sb.AppendLine($"sv_gravity {(LowGravity ? 220 : 800)}");
-        sb.AppendLine($"sv_airaccelerate {(LowGravity ? 2000 : 12)}");
+        sb.AppendLine($"sv_airaccelerate {(LowGravity || AutoBhop ? 2000 : 12)}");
+        sb.AppendLine($"sv_autobunnyhopping {B(AutoBhop)}");
+        sb.AppendLine($"sv_enablebunnyhopping {B(AutoBhop)}");
         foreach (var line in RecoilCvars()) sb.AppendLine(line);
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
 
@@ -723,6 +730,8 @@ public class ServerSettings
         sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
         sb.AppendLine($"lst_reload_on_kill {B(ReloadOnKill)}");
         sb.AppendLine($"lst_only_weapon {(OnlyWeapon == "" ? "off" : OnlyWeapon)}");
+        sb.AppendLine($"lst_cleanup {B(CleanupGuns)}");
+        sb.AppendLine($"lst_nofall {B(NoFallDamage)}");
         // Greys the other guns out in the buy menu; the plugin also takes away any that get through.
         var prohibited = OnlyWeapon != "" ? ItemData.Weapons.Where(w => w.Value != OnlyWeapon && w.Key != 31).Select(w => w.Key)
             : PistolsOnly ? ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31) : Enumerable.Empty<ushort>();
