@@ -37,8 +37,16 @@ public partial class LanSkinTester
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
             _lastQuota = -1;
-            AddTimer(1f, RecountHumans, TimerFlags.STOP_ON_MAPCHANGE);
+            AddTimer(1f, RecountNow, TimerFlags.STOP_ON_MAPCHANGE);
         });
+    }
+
+    /// <summary>Recount and apply now, also in plugin retakes (no round is running yet).</summary>
+    private void RecountNow()
+    {
+        _betweenRounds = true;
+        try { RecountHumans(); }
+        finally { _betweenRounds = false; }
     }
 
     /// <summary>People in the server (bots never count, so kicking or adding one can't feed back).</summary>
@@ -58,9 +66,20 @@ public partial class LanSkinTester
         return HookResult.Continue;
     }
 
+    private bool _quotaPending;
+
     private void UpdateRetakeBots()
     {
         if (_retakeSeats <= 0) return;
+        // Plugin retakes: kicking a bot mid-round, while the retakes plugin's queue still holds it, can take
+        // the server down for everyone. Change bots only between rounds; a new player waits for the
+        // next round in that queue anyway.
+        if (_retakeTSize <= 0 && !_betweenRounds)
+        {
+            _quotaPending = true;
+            return;
+        }
+        _quotaPending = false;
         var quota = Math.Clamp(Math.Min(_retakeBotsWanted, _retakeSeats - _humanSlots.Count), 0, 31);
         // Someone is on the team menu: the game greys out a full side, so a bot leaves each full side
         // first. Once they've picked, the quota goes back up and a bot fills the side they didn't take.
@@ -87,6 +106,18 @@ public partial class LanSkinTester
             bots--;
         }
         return Math.Max(0, bots);
+    }
+
+    private bool _betweenRounds;
+
+    [GameEventHandler]
+    public HookResult OnRetakeSeatsRoundEnd(EventRoundEnd @event, GameEventInfo info)
+    {
+        if (!_quotaPending || _retakeSeats <= 0) return HookResult.Continue;
+        _betweenRounds = true;
+        try { UpdateRetakeBots(); }
+        finally { _betweenRounds = false; }
+        return HookResult.Continue;
     }
 
     [GameEventHandler]
@@ -142,7 +173,8 @@ public partial class LanSkinTester
         _retakeTSize = cmd.ArgCount > 3 && int.TryParse(cmd.GetArg(3), out var t) ? Math.Max(0, t) : 0;
         _retakeCtSize = cmd.ArgCount > 4 && int.TryParse(cmd.GetArg(4), out var ct) ? Math.Max(0, ct) : 0;
         _lastQuota = -1;
-        RecountHumans();
+        // Set from the launcher's config (map start or Apply): apply right away.
+        RecountNow();
     }
 
     [ConsoleCommand("lst_retake_rifles", "1 = everyone gets a rifle, pistol and armor every retake round")]
