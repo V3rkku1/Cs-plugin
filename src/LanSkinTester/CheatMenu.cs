@@ -107,7 +107,7 @@ public partial class LanSkinTester
     [ConsoleCommand("css_cheats", "Open the cheat menu (W/S move, D/E switch, A back, R close)")]
     public void OnCheatsCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (player == null || !player.IsValid || player.IsBot) return;
+        if (player == null || !IsHumanPlayer(player)) return;
         if (_cheatMenus.ContainsKey(player.Slot))
         {
             CloseCheatMenu(player);

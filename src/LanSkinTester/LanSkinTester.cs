@@ -171,9 +171,9 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 Map = Server.MapName,
                 GameType = CvarInt("game_type"),
                 GameMode = CvarInt("game_mode"),
-                Humans = players.Count(p => !p.IsBot),
-                Bots = players.Count(p => p.IsBot),
-                Players = players.Where(p => !p.IsBot).Select(p => p.PlayerName).ToList(),
+                Humans = players.Count(p => !IsBotPlayer(p)),
+                Bots = players.Count(IsBotPlayer),
+                Players = players.Where(p => !IsBotPlayer(p)).Select(p => p.PlayerName).ToList(),
                 SharedLoadout = SharedLoadout,
                 PrivateServer = _privateServer,
                 SkinsAllowed = SkinsAllowed(),
@@ -1042,7 +1042,34 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     }
 
     private static bool IsHumanPlayer(CCSPlayerController player) =>
-        player.IsValid && !player.IsBot && !player.IsHLTV;
+        player.IsValid && !player.IsHLTV && !IsBotPlayer(player);
+
+    /// <summary>
+    /// A bot, even when Bot Hider has cleared its bot flag so it looks like a player: the pawn still
+    /// has the engine's bot brain, and a bot has no network address. Without this, hidden bots got the
+    /// launcher's shared loadout (your skins, knife, gloves and agent).
+    /// </summary>
+    internal static bool IsBotPlayer(CCSPlayerController player)
+    {
+        if (player.IsBot) return true;
+        try
+        {
+            var brain = player.PlayerPawn.Value?.Bot;
+            if (brain != null && brain.Handle != IntPtr.Zero) return true;
+        }
+        catch (Exception)
+        {
+            // Field moved after a CS2 update: the address check below still works.
+        }
+        try
+        {
+            return player.Connected == PlayerConnectedState.Connected && string.IsNullOrEmpty(player.IpAddress);
+        }
+        catch (Exception)
+        {
+            return false;
+        }
+    }
 
     // LAN clients without Steam have SteamID 0, so fall back to the player name.
     // The host (on this PC, or the launcher's Steam account) always gets the launcher's loadout.

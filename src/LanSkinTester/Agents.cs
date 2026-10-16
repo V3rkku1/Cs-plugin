@@ -19,7 +19,7 @@ public partial class LanSkinTester
 
     private void ApplyAgentAndPin(CCSPlayerController player)
     {
-        if (!player.IsValid || player.IsBot) return;
+        if (!IsHumanPlayer(player)) return;
         var loadout = GetLoadout(player);
 
         var model = player.Team == CsTeam.CounterTerrorist ? loadout.AgentCT : player.Team == CsTeam.Terrorist ? loadout.AgentT : null;

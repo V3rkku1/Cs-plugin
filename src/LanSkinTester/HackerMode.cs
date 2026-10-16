@@ -398,7 +398,7 @@ public partial class LanSkinTester
     /// Everyone mode: every human. One random: the chosen one. Off: whoever turned cheats on for
     /// themselves in the cheat menu (practice, LAN / private servers only).
     /// </summary>
-    private bool IsHacker(CCSPlayerController? player) => player != null && player.IsValid && !player.IsBot && !player.IsHLTV && _hackMode switch
+    private bool IsHacker(CCSPlayerController? player) => player != null && IsHumanPlayer(player) && _hackMode switch
     {
         HackMode.Everyone => true,
         HackMode.OneRandom => _hackerSlots.Contains(player.Slot),
