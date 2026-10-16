@@ -745,7 +745,7 @@ public partial class Api
 
     /// <summary>The server we started is gone without Stop: say so and show its last console lines.</summary>
     /// <summary>The server console and CounterStrikeSharp's newest log, in one file to send when asking for help.</summary>
-    private static string? WriteCrashReport(GameFolder game, int? code)
+    private string? WriteCrashReport(GameFolder game, int? code)
     {
         try
         {
