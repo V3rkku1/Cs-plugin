@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
@@ -166,18 +167,25 @@ public partial class LanSkinTester
 
         foreach (var player in players)
         {
-            var ct = player.Team == CsTeam.CounterTerrorist;
-            var bot = IsBotPlayer(player);
-            var realistic = _realisticRetakeBots && bot;
-            StripGuns(player);
-            player.GiveNamedItem(awpers.Contains(player.Slot) ? "weapon_awp" : PrimaryFor(ct, realistic));
-            player.GiveNamedItem(PistolFor(ct, realistic));
-            player.GiveNamedItem("item_assaultsuit");
-            if (ct) player.GiveNamedItem("item_defuser");
-            if (_realisticRetakeBots)
-                foreach (var nade in UtilityFor(ct)) player.GiveNamedItem(nade);
-            if (!bot) player.ExecuteClientCommandFromServer("slot1");
+            if (!player.IsValid || !player.PawnIsAlive || player.PlayerPawn.Value is not { IsValid: true }) continue;
+            try { GiveRetakeLoadout(player, awpers.Contains(player.Slot)); }
+            catch (Exception ex) { Logger.LogWarning(ex, "Could not give a retake loadout"); }
         }
+    }
+
+    private void GiveRetakeLoadout(CCSPlayerController player, bool awp)
+    {
+        var ct = player.Team == CsTeam.CounterTerrorist;
+        var bot = IsBotPlayer(player);
+        var realistic = _realisticRetakeBots && bot;
+        StripGuns(player);
+        player.GiveNamedItem(awp ? "weapon_awp" : PrimaryFor(ct, realistic));
+        player.GiveNamedItem(PistolFor(ct, realistic));
+        player.GiveNamedItem("item_assaultsuit");
+        if (ct) player.GiveNamedItem("item_defuser");
+        if (_realisticRetakeBots)
+            foreach (var nade in UtilityFor(ct)) player.GiveNamedItem(nade);
+        if (!bot) player.ExecuteClientCommandFromServer("slot1");
     }
 
     private static string PrimaryFor(bool ct, bool mixed)

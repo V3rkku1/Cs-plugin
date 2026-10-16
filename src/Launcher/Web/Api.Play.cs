@@ -744,6 +744,34 @@ public partial class Api
     }
 
     /// <summary>The server we started is gone without Stop: say so and show its last console lines.</summary>
+    /// <summary>The server console and CounterStrikeSharp's newest log, in one file to send when asking for help.</summary>
+    private static string? WriteCrashReport(GameFolder game, int? code)
+    {
+        try
+        {
+            var sb = new System.Text.StringBuilder();
+            sb.AppendLine($"LAN Skin Tester crash report {DateTime.Now:yyyy-MM-dd HH:mm:ss} · launcher {UpdateCheck.ShortVersion}");
+            sb.AppendLine($"Mode: {App.Settings.Server.Summary()} · exit code {(code is { } c ? $"0x{c:X8}" : "?")}");
+            sb.AppendLine().AppendLine("== Server console (last 80 lines) ==");
+            foreach (var line in new TestSession(game).ConsoleTail(80)) sb.AppendLine(line);
+            var logs = Path.Combine(game.Addons, "counterstrikesharp", "logs");
+            if (Directory.Exists(logs) && new DirectoryInfo(logs).GetFiles("*.txt").OrderByDescending(f => f.LastWriteTimeUtc).FirstOrDefault() is { } log)
+            {
+                sb.AppendLine().AppendLine($"== {log.Name} (last 80 lines) ==");
+                using var stream = new FileStream(log.FullName, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream);
+                foreach (var line in reader.ReadToEnd().Split('\n').TakeLast(80)) sb.AppendLine(line.TrimEnd('\r'));
+            }
+            var path = Path.Combine(AppState.LauncherDataDir, "crash-report.txt");
+            File.WriteAllText(path, sb.ToString());
+            return path;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
+    }
+
     private void CheckServerCrash()
     {
         var server = TestSession.Server;
@@ -760,6 +788,8 @@ public partial class Api
         var tail = new TestSession(App.Game).ConsoleTail();
         if (tail.Length == 0) App.Log("   (no console log - it closed before writing one)");
         foreach (var line in tail) App.Log("   " + line);
+        var report = WriteCrashReport(App.Game, code);
+        if (report != null) App.Log("Crash report (console + plugin logs) saved: " + report);
         _startError = "The server closed unexpectedly - its last console lines are in the activity log.";
         Toast("The server closed unexpectedly - see the activity log on Live Server.", "bad");
         App.NotifyChanged();
