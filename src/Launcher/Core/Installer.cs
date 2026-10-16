@@ -133,44 +133,154 @@ public class Installer
     private const string BotHiderApi = "https://api.github.com/repos/XBribo/CS2-Bot-Hider/releases/latest";
     private const string DeathmatchApi = "https://api.github.com/repos/NockyCZ/CS2-Deathmatch/releases/latest";
 
-    private static string BotHiderVdf(GameFolder game) => Path.Combine(game.Addons, "metamod", "BotHider.vdf");
+    public const string BotImproverPage = "https://github.com/ed0ard/CS2-Bot-Improver";
+    public const string BotAiPage = "https://github.com/ed0ard/CS2-BotAI";
+    public const string BotControllerPage = "https://github.com/XBribo/CS2-Bot-Controller";
+    private const string BotImproverApi = "https://api.github.com/repos/ed0ard/CS2-Bot-Improver/releases/latest";
+    private const string BotAiApi = "https://api.github.com/repos/ed0ard/CS2-BotAI/releases/latest";
+    private const string BotControllerApi = "https://api.github.com/repos/XBribo/CS2-Bot-Controller/releases/latest";
+
+    /// <summary>The CounterStrikeSharp plugins inside Bot Improver (BotAI is also its own download).</summary>
+    private static readonly string[] ImproverPlugins =
+        ["BotAimImprover", "NadeSystem", "BotBuy", "BotState", "RoundDamageRecap", "BotRandomizer"];
+
+    private static string Vdf(GameFolder game, string name) => Path.Combine(game.Addons, "metamod", name + ".vdf");
+
+    private static bool NativeInstalled(GameFolder game, string name) =>
+        File.Exists(Vdf(game, name)) || File.Exists(Vdf(game, name) + ".off");
 
     public static bool BotHiderInstalled(GameFolder game) =>
         File.Exists(Path.Combine(game.Addons, "BotHider", "bin", "win64", "BotHider.dll"));
 
     public static bool DeathmatchInstalled(GameFolder game) => TreeInstalled(game, "plugins/Deathmatch", "Deathmatch.dll");
 
-    /// <summary>True when Bot Hider or the Deathmatch plugin is loaded / parked differently from these settings.</summary>
-    public static bool ExtraPluginsMismatch(GameFolder game, ServerSettings server) =>
-        (BotHiderInstalled(game) && File.Exists(BotHiderVdf(game)) != server.BotHider)
-        || (DeathmatchInstalled(game) && TreeLoaded(game, "plugins/Deathmatch") != server.UsesDeathmatchPlugin);
+    public static bool BotImproverInstalled(GameFolder game) => TreeExists(game, "plugins/BotState");
+
+    public static bool BotAiInstalled(GameFolder game) => TreeExists(game, "plugins/BotAI");
+
+    public static bool BotControllerInstalled(GameFolder game) => NativeInstalled(game, "BotController");
+
+    private static bool TreeExists(GameFolder game, string relative) =>
+        Directory.Exists(TreePath(game, relative, parked: false)) || Directory.Exists(TreePath(game, relative, parked: true));
+
+    // What each downloaded plugin should be: Bot Improver brings BotAI, Bot Controller and Bot Hider along.
+    private static bool WantHider(ServerSettings s) => s.BotHider || s.BotImprover;
+    private static bool WantController(ServerSettings s) => s.BotController || s.BotImprover;
+    private static bool WantBotAi(ServerSettings s) => s.BotAi || s.BotImprover;
+
+    /// <summary>True when an installed optional plugin is loaded / parked differently from these settings.</summary>
+    public static bool ExtraPluginsMismatch(GameFolder game, ServerSettings server)
+    {
+        bool Native(string name, bool want) => NativeInstalled(game, name) && File.Exists(Vdf(game, name)) != want;
+        bool Tree(string relative, bool want) => TreeExists(game, relative) && TreeLoaded(game, relative) != want;
+        return Native("BotHider", WantHider(server)) || Native("BotController", WantController(server))
+            || Native("BotVision", server.BotImprover) || Tree("plugins/BotAI", WantBotAi(server))
+            || Tree("plugins/Deathmatch", server.UsesDeathmatchPlugin)
+            || ImproverPlugins.Any(p => Tree("plugins/" + p, server.BotImprover));
+    }
+
+    /// <summary>Loads or parks every optional plugin to match the current settings.</summary>
+    public static void SetExtraPlugins(GameFolder game, ServerSettings server)
+    {
+        SetNativeActive(game, "BotHider", WantHider(server));
+        SetTreeActive(game, "plugins/BotHiderImpl", WantHider(server));
+        SetNativeActive(game, "BotController", WantController(server));
+        SetNativeActive(game, "BotVision", server.BotImprover);
+        SetTreeActive(game, "plugins/BotAI", WantBotAi(server));
+        foreach (var plugin in ImproverPlugins) SetTreeActive(game, "plugins/" + plugin, server.BotImprover);
+        SetTreeActive(game, "plugins/Deathmatch", server.UsesDeathmatchPlugin);
+        SetTreeActive(game, "shared/DeathmatchAPI", server.UsesDeathmatchPlugin);
+    }
+
+    /// <summary>Metamod only loads *.vdf files, so a parked native plugin is renamed to .vdf.off.</summary>
+    private static void SetNativeActive(GameFolder game, string name, bool on)
+    {
+        var vdf = Vdf(game, name);
+        var parked = vdf + ".off";
+        if (on && File.Exists(parked) && !File.Exists(vdf)) File.Move(parked, vdf);
+        else if (!on && File.Exists(vdf)) File.Move(vdf, parked, overwrite: true);
+    }
+
+    private async Task<string> ReleaseAssetAsync(string api, string label, Func<string, bool> pick)
+    {
+        _log($"Looking up the latest {label} release...");
+        using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
+        var url = doc.RootElement.GetProperty("assets").EnumerateArray()
+            .Where(a => pick(a.GetProperty("name").GetString() ?? ""))
+            .Select(a => a.GetProperty("browser_download_url").GetString()).FirstOrDefault(u => !string.IsNullOrEmpty(u))
+            ?? throw new InvalidOperationException($"No matching zip in the latest {label} release.");
+        _log($"Downloading {label}...");
+        return await DownloadAsync(url);
+    }
 
     public async Task InstallBotHiderAsync()
     {
-        _log("Looking up the latest Bot Hider release...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(BotHiderApi));
-        var url = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Where(a => a.GetProperty("name").GetString()?.Contains("windows", StringComparison.OrdinalIgnoreCase) == true)
-            .Select(a => a.GetProperty("browser_download_url").GetString()).FirstOrDefault(u => !string.IsNullOrEmpty(u))
-            ?? throw new InvalidOperationException("No Windows zip in the latest Bot Hider release.");
-        _log("Downloading Bot Hider...");
-        await InstallZipAsync(await DownloadAsync(url)); // the zip has addons/ at its root
+        // The zip has addons/ at its root.
+        await InstallZipAsync(await ReleaseAssetAsync(BotHiderApi, "Bot Hider", n => n.Contains("windows", StringComparison.OrdinalIgnoreCase)));
         _log("Bot Hider installed.");
     }
 
     public async Task InstallDeathmatchAsync() =>
         await InstallReleaseAsync(DeathmatchApi, "Deathmatch plugin", name => name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
 
-    /// <summary>Loads or parks Bot Hider and the Deathmatch plugin to match the current settings.</summary>
-    public static void SetExtraPlugins(GameFolder game, ServerSettings server)
+    public async Task InstallBotAiAsync()
     {
-        var vdf = BotHiderVdf(game);
-        var parked = vdf + ".off"; // Metamod only loads *.vdf
-        if (server.BotHider && File.Exists(parked) && !File.Exists(vdf)) File.Move(parked, vdf);
-        else if (!server.BotHider && File.Exists(vdf)) File.Move(vdf, parked, overwrite: true);
-        SetTreeActive(game, "plugins/BotHiderImpl", server.BotHider);
-        SetTreeActive(game, "plugins/Deathmatch", server.UsesDeathmatchPlugin);
-        SetTreeActive(game, "shared/DeathmatchAPI", server.UsesDeathmatchPlugin);
+        await InstallCssBundleAsync(await ReleaseAssetAsync(BotAiApi, "BotAI", n => n.Equals("BotAI.zip", StringComparison.OrdinalIgnoreCase)));
+        _log("BotAI installed.");
+    }
+
+    public async Task InstallBotControllerAsync()
+    {
+        await InstallZipAsync(await ReleaseAssetAsync(BotControllerApi, "Bot Controller",
+            n => n.Contains("MM-windows", StringComparison.OrdinalIgnoreCase)));
+        await InstallZipAsync(await ReleaseAssetAsync(BotControllerApi, "Bot Controller (CounterStrikeSharp part)",
+            n => n.Contains("CSS-API", StringComparison.OrdinalIgnoreCase)));
+        _log("Bot Controller installed.");
+    }
+
+    /// <summary>
+    /// Bot Improver's package changes gameinfo.gi, Valve's mode configs and bot profiles too. Only its
+    /// plugins are taken: the launcher manages gameinfo.gi itself (and puts it back for online play).
+    /// </summary>
+    public async Task InstallBotImproverAsync()
+    {
+        var zipPath = await ReleaseAssetAsync(BotImproverApi, "Bot Improver",
+            n => n.Contains("rules_unchanged", StringComparison.OrdinalIgnoreCase) && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        await Task.Run(() =>
+        {
+            using var zip = ZipFile.OpenRead(zipPath);
+            var count = 0;
+            foreach (var entry in zip.Entries)
+            {
+                var full = entry.FullName.Replace('\\', '/');
+                var at = full.StartsWith("addons/") ? 0 : full.IndexOf("/addons/", StringComparison.Ordinal) + 1;
+                if (at <= 0 && !full.StartsWith("addons/") || full.EndsWith('/')) continue;
+                var relative = full[at..];
+                if (!ImproverFile(relative)) continue;
+                var target = Path.GetFullPath(Path.Combine(_game.Csgo, relative));
+                if (!target.StartsWith(Path.GetFullPath(_game.Addons), StringComparison.OrdinalIgnoreCase)) continue;
+                if (relative.StartsWith("addons/counterstrikesharp/configs/") && File.Exists(target)) continue;
+                Directory.CreateDirectory(Path.GetDirectoryName(target)!);
+                entry.ExtractToFile(target, overwrite: true);
+                count++;
+            }
+            if (count == 0) throw new InvalidDataException("The Bot Improver package had no plugin files.");
+            _log($"Extracted {count} Bot Improver files.");
+        });
+        _log("Bot Improver installed.");
+    }
+
+    private static bool ImproverFile(string relative)
+    {
+        string[] prefixes =
+        [
+            "addons/counterstrikesharp/plugins/", "addons/counterstrikesharp/shared/", "addons/counterstrikesharp/data/",
+            "addons/counterstrikesharp/configs/plugins/", "addons/BotHider/", "addons/BotController/", "addons/BotVision/",
+        ];
+        if (relative.StartsWith("addons/counterstrikesharp/plugins/disabled/", StringComparison.OrdinalIgnoreCase)) return false;
+        if (prefixes.Any(p => relative.StartsWith(p, StringComparison.OrdinalIgnoreCase))) return true;
+        return relative.StartsWith("addons/metamod/Bot", StringComparison.OrdinalIgnoreCase)
+               && relative.EndsWith(".vdf", StringComparison.OrdinalIgnoreCase) && !relative.Contains(".linux.");
     }
 
     private async Task InstallReleaseAsync(string api, string label, Func<string, bool> pick)
@@ -228,7 +338,8 @@ public class Installer
         var slash = full.IndexOf('/');
         if (slash <= 0) return null;
         var top = full[..slash];
-        if (top.EndsWith("Plugin", StringComparison.OrdinalIgnoreCase) || top.Equals("RetakesAllocator", StringComparison.OrdinalIgnoreCase))
+        if (top.EndsWith("Plugin", StringComparison.OrdinalIgnoreCase) || top.Equals("RetakesAllocator", StringComparison.OrdinalIgnoreCase)
+            || top.Equals("BotAI", StringComparison.OrdinalIgnoreCase))
             return "plugins/" + full;
         return null;
     }

@@ -150,6 +150,14 @@ and taken away if picked up. Bots get pistols too.
 - *Bot Hider* ([XBribo/CS2-Bot-Hider](https://github.com/XBribo/CS2-Bot-Hider), AGPL-3.0): bots look like
   real players (no BOT tag, names, avatars, ping). Downloaded from its GitHub release on the first Start,
   and parked (not loaded) while switched off.
+- *Bot Improver* ([ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver), AGPL-3.0): more
+  human bots: aim, grenades, movement, strategy, buying, pro names. Only its plugins are installed (its
+  package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
+  restores it for online play). Includes BotAI, Bot Controller and Bot Hider.
+- *BotAI* ([ed0ard/CS2-BotAI](https://github.com/ed0ard/CS2-BotAI), the maintained fork of
+  [Austinbots/CS2-BotAI](https://github.com/Austinbots/CS2-BotAI)): just the smarter bot decisions.
+- *Bot Controller* ([XBribo/CS2-Bot-Controller](https://github.com/XBribo/CS2-Bot-Controller), AGPL-3.0):
+  `!record` your movement, `!replay <bot slot>` to have a bot copy it.
 - *Deathmatch plugin* ([NockyCZ/CS2-Deathmatch](https://github.com/NockyCZ/CS2-Deathmatch), MIT, Deathmatch
   mode only): `!gun` weapon menu, custom modes (only AWP, pistols, ...), kill sounds and a spawn editor. It
   replaces the built-in spawn protection and `!guns`. Downloaded on first use like Bot Hider.

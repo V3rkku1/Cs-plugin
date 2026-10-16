@@ -136,6 +136,11 @@ public class ServerSettings
     public bool BotHider { get; set; }
     public bool DeathmatchPlugin { get; set; }
 
+    /// <summary>Downloaded bot plugins: ed0ard's Bot Improver suite, BotAI on its own, and XBribo's Bot Controller.</summary>
+    public bool BotImprover { get; set; }
+    public bool BotAi { get; set; }
+    public bool BotController { get; set; }
+
     /// <summary>Rules (reset by quick starts): only headshots hurt, and only pistols can be bought or picked up.</summary>
     public bool HeadshotOnly { get; set; }
     public bool PistolsOnly { get; set; }

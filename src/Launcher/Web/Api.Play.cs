@@ -473,7 +473,17 @@ public partial class Api
                     i => i.InstallAllocatorAsync(), "Check your internet connection, or switch Guns to Buy.");
         }
 
-        if (server.BotHider)
+        // Bot Improver's package already has BotAI, Bot Controller and Bot Hider.
+        if (server.BotImprover)
+            await DownloadRetakePlugin(game, "Bot Improver", () => Installer.BotImproverInstalled(game),
+                i => i.InstallBotImproverAsync(), "Check your internet connection, or turn Bot Improver off (Live Server › Server Plugins).");
+        if (server.BotAi && !server.BotImprover)
+            await DownloadRetakePlugin(game, "BotAI", () => Installer.BotAiInstalled(game),
+                i => i.InstallBotAiAsync(), "Check your internet connection, or turn BotAI off.");
+        if (server.BotController && !server.BotImprover)
+            await DownloadRetakePlugin(game, "Bot Controller", () => Installer.BotControllerInstalled(game),
+                i => i.InstallBotControllerAsync(), "Check your internet connection, or turn Bot Controller off.");
+        if (server.BotHider && !server.BotImprover)
             await DownloadRetakePlugin(game, "Bot Hider", () => Installer.BotHiderInstalled(game),
                 i => i.InstallBotHiderAsync(), "Check your internet connection, or turn Bot Hider off (Live Server › Server Plugins).");
         if (server.UsesDeathmatchPlugin)
