@@ -34,8 +34,8 @@ Pick one:
   It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
   If you don't have it, Windows offers a download link the first time you open it.
 
-The launcher has six pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Friends and Setup
-(Ctrl+1 to Ctrl+6). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
+The launcher has seven pages in its sidebar: Play, Live Server, Skins, Hacker Mode, Workshop, Friends
+and Setup (Ctrl+1 to Ctrl+7). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
 type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
 whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
 leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
@@ -147,8 +147,22 @@ and taken away if picked up. Bots get pistols too.
 **Reload on kill** (Live Server › Rules, on in the *Pistol HS Deathmatch* quick start): a kill refills
 your magazine at once, and spare ammo never runs out.
 
+**One weapon and low gravity** (Live Server › Rules): AWP, Scout, Deagle or knives only, for everyone
+including bots (other guns are taken away and greyed out in the buy menu), and Flying-Scoutsman-style
+low gravity. Quick starts: *AWP Deathmatch*, *Flying Scoutsman*, *Knife Fight*, *Deagle Headshots*,
+*1v1 Aim Duel* and *Wingman 2v2*. Every quick start uses Bot Improver's smarter bots.
+
+**Calm Bots** (Live Server › Bots, on by default): a bot jumps at most once every 3 seconds, so bots stop
+hopping around.
+
+**Cases in game:** type `!cases` to list the real CS2 weapon cases and `!case <number>` to open one. It
+spins on your screen with Valve's odds (knife or gloves 0.26%) and equips what you unbox with a random
+float, pattern and a 10% StatTrak chance. Only on your server: your Steam inventory is never touched.
+
 **Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
 
+- *Clean up dropped guns* (on by default): guns lying on the ground for 15 seconds disappear.
+- *No fall damage* and *Auto bunnyhop* (everyone hops by holding jump).
 - *Spawn protection:* 2.5 seconds without damage after spawning (you look see-through); shooting ends it.
 - *!guns:* `!guns ak47 deagle` gives you those weapons on every Deathmatch respawn. `!guns off` stops it.
 - *!ready:* the warmup waits until every player typed `!ready` (off by default). `!unready` takes it back.
@@ -205,8 +219,11 @@ your magazine at once, and spare ammo never runs out.
     Otherwise a line-of-sight trace from your eyes to their head or chest has to be clear (walls,
     floors, props and glass block it; smokes don't).
   - *Triggerbot:* fires the moment an enemy model sits on your crosshair, after a small random delay
-    so it is less instant. Higher aggression shortens that delay. If CS2 ignores the fire press the
-    server sends, the plugin shoots for you instead (same damage, ammo and fire rate as your gun).
+    so it is less instant. Higher aggression shortens that delay. It really shoots: CS2 doesn't let a
+    server press fire for a player, so the plugin tells the launcher on your PC (localhost, port 27099)
+    and the launcher clicks your left mouse button, once per shot at the gun's fire rate. It only clicks
+    while the launcher's VAC-off session runs and the CS2 window is in front. Friends on their own PCs
+    don't have that, so for them the server can only hold fire (CS2 may ignore it).
   - *Damage boost:* 2× damage (off by default).
   - *Recoil control:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
     tick, and the server-wide recoil cvars are set too.
@@ -258,7 +275,17 @@ your magazine at once, and spare ammo never runs out.
   everything** (a random skin on every weapon plus a random knife and gloves, with realistic floats),
   or **Reset everything**.
 
+**WORKSHOP page**: every map Steam has downloaded for CS2 (title, picture, size), a search of the Steam
+Workshop (popular, new, top rated) and **Host**, which starts the server on that map (or switches the
+running one). *Subscribe* opens the map in Steam; it shows under Downloaded once Steam has it. Custom
+weapon and player models aren't supported: CS2 servers can't hand those to players without extra
+add-on plugins and every player installing the same files.
+
 **FRIENDS page**: play together
+
+*Friends List:* friends hosting on your Wi-Fi or Radmin network show up by themselves (the launcher
+announces your server on UDP port 27098 while you host). Add other friends with their invite code; the
+list checks every few seconds whether they're hosting and shows **Join**.
 
 *Host (you):*
 1. **How are you connected?**
