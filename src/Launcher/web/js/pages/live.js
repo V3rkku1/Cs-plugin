@@ -66,7 +66,7 @@ export function LivePage() {
   const up = !!state.status;
   const retakes = s.mode === "Retakes";
   const plugin = retakes && s.retakeStyle === 1;
-  const buy = s.retakeWeapons !== 1;
+  const buy = s.retakeWeapons === 0;
   const owns = retakes || s.mode === "Arms Race" || s.mode === "Demolition";
   const mode = state.modes.find(m => m.name === s.mode) ?? state.modes[0];
   const maps = mode.maps.includes(s.map) ? mode.maps : [...mode.maps, s.map];
@@ -122,12 +122,14 @@ export function LivePage() {
               <${Stepper} value=${s.retakeMaxPlayers} min=${2} max=${10} onChange=${v => set("retakeMaxPlayers", v)} /><//>
             <${Row} title="Terrorists" subtitle="Percent of the players on T">
               <${Stepper} value=${s.retakeTerroristPercent} min=${10} max=${80} step=${5} format=${v => v + "%"} parse=${t => parseInt(t)} onChange=${v => set("retakeTerroristPercent", v)} /><//>
-            <${Row} title="Guns" subtitle="Buy your own, or pistol / half-buy / rifle rounds">
-              <${Segmented} options=${["Buy", "Allocator"]} value=${s.retakeWeapons === 1 ? 1 : 0} onChange=${v => set("retakeWeapons", v)} /><//>
+            <${Row} title="Guns" subtitle="Buy your own, pistol / half-buy / rifle rounds, or rifles every round">
+              <${Segmented} options=${["Buy", "Allocator", "Rifles"]} value=${s.retakeWeapons ?? 2} onChange=${v => set("retakeWeapons", v)} /><//>
             ${buy
               ? html`<${Row} title="Buy Time" subtitle="Seconds to buy. Your guns come back next round">
                   <${Stepper} value=${s.retakeBuySeconds} min=${4} max=${20} onChange=${v => set("retakeBuySeconds", v)} /><//>`
-              : html`<${Row} title="Allocator" subtitle="Type !guns to choose. One AWP per team." />`}
+              : s.retakeWeapons === 1
+              ? html`<${Row} title="Allocator" subtitle="Type !guns to choose. One AWP per team." />`
+              : html`<${Row} title="Rifles" subtitle="Everyone gets an AK-47 or M4A1-S, a pistol, armor and a kit every round." />`}
             <${Row} title="Bomb Timer" subtitle="Seconds until the bomb explodes">
               <${Stepper} value=${s.retakeBombTimer} min=${15} max=${60} onChange=${v => set("retakeBombTimer", v)} /><//>
             <${Row} title="Instadefuse" subtitle="The bomb defuses instantly when nothing can stop it">
@@ -180,6 +182,8 @@ export function LivePage() {
           <${Row} icon=${{ name: "key", color: "yellow" }} title="Allow Cheats" subtitle="Needed for third person and noclip">
             <${Toggle} value=${s.allowCheats} onChange=${v => set("allowCheats", v)} /><//>
           <${Row} icon=${{ name: "friends", color: "red" }} title="Friendly Fire"><${Toggle} value=${s.friendlyFire} onChange=${v => set("friendlyFire", v)} /><//>
+          <${Row} icon=${{ name: "bolt", color: "orange" }} title="Instant Defuse" subtitle="Every defuse finishes instantly, for everyone, in every mode">
+            <${Toggle} value=${s.instaDefuse} onChange=${v => set("instaDefuse", v)} /><//>
           <${Row} icon=${{ name: "clock", color: "blue" }} title="Round Time" subtitle=${owns ? "This mode keeps its own round length" : "Minutes · 0 = game mode default"}>
             <${Stepper} value=${s.roundTime} min=${0} max=${60} disabled=${owns} onChange=${v => set("roundTime", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Headshot Only" subtitle="Only headshots (and knives) hurt players">

@@ -82,8 +82,13 @@ public class ServerSettings
     /// <summary>Plugin retakes: skip the team menu and put people straight into the match.</summary>
     public bool RetakeAutoJoin { get; set; } = true;
 
-    /// <summary>0 = freeze-time buy, 1 = the retakes allocator (pistol, half-buy, rifle).</summary>
-    public int RetakeWeapons { get; set; }
+    /// <summary>0 = freeze-time buy, 1 = the retakes allocator (pistol, half-buy, rifle), 2 = rifles every round.</summary>
+    public int RetakeWeapons { get; set; } = 2;
+
+    public static readonly string[] RetakeWeaponChoices = ["Buy", "Allocator", "Rifles"];
+
+    /// <summary>Every defuse finishes instantly, in every mode.</summary>
+    public bool InstaDefuse { get; set; }
 
     /// <summary>Plugin retakes: freeze time is a buy period. Kept in step with <see cref="RetakeWeapons"/>.</summary>
     public bool RetakeBuy { get; set; } = true;
@@ -95,7 +100,7 @@ public class ServerSettings
     public bool UsesAllocator => IsPluginRetakes && RetakeWeapons == 1;
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesRetakeBuy => IsPluginRetakes && RetakeWeapons != 1;
+    public bool UsesRetakeBuy => IsPluginRetakes && RetakeWeapons == 0;
 
     /// <summary>Seconds of freeze time to buy, when <see cref="RetakeBuy"/> is on.</summary>
     public int RetakeBuySeconds { get; set; } = 12;
@@ -384,14 +389,14 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 0;
         }),
-        new("Plugin retakes", "Allocator · instadefuse · 8 bots", s =>
+        new("Plugin retakes", "Rifles every round · instadefuse · 8 bots", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
             s.Difficulty = 2;
             s.MaxMoney = false;
             s.RetakeStyle = 1;
-            s.RetakeWeapons = 1;
+            s.RetakeWeapons = 2;
             s.RetakeBuy = false;
             s.RetakeInstadefuse = true;
         }),
@@ -515,7 +520,8 @@ public class ServerSettings
         RetakeStyle = 0;
         RetakeMaxPlayers = 9;
         RetakeTerroristPercent = 45;
-        RetakeWeapons = 0;
+        RetakeWeapons = 2;
+        InstaDefuse = false;
         RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeBuy = RetakeInstadefuse = true;
         RetakeScrambleRounds = 5;
         RetakeBuySeconds = 12;
@@ -680,9 +686,11 @@ public class ServerSettings
         sb.AppendLine("bot_kick");
         // Plugin retakes only has seats for MaxPlayers. Leave one for you when bots are on.
         var quota = Math.Clamp(Bots, 0, 31);
-        if (IsPluginRetakes && quota > 0)
-            quota = Math.Min(quota, Math.Max(0, Math.Clamp(RetakeMaxPlayers, 2, 10) - 1));
+        // Retakes only have so many seats: leave one for you, and the plugin frees one per friend who connects.
+        var seats = RetakeSeats;
+        if (seats > 0) quota = Math.Min(quota, Math.Max(0, seats - 1));
         sb.AppendLine($"bot_quota {quota}");
+        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
@@ -743,6 +751,8 @@ public class ServerSettings
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
+        sb.AppendLine($"lst_retake_rifles {B(IsPluginRetakes && RetakeWeapons == 2)}");
+        sb.AppendLine($"lst_instadefuse {B(InstaDefuse)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
@@ -780,6 +790,10 @@ public class ServerSettings
             RetakeScramble, Math.Clamp(RetakeScrambleRounds, 1, 30), RetakeBalance, RetakeAutoPlant, RetakeAnnounce, RetakeAutoJoin,
             RetakeWeapons == 1 ? 1 : 0, RetakeInstadefuse);
     }
+
+    /// <summary>Places in a retakes match (Valve: 3 T + 4 CT), or 0 for modes without a seat limit.</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public int RetakeSeats => IsPluginRetakes ? Math.Clamp(RetakeMaxPlayers, 2, 10) : IsValveRetakes ? 7 : 0;
 
     /// <summary>Arms Race, Demolition and both retake styles bring their own guns, money and round length.</summary>
     [System.Text.Json.Serialization.JsonIgnore]

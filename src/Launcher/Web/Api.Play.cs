@@ -57,6 +57,7 @@ public partial class Api
         AnnouncePlayers(status?.Players);
         HandleWorkshopStartup(status);
         HandleJoinWhenUp(status);
+        HandleJoinCheck(status);
         CheckServerCrash();
         _ = RenewRouterPortAsync();
         var g = App.Game;
@@ -425,7 +426,7 @@ public partial class Api
         var game = App.Game ?? throw new ApiException("Pick your CS2 folder first.");
         try
         {
-            new TestSession(game).StartGame(App.Settings.Server);
+            StartGameAndWatch(game);
             App.Log("Starting CS2 (VAC off)...");
             Toast("Starting CS2…");
         }
@@ -575,18 +576,65 @@ public partial class Api
         {
             if (what == JoinWhenUp.StartGame && !TestSession.ClientRunning())
             {
-                new TestSession(App.Game).StartGame(App.Settings.Server);
+                StartGameAndWatch(App.Game);
                 App.Log("Server is up - starting CS2 (VAC off)...");
             }
             else if (what == JoinWhenUp.Reconnect)
             {
                 TestSession.ReconnectClient(App.Settings.Server.Password);
+                WatchJoin();
                 App.Log("Server is up - CS2 rejoins.");
             }
         }
         catch (Exception ex)
         {
             App.Log("Could not start CS2: " + ex.Message);
+        }
+    }
+
+    // Some modes keep CS2 at the main menu: +connect fires while the server is still changing map, or a
+    // retakes seat wasn't free yet. If nobody has joined a while after CS2 started, ask again.
+    private DateTime? _joinCheckSince;
+    private int _joinRetries;
+
+    private void StartGameAndWatch(GameFolder game)
+    {
+        new TestSession(game).StartGame(App.Settings.Server);
+        WatchJoin();
+    }
+
+    private void WatchJoin()
+    {
+        _joinCheckSince = DateTime.UtcNow;
+        _joinRetries = 0;
+    }
+
+    private void HandleJoinCheck(ServerStatus? status)
+    {
+        if (_joinCheckSince is not { } since) return;
+        var elapsed = DateTime.UtcNow - since;
+        if (!App.TestModeOn || status?.Humans > 0 || (!TestSession.ClientRunning() && elapsed > TimeSpan.FromSeconds(30)))
+        {
+            _joinCheckSince = null; // joined, stopped, or the game was closed
+            return;
+        }
+        if (status == null || elapsed < TimeSpan.FromSeconds(70 + 40 * _joinRetries)) return;
+        if (_joinRetries >= 2)
+        {
+            _joinCheckSince = null;
+            App.Log($"CS2 still hasn't joined. In CS2 open the console (~) and type: connect 127.0.0.1:{ServerSettings.Port}");
+            Toast("CS2 didn't join - press \"Open CS2\" or use the console: connect 127.0.0.1", "warning");
+            return;
+        }
+        _joinRetries++;
+        try
+        {
+            TestSession.ReconnectClient(App.Settings.Server.Password);
+            App.Log("CS2 hasn't joined the server yet - asking it to connect again...");
+        }
+        catch (Exception ex)
+        {
+            App.Log("Could not reconnect CS2: " + ex.Message);
         }
     }
 
@@ -671,7 +719,7 @@ public partial class Api
             Toast($"{status.Map} loaded" + (_startGameAfterWorkshop ? " - starting CS2…" : "."));
             if (_startGameAfterWorkshop)
             {
-                try { new TestSession(App.Game).StartGame(App.Settings.Server); }
+                try { StartGameAndWatch(App.Game); }
                 catch (Exception ex) { App.Log("Could not start CS2: " + ex.Message); }
             }
             ClearWorkshopWait();
@@ -818,8 +866,8 @@ public partial class Api
         s.RetakeMaxPlayers = Math.Clamp(s.RetakeMaxPlayers, 2, 10);
         s.RetakeTerroristPercent = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
         s.RetakeScrambleRounds = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
-        s.RetakeWeapons = s.RetakeWeapons == 1 ? 1 : 0;
-        s.RetakeBuy = s.RetakeWeapons != 1;
+        s.RetakeWeapons = Math.Clamp(s.RetakeWeapons, 0, ServerSettings.RetakeWeaponChoices.Length - 1);
+        s.RetakeBuy = s.RetakeWeapons == 0;
         s.RetakeBuySeconds = Math.Clamp(s.RetakeBuySeconds, 4, 20);
         s.RetakeBombTimer = Math.Clamp(s.RetakeBombTimer, 15, 60);
         s.WorkshopMap = (s.WorkshopMap ?? "").Trim();
