@@ -130,4 +130,60 @@ public partial class LanSkinTester
         if (!player.IsBot) Reply(player, "Pistols only on this server: Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250, CZ75...");
         player.ExecuteClientCommand("slot2");
     }
+
+    // ---------------------------------------------------------------------------------------------
+    // One weapon: lst_only_weapon weapon_awp | weapon_ssg08 | weapon_deagle | knife | off
+    // Everyone (bots too) spawns with just that gun and a knife; other guns are taken away.
+    // ---------------------------------------------------------------------------------------------
+
+    private string _onlyWeapon = "";
+
+    [ConsoleCommand("lst_only_weapon", "Everyone gets only this gun (and a knife): weapon_awp, weapon_ssg08, weapon_deagle, knife or off")]
+    [CommandHelper(minArgs: 1, usage: "weapon_xxx|knife|off", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnOnlyWeaponCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var arg = cmd.GetArg(1).Trim().ToLowerInvariant();
+        _onlyWeapon = arg is "off" or "0" or "" ? "" : arg == "knife" ? "knife" : arg.StartsWith("weapon_") ? arg : "weapon_" + arg;
+        if (_onlyWeapon != "")
+            foreach (var player in Utilities.GetPlayers().Where(p => p.IsValid && p.PawnIsAlive)) GiveOnlyWeapon(player);
+    }
+
+    [GameEventHandler]
+    public HookResult OnOnlyWeaponSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    {
+        if (_onlyWeapon == "" || @event.Userid is not { IsValid: true } player) return HookResult.Continue;
+        // After the game (and the gun menu) handed out the spawn weapons.
+        AddTimer(0.25f, () => GiveOnlyWeapon(player));
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnOnlyWeaponPickup(EventItemPickup @event, GameEventInfo info)
+    {
+        if (_onlyWeapon == "" || @event.Userid is not { IsValid: true } player) return HookResult.Continue;
+        var item = "weapon_" + (@event.Item ?? "").Replace("weapon_", "");
+        if (IsOtherGun(item)) Server.NextFrame(() => GiveOnlyWeapon(player));
+        return HookResult.Continue;
+    }
+
+    /// <summary>A gun that isn't the allowed one (knives, grenades, the bomb and the taser are fine).</summary>
+    private bool IsOtherGun(string classname) =>
+        classname != _onlyWeapon && ItemData.Weapons.ContainsValue(classname) && !ItemData.IsKnifeClassname(classname) && classname != "weapon_taser";
+
+    private void GiveOnlyWeapon(CCSPlayerController player)
+    {
+        if (_onlyWeapon == "" || !player.IsValid || !player.PawnIsAlive) return;
+        var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
+        if (weapons == null) return;
+        var hasIt = false;
+        foreach (var handle in weapons.ToList())
+        {
+            var weapon = handle.Value;
+            if (weapon == null || !weapon.IsValid) continue;
+            if (weapon.DesignerName == _onlyWeapon) hasIt = true;
+            else if (IsOtherGun(weapon.DesignerName)) weapon.AddEntityIOEvent("Kill", null, null, "", 0.01f);
+        }
+        if (_onlyWeapon != "knife" && !hasIt) player.GiveNamedItem(_onlyWeapon);
+        if (!player.IsBot) player.ExecuteClientCommand(_onlyWeapon == "knife" ? "slot3" : _onlyWeapon == "weapon_deagle" ? "slot2" : "slot1");
+    }
 }

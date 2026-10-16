@@ -810,6 +810,7 @@ public partial class Api
         s.BotAim = Math.Clamp(s.BotAim, 0, ServerSettings.BotAimModes.Length - 1);
         s.BotNades = Math.Clamp(s.BotNades, 0, ServerSettings.BotNadeModes.Length - 1);
         if (!ServerSettings.BotForcedWeapons.Contains(s.BotForceWeapon)) s.BotForceWeapon = "";
+        if (ServerSettings.OnlyWeapons.All(w => w.Value != s.OnlyWeapon)) s.OnlyWeapon = "";
         s.RoundTime = Math.Clamp(s.RoundTime, 0, 60);
         s.RetakeStyle = s.RetakeStyle == 1 ? 1 : 0;
         s.RetakeMaxPlayers = Math.Clamp(s.RetakeMaxPlayers, 2, 10);

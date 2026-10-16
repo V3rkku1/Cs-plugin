@@ -186,6 +186,11 @@ export function LivePage() {
             <${Toggle} value=${s.headshotOnly} onChange=${v => set("headshotOnly", v)} /><//>
           <${Row} icon=${{ name: "target", color: "orange" }} title="Pistols Only" subtitle="Deagle, Tec-9, Five-SeveN, USP-S, Glock… other guns can't be bought or picked up">
             <${Toggle} value=${s.pistolsOnly} onChange=${v => set("pistolsOnly", v)} /><//>
+          <${Row} icon=${{ name: "crosshair", color: "purple" }} title="One Weapon" subtitle="Everyone, bots too, gets only this gun and a knife">
+            <${Select} width=${170} value=${s.onlyWeapon} options=${[["", "Any guns"], ["weapon_awp", "AWP only"], ["weapon_ssg08", "Scout only"], ["weapon_deagle", "Deagle only"], ["knife", "Knives only"]].map(([value, label]) => ({ value, label }))}
+              onChange=${v => set("onlyWeapon", v)} /><//>
+          <${Row} icon=${{ name: "sparkles", color: "teal" }} title="Low Gravity" subtitle="Floaty jumps and fast air strafing">
+            <${Toggle} value=${s.lowGravity} onChange=${v => set("lowGravity", v)} /><//>
           <${Row} icon=${{ name: "refresh", color: "green" }} title="Reload on Kill" subtitle=${s.infiniteAmmo ? "Infinite Ammo already never empties the magazine" : "A kill refills your magazine at once · spare ammo never runs out"}>
             <${Toggle} value=${s.reloadOnKill} onChange=${v => set("reloadOnKill", v)} /><//>
           <${Row} icon=${{ name: "target", color: "pink" }} title="Damage Report" subtitle="Chat shows the damage you deal">

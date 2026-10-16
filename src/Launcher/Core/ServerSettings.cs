@@ -176,6 +176,14 @@ public class ServerSettings
     /// <summary>A kill refills the gun's magazine at once, and the spare ammo never runs out.</summary>
     public bool ReloadOnKill { get; set; }
 
+    /// <summary>Everyone (bots too) gets only this gun and a knife: weapon_awp, weapon_ssg08, weapon_deagle, knife, or "".</summary>
+    public string OnlyWeapon { get; set; } = "";
+    public static readonly (string Value, string Label)[] OnlyWeapons =
+        [("", "Any guns"), ("weapon_awp", "AWP only"), ("weapon_ssg08", "Scout only"), ("weapon_deagle", "Deagle only"), ("knife", "Knives only")];
+
+    /// <summary>Low gravity and fast air movement (Flying Scoutsman style).</summary>
+    public bool LowGravity { get; set; }
+
     [System.Text.Json.Serialization.JsonIgnore]
     public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
 
@@ -422,6 +430,56 @@ public class ServerSettings
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
+        new("AWP Deathmatch", "AWP only · 12 hard bots with AWPs", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 12;
+            s.Difficulty = 2;
+            s.OnlyWeapon = "weapon_awp";
+            s.BotWeapons = 2;
+        }),
+        new("Flying Scoutsman", "Scouts · low gravity · 10 bots", s =>
+        {
+            s.Reset("Deathmatch", "de_vertigo");
+            s.Bots = 10;
+            s.Difficulty = 2;
+            s.OnlyWeapon = "weapon_ssg08";
+            s.BotWeapons = 2;
+            s.LowGravity = true;
+        }),
+        new("Knife Fight", "Knives only · 10 bots", s =>
+        {
+            s.Reset("Deathmatch", "de_inferno");
+            s.Bots = 10;
+            s.Difficulty = 2;
+            s.OnlyWeapon = "knife";
+            s.BotWeapons = 3;
+        }),
+        new("Deagle Headshots", "Deagle only · headshots only · reload on kill", s =>
+        {
+            s.Reset("Deathmatch", "de_mirage");
+            s.Bots = 10;
+            s.Difficulty = 3;
+            s.OnlyWeapon = "weapon_deagle";
+            s.BotWeapons = 1;
+            s.HeadshotOnly = true;
+            s.ReloadOnKill = true;
+        }),
+        new("1v1 Aim Duel", "Free-for-all vs one expert bot · reload on kill", s =>
+        {
+            s.Reset("Deathmatch", "de_dust2");
+            s.Bots = 1;
+            s.Difficulty = 3;
+            s.FreeForAll = true;
+            s.ReloadOnKill = true;
+        }),
+        new("Wingman 2v2", "You + a bot vs 2 bots", s =>
+        {
+            s.Reset("Wingman", "de_inferno");
+            s.Bots = 3;
+            s.Difficulty = 2;
+            s.MaxMoney = false;
+        }),
         new("Catch the hacker", "Friends: one random hacker per round", s =>
         {
             s.Reset("Casual", "de_mirage");
@@ -438,7 +496,12 @@ public class ServerSettings
         Map = map;
         WorkshopMap = "";
         BotTeam = BotWeapons = RoundTime = 0;
-        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = ReloadOnKill = false;
+        FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = ReloadOnKill = LowGravity = false;
+        OnlyWeapon = "";
+        // Every quick start uses the smarter bots (and keeps their default looks).
+        BotImprover = true;
+        BotSkins = false;
+        CalmBots = true;
         MaxMoney = AllowCheats = true;
         ShowDamage = false;
         RetakeStyle = 0;
@@ -467,7 +530,7 @@ public class ServerSettings
 
     private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
 
-    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || BotsDontShoot || HackRecoilOrSpread;
+    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || LowGravity || BotsDontShoot || HackRecoilOrSpread;
 
     public string StartArguments()
     {
@@ -577,6 +640,8 @@ public class ServerSettings
         // 1 = the magazine never empties; 2 = spare ammo never runs out (you still reload).
         sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : ReloadOnKill ? 2 : 0)}");
         sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
+        sb.AppendLine($"sv_gravity {(LowGravity ? 220 : 800)}");
+        sb.AppendLine($"sv_airaccelerate {(LowGravity ? 2000 : 12)}");
         foreach (var line in RecoilCvars()) sb.AppendLine(line);
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
 
@@ -657,8 +722,11 @@ public class ServerSettings
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
         sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
         sb.AppendLine($"lst_reload_on_kill {B(ReloadOnKill)}");
+        sb.AppendLine($"lst_only_weapon {(OnlyWeapon == "" ? "off" : OnlyWeapon)}");
         // Greys the other guns out in the buy menu; the plugin also takes away any that get through.
-        sb.AppendLine($"mp_items_prohibited \"{(PistolsOnly ? string.Join(",", ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31)) : "")}\"");
+        var prohibited = OnlyWeapon != "" ? ItemData.Weapons.Where(w => w.Value != OnlyWeapon && w.Key != 31).Select(w => w.Key)
+            : PistolsOnly ? ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31) : Enumerable.Empty<ushort>();
+        sb.AppendLine($"mp_items_prohibited \"{string.Join(",", prohibited)}\"");
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
