@@ -130,6 +130,8 @@ export function LivePage() {
               : s.retakeWeapons === 1
               ? html`<${Row} title="Allocator" subtitle="Type !guns to choose. One AWP per team." />`
               : html`<${Row} title="Rifles" subtitle="Everyone gets an AK-47 or M4A1-S, a pistol, armor and a kit every round." />`}
+            <${Row} title="Realistic Bots" subtitle="Bots get real full buys (M4A4 / M4A1-S / AK, sometimes an AWP) and grenades. Turn Bot Improver on for smarter aim and utility">
+              <${Toggle} value=${s.retakeRealisticBots} onChange=${v => set("retakeRealisticBots", v)} /><//>
             <${Row} title="Bomb Timer" subtitle="Seconds until the bomb explodes">
               <${Stepper} value=${s.retakeBombTimer} min=${15} max=${60} onChange=${v => set("retakeBombTimer", v)} /><//>
             <${Row} title="Instadefuse" subtitle="The bomb defuses instantly when nothing can stop it">

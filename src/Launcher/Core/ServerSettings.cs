@@ -87,6 +87,9 @@ public class ServerSettings
 
     public static readonly string[] RetakeWeaponChoices = ["Buy", "Allocator", "Rifles"];
 
+    /// <summary>Plugin retakes: bots with real full buys (rifle mix, grenades, the odd AWP), expert and calm.</summary>
+    public bool RetakeRealisticBots { get; set; } = true;
+
     /// <summary>Every defuse finishes instantly, in every mode.</summary>
     public bool InstaDefuse { get; set; }
 
@@ -389,11 +392,13 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 0;
         }),
-        new("Plugin retakes", "Rifles every round · instadefuse · 8 bots", s =>
+        new("Plugin retakes", "Realistic expert bots · rifles · instadefuse", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
-            s.Difficulty = 2;
+            s.Difficulty = 3;
+            s.BotNades = 3; // retake players throw a lot of utility
+            s.RetakeRealisticBots = true;
             s.MaxMoney = false;
             s.RetakeStyle = 1;
             s.RetakeWeapons = 2;
@@ -404,7 +409,9 @@ public class ServerSettings
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
-            s.Difficulty = 2;
+            s.Difficulty = 3;
+            s.BotNades = 3; // retake players throw a lot of utility
+            s.RetakeRealisticBots = true;
             s.MaxMoney = false;
             s.RetakeStyle = 1;
             s.RetakeWeapons = 0;
@@ -522,6 +529,7 @@ public class ServerSettings
         RetakeTerroristPercent = 45;
         RetakeWeapons = 2;
         InstaDefuse = false;
+        RetakeRealisticBots = true;
         RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeBuy = RetakeInstadefuse = true;
         RetakeScrambleRounds = 5;
         RetakeBuySeconds = 12;
@@ -753,6 +761,7 @@ public class ServerSettings
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         sb.AppendLine($"lst_retake_rifles {B(IsPluginRetakes && RetakeWeapons == 2)}");
         sb.AppendLine($"lst_instadefuse {B(InstaDefuse)}");
+        sb.AppendLine($"lst_retake_bots {B(IsPluginRetakes && RetakeRealisticBots)}");
         sb.AppendLine($"lst_bomb_timer {(IsPluginRetakes ? Math.Clamp(RetakeBombTimer, 15, 60) : 0)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 

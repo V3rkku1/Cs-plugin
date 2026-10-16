@@ -11,6 +11,8 @@ namespace LanSkinTester;
 ///   lst_retake_seats SEATS BOTS   retakes only has SEATS places. Bots give theirs up the moment a person
 ///                                 connects, so you and your friends always get a team (0 = off).
 ///   lst_retake_rifles 0|1         every round: a rifle, a pistol, armor (and a kit on CT) for everyone.
+///   lst_retake_bots 0|1           realistic bots: mixed full buys, grenades, sometimes an AWP (also gives
+///                                 bots a loadout in buy mode, where only people buy).
 ///   lst_instadefuse 0|1           any defuse finishes instantly, in every mode.
 ///   lst_bomb_timer SECONDS        retakes bomb timer, counted from when the round goes live (0 = off).
 ///                                 Auto-plant happens during freeze time, so the clock was already running.
@@ -79,30 +81,82 @@ public partial class LanSkinTester
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnInstaDefuseCommand(CCSPlayerController? caller, CommandInfo cmd) => _instaDefuse = cmd.GetArg(1) == "1";
 
+    [ConsoleCommand("lst_retake_bots", "1 = retake bots get real full-buy loadouts with utility and the odd AWP")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnRetakeBotsCommand(CCSPlayerController? caller, CommandInfo cmd) => _realisticRetakeBots = cmd.GetArg(1) == "1";
+
+    private bool _realisticRetakeBots;
+
     [GameEventHandler]
     public HookResult OnRetakeRiflesRoundStart(EventRoundStart @event, GameEventInfo info)
     {
-        if (!_retakeRifles) return HookResult.Continue;
+        // Rifles for everyone, or (buy period) real loadouts for the bots, who don't buy themselves.
+        if (!_retakeRifles && !(_realisticRetakeBots && _retakeBuy)) return HookResult.Continue;
         // The retakes plugin hands out its guns on round post-start, just after this. Replace them after that.
-        AddTimer(0.7f, GiveRetakeRifles);
+        AddTimer(0.7f, GiveRetakeLoadouts);
         return HookResult.Continue;
     }
 
-    private void GiveRetakeRifles()
+    private void GiveRetakeLoadouts()
     {
-        if (!_retakeRifles) return;
-        foreach (var player in Utilities.GetPlayers())
+        var everyone = _retakeRifles;
+        if (!everyone && !(_realisticRetakeBots && _retakeBuy)) return;
+        var players = Utilities.GetPlayers()
+            .Where(p => p.IsValid && p.PawnIsAlive && p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist)
+            .Where(p => everyone || IsBotPlayer(p))
+            .ToList();
+
+        // Like a real full buy: now and then one bot per side brings an AWP.
+        var awpers = new HashSet<int>();
+        if (_realisticRetakeBots)
         {
-            if (!player.IsValid || !player.PawnIsAlive) continue;
-            if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) continue;
+            foreach (var team in new[] { CsTeam.Terrorist, CsTeam.CounterTerrorist })
+            {
+                var bots = players.Where(p => p.Team == team && IsBotPlayer(p)).ToList();
+                if (bots.Count > 1 && Random.Shared.NextDouble() < 0.4) awpers.Add(bots[Random.Shared.Next(bots.Count)].Slot);
+            }
+        }
+
+        foreach (var player in players)
+        {
             var ct = player.Team == CsTeam.CounterTerrorist;
+            var bot = IsBotPlayer(player);
+            var realistic = _realisticRetakeBots && bot;
             StripGuns(player);
-            player.GiveNamedItem(ct ? "weapon_m4a1_silencer" : "weapon_ak47");
-            player.GiveNamedItem(ct ? "weapon_usp_silencer" : "weapon_glock");
+            player.GiveNamedItem(awpers.Contains(player.Slot) ? "weapon_awp" : PrimaryFor(ct, realistic));
+            player.GiveNamedItem(PistolFor(ct, realistic));
             player.GiveNamedItem("item_assaultsuit");
             if (ct) player.GiveNamedItem("item_defuser");
-            if (!IsBotPlayer(player)) player.ExecuteClientCommandFromServer("slot1");
+            if (_realisticRetakeBots)
+                foreach (var nade in UtilityFor(ct)) player.GiveNamedItem(nade);
+            if (!bot) player.ExecuteClientCommandFromServer("slot1");
         }
+    }
+
+    private static string PrimaryFor(bool ct, bool mixed)
+    {
+        if (!mixed) return ct ? "weapon_m4a1_silencer" : "weapon_ak47";
+        var roll = Random.Shared.NextDouble();
+        return ct ? roll < 0.55 ? "weapon_m4a1_silencer" : roll < 0.92 ? "weapon_m4a1" : "weapon_famas"
+                  : roll < 0.9 ? "weapon_ak47" : "weapon_galilar";
+    }
+
+    private static string PistolFor(bool ct, bool mixed)
+    {
+        if (!mixed) return ct ? "weapon_usp_silencer" : "weapon_glock";
+        var roll = Random.Shared.NextDouble();
+        return ct ? roll < 0.6 ? "weapon_usp_silencer" : roll < 0.8 ? "weapon_hkp2000" : "weapon_fiveseven"
+                  : roll < 0.7 ? "weapon_glock" : roll < 0.85 ? "weapon_tec9" : "weapon_p250";
+    }
+
+    /// <summary>Two or three grenades, as a retake player would carry.</summary>
+    private static IEnumerable<string> UtilityFor(bool ct)
+    {
+        yield return Random.Shared.NextDouble() < 0.6 ? "weapon_smokegrenade" : "weapon_flashbang";
+        yield return "weapon_flashbang";
+        var roll = Random.Shared.NextDouble();
+        if (roll < 0.45) yield return ct ? "weapon_incgrenade" : "weapon_molotov";
+        else if (roll < 0.75) yield return "weapon_hegrenade";
     }
 
     [GameEventHandler]
