@@ -86,6 +86,9 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         LoadHackerMode();
         LoadPractice();
         LoadExtras();
+        // Loaded while people are already playing (plugin update, hot reload): they're past loading.
+        foreach (var p in Utilities.GetPlayers())
+            if (p.IsValid && p.Connected == PlayerConnectedState.Connected) _inGameSlots.Add(p.Slot);
     }
 
     public override void Unload(bool hotReload)
@@ -109,7 +112,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
 
             var pawn = itemServices.Pawn.Value;
             var player = pawn?.Controller.Value?.As<CCSPlayerController>();
-            if (player != null && IsHumanPlayer(player))
+            // Not while their game is still loading: connect-full refreshes the guns once it's done.
+            if (player != null && IsHumanPlayer(player) && _inGameSlots.Contains(player.Slot))
                 ApplyWeaponSkin(player, weapon);
         }
         catch (Exception ex)
@@ -133,7 +137,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 if (!weapon.IsValid) return;
 
                 var player = FindWeaponOwner(weapon);
-                if (player != null && IsHumanPlayer(player))
+                if (player != null && IsHumanPlayer(player) && _inGameSlots.Contains(player.Slot))
                     ApplyWeaponSkin(player, weapon);
             }
             catch (Exception ex)
@@ -150,21 +154,28 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         RefreshEveryone("Loadout updated from the launcher.");
     }
 
+    /// <summary>Gives a player fresh copies of their skinnable weapons. False when they have none.</summary>
+    private bool RefreshGuns(CCSPlayerController player)
+    {
+        var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
+        if (weapons == null) return false;
+
+        var skinnable = weapons
+            .Select(h => h.Value)
+            .Where(w => w != null && w.IsValid &&
+                        (ItemData.Weapons.ContainsKey(w.AttributeManager.Item.ItemDefinitionIndex) || ItemData.IsKnifeClassname(w.DesignerName)))
+            .ToList();
+
+        foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
+        return true;
+    }
+
     /// <summary>Gives every living human fresh copies of their weapons so the current loadout shows.</summary>
     private void RefreshEveryone(string message)
     {
         foreach (var player in Utilities.GetPlayers().Where(p => IsHumanPlayer(p) && p.PawnIsAlive))
         {
-            var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
-            if (weapons == null) continue;
-
-            var skinnable = weapons
-                .Select(h => h.Value)
-                .Where(w => w != null && w.IsValid &&
-                            (ItemData.Weapons.ContainsKey(w.AttributeManager.Item.ItemDefinitionIndex) || ItemData.IsKnifeClassname(w.DesignerName)))
-                .ToList();
-
-            foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
+            if (!RefreshGuns(player)) continue;
             ApplyAgentAndPin(player);
             ApplyGloves(player);
             Reply(player, message);
@@ -448,6 +459,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             if (!player.IsValid || !IsHumanPlayer(player)) return;
             _inGameSlots.Add(slot);
             if (DisabledReason() != null || !player.PawnIsAlive) return;
+            RefreshGuns(player);
             ApplyAgentAndPin(player);
             AddTimer(0.1f, () => ApplyGloves(player), TimerFlags.STOP_ON_MAPCHANGE);
         }, TimerFlags.STOP_ON_MAPCHANGE);

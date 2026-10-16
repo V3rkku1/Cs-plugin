@@ -20,6 +20,7 @@ public partial class Api
             ? App.Settings.GamePath
             : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
         if (App.Game == null) App.Log("CS2 not found automatically - press Browse on the Setup page.");
+        ReportLastUpdate();
         _ = CheckForUpdateAsync(startup: true);
         // Look again every 15 minutes while the launcher stays open, so a new build shows up without a restart.
         var timer = new System.Windows.Forms.Timer { Interval = 15 * 60 * 1000 };
@@ -123,6 +124,22 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    /// <summary>Says how the last self-update went (the swap script leaves a note for this start).</summary>
+    private void ReportLastUpdate()
+    {
+        if (Updater.TakeResult() is not { } result) return;
+        if (result == "ok")
+        {
+            App.Log($"Launcher updated to {UpdateCheck.ShortVersion}.");
+            Toast($"Updated to {UpdateCheck.ShortVersion}.", "good");
+        }
+        else
+        {
+            App.Log("The update could not replace the launcher file (" + result + "). Download it from " + UpdateCheck.ReleaseUrl);
+            Toast("Update failed - see the log on the Setup page.", "bad");
+        }
+    }
+
     /// <summary>The "Check for updates" button: looks now and says if this is already the newest.</summary>
     [Call("app.checkUpdate")]
     private async Task<bool> CheckUpdateNow()
@@ -150,7 +167,13 @@ public partial class Api
     private async Task InstallUpdateAsync(bool automatic)
     {
         if (_updating) return;
-        if (App.TestModeOn) throw new ApiException("Press Stop first (test mode is on), then update.");
+        if (App.TestModeOn)
+        {
+            if (automatic) return;
+            // The new launcher can't take over a running test: close CS2 and the server, restore CS2.
+            App.Log("Updating: stopping the test first (closes CS2 and the server).");
+            await Task.Run(StopFromClose);
+        }
         if (!Updater.CanSelfUpdate())
         {
             App.Log("This folder isn't writable, so the launcher can't update itself - opening the download page.");
@@ -161,16 +184,30 @@ public partial class Api
         _updating = true;
         try
         {
+            _updateProgress = "Downloading 0%";
+            App.NotifyChanged();
+            var shown = 0;
             var file = await Updater.DownloadAsync(App.Http, p =>
             {
-                _updateProgress = $"Downloading {p:P0}";
+                // Only whole percents: every chunk would refresh all pages hundreds of times.
+                var percent = (int)(p * 100);
+                if (percent == shown) return;
+                shown = percent;
+                _updateProgress = $"Downloading {percent}%";
                 App.NotifyChanged();
             });
             _updateProgress = "Restarting";
             App.NotifyChanged();
             App.Log("Update downloaded - restarting the launcher.");
             Updater.ReplaceAfterExit(file);
-            await OnUi(Window.Close);
+            await OnUi(() =>
+            {
+                (Window as ShellForm)?.CloseForUpdate();
+                // Whatever is still running (a dialog, a stuck thread) must not keep the old exe in use.
+                var exit = new System.Windows.Forms.Timer { Interval = 4000 };
+                exit.Tick += (_, _) => Environment.Exit(0);
+                exit.Start();
+            });
         }
         catch (Exception ex)
         {

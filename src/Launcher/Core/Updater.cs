@@ -50,7 +50,12 @@ public static class Updater
 
         var dir = Path.Combine(Path.GetTempPath(), "LanSkinTester-update");
         Directory.CreateDirectory(dir);
-        var target = Path.Combine(dir, AssetName);
+        // A fresh name each time: an old download may still be open (virus scan) and can't be overwritten.
+        foreach (var old in Directory.GetFiles(dir, "LanSkinTesterLauncher-*.exe"))
+        {
+            try { File.Delete(old); } catch (Exception) { /* still in use: removed next time */ }
+        }
+        var target = Path.Combine(dir, $"LanSkinTesterLauncher-{DateTime.UtcNow:yyyyMMddHHmmss}.exe");
 
         using (var download = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
         {
@@ -79,38 +84,55 @@ public static class Updater
         return target;
     }
 
+    /// <summary>Written by the swap script: "ok" or the reason it failed. Read by the next launcher start.</summary>
+    public static string ResultFile => Path.Combine(Path.GetTempPath(), "LanSkinTester-update", "result.txt");
+
     /// <summary>
-    /// Starts a hidden script that waits for this process to exit, replaces the exe and starts the new
-    /// one. The caller then closes the launcher.
+    /// Starts a hidden PowerShell script that waits for this process to exit, replaces the exe and
+    /// starts the new one (or the old one again if the swap keeps failing). The caller then exits.
+    /// PowerShell gets the script as UTF-16 (-EncodedCommand), so folders with letters like ä, ö or
+    /// spaces work; a .cmd file would read them in the console code page and break.
     /// </summary>
     public static void ReplaceAfterExit(string newExe)
     {
+        static string Q(string text) => "'" + text.Replace("'", "''") + "'";
         var current = CurrentExe;
-        var pid = Environment.ProcessId;
-        var script = Path.Combine(Path.GetDirectoryName(newExe)!, "update.cmd");
-        var text = new StringBuilder()
-            .AppendLine("@echo off")
-            .AppendLine(":wait")
-            .AppendLine($"tasklist /FI \"PID eq {pid}\" 2>nul | find \"{pid}\" >nul && (ping -n 2 127.0.0.1 >nul & goto wait)")
-            .AppendLine("set tries=0")
-            .AppendLine(":move")
-            .AppendLine($"move /y \"{newExe}\" \"{current}\" >nul 2>&1")
-            .AppendLine("if not errorlevel 1 goto start")
-            .AppendLine("set /a tries+=1")
-            .AppendLine("if %tries% geq 10 goto start") // give up: start the old one
-            .AppendLine("ping -n 2 127.0.0.1 >nul")
-            .AppendLine("goto move")
-            .AppendLine(":start")
-            .AppendLine($"start \"\" \"{current}\"")
-            .AppendLine("del \"%~f0\"")
-            .ToString();
-        File.WriteAllText(script, text);
-
-        Process.Start(new ProcessStartInfo("cmd.exe", $"/c \"{script}\"")
+        var script = $$"""
+            $ErrorActionPreference = 'SilentlyContinue'
+            $new = {{Q(newExe)}}; $cur = {{Q(current)}}; $result = {{Q(ResultFile)}}
+            Wait-Process -Id {{Environment.ProcessId}} -Timeout 60
+            $ok = $false; $why = ''
+            for ($i = 0; $i -lt 40 -and -not $ok; $i++) {
+                try { Copy-Item -LiteralPath $new -Destination $cur -Force -ErrorAction Stop; $ok = $true }
+                catch { $why = $_.Exception.Message; Start-Sleep -Milliseconds 500 }
+            }
+            if ($ok) { Set-Content -LiteralPath $result -Value 'ok' -Encoding UTF8; Remove-Item -LiteralPath $new }
+            else { Set-Content -LiteralPath $result -Value ('failed: ' + $why) -Encoding UTF8 }
+            Start-Process -FilePath $cur
+            """;
+        var encoded = Convert.ToBase64String(Encoding.Unicode.GetBytes(script));
+        try { File.Delete(ResultFile); } catch (Exception) { /* not there */ }
+        Process.Start(new ProcessStartInfo("powershell.exe", $"-NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -EncodedCommand {encoded}")
         {
             UseShellExecute = false,
             CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden,
         });
+    }
+
+    /// <summary>The last swap's outcome ("ok" / "failed: ..."), once; null when there was none.</summary>
+    public static string? TakeResult()
+    {
+        try
+        {
+            if (!File.Exists(ResultFile)) return null;
+            var text = File.ReadAllText(ResultFile).Trim();
+            File.Delete(ResultFile);
+            return text;
+        }
+        catch (Exception)
+        {
+            return null;
+        }
     }
 }

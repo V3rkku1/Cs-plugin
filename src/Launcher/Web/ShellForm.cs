@@ -131,6 +131,15 @@ public sealed class ShellForm : Form
     }
 
     /// <summary>F11: borderless full screen (covers the taskbar), and back.</summary>
+    /// <summary>Closes for a self-update: no "test mode is on" question, the test was already stopped.</summary>
+    public void CloseForUpdate()
+    {
+        SaveWindow();
+        _closing = true;
+        _ = _host?.DisposeAsync();
+        Close();
+    }
+
     public void ToggleFullscreen()
     {
         if (!_fullscreen)
