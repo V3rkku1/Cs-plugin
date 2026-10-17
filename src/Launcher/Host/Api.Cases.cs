@@ -39,7 +39,7 @@ public partial class Api
     /// <summary>An inventory item as the pages show it: its price now, whether it's equipped, and its name split like CS2 shows it.</summary>
     public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category,
         bool EquippedT, bool EquippedCT);
-    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin);
+    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin, int Undo);
 
     private static string InventoryFile => Path.Combine(AppState.LauncherDataDir, "inventory.json");
     private List<InventoryItem>? _inventory;
@@ -179,7 +179,7 @@ public partial class Api
     {
         var loadout = ReadLoadout();
         var items = Inventory().Select(i => View(i, loadout)).ToList();
-        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked);
+        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked, LastRemoved().Count);
     }
 
     [Call("cases.currency")]
@@ -353,11 +353,34 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    private static string RemovedFile => Path.Combine(AppState.LauncherDataDir, "inventory-removed.json");
+
+    private static List<InventoryItem> LastRemoved()
+    {
+        try { return File.Exists(RemovedFile) ? JsonSerializer.Deserialize<List<InventoryItem>>(File.ReadAllText(RemovedFile)) ?? new() : new(); }
+        catch (Exception e) when (e is JsonException or IOException) { return new(); }
+    }
+
+    /// <summary>Undo Remove: the last Remove Duplicates batch comes back.</summary>
+    [Call("cases.undoRemove")]
+    private void UndoRemove()
+    {
+        var back = LastRemoved().Where(r => Inventory().All(i => i.Uid != r.Uid)).ToList();
+        Inventory().InsertRange(0, back);
+        SaveInventory();
+        File.Delete(RemovedFile);
+        Toast($"{back.Count} item{(back.Count == 1 ? "" : "s")} back in your inventory.", "good");
+        App.NotifyChanged();
+    }
+
     /// <summary>Removes many items at once (Remove Duplicates): one save and one page reload.</summary>
     [Call("cases.removeMany")]
     private int RemoveManyUnboxed(List<string> uids)
     {
         var gone = uids.ToHashSet();
+        var batch = Inventory().Where(i => gone.Contains(i.Uid)).ToList();
+        // Kept for Undo Remove (the last batch only).
+        File.WriteAllText(RemovedFile, JsonSerializer.Serialize(batch));
         var removed = Inventory().RemoveAll(i => gone.Contains(i.Uid));
         SaveInventory();
         Toast($"Removed {removed} duplicate{(removed == 1 ? "" : "s")}.", "good");

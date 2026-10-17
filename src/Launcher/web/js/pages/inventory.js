@@ -558,12 +558,14 @@ export function InventoryPage() {
   };
   items = [...items].sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
   const cases = [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort();
-  // Keeps the best copy of each skin (lowest float), and anything equipped, favorite or with stickers; removes the rest.
-  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"), v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}`))
+  // Copies of the same skin in the same exterior (and StatTrak™ / Souvenir): the lowest float stays, and anything
+  // equipped, favorite or with stickers. Other exteriors are different items, so they all stay.
+  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"),
+      v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}|${v.item.paint > 0 ? wearName(v.item.wear) : ""}|${v.item.phase ?? ""}`))
     .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => b.equipped - a.equipped || a.item.wear - b.item.wear).slice(1))
     .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length);
   const removeDuplicates = async () => {
-    if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nThe lowest-float copy of each skin, equipped and favorite items, and guns with stickers stay.`, ok: "Remove", danger: true }))
+    if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nOne copy of each skin per exterior stays (the lowest float), and equipped and favorite items and guns with stickers. Undo Remove brings them back.`, ok: "Remove", danger: true }))
       tryCall("cases.removeMany", duplicates.map(v => v.item.uid));
   };
   const selected = state.items.find(v => v.item.uid === open);
@@ -581,7 +583,8 @@ export function InventoryPage() {
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
-        <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin">Remove Duplicates (${duplicates.length})<//>
+        ${state.undo > 0 && html`<${Button} icon="refresh" onClick=${() => tryCall("cases.undoRemove")} title="Bring back what Remove Duplicates removed last">Undo Remove (${state.undo})<//>`}
+        <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin in the same exterior">Remove Duplicates (${duplicates.length})<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "loadout", label: "Loadout" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
