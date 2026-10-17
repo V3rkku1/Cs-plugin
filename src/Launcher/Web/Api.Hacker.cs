@@ -102,6 +102,13 @@ public partial class Api
             ServerSettings.HackerModes, ServerSettings.AimStyles, ServerSettings.AimBones, ServerSettings.AimTargets, ServerSettings.AimKeys);
     }
 
+    private string HackerSummary() => App.Settings.Server.HackerMode switch
+    {
+        1 => "On · everyone hacks",
+        2 => "On · one random hacker per round",
+        _ => "Off · aimbot, wallhack, radar and more",
+    };
+
     [Call("hacker.set")]
     private void SetHacker(HackerSettings a)
     {
