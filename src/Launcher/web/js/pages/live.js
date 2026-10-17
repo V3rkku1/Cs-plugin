@@ -111,6 +111,10 @@ export function LivePage() {
             <${CommitField} width=${170} value=${s.workshopMap} placeholder="ID or link (optional)" onCommit=${v => set("workshopMap", v)} />
             <${Button} size="sm" disabled=${!state.workshop.id} onClick=${() => tryCall("live.subscribe")} title="Open it in Steam to subscribe (download)">Subscribe<//>
           <//>
+          ${state.workshop.id && html`<${Row} icon=${{ name: "map", color: "green" }} title="Map's Own Rules"
+              subtitle="The map's config sets bots, buying and rounds (aim_botz and other training maps). Off: the launcher's bots and rules">
+            <${Toggle} value=${s.keepMapRules} onChange=${v => set("keepMapRules", v)} />
+          <//>`}
         <//>
 
         ${retakes && html`<${Section} title="Retakes" footer=${plugin ? "Plugin settings are read when the server starts: Apply restarts it when they change." : ""}>

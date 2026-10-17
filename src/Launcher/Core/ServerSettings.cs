@@ -278,6 +278,15 @@ public class ServerSettings
     /// <summary>Steam Workshop map id (overrides Map). Needs internet: the server downloads it.</summary>
     public string WorkshopMap { get; set; } = "";
 
+    /// <summary>
+    /// A Workshop map keeps its own config (aim_botz and other training maps set bots, buying and rounds
+    /// themselves): the launcher's config then only sets the network and switches its own plugin's extras off.
+    /// </summary>
+    public bool KeepMapRules { get; set; }
+
+    [JsonIgnore]
+    public bool UsesMapRules => KeepMapRules && WorkshopMapId != null;
+
     /// <summary>Extra CS2 launch options for the game window, e.g. "-windowed -w 1920 -h 1080 -novid".</summary>
     public string GameArgs { get; set; } = "-novid";
 
@@ -432,6 +441,7 @@ public class ServerSettings
         Mode = mode;
         Map = map;
         WorkshopMap = "";
+        KeepMapRules = false;
         BotTeam = BotWeapons = RoundTime = 0;
         FreeForAll = BotsDontShoot = InfiniteAmmo = NoRoundEnd = FriendlyFire = HeadshotOnly = PistolsOnly = ReloadOnKill = LowGravity = false;
         OnlyWeapon = "";
@@ -479,7 +489,7 @@ public class ServerSettings
     {
         Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins, GameArgs = old.GameArgs,
         AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey, MapModes = old.MapModes, MapTeamSizes = old.MapTeamSizes,
-        Mode = "Casual", Bots = 0, BotImprover = false, CalmBots = false, MaxMoney = false, AllowCheats = false,
+        Mode = "Casual", Bots = 0, KeepMapRules = true, BotImprover = false, CalmBots = false, MaxMoney = false, AllowCheats = false,
         SpawnProtection = false, GunMenu = false, MapVote = false, RoundSummary = false, WelcomeMessage = false, CleanupGuns = false,
     };
 
@@ -603,6 +613,7 @@ public class ServerSettings
         sb.AppendLine($"lst_shared_loadout {B(SharedSkins)}");
         sb.AppendLine($"lst_host_account {ActiveSteamAccount()}");
         sb.AppendLine($"sv_password \"{(Password ?? "").Replace("\"", "").Trim()}\"");
+        if (UsesMapRules) return MapRulesCfg(sb);
 
         // Cheat-protected settings need sv_cheats 1 while they're set (and turning it off resets them).
         sb.AppendLine("sv_cheats 1");
@@ -736,6 +747,33 @@ public class ServerSettings
             sb.AppendLine("retakes_enabled 0");
             sb.AppendLine("mp_warmup_end");
         }
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// The map's own config decides bots, money, rounds and cheats: only the plugin's own settings are sent
+    /// (its extras off unless picked on Live Server), so nothing the map set up gets kicked or restarted.
+    /// </summary>
+    private string MapRulesCfg(StringBuilder sb)
+    {
+        foreach (var line in HackerCommands(withCvars: false)) sb.AppendLine(line);
+        sb.AppendLine($"lst_fire_relay {FireRelay.Port}");
+        sb.AppendLine($"lst_skin_commands {B(SkinCommands)}");
+        sb.AppendLine($"lst_show_damage {B(ShowDamage)}");
+        sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
+        sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
+        sb.AppendLine($"lst_reload_on_kill {B(ReloadOnKill)}");
+        sb.AppendLine($"lst_only_weapon {(OnlyWeapon == "" ? "off" : OnlyWeapon)}");
+        sb.AppendLine($"lst_cleanup {B(CleanupGuns)}");
+        sb.AppendLine($"lst_nofall {B(NoFallDamage)}");
+        sb.AppendLine($"lst_qol spawn={B(SpawnProtection)} guns={B(GunMenu)} ready={B(ReadyUp)} vote={B(MapVote)} summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps=");
+        sb.AppendLine("lst_retake_buy 0");
+        sb.AppendLine("lst_weapons_expert 0");
+        sb.AppendLine("lst_retake_seats 0");
+        sb.AppendLine("lst_team_sizes 0 0");
+        sb.AppendLine($"lst_bot_calm {B(CalmBots)}");
+        sb.AppendLine("lst_bot_no_snipers 0");
+        sb.AppendLine("sv_skirmish_id 0");
         return sb.ToString();
     }
 

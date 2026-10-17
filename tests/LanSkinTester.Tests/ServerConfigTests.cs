@@ -301,4 +301,19 @@ public class ServerConfigTests
         Assert.Contains("retakes_enabled 0", cfg);
         Assert.DoesNotContain("mp_maxmoney 65535", cfg);
     }
+
+    [Fact]
+    public void WorkshopMapKeepsItsOwnRules()
+    {
+        var s = ServerSettings.ForWorkshop(new ServerSettings { Password = "pw" }, "3070244462");
+        var cfg = s.ToCfg();
+        // aim_botz-style maps add their own bots and set buying; none of this may override them.
+        foreach (var line in new[] { "bot_kick", "bot_quota", "mp_limitteams", "mp_warmup_end", "sv_cheats", "mp_items_prohibited", "mp_maxmoney" })
+            Assert.DoesNotContain(line, cfg);
+        Assert.Contains("sv_password \"pw\"", cfg);
+        Assert.Contains("lst_only_weapon off", cfg);
+        Assert.Contains("lst_retake_seats 0", cfg);
+        s.KeepMapRules = false;
+        Assert.Contains("mp_warmup_end", s.ToCfg());
+    }
 }
