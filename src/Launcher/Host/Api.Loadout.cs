@@ -18,7 +18,8 @@ public partial class Api
     private bool PruneUnowned(PlayerLoadout l)
     {
         var skins = OwnedSkins();
-        var stickers = OwnedIds("sticker");
+        // Applying a sticker uses it up, so the ones stuck on unboxed guns count as owned too.
+        var stickers = OwnedIds("sticker").Concat(Inventory().SelectMany(i => i.Stickers ?? []).Select(st => st.Id)).ToHashSet();
         var charms = OwnedIds("charm");
         var pins = OwnedIds("pin");
         var kits = OwnedIds("music");
