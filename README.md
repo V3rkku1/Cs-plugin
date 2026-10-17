@@ -674,7 +674,7 @@ This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
 On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
 `LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
 
-The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/web/DESIGN.md`). Run
+The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/DESIGN.md`). Run
 `LanSkinTesterLauncher.exe --serve 5099 --token dev --web-dir src\Launcher\web` to open it in a normal
 browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
 

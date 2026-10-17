@@ -1,6 +1,6 @@
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Trade Up Contracts, with CS2's rules:

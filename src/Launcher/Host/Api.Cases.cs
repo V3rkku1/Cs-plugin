@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Cases page: open CS2 containers like in the game (reel, real odds, floats, StatTrak), keep what you

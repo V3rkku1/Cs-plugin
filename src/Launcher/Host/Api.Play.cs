@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Play and Live Server pages: quick starts, start / apply / stop the local server, the server settings

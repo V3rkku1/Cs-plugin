@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>The window around the pages: status, navigation, links, launcher updates, auto-restore.</summary>
 public partial class Api

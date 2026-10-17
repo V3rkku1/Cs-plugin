@@ -7,13 +7,13 @@ small ASP.NET server on 127.0.0.1 (random token) that serves these files and the
 web/index.html          backdrop, SVG refraction filter, loads js/app.js
 web/css/glass.css       the whole design system (Liquid Glass): tokens, glass, controls, layout
 web/js/vendor/          preact + hooks + htm in one file (no build step)
-web/js/api.js           call(), tryCall(), useApi(), useEvent(), useAction(), on(), img(), toast()
+web/js/api.js           call(), tryCall(), useApi(), useEvent(), on(), img(), toast(), navigate()
 web/js/ui.js            shared components (see below)
 web/js/icons.js         <Icon name=...> line icons
 web/js/app.js           sidebar, page switching, keyboard shortcuts, toasts
 web/js/pages/*.js       one file per page, exporting <XxxPage>
-Web/Api.cs              [Call] dispatcher, OnUi() for dialogs, Push() events, Toast()
-Web/Api.<Page>.cs       the page's calls: partial class Api, [Call("page.name")]
+Host/Api.cs             [Call] dispatcher, OnUi() for dialogs, Push() events, Toast()
+Host/Api.<Page>.cs      the page's calls: partial class Api, [Call("page.name")]
 ```
 
 ## C# calls

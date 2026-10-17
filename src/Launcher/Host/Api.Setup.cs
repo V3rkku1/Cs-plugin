@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>Setup page: install, update, repair and uninstall everything the skin test needs.</summary>
 public partial class Api

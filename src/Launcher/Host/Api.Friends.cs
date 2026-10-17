@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>Friends page: host (connection, address, firewall, skins, password, invite) or join a friend.</summary>
 public partial class Api

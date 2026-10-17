@@ -1,6 +1,6 @@
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Hacker Mode page: who hacks, quick profiles and every power. Each change is saved at once and sent to

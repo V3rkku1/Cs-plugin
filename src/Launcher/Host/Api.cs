@@ -1,7 +1,7 @@
 using System.Reflection;
 using System.Text.Json;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>Marks an <see cref="Api"/> method the page can call as <c>api("name", args)</c>.</summary>
 [AttributeUsage(AttributeTargets.Method)]

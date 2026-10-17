@@ -19,9 +19,9 @@ internal static class Program
             if (args[i] == "--page" && i + 1 < args.Length) StartPage = args[++i];
             else if (args[i] == "--serve" && i + 1 < args.Length && int.TryParse(args[i + 1], out var port)) { serve = port; i++; }
             else if (args[i] == "--token" && i + 1 < args.Length) token = args[++i];
-            else if (args[i] == "--web-dir" && i + 1 < args.Length) Web.WebFiles.DevDir = args[++i];
+            else if (args[i] == "--web-dir" && i + 1 < args.Length) Host.WebFiles.DevDir = args[++i];
         }
         ApplicationConfiguration.Initialize();
-        Application.Run(new Web.ShellForm(serve ?? 0, token, serveOnly: serve != null));
+        Application.Run(new Host.ShellForm(serve ?? 0, token, serveOnly: serve != null));
     }
 }
