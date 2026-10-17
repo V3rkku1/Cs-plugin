@@ -1,6 +1,6 @@
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Trade Up Contracts, with CS2's rules:
@@ -8,8 +8,9 @@ namespace LanSkinTester.Launcher.Web;
 /// <item>10 guns of the same grade (Consumer to Classified), all StatTrak or all normal, no souvenirs.
 /// You get one item of the next grade.</item>
 /// <item>Or 5 Covert guns for a knife or gloves (October 2024): the rare items of their cases.</item>
-/// <item>Odds: every input adds an equal share to its own collection; within a collection each item of
-/// the next grade is equally likely. So 7 inputs from one collection make it 70% likely.</item>
+/// <item>Odds (the ticket rule): each input adds one ticket for every next-grade item of its own collection,
+/// and one ticket wins. 7 inputs from a collection with 2 next-grade items and 3 from one with 4 items:
+/// 14 vs 12 tickets, so 54% vs 46%.</item>
 /// <item>Float (CS2's current formula): each input's float is put on its own skin's range (0 = its
 /// best, 1 = its worst), those are averaged, and the result lands at that point of the new skin's range.</item>
 /// </list>
@@ -48,7 +49,7 @@ public partial class Api
     private (TradeCheck Check, List<(CaseItem Item, CaseInfo Box, double Chance, bool Rare)> Pool, List<InventoryItem> Inputs) PlanTrade(List<string> uids)
     {
         var inv = Inventory();
-        var inputs = uids.Distinct().Select(u => inv.FirstOrDefault(i => i.Uid == u)).Where(i => i != null).Select(i => i!).ToList();
+        var inputs = uids.Distinct().Select(u => inv.FirstOrDefault(i => i.Uid == u)).OfType<InventoryItem>().ToList();
         TradeCheck Fail(string msg, int needed = 10) => new(false, msg, needed, inputs.FirstOrDefault()?.Grade, inputs.FirstOrDefault()?.StatTrak, [], null, null);
         var empty = new List<(CaseItem, CaseInfo, double, bool)>();
         if (inputs.Count == 0) return (Fail("Add 10 guns of the same grade (or 5 Covert guns for a knife or gloves)."), empty, inputs);
@@ -63,8 +64,10 @@ public partial class Api
         if (inputs.Any(i => i.StatTrak != inputs[0].StatTrak)) return (Fail("Use all StatTrak™ items or none.", needed), empty, inputs);
         if (Array.IndexOf(TradeLadder, grade) < 0) return (Fail($"{grade} items can't be traded up.", needed), empty, inputs);
 
-        // Each input's share goes to its own collection's next grade (or, for Coverts, its case's knives / gloves).
-        var pool = new List<(CaseItem Item, CaseInfo Box, double Chance, bool Rare)>();
+        // CS2's tickets: every input adds one ticket for each item of the next grade in its own collection (for
+        // Coverts, its case's knives / gloves), and one ticket wins. A collection's items get more likely the more
+        // inputs come from it, and less likely the more items it has to share them with.
+        var tickets = new List<(CaseItem Item, CaseInfo Box)>();
         var next = covert ? "Rare" : TradeLadder[Array.IndexOf(TradeLadder, grade) + 1];
         foreach (var input in inputs)
         {
@@ -73,8 +76,9 @@ public partial class Api
             var outs = covert ? box.Rare.GroupBy(r => r.Name).Select(g => g.First()).ToList() : box.Items.Where(x => x.Rarity == next).ToList();
             if (outs.Count == 0)
                 return (Fail(covert ? $"{input.Name}: its collection has no knives or gloves." : $"{input.Name}: its collection has no {next} item, so it can't go higher.", needed), empty, inputs);
-            foreach (var o in outs) pool.Add((o, box, 1.0 / inputs.Count / outs.Count, covert));
+            tickets.AddRange(outs.Select(o => (o, box)));
         }
+        var pool = tickets.Select(t => (t.Item, t.Box, Chance: 1.0 / tickets.Count, Rare: covert)).ToList();
 
         var outcomes = Outcomes(pool, inputs);
         double? inputValue = inputs.All(i => PriceOf(i) != null) ? inputs.Sum(i => PriceOf(i) ?? 0) : null;
@@ -128,19 +132,13 @@ public partial class Api
         var (check, pool, inputs) = PlanTrade(a.Uids ?? new List<string>());
         if (!check.Ok) throw new ApiException(check.Message);
 
-        var roll = Random.Shared.NextDouble();
-        var pick = pool[^1];
-        foreach (var p in pool)
-        {
-            roll -= p.Chance;
-            if (roll < 0) { pick = p; break; }
-        }
+        var pick = CaseRoller.Pick(pool, p => p.Chance, Random.Shared.NextDouble());
         // Knives: a Doppler finish rolls its phase like a case does.
         var drop = pick.Rare ? CaseRoller.Roll(pick.Box with { Items = [], Rare = pick.Box.Rare.Where(r => r.Name == pick.Item.Name).ToList() }, Random.Shared).Item : pick.Item;
         var def = App.Db.WeaponOfItem(drop.Name) ?? 0;
         var wear = drop.Paint != 0 ? TradeFloat(inputs, def, drop.Paint) : 0f;
         var gloves = drop.Name.Contains("Gloves") || drop.Name.Contains("Wraps");
-        var item = new InventoryItem(Guid.NewGuid().ToString("N")[..12], "skin", drop.Name.Replace("StatTrak™ ", ""), drop.Image, drop.Rarity, drop.Color,
+        var item = new InventoryItem(NewUid(), "skin", drop.Name.Replace("StatTrak™ ", ""), drop.Image, drop.Rarity, drop.Color,
             def, drop.Paint, wear, Random.Shared.Next(0, 1001), inputs[0].StatTrak && !gloves, false, drop.Phase, "Trade Up Contract", 0, DateTime.UtcNow, drop.Id);
 
         var used = inputs.Select(i => i.Uid).ToHashSet();

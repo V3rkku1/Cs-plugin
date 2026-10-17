@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text.Json;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Play and Live Server pages: quick starts, start / apply / stop the local server, the server settings
@@ -167,12 +167,7 @@ public partial class Api
 
         return new PlayState(App.Game != null, App.Ready, App.TestModeOn, _playBusy, _startError, s, live, title, detail, kind,
             InviteFor(s), presets, ServerSettings.Modes.Select(m => new ModeInfo(m.Name, m.Maps)).ToList(), WorkshopFor(s),
-            s.HackerMode switch
-            {
-                1 => "On · everyone hacks",
-                2 => "On · one random hacker per round",
-                _ => "Off · aimbot, wallhack, radar and more",
-            },
+            HackerSummary(),
             ServerSettings.Difficulties, ServerSettings.BotTeams, ServerSettings.BotWeaponChoices, ServerSettings.RetakeStyles,
             GiveItems, ServerSettings.Port, JoinStep(status), status == null && App.TestModeOn ? MapError() : null);
     }
@@ -280,7 +275,7 @@ public partial class Api
                 if (string.IsNullOrWhiteSpace(server.Password))
                 {
                     server.Password = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(3)).ToLowerInvariant();
-                    SavePlaySettings();
+                    App.SaveSettings();
                     App.Log($"Internet mode: set password \"{server.Password}\" (it's in the Friends page invite).");
                 }
                 if (!a.Confirmed && await RouterPort.OpenAsync(App.Log) is { } error)
@@ -314,7 +309,7 @@ public partial class Api
                 new Installer(game, App.Http, App.Log).InstallPlugin();
                 App.Log($"Updated the plugin to v{Installer.BundledPluginVersion()?.ToString(3) ?? "?"} (the one in this launcher).");
             }
-            var startGame = new TestSession(game).Start(server, forFriends);
+            var startGame = new TestSession(game).Start(server);
             SetJoinWhenUp(startGame ? JoinWhenUp.StartGame : JoinWhenUp.None);
             ClearWorkshopWait();
             if (server.WorkshopNeedsDownload)
@@ -383,7 +378,7 @@ public partial class Api
 
         try
         {
-            var warning = server.ApplyToRunningServer(game, reload, _runningOnline, _runningForFriends);
+            var warning = server.ApplyToRunningServer(game, reload, _runningOnline);
             if (warning != null)
             {
                 App.Log(warning);
@@ -416,7 +411,7 @@ public partial class Api
             try
             {
                 await PrepareRetakesAsync(App.Settings.Server, gameMayRun: true);
-                new TestSession(game).RestartServer(App.Settings.Server, _runningForFriends);
+                new TestSession(game).RestartServer(App.Settings.Server);
                 var server = App.Settings.Server;
                 _runningMode = server.Mode;
                 _runningMap = server.WorkshopMapId ?? server.Map;
@@ -783,11 +778,9 @@ public partial class Api
         else
         {
             var preset = ServerSettings.Presets.FirstOrDefault(p => p.Title == a.Title) ?? throw new ApiException("Unknown quick start.");
-            if (preset.Title.StartsWith(ServerSettings.RushMode) && ServerSettings.Modes.All(m => m.Name != ServerSettings.RushMode))
-                throw new ApiException("Rush wasn't found in your CS2 files. Update CS2 in Steam (Rush came with the Rush Hour update), then restart the launcher.");
             preset.Apply(s);
         }
-        SavePlaySettings();
+        App.SaveSettings();
         App.Log($"Quick start: {a.Title}");
         App.NotifyChanged();
 
@@ -818,7 +811,7 @@ public partial class Api
         var setup = new SavedSetup { Name = name, Settings = App.Settings.Server.Clone() };
         if (existing >= 0) list[existing] = setup;
         else list.Add(setup);
-        SavePlaySettings();
+        App.SaveSettings();
         App.Log($"Saved setup \"{name}\".");
         Toast($"Saved setup \"{name}\".", "good");
         App.NotifyChanged();
@@ -830,7 +823,7 @@ public partial class Api
     {
         var s = App.Settings.Server;
         s.MapTeamSizes[s.MapKey] = [s.TeamSizeT, s.TeamSizeCT];
-        SavePlaySettings();
+        App.SaveSettings();
         Toast($"Team sizes {s.TeamSizeT}v{s.TeamSizeCT} saved for this map.", "good");
         App.NotifyChanged();
     }
@@ -840,7 +833,7 @@ public partial class Api
     private void DeleteSetup(string name)
     {
         (App.Settings.SavedSetups ??= []).RemoveAll(x => x.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
-        SavePlaySettings();
+        App.SaveSettings();
         Toast($"Deleted \"{name}\".");
         App.NotifyChanged();
     }
@@ -901,22 +894,17 @@ public partial class Api
         s.WorkshopMap = (s.WorkshopMap ?? "").Trim();
         s.GameArgs = (s.GameArgs ?? "").Trim();
         s.Password = (s.Password ?? "").Replace("\"", "").Trim();
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
-    /// <summary>The page asks first. Keeps friends, password, shared skins, launch options and the aim key.</summary>
+    /// <summary>The page asks first. A plain CS2 server; keeps friends, password, shared skins, launch options and the aim key.</summary>
     [Call("live.reset")]
     private void ResetServer()
     {
-        var old = App.Settings.Server;
-        App.Settings.Server = new ServerSettings
-        {
-            Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins,
-            GameArgs = old.GameArgs, AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey,
-        };
-        SavePlaySettings();
-        Toast("Settings reset.");
+        App.Settings.Server = ServerSettings.Stock(App.Settings.Server);
+        App.SaveSettings();
+        Toast("Back to a plain CS2 server.");
         App.NotifyChanged();
     }
 
@@ -967,7 +955,7 @@ public partial class Api
     {
         var s = App.Settings.Server;
         s.BotForceWeapon = ServerSettings.BotForcedWeapons.Contains(weapon ?? "") ? weapon! : "";
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
         if (App.Game == null || App.ReadServerStatus() == null) return;
         try
@@ -1010,7 +998,7 @@ public partial class Api
                 Toast("Flying Scoutsman off.");
                 return;
             }
-            var warning = s.ApplyToRunningServer(game, mapOrModeChanged: true, _runningOnline, _runningForFriends);
+            var warning = s.ApplyToRunningServer(game, mapOrModeChanged: true, _runningOnline);
             if (warning != null)
             {
                 App.Log(warning);
@@ -1042,18 +1030,12 @@ public partial class Api
     {
         var s = App.Settings.Server;
         s.ShowDamage = !s.ShowDamage;
-        SavePlaySettings();
+        App.SaveSettings();
         if (App.Game != null)
         {
             s.WriteCfg(App.Game);
             SendCommand($"lst_show_damage {(s.ShowDamage ? 1 : 0)}");
         }
         App.NotifyChanged();
-    }
-
-    private void SavePlaySettings()
-    {
-        try { App.Settings.Save(); }
-        catch (IOException ex) { App.Log("Could not save settings: " + ex.Message); }
     }
 }

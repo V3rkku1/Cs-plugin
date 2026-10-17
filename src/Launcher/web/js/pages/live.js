@@ -1,8 +1,8 @@
 // Live Server: the server settings (most used first) and the controls for the running match.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { tryCall } from "../api.js";
+import { tryCall, navigate } from "../api.js";
 import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt, LogView } from "../ui.js";
-import { usePlay, go } from "./play.js";
+import { usePlay } from "./play.js";
 
 const set = (key, value) => tryCall("live.set", { [key]: value });
 const send = command => tryCall("live.command", command);
@@ -79,7 +79,7 @@ export function LivePage() {
     if (name?.trim()) set("map", name.trim());
   };
   const reset = async () => {
-    if (await confirm({ title: "Reset settings?", message: "Put all game, bot and rule settings back to the defaults?\nFriends and launch options are kept.", ok: "Reset", danger: true }))
+    if (await confirm({ title: "Reset settings?", message: "Back to a plain CS2 server: Casual on Dust II, no bots, normal money and rules, no cheats or extra plugins.\nFriends, password and launch options are kept.", ok: "Reset", danger: true }))
       tryCall("live.reset");
   };
   const run = () => {
@@ -258,8 +258,8 @@ export function LivePage() {
 
         <${Section} title="Hacker Mode">
           <${Row} icon=${{ name: "hacker", color: "green" }} title="Hacker Mode" subtitle=${state.hackerDetail}
-              subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => go("hacker")}>
-            <${Button} size="sm" onClick=${e => { e.stopPropagation(); go("hacker"); }}>Open<//>
+              subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => navigate("hacker")}>
+            <${Button} size="sm" onClick=${e => { e.stopPropagation(); navigate("hacker"); }}>Open<//>
           <//>
         <//>
 
@@ -270,7 +270,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "terminal", color: "indigo" }} title="Launch Options" subtitle="Extra options for the game window">
             <${CommitField} width=${230} value=${s.gameArgs} placeholder="-windowed -w 1920 -h 1080" onCommit=${v => set("gameArgs", v)} />
           <//>
-          <${Row} icon=${{ name: "refresh", color: "red" }} title="Reset Settings" subtitle="Back to the defaults (keeps friends and launch options)">
+          <${Row} icon=${{ name: "refresh", color: "red" }} title="Reset to Default" subtitle="A plain CS2 server (keeps friends and launch options)">
             <${Button} size="sm" kind="destructive" onClick=${reset}>Reset<//>
           <//>
         <//>

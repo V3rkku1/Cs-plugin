@@ -1,7 +1,8 @@
 // Talks to the launcher (C#) over the local server: calls, live events and toasts.
 import { useState, useEffect, useCallback, useRef } from "./vendor/preact-htm.js";
 
-const token = new URLSearchParams(location.search).get("t") ?? "";
+/** The launcher's random token from the page address: every call, event and picture needs it. */
+export const token = new URLSearchParams(location.search).get("t") ?? "";
 const listeners = new Map();
 /** Last result of each useApi call ("name|args"), so a page shows at once when you switch back to it. */
 const cache = new Map();
@@ -43,6 +44,9 @@ function emit(type, data) {
 
 /** Image URL through the launcher's picture cache. */
 export const img = (url, size = 256) => url ? `/img?s=${size}&t=${token}&u=${encodeURIComponent(url)}` : "";
+
+/** Switches the window to another page: navigate("live"). */
+export const navigate = id => window.dispatchEvent(new CustomEvent("navigate", { detail: id }));
 
 /** Shows a toast: kind is info, good, warning or bad. */
 export function toast(text, kind = "info") {
@@ -100,17 +104,4 @@ export function useEvent(type, fn) {
   const ref = useRef(fn);
   ref.current = fn;
   useEffect(() => on(type, data => ref.current(data)), [type]);
-}
-
-/** Runs a launcher call and tracks "busy" for a button. Returns [run, busy]. */
-export function useAction(fn) {
-  const [busy, setBusy] = useState(false);
-  const run = async (...args) => {
-    if (busy) return;
-    setBusy(true);
-    try { return await fn(...args); }
-    catch { /* already shown */ }
-    finally { setBusy(false); }
-  };
-  return [run, busy];
 }

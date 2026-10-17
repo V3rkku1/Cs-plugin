@@ -4,7 +4,7 @@ using System.Text;
 using System.Text.Json;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Cases page: open CS2 containers like in the game (reel, real odds, floats, StatTrak), keep what you
@@ -17,7 +17,6 @@ public partial class Api
     /// <summary>SHA-256 of "lst-cases-v1:" + the code in capitals. Only the owner knows the code.</summary>
     private const string UnlockHash = "3a42e485acc4d2705bd2f66f6a7fd3f2694eb41d0b94b1c149d9ed6c0d3b6aef";
 
-    public record CaseRow(string Id, string Name, string Image, string Type, int Count, bool Rare);
     public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare, double? Price);
     public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
         string Currency, double KeyPrice, double Spent, double InventoryValue, double Wallet, bool UseWallet);
@@ -53,6 +52,8 @@ public partial class Api
         return _inventory;
     }
 
+    private static string NewUid() => Guid.NewGuid().ToString("N")[..12];
+
     private void SaveInventory()
     {
         try
@@ -62,7 +63,6 @@ public partial class Api
         }
         catch (IOException ex) { App.Log("Could not save the inventory: " + ex.Message); }
     }
-
 
     [Call("cases.state")]
     private CasesState CasesStateNow()
@@ -125,18 +125,18 @@ public partial class Api
             return Card(filler, fillerRare);
         }).ToList();
 
-        var item = MakeItem(box, drop, rare, random);
+        var item = MakeItem(box, drop, random);
         Inventory().Insert(0, item);
         if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
         SaveInventory();
         App.Settings.CasesOpened++;
         App.Settings.CasesSpent += cost;
         if (App.Settings.UseWallet) App.Settings.Wallet = Math.Round(App.Settings.Wallet - cost, 2);
-        SaveSettingsQuietly();
+        App.SaveSettings();
         return new OpenResult(reel, win, View(item, ReadLoadout()), Math.Round(cost, 2));
     }
 
-    private InventoryItem MakeItem(CaseInfo box, CaseItem drop, bool rare, Random random)
+    private InventoryItem MakeItem(CaseInfo box, CaseItem drop, Random random)
     {
         var kind = drop.Id.Split('-')[0] switch
         {
@@ -161,8 +161,7 @@ public partial class Api
         if (kind is "pin" or "music")
             int.TryParse(drop.Id.Split('-').ElementAtOrDefault(1)?.Split('_')[0], NumberStyles.Integer, CultureInfo.InvariantCulture, out collectible);
         if (kind == "music") statTrak = drop.Id.EndsWith("_st");
-        var grade = rare ? drop.Rarity : drop.Rarity;
-        return new InventoryItem(Guid.NewGuid().ToString("N")[..12], kind, drop.Name.Replace("StatTrak™ ", ""), drop.Image, grade, drop.Color,
+        return new InventoryItem(NewUid(), kind, drop.Name.Replace("StatTrak™ ", ""), drop.Image, drop.Rarity, drop.Color,
             def, drop.Paint, wear, seed, statTrak, souvenir, drop.Phase, box.Name, collectible, DateTime.UtcNow, drop.Id);
     }
 
@@ -180,7 +179,7 @@ public partial class Api
     {
         if (!PriceList.Currencies.Contains(currency)) return;
         App.Settings.Currency = currency;
-        SaveSettingsQuietly();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -192,7 +191,7 @@ public partial class Api
     {
         if (a.Add is { } add && add > 0 && add <= 10_000) App.Settings.Wallet = Math.Round(App.Settings.Wallet + add, 2);
         if (a.Use is { } use) App.Settings.UseWallet = use;
-        SaveSettingsQuietly();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -210,7 +209,7 @@ public partial class Api
         Inventory().Remove(item);
         SaveInventory();
         App.Settings.Wallet = Math.Round(App.Settings.Wallet + gets, 2);
-        SaveSettingsQuietly();
+        App.SaveSettings();
         Toast($"Sold for {gets:0.00} (market {price:0.00} minus Steam's fee).", "good");
         App.NotifyChanged();
         return gets;
@@ -375,7 +374,7 @@ public partial class Api
         }
         App.Settings.AdminUnlocked = true;
         ServerSettings.SkinCommands = true;
-        SaveSettingsQuietly();
+        App.SaveSettings();
         if (App.Game != null)
         {
             App.Settings.Server.WriteCfg(App.Game);
@@ -391,7 +390,7 @@ public partial class Api
     {
         App.Settings.AdminUnlocked = false;
         ServerSettings.SkinCommands = false;
-        SaveSettingsQuietly();
+        App.SaveSettings();
         if (App.Game != null)
         {
             App.Settings.Server.WriteCfg(App.Game);
@@ -502,7 +501,7 @@ public partial class Api
         var c = ResolveCatalog(a.Kind, a.Key);
         if (c == null) throw new ApiException("Unknown item.");
         var wear = c.Kind == "skin" && c.Paint != 0 ? Math.Clamp(a.Wear, Math.Max(c.Min, 0.000001f), Math.Min(c.Max, 0.999999f)) : 0;
-        var item = new InventoryItem(Guid.NewGuid().ToString("N")[..12], c.Kind, c.Name, c.Image, c.Grade, c.Color,
+        var item = new InventoryItem(NewUid(), c.Kind, c.Name, c.Image, c.Grade, c.Color,
             c.Def, c.Paint, wear, Math.Clamp(a.Seed, 0, 1000), a.StatTrak && c.CanStatTrak, a.Souvenir && c.Kind == "skin", null, "Admin",
             c.Kind is "pin" or "music" ? c.Id : 0, DateTime.UtcNow, c.Kind == "agent" ? c.Model : c.Key, c.Team);
         Inventory().Insert(0, item);

@@ -1,6 +1,6 @@
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>The local loadout (loadouts.json): read it, and keep it to what the inventory owns.</summary>
 public partial class Api

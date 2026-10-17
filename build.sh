@@ -9,6 +9,9 @@ cd "$(dirname "$0")"
 
 # The commit goes into the launcher's version so it can tell when GitHub has a newer build.
 REV=$(git rev-parse HEAD 2>/dev/null || true)
+VERSION_ARGS=(-p:SourceRevisionId="$REV")
+# TEST_BUILD=1: no commit in the version ("dev build"), so the launcher doesn't update itself to the main release.
+[ "${TEST_BUILD:-}" = 1 ] && VERSION_ARGS=(-p:IncludeSourceRevisionInInformationalVersion=false)
 
 OUT=build/addons/counterstrikesharp/plugins/LanSkinTester
 rm -rf build
@@ -20,14 +23,14 @@ find "$OUT" -maxdepth 1 -type f ! -name 'LanSkinTester.dll' ! -name 'LanSkinTest
 # Self-contained single exe: runs on any Windows 10/11 without installing .NET.
 dotnet publish src/Launcher -c Release -r win-x64 --self-contained true \
   -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true \
-  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" -p:SourceRevisionId="$REV" -o build/launcher
+  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" "${VERSION_ARGS[@]}" -o build/launcher
 mv build/launcher/LanSkinTesterLauncher.exe build/ && rm -rf build/launcher
 echo "Built build/LanSkinTesterLauncher.exe"
 
 # Small variant (~0.3 MB zip) that uses the installed .NET 10 Desktop Runtime (Windows offers to download it).
 rm -rf src/Launcher/obj src/Launcher/bin  # don't reuse the self-contained build's intermediate files
 dotnet publish src/Launcher -c Release -r win-x64 --self-contained false \
-  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" -p:SourceRevisionId="$REV" -o build/LanSkinTesterLauncher-small
+  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" "${VERSION_ARGS[@]}" -o build/LanSkinTesterLauncher-small
 (cd build && zip -qr LanSkinTesterLauncher-small.zip LanSkinTesterLauncher-small) && rm -rf build/LanSkinTesterLauncher-small
 echo "Built build/LanSkinTesterLauncher-small.zip"
 

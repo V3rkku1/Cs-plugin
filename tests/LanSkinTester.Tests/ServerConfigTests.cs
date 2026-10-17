@@ -128,7 +128,7 @@ public class ServerConfigTests
     [Fact]
     public void PluginRetakesLeaveSeatsForFriends()
     {
-        var cfg = Preset("Plugin retakes").ToCfg();
+        var cfg = Preset("Plugin Retakes").ToCfg();
         // 9 seats: 8 bots next to you, and the plugin lets one go for every friend who connects.
         Assert.Contains("bot_quota 8", cfg);
         Assert.Contains("lst_retake_seats 9 8 0", cfg);
@@ -140,7 +140,7 @@ public class ServerConfigTests
     [Fact]
     public void ValveRetakesChangeBotsLive()
     {
-        var cfg = Preset("Retakes").ToCfg();
+        var cfg = Preset("Valve Retakes").ToCfg();
         Assert.Contains("bot_quota 6", cfg);
         Assert.Contains("lst_retake_seats 7 6 1", cfg);
         Assert.Contains("mp_limitteams 0", cfg);
@@ -150,8 +150,8 @@ public class ServerConfigTests
     [Fact]
     public void OtherModesHaveNoSeatLimit()
     {
-        var cfg = Preset("DM vs Expert bots").ToCfg();
-        Assert.Contains("lst_retake_seats 0 12 0", cfg);
+        var cfg = Preset("Free-for-all Deathmatch").ToCfg();
+        Assert.Contains("lst_retake_seats 0 10 0", cfg);
         Assert.Contains("mp_limitteams 2", cfg);
         Assert.Contains("retakes_enabled 0", cfg);
     }
@@ -159,7 +159,7 @@ public class ServerConfigTests
     [Fact]
     public void TooManyBotsForRetakesStillLeaveYouASeat()
     {
-        var s = Preset("Plugin retakes");
+        var s = Preset("Plugin Retakes");
         s.Bots = 20;
         s.RetakeMaxPlayers = 5;
         var cfg = s.ToCfg();
@@ -209,7 +209,7 @@ public class ServerConfigTests
     [Fact]
     public void ForcedSniperIsNotSwappedForARifle()
     {
-        var s = Preset("DM vs Expert bots");
+        var s = Preset("Free-for-all Deathmatch");
         Assert.Equal(0, s.BotWeapons); // Rifles
         Assert.Contains("lst_bot_no_snipers 1", s.ToCfg());
         s.BotImprover = true;
@@ -285,5 +285,20 @@ public class ServerConfigTests
         Assert.Contains($"+game_type {mode.GameType} +game_mode {mode.Mode}", args);
         Assert.Matches(@"\+map \S+", args);
         Assert.Contains($"+sv_skirmish_id {(s.IsValveRetakes ? 12 : 0)}", args);
+    }
+
+    [Fact]
+    public void ResetGivesAPlainServerAndKeepsFriendsSettings()
+    {
+        var old = Preset("Plugin Retakes");
+        old.Password = "pw";
+        old.Friends = ServerSettings.FriendsNetwork.Vpn;
+        old.GameArgs = "-novid -w 1920";
+        var s = ServerSettings.Stock(old);
+        Assert.Equal(("Casual", 0, "pw", ServerSettings.FriendsNetwork.Vpn, "-novid -w 1920"), (s.Mode, s.Bots, s.Password, s.Friends, s.GameArgs));
+        var cfg = s.ToCfg();
+        Assert.Contains("lst_qol spawn=0 guns=0 ready=0 vote=0 summary=0 welcome=0", cfg);
+        Assert.Contains("retakes_enabled 0", cfg);
+        Assert.DoesNotContain("mp_maxmoney 65535", cfg);
     }
 }

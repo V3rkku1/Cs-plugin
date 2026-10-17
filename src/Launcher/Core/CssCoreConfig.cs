@@ -10,50 +10,32 @@ namespace LanSkinTester.Launcher.Core;
 public static class CssCoreConfig
 {
     private const string Key = "FollowCS2ServerGuidelines";
+    private static readonly JsonDocumentOptions ReadOptions = new() { CommentHandling = JsonCommentHandling.Skip, AllowTrailingCommas = true };
 
-    private static readonly JsonDocumentOptions ReadOptions = new()
-    {
-        CommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
+    public static string PathFor(GameFolder game) => Path.Combine(game.Addons, "counterstrikesharp", "configs", "core.json");
 
-    public static string PathFor(GameFolder game) =>
-        Path.Combine(game.Addons, "counterstrikesharp", "configs", "core.json");
+    private static JsonNode? Parse(string path) => JsonNode.Parse(File.ReadAllText(path), documentOptions: ReadOptions);
 
     /// <summary>True when skins are blocked (also when core.json doesn't exist yet: the default is on).</summary>
     public static bool BlocksSkins(GameFolder game)
     {
         var path = PathFor(game);
-        if (!File.Exists(path)) return true;
-        try
-        {
-            return JsonNode.Parse(File.ReadAllText(path), documentOptions: ReadOptions)?[Key]?.GetValue<bool>() ?? true;
-        }
-        catch (Exception e) when (e is JsonException or InvalidOperationException)
-        {
-            return true;
-        }
+        try { return !File.Exists(path) || (Parse(path)?[Key]?.GetValue<bool>() ?? true); }
+        catch (Exception e) when (e is JsonException or InvalidOperationException) { return true; }
     }
 
     /// <summary>Turns the option off, keeping every other setting. Returns true if the file changed.</summary>
     public static bool AllowSkins(GameFolder game)
     {
         if (!BlocksSkins(game)) return false;
-
         var path = PathFor(game);
         JsonObject config;
-        try
-        {
-            config = File.Exists(path)
-                ? JsonNode.Parse(File.ReadAllText(path), documentOptions: ReadOptions) as JsonObject ?? new JsonObject()
-                : new JsonObject();
-        }
+        try { config = File.Exists(path) ? Parse(path) as JsonObject ?? [] : []; }
         catch (JsonException)
         {
             File.Copy(path, path + ".broken", overwrite: true);
-            config = new JsonObject();
+            config = [];
         }
-
         config[Key] = false;
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, config.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));

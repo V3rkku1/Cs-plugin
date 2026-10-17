@@ -1,6 +1,6 @@
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Hacker Mode page: who hacks, quick profiles and every power. Each change is saved at once and sent to
@@ -151,8 +151,7 @@ public partial class Api
 
     private void SaveAndApplyHacker()
     {
-        try { App.Settings.Save(); }
-        catch (IOException) { /* saved next time */ }
+        App.SaveSettings();
         _hackerSent = false;
         if (App.Game != null && App.TestModeOn)
         {

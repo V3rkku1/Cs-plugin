@@ -1,8 +1,8 @@
 // Friends: host step by step (connection, address and invite, options, start), or join a friend.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { tryCall, useApi } from "../api.js";
+import { tryCall, useApi, navigate } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Select, TextField, Icon, Badge, prompt } from "../ui.js";
-import { go, useFlash } from "./play.js";
+import { useFlash } from "./play.js";
 
 const networks = [
   { value: 0, label: "Same Wi-Fi" },
@@ -140,7 +140,7 @@ export function FriendsPage() {
                 : html`<${Button} kind="prominent" icon="play" disabled=${!state.ready} busy=${state.busy} onClick=${() => tryCall("friends.host")}>Start Hosting<//>`}
             </div>
           </div>
-          <${Row} icon=${{ name: "sliders", color: "blue" }} title="Mode, Map and Bots" subtitle="Set them on Live Server" onClick=${() => go("live")} />
+          <${Row} icon=${{ name: "sliders", color: "blue" }} title="Mode, Map and Bots" subtitle="Set them on Live Server" onClick=${() => navigate("live")} />
         <//>
       </div>
 

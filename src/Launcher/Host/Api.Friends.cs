@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>Friends page: host (connection, address, firewall, skins, password, invite) or join a friend.</summary>
 public partial class Api
@@ -89,7 +89,7 @@ public partial class Api
         if (a.Network is { } n && n is >= 0 and <= 2 && n != (int)s.Friends)
         {
             s.Friends = (ServerSettings.FriendsNetwork)n;
-            SavePlaySettings();
+            App.SaveSettings();
             RouterPort.ForgetSearch(); // look again when Internet is picked
             if (App.TestModeOn) App.Log("Connection type changes on the next Start (press Stop, then Start Hosting).");
             App.NotifyChanged();
@@ -98,7 +98,7 @@ public partial class Api
         if (a.SharedSkins is { } shared && shared != s.SharedSkins)
         {
             s.SharedSkins = shared;
-            SavePlaySettings();
+            App.SaveSettings();
             SendIfRunning($"lst_shared_loadout {(shared ? 1 : 0)}");
             App.NotifyChanged();
         }
@@ -107,7 +107,7 @@ public partial class Api
             var password = a.Password.Replace("\"", "").Trim();
             if (password == s.Password) return;
             s.Password = password;
-            SavePlaySettings();
+            App.SaveSettings();
             SendIfRunning($"sv_password \"{password}\"");
             App.NotifyChanged();
         }
@@ -202,12 +202,7 @@ public partial class Api
             }
             else
             {
-                Process.Start(new ProcessStartInfo(game.Exe)
-                {
-                    Arguments = App.Settings.Server.JoinArguments(game, target.Address, target.Password),
-                    UseShellExecute = true,
-                    WorkingDirectory = Path.GetDirectoryName(game.Exe)!,
-                });
+                new TestSession(game).Join(App.Settings.Server, target.Address, target.Password);
                 App.Log($"Joining {target.Address} (VAC off for this game). If it doesn't connect: console (~) → connect {target.Address}");
             }
             Toast($"Joining {target.Address}…");
@@ -226,7 +221,7 @@ public partial class Api
         list.RemoveAll(r => r.Address == target.Address);
         list.Insert(0, target);
         if (list.Count > 4) list.RemoveRange(4, list.Count - 4);
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -236,7 +231,7 @@ public partial class Api
         var list = App.Settings.RecentServers;
         if (index < 0 || index >= list.Count) return;
         list.RemoveAt(index);
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -273,7 +268,7 @@ public partial class Api
         var list = App.Settings.FriendsList;
         list.RemoveAll(f => f.Address == target.Address);
         list.Add(new FriendContact { Name = name.Length > 32 ? name[..32] : name, Address = target.Address, Password = target.Password });
-        SavePlaySettings();
+        App.SaveSettings();
         Toast($"{name} added to your friends.", "good");
         App.NotifyChanged();
     }
@@ -284,7 +279,7 @@ public partial class Api
         var list = App.Settings.FriendsList;
         if (index < 0 || index >= list.Count) return;
         list.RemoveAt(index);
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -311,7 +306,7 @@ public partial class Api
     {
         name = (name ?? "").Trim();
         App.Settings.HostName = name == "" ? Environment.UserName : name.Length > 32 ? name[..32] : name;
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 

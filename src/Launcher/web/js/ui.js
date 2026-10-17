@@ -1,7 +1,7 @@
 // Liquid Glass components shared by every page. Keep pages built from these so the look stays one system.
 import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./vendor/preact-htm.js";
 import { Icon } from "./icons.js";
-import { call, on } from "./api.js";
+import { call, on, img } from "./api.js";
 
 export { Icon };
 
@@ -77,16 +77,15 @@ export function Segmented({ options, value, onChange, disabled, cols = 0, class:
   const items = options.map((o, i) => typeof o === "string" ? { value: i, label: o } : o);
   const root = useRef();
   const [thumb, setThumb] = useState(null);
-  useLayoutEffect(() => {
+  // The sliding thumb sits under the active button: measured after each change and on resize.
+  const measure = (clear = true) => {
     const active = root.current?.querySelector("button.active");
-    if (!active) return setThumb(null);
-    setThumb({ x: active.offsetLeft - 3, y: active.offsetTop - 3, w: active.offsetWidth, h: active.offsetHeight });
-  }, [value, options.length, items.map(i => i.label).join()]);
+    if (active) setThumb({ x: active.offsetLeft - 3, y: active.offsetTop - 3, w: active.offsetWidth, h: active.offsetHeight });
+    else if (clear) setThumb(null);
+  };
+  useLayoutEffect(measure, [value, options.length, items.map(i => i.label).join()]);
   useEffect(() => {
-    const ro = new ResizeObserver(() => {
-      const active = root.current?.querySelector("button.active");
-      if (active) setThumb({ x: active.offsetLeft - 3, y: active.offsetTop - 3, w: active.offsetWidth, h: active.offsetHeight });
-    });
+    const ro = new ResizeObserver(() => measure(false));
     ro.observe(root.current);
     return () => ro.disconnect();
   }, []);
@@ -183,6 +182,12 @@ export function Select({ options, value, onChange, placeholder = "Choose…", di
       <span>${current?.label ?? placeholder}</span><${Icon} name="chevronUpDown" size=${15} />
     </button>
   </div>`;
+}
+
+/** An item picture through the launcher's cache; a placeholder icon when it's missing or offline. */
+export function ItemPic({ src, size = 256 }) {
+  const [bad, setBad] = useState(false);
+  return src && !bad ? html`<img src=${img(src, size)} alt="" loading="lazy" onError=${() => setBad(true)} />` : html`<${Icon} name="skins" size=${30} />`;
 }
 
 /** Install-step style status: ok / warning / failed / missing / busy. */

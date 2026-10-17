@@ -1,0 +1,135 @@
+
+.sheet .scroll { overflow-y: auto; min-height: 0; }
+.sheet .scroll::-webkit-scrollbar { width: 8px; }
+.sheet .scroll::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.16); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+
+.picker-grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+  grid-auto-rows: max-content;
+  align-content: start;
+  gap: 12px;
+  padding: 4px 10px 12px 2px;
+}
+
+.finish {
+  --c: #8e8e93;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  padding: 8px 10px 12px;
+  border: 0;
+  border-radius: 18px;
+  text-align: left;
+  color: var(--text);
+  background:
+    radial-gradient(90% 70% at 50% 38%, color-mix(in srgb, var(--c) 26%, transparent), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.035));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), inset 0 0 0 1px rgba(255, 255, 255, 0.06), 0 6px 16px rgba(0, 0, 0, 0.18);
+  transition: transform 0.45s var(--spring), box-shadow 0.25s;
+  content-visibility: auto;
+  contain-intrinsic-size: 150px 170px;
+}
+.finish::before {
+  content: "";
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 0;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: var(--c);
+  box-shadow: 0 0 12px var(--c);
+}
+.finish:hover { transform: translateY(-3px) scale(1.02); }
+.finish:active { transform: scale(0.97); }
+.finish.selected {
+  box-shadow: inset 0 0 0 2px color-mix(in srgb, var(--c) 85%, white), 0 0 0 4px color-mix(in srgb, var(--c) 28%, transparent), 0 10px 28px color-mix(in srgb, var(--c) 30%, transparent);
+}
+.finish .pic { height: 84px; display: grid; place-items: center; margin-bottom: 6px; }
+.finish .pic img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.5)); transition: transform 0.45s var(--spring); }
+.finish:hover .pic img { transform: scale(1.06) rotate(-2deg); }
+.finish .name { font-weight: 600; font-size: 0.93em; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.finish .rarity { font-size: 0.78em; margin-top: 2px; color: color-mix(in srgb, var(--c) 70%, white); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.preview {
+  position: relative;
+  flex: none;
+  height: 210px;
+  border-radius: 22px;
+  display: grid;
+  place-items: center;
+  padding: 18px 22px;
+  background:
+    radial-gradient(60% 58% at 50% 52%, color-mix(in srgb, var(--c) 30%, transparent), transparent 72%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(0, 0, 0, 0.12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.2), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  overflow: hidden;
+}
+.preview img { width: 100%; height: 100%; object-fit: contain; filter: drop-shadow(0 14px 22px rgba(0, 0, 0, 0.55)); animation: pop-in 0.5s var(--spring); }
+
+.wear { display: flex; flex-direction: column; gap: 12px; }
+.wear .slider { min-width: 0; }
+.wear .slider .value { min-width: 26px; color: var(--text-2); }
+.wear.off .slider { opacity: 0.4; pointer-events: none; }
+
+.slots { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; }
+.slot {
+  position: relative;
+  aspect-ratio: 1;
+  border: 0;
+  border-radius: 14px;
+  display: grid;
+  place-items: center;
+  padding: 5px;
+  color: var(--text-2);
+  background: rgba(118, 118, 128, 0.18);
+  box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.10);
+  transition: transform 0.35s var(--spring), background 0.2s;
+}
+.slot:hover { background: rgba(255, 255, 255, 0.09); color: var(--blue); }
+.slot:active { transform: scale(0.93); }
+.slot .label { position: absolute; bottom: 3px; font-size: 0.66em; color: var(--text-3); }
+.slot img { width: 100%; height: 100%; object-fit: contain; }
+.slot .x {
+  position: absolute;
+  top: -5px;
+  right: -5px;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: #5a5a62;
+  color: #fff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+  opacity: 0;
+  transform: scale(0.6);
+  transition: opacity 0.2s, transform 0.3s var(--spring);
+}
+.slot:hover .x { opacity: 1; transform: none; }
+.slot .x:hover { background: var(--red); }
+.pulse { width: 8px; height: 8px; border-radius: 50%; background: var(--orange); box-shadow: 0 0 10px var(--orange); animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: 0.35; } }
+
+/* ---------------------------------------------------------------------------------------------- */
+/* Sheets: picker, import, loadouts                                                                */
+/* ---------------------------------------------------------------------------------------------- */
+
+.sheet .picker { display: flex; flex-direction: column; height: min(720px, calc(100vh - 128px)); }
+.picker-head { display: flex; align-items: baseline; gap: 12px; }
+.picker-filters { margin: 10px 0 12px; }
+.picker-filters .segmented { max-width: 100%; overflow-x: auto; }
+.picker-grid { grid-template-columns: repeat(auto-fill, minmax(118px, 1fr)); gap: 10px; margin: 0 -6px; padding: 4px 6px 10px; }
+.picker-foot { display: flex; align-items: center; gap: 10px; padding-top: 14px; border-top: 1px solid var(--hairline); }
+.picker-foot .scrape { gap: 12px; }
+
+.import .field.area textarea { min-height: 66px; }
+.import .buttons .grow { flex: 1; }
+
+/* Narrow windows: slimmer columns, text-only weapon list, smaller cards. */
+@media (max-width: 1240px) {
+  .finish .pic { height: 62px; }
+  .preview { height: 170px; }
+}

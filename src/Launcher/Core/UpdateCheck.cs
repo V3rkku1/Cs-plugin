@@ -41,10 +41,7 @@ public static class UpdateCheck
         if (local == null) return (null, "this is a dev build, so it can't tell which build is newer");
         try
         {
-            using var request = new HttpRequestMessage(HttpMethod.Get, TagApi);
-            request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
-            request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-            using var response = await http.SendAsync(request);
+            using var response = await GitHubGetAsync(http, TagApi);
             if (!response.IsSuccessStatusCode)
             {
                 var limited = response.Headers.TryGetValues("x-ratelimit-remaining", out var left) && left.FirstOrDefault() == "0";
@@ -92,11 +89,16 @@ public static class UpdateCheck
 
     private static async Task<JsonDocument?> GetJsonAsync(HttpClient http, string url)
     {
+        using var response = await GitHubGetAsync(http, url);
+        return response.IsSuccessStatusCode ? JsonDocument.Parse(await response.Content.ReadAsStringAsync()) : null;
+    }
+
+    /// <summary>A GitHub API GET: it refuses requests without a User-Agent.</summary>
+    internal static async Task<HttpResponseMessage> GitHubGetAsync(HttpClient http, string url)
+    {
         using var request = new HttpRequestMessage(HttpMethod.Get, url);
         request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
         request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using var response = await http.SendAsync(request);
-        if (!response.IsSuccessStatusCode) return null;
-        return JsonDocument.Parse(await response.Content.ReadAsStringAsync());
+        return await http.SendAsync(request);
     }
 }

@@ -1,7 +1,7 @@
+using System.Text.RegularExpressions;
 using LanSkinTester.Launcher.Core;
-using Microsoft.Win32;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>Setup page: install, update, repair and uninstall everything the skin test needs.</summary>
 public partial class Api
@@ -85,7 +85,7 @@ public partial class Api
     private static string Newer(string? installed, string? latest)
     {
         if (installed == null || latest == null) return "ok";
-        var build = System.Text.RegularExpressions.Regex.Match(latest, @"(\d+)$").Value;
+        var build = Regex.Match(latest, @"(\d+)$").Value;
         return build != "" && !installed.Contains(build) ? "warning" : "ok";
     }
 
@@ -95,7 +95,7 @@ public partial class Api
 
     [Call("setup.find")]
     private void FindGame() =>
-        App.SetGame(GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
+        App.SetGame(GameFolder.Find(AppState.SteamPath()));
 
     [Call("setup.browse")]
     private async Task Browse()
@@ -237,8 +237,7 @@ public partial class Api
         if (a.TextSize is "small" or "normal" or "large") s.TextSize = a.TextSize;
         if (a.ReduceGlass is { } glass) s.ReduceGlass = glass;
         if (a.ReduceMotion is { } motion) s.ReduceMotion = motion;
-        try { s.Save(); }
-        catch (IOException) { /* saved next time */ }
+        App.SaveSettings();
         App.NotifyChanged();
     }
 

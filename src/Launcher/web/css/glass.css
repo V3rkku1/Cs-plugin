@@ -309,7 +309,6 @@ button { cursor: pointer; }
 .faint { color: var(--text-3); }
 .small { font-size: 0.86em; }
 .mono { font-family: var(--mono); }
-.center { text-align: center; }
 
 /* !important: pages may set their own column widths inline. */
 @media (max-width: 1240px) { .cols.wrap { grid-template-columns: minmax(0, 1fr) !important; } }
@@ -751,25 +750,21 @@ kbd { font-family: var(--font); }
 .case-tile .pic { height: 110px; display: grid; place-items: center; }
 .case-tile .pic img { max-height: 110px; max-width: 100%; }
 .case-tile .name { font-weight: 600; font-size: 0.92em; }
+.open-buttons { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+.open-buttons .btn { height: 44px; white-space: nowrap; }
 .case-code { text-align: center; padding: 8px; opacity: 0.6; }
 .case-code a { color: inherit; }
-
-
-
-
-
-
 
 .case-contents { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
 .grade-head { display: flex; align-items: center; gap: 8px; font-weight: 700; margin: 0 2px 8px; }
 .grade-head .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
 .grade-head .faint { margin-left: auto; font-weight: 500; }
 .grade-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
-.content-card, .reel-card, .inv-card { position: relative; display: flex; flex-direction: column; border-radius: var(--r-sm); overflow: hidden;
+.content-card, .reel-card { position: relative; display: flex; flex-direction: column; border-radius: var(--r-sm); overflow: hidden;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), color-mix(in srgb, var(--c) 22%, transparent)); box-shadow: inset 0 -3px 0 var(--c); }
-.content-card .pic, .reel-card .pic, .inv-card .pic { position: relative; height: 86px; display: grid; place-items: center; color: var(--text-3); }
-.content-card img, .reel-card img, .inv-card img { max-width: 92%; max-height: 82px; }
-.content-card .name, .reel-card .name, .inv-card .name { padding: 4px 8px 8px; font-size: 0.78em; font-weight: 600; line-height: 1.2; }
+.content-card .pic, .reel-card .pic { position: relative; height: 86px; display: grid; place-items: center; color: var(--text-3); }
+.content-card img, .reel-card img { max-width: 92%; max-height: 82px; }
+.content-card .name, .reel-card .name { padding: 4px 8px 8px; font-size: 0.78em; font-weight: 600; line-height: 1.2; }
 .rare-star { font-size: 44px; color: #e4ae39; text-shadow: 0 0 18px rgba(228, 174, 57, 0.7); }
 
 .reel { position: relative; overflow: hidden; height: 170px; flex-shrink: 0; width: 100%; border-radius: var(--r-md); background: rgba(0, 0, 0, 0.35);
@@ -788,13 +783,6 @@ kbd { font-family: var(--font); }
 .reveal-name { position: relative; margin: 0; text-align: center; }
 .reveal-stats { position: relative; display: flex; gap: 14px; color: var(--text-2); font-size: 0.9em; }
 .reveal-actions { position: relative; margin-top: 8px; }
-
-.inv-filter { padding: 12px 14px 0; }
-.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 14px; }
-.inv-card .meta { padding: 0 8px; font-size: 0.74em; }
-.inv-card .acts { display: flex; gap: 4px; padding: 6px 8px 8px; }
-.inv-card .st { position: absolute; top: 6px; left: 6px; font-size: 0.68em; font-weight: 800; color: #cf6a32; }
-.inv-card .st.sv { left: auto; right: 6px; color: #ffd700; }
 
 /* -------------------------------------------------------------------------------------------- */
 /* Inventory page (CS2 style)                                                                    */
@@ -887,13 +875,15 @@ kbd { font-family: var(--font); }
 .inspect-stickers { display: flex; gap: 4px; }
 .inspect-stickers img { width: 38px; height: 38px; object-fit: contain; }
 .tradeup { height: min(760px, calc(100vh - 110px)); }
-.tradeup-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 18px; }
+.tradeup-layout { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
 .tradeup-left, .tradeup-right { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
 .tradeup-slots { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; }
 .tradeup-slots .cs-item, .tradeup-empty { height: 104px; }
 .tradeup-slots .cs-item .pic { height: 58px; }
 .tradeup-slots .cs-item .pic img { max-height: 54px; }
 .tradeup-empty { display: grid; place-items: center; border-radius: 6px; border: 1px dashed rgba(255, 255, 255, 0.18); color: var(--text-3); font-weight: 700; }
+.tu-st { position: absolute; top: 4px; left: 6px; font-size: 0.66em; font-weight: 800; color: #cf6a32; }
+.tradeup-tools .field { width: 100%; }
 .tradeup-pool { flex: 1; min-height: 0; overflow-y: auto; display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; align-content: start; }
 .tradeup-pool .cs-item { height: 120px; }
 .tradeup-pool .cs-item .pic { height: 66px; }
@@ -906,6 +896,20 @@ kbd { font-family: var(--font); }
 .outcome .odds { display: flex; flex-direction: column; align-items: flex-end; font-size: 0.85em; }
 .outcome .odds span { color: #9ee493; font-size: 0.9em; }
 .tradeup-sum { display: flex; flex-direction: column; gap: 6px; }
+/* The contract paper you sign, like CS2's. */
+.contract-paper { flex: none; max-height: 100%; overflow-y: auto; width: min(620px, 100%); margin: auto; padding: 30px 36px;
+  border-radius: 6px; color: #1d2333; background: linear-gradient(180deg, #f6f1e3, #ece4cf); box-shadow: 0 20px 50px rgba(0, 0, 0, 0.45); }
+.contract-paper h2 { margin: 0 0 10px; font-family: Georgia, "Times New Roman", serif; font-size: 1.7em; text-align: center; letter-spacing: 0.02em; }
+.contract-paper p { font-family: Georgia, "Times New Roman", serif; line-height: 1.5; margin: 0 0 12px; color: #1d2333; }
+.contract-paper .btn:not(.prominent) { color: #1d2333; background: rgba(29, 35, 51, 0.1); box-shadow: inset 0 0 0 1px rgba(29, 35, 51, 0.2); }
+.contract-items { margin: 0 0 16px; padding-left: 22px; font-size: 0.92em; }
+.contract-items li { padding: 2px 0; border-bottom: 1px dotted rgba(29, 35, 51, 0.25); }
+.contract-items li span { float: right; color: rgba(29, 35, 51, 0.6); font-family: var(--mono); font-size: 0.9em; }
+.signature canvas { display: block; width: 420px; max-width: 100%; height: 90px; cursor: crosshair; touch-action: none; }
+.signature .sign-line { display: flex; justify-content: space-between; width: 420px; max-width: 100%; border-top: 1.5px solid #1d2333;
+  padding-top: 4px; font-size: 0.8em; color: rgba(29, 35, 51, 0.7); }
+.signature .link { border: 0; background: none; color: #2a4fbf; font: inherit; cursor: pointer; }
+.contract-buttons { margin-top: 18px; }
 .tradeup-signing { flex: 1; display: grid; place-content: center; text-align: center; gap: 12px; }
 .tradeup-signing .pen { font-size: 64px; animation: sign-pen 0.5s ease-in-out infinite alternate; }
 @keyframes sign-pen { from { transform: translate(-30px, 6px) rotate(-8deg); } to { transform: translate(30px, -6px) rotate(8deg); } }

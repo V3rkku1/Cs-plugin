@@ -1,8 +1,7 @@
 using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
-using Microsoft.Win32;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>The window around the pages: status, navigation, links, launcher updates, auto-restore.</summary>
 public partial class Api
@@ -17,9 +16,7 @@ public partial class Api
     /// <summary>Called once the server is up: find CS2 and look for a launcher update.</summary>
     public void Started()
     {
-        App.SetGame(GameFolder.IsValid(App.Settings.GamePath)
-            ? App.Settings.GamePath
-            : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
+        App.SetGame(GameFolder.IsValid(App.Settings.GamePath) ? App.Settings.GamePath : GameFolder.Find(AppState.SteamPath()));
         if (App.Game == null) App.Log("CS2 not found automatically - press Browse on the Setup page.");
         ReportLastUpdate();
         _ = CheckForUpdateAsync(startup: true);
@@ -54,8 +51,7 @@ public partial class Api
     {
         _ = OnUi(() => (Window as ShellForm)?.ShowPage(page));
         App.Settings.LastPage = page;
-        try { App.Settings.Save(); }
-        catch (IOException) { /* not important */ }
+        App.SaveSettings();
     }
 
     [Call("app.openUrl")]
@@ -119,8 +115,7 @@ public partial class Api
         if (startup && App.Settings.AutoUpdate && !recently && !App.TestModeOn && Updater.CanSelfUpdate())
         {
             App.Settings.LastAutoUpdate = DateTime.UtcNow;
-            try { App.Settings.Save(); }
-            catch (IOException) { /* not important */ }
+            App.SaveSettings();
             App.Log($"Newer launcher build {found.Commit[..7]} on GitHub - updating automatically.");
             App.NotifyChanged();
             await InstallUpdateAsync(automatic: true);
@@ -171,8 +166,7 @@ public partial class Api
     private void SetAutoUpdate(bool on)
     {
         App.Settings.AutoUpdate = on;
-        try { App.Settings.Save(); }
-        catch (IOException) { /* not important */ }
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
@@ -290,6 +284,38 @@ public partial class Api
             catch (Exception ex) { MessageBox.Show(Window, "Could not restore gameinfo.gi: " + ex.Message); }
         }
         return true;
+    }
+
+    /// <summary>
+    /// Setup › Reset Launcher (the page asks first): deletes everything the launcher keeps (settings, inventory,
+    /// wallet, item data, pictures, theme, backups) and the loadout in the CS2 folder, then starts again fresh.
+    /// The mods in the CS2 folder stay: Uninstall Everything removes those.
+    /// </summary>
+    [Call("app.resetAll")]
+    private async Task ResetLauncher()
+    {
+        if (App.TestModeOn) throw new ApiException("Press Stop first: the test server is running.");
+        if (App.Game?.LoadoutFile is { } loadout) DeleteQuietly(loadout);
+        foreach (var dir in new[] { Path.GetDirectoryName(LauncherSettings.FilePath)!, AppState.LauncherDataDir })
+            if (Directory.Exists(dir))
+                foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)) DeleteQuietly(file);
+        _inventory = null;
+        Process.Start(new ProcessStartInfo(Updater.CurrentExe) { UseShellExecute = true });
+        await OnUi(() =>
+        {
+            // No window position is saved on the way out: launcher.json is gone and stays gone.
+            (Window as ShellForm)?.CloseForUpdate(saveWindow: false);
+            var exit = new System.Windows.Forms.Timer { Interval = 4000 };
+            exit.Tick += (_, _) => Environment.Exit(0);
+            exit.Start();
+        });
+    }
+
+    /// <summary>Files in use (the window's own browser cache) stay; the rest goes.</summary>
+    private static void DeleteQuietly(string file)
+    {
+        try { File.Delete(file); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* in use */ }
     }
 
     /// <summary>Copies inventory.json and loadouts.json to a dated folder before an update; keeps the last 5.</summary>

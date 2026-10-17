@@ -1,5 +1,4 @@
 using System.Net;
-using System.Net.NetworkInformation;
 using System.Net.Sockets;
 using System.Security;
 using System.Text;
@@ -127,7 +126,7 @@ public static class Upnp
         var sockets = new List<(UdpClient Udp, IPAddress Local)>();
         try
         {
-            foreach (var (local, gateways) in LanInterfaces())
+            foreach (var (local, gateways) in Network.LanAddresses())
             {
                 UdpClient udp;
                 try { udp = new UdpClient(new IPEndPoint(local, 0)); }
@@ -181,31 +180,6 @@ public static class Upnp
     {
         try { await udp.SendAsync(data, data.Length, to); }
         catch (SocketException) { /* no route on this adapter */ }
-    }
-
-    /// <summary>Our LAN IPv4 addresses (not VPNs) with their default gateways.</summary>
-    private static IEnumerable<(IPAddress Local, List<IPAddress> Gateways)> LanInterfaces()
-    {
-        NetworkInterface[] nics;
-        try { nics = NetworkInterface.GetAllNetworkInterfaces(); }
-        catch (NetworkInformationException) { yield break; }
-
-        foreach (var nic in nics)
-        {
-            if (nic.OperationalStatus != OperationalStatus.Up || nic.NetworkInterfaceType == NetworkInterfaceType.Loopback) continue;
-            IPInterfaceProperties props;
-            try { props = nic.GetIPProperties(); }
-            catch (NetworkInformationException) { continue; }
-
-            var gateways = props.GatewayAddresses.Select(g => g.Address)
-                .Where(a => a.AddressFamily == AddressFamily.InterNetwork && !a.Equals(IPAddress.Any)).ToList();
-            foreach (var ip in props.UnicastAddresses)
-            {
-                if (ip.Address.AddressFamily != AddressFamily.InterNetwork) continue;
-                if (Network.Classify(ip.Address, nic.Description + " " + nic.Name) != "Wi-Fi / LAN") continue;
-                yield return (ip.Address, gateways);
-            }
-        }
     }
 
     private static string? Header(string response, string name)

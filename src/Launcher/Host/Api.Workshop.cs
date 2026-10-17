@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using LanSkinTester.Launcher.Core;
 
-namespace LanSkinTester.Launcher.Web;
+namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Workshop page: the maps Steam has downloaded for CS2, a search of the Steam Workshop, and one click to
@@ -14,7 +14,7 @@ namespace LanSkinTester.Launcher.Web;
 public partial class Api
 {
     public record WorkshopItem(string Id, string Title, string Preview, string Size, string Updated, bool Downloaded, bool Cs2, string Tags);
-    public record WorkshopState(bool HasGame, List<WorkshopItem> Downloaded, string? Hosting, string[] Modes, Dictionary<string, string> MapModes);
+    public record WorkshopState(bool HasGame, List<WorkshopItem> Downloaded, string? Hosting);
 
     /// <summary>Titles and pictures from Steam, kept for the launcher's run (they rarely change).</summary>
     private static readonly Dictionary<string, JsonElement> WorkshopDetails = new();
@@ -23,12 +23,11 @@ public partial class Api
     private async Task<WorkshopState> WorkshopStateNow()
     {
         var game = App.Game;
-        if (game == null) return new WorkshopState(false, [], null, [], []);
+        if (game == null) return new WorkshopState(false, [], null);
         var downloaded = WorkshopMaps.AllDownloaded(game).OrderByDescending(d => d.Updated).ToList();
         await LoadWorkshopDetails(downloaded.Select(d => d.Id));
         var items = downloaded.Select(d => ToItem(d.Id, true, d.Bytes, d.Updated)).ToList();
-        return new WorkshopState(true, items, App.TestModeOn ? App.Settings.Server.WorkshopMapId : null,
-            ServerSettings.Modes.Select(m => m.Name).ToArray(), App.Settings.Server.MapModes);
+        return new WorkshopState(true, items, App.TestModeOn ? App.Settings.Server.WorkshopMapId : null);
     }
 
     public record WorkshopSearch(string? Text, string? Sort, int Page);
@@ -60,10 +59,10 @@ public partial class Api
     [Call("workshop.subscribe")]
     private void OpenInSteam(string id)
     {
-        if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
+        if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(WorkshopMaps.SubscribeUrl(id!)) { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(WorkshopMaps.SubscribeUrl(id)) { UseShellExecute = true });
             Toast("Opened in Steam: press Subscribe. It shows under Downloaded once Steam has it.");
         }
         catch (Exception ex)
@@ -72,25 +71,16 @@ public partial class Api
         }
     }
 
+    /// <summary>A Workshop item id: six or more digits.</summary>
+    private static bool IsWorkshopId([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? id) => Regex.IsMatch(id ?? "", @"^\d{6,}$");
+
     /// <summary>Hosts the map: switches the running server to it, or starts the server on it.</summary>
-    public record MapModeArgs(string Id, string Mode);
-
-    [Call("workshop.setMode")]
-    private void SetWorkshopMode(MapModeArgs a)
-    {
-        if (a.Mode != "" && ServerSettings.Modes.All(m => m.Name != a.Mode) || !Regex.IsMatch(a.Id ?? "", @"^\d{6,}$")) throw new ApiException("Unknown mode.");
-        if (a.Mode == "") App.Settings.Server.MapModes.Remove(a.Id);
-        else App.Settings.Server.MapModes[a.Id] = a.Mode;
-        SavePlaySettings();
-        App.NotifyChanged();
-    }
-
     [Call("workshop.host")]
     private async Task HostWorkshopMap(string id)
     {
-        if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
-        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id!);
-        SavePlaySettings();
+        if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
+        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id);
+        App.SaveSettings();
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());
         else await StartServerAsync(new AskArgs());

@@ -46,12 +46,9 @@ public class Installer
 
     public async Task InstallCounterStrikeSharpAsync()
     {
-        _log("Looking up the latest CounterStrikeSharp release...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(CounterStrikeSharpApi));
-        var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
+        var asset = (await ReleaseAssetsAsync(CounterStrikeSharpApi, "CounterStrikeSharp"))
             .FirstOrDefault(a => a.Name.Contains("with-runtime") && a.Name.Contains("windows") && a.Name.EndsWith(".zip"));
-        if (asset.Url == "")
+        if (asset.Url is null or "")
             throw new InvalidOperationException("No Windows with-runtime build found in the latest CounterStrikeSharp release.");
 
         _log($"Downloading {asset.Name}...");
@@ -231,16 +228,21 @@ public class Installer
     /// <summary>Downloads the first release asset that matches; with several picks, the earliest pick that matches wins.</summary>
     private async Task<string> ReleaseAssetAsync(string api, string label, params Func<string, bool>[] picks)
     {
-        _log($"Looking up the latest {label} release...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
-        var assets = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
-            .Where(a => a.Url != "")
-            .ToList();
+        var assets = (await ReleaseAssetsAsync(api, label)).Where(a => a.Url != "").ToList();
         var url = PickAsset(assets.Select(a => a.Name), picks) is { } name ? assets.First(a => a.Name == name).Url
             : throw new InvalidOperationException($"No matching zip in the latest {label} release.");
         _log($"Downloading {label}...");
         return await DownloadAsync(url);
+    }
+
+    /// <summary>The files of a GitHub project's latest release.</summary>
+    private async Task<List<(string Name, string Url)>> ReleaseAssetsAsync(string api, string label)
+    {
+        _log($"Looking up the latest {label} release...");
+        using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
+        return doc.RootElement.GetProperty("assets").EnumerateArray()
+            .Select(a => (a.GetProperty("name").GetString() ?? "", a.GetProperty("browser_download_url").GetString() ?? ""))
+            .ToList();
     }
 
     /// <summary>The asset name the earliest matching pick chooses, or null.</summary>
@@ -327,12 +329,8 @@ public class Installer
 
     private async Task InstallReleaseAsync(string api, string label, Func<string, bool> pick)
     {
-        _log($"Looking up the latest {label} release...");
-        using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
-        var asset = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
-            .FirstOrDefault(a => pick(a.Name) && a.Url != "");
-        if (asset.Url == "")
+        var asset = (await ReleaseAssetsAsync(api, label)).FirstOrDefault(a => pick(a.Name) && a.Url != "");
+        if (asset.Url == null)
             throw new InvalidOperationException($"No zip found in the latest {label} release.");
 
         _log($"Downloading {asset.Name}...");
@@ -497,22 +495,26 @@ public class Installer
     private async Task<string> DownloadAsync(string url)
     {
         var path = Path.Combine(Path.GetTempPath(), "LanSkinTester-" + Path.GetFileName(new Uri(url).LocalPath));
-        using var response = await _http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
+        await DownloadToFileAsync(_http, url, path, Progress);
+        return path;
+    }
+
+    /// <summary>Streams a download to a file, reporting 0..1 (or -1 when the size is unknown).</summary>
+    public static async Task DownloadToFileAsync(HttpClient http, string url, string path, Action<double>? progress)
+    {
+        using var response = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead);
         response.EnsureSuccessStatusCode();
         var total = response.Content.Headers.ContentLength ?? -1;
-
         await using var stream = await response.Content.ReadAsStreamAsync();
         await using var file = File.Create(path);
         var buffer = new byte[81920];
         long done = 0;
-        int read;
-        while ((read = await stream.ReadAsync(buffer)) > 0)
+        for (int read; (read = await stream.ReadAsync(buffer)) > 0;)
         {
             await file.WriteAsync(buffer.AsMemory(0, read));
             done += read;
-            Progress?.Invoke(total > 0 ? (double)done / total : -1);
+            progress?.Invoke(total > 0 ? (double)done / total : -1);
         }
-        return path;
     }
 
     // ---------------------------------------------------------------------------------------------

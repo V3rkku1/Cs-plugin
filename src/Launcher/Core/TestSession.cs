@@ -122,23 +122,18 @@ public class TestSession
     /// starting both at once made the game join (and sometimes crash) while the server was still loading,
     /// and a Workshop map has to be downloaded first anyway (the caller handles that case itself).
     /// </summary>
-    public bool Start(ServerSettings settings, bool forFriends = false)
+    public bool Start(ServerSettings settings)
     {
         if (Cs2Running())
             throw new InvalidOperationException("Close CS2 first (it must restart with -insecure).");
-
-        settings.PrepareWorkshopMap(_game, forFriends);
-        GameInfoPatcher.Enable(_game.GameInfo);
         LaunchServer(settings);
         return settings.AutoStartGame && !settings.WorkshopNeedsDownload;
     }
 
     /// <summary>Restarts only the server: an open CS2 stays open (it reconnects when the new server is up).</summary>
-    public void RestartServer(ServerSettings settings, bool forFriends)
+    public void RestartServer(ServerSettings settings)
     {
         StopServerOnly();
-        settings.PrepareWorkshopMap(_game, forFriends);
-        GameInfoPatcher.Enable(_game.GameInfo);
         LaunchServer(settings);
     }
 
@@ -146,17 +141,23 @@ public class TestSession
     public static void StopServerOnly()
     {
         StoppedOnPurpose = true;
-        if (FindServer() is not { } server) return;
+        if (FindServer() is { } server) Kill(server);
+    }
+
+    private static void Kill(Process p)
+    {
         try
         {
-            server.Kill();
-            server.WaitForExit(10_000);
+            p.Kill();
+            p.WaitForExit(10_000);
         }
         catch (Exception) { /* already gone */ }
     }
 
     private void LaunchServer(ServerSettings settings)
     {
+        ServerSettings.PrepareWorkshopMap(_game);
+        GameInfoPatcher.Enable(_game.GameInfo);
         settings.WriteCfg(_game);
         MarkSession();
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
@@ -167,12 +168,7 @@ public class TestSession
             File.Delete(Path.Combine(_game.PluginDir, ServerStatus.FileName));
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* its time is older than this start */ }
-        Server = Process.Start(new ProcessStartInfo(_game.Exe)
-        {
-            Arguments = settings.StartArguments(),
-            UseShellExecute = true,
-            WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
-        });
+        Server = RunCs2(settings.StartArguments());
         try
         {
             if (Server != null)
@@ -190,15 +186,13 @@ public class TestSession
     }
 
     /// <summary>Starts CS2 (VAC off) and joins the local server. Only valid while test mode is on.</summary>
-    public void StartGame(ServerSettings settings)
-    {
-        Process.Start(new ProcessStartInfo(_game.Exe)
-        {
-            Arguments = settings.GameArguments(_game),
-            UseShellExecute = true,
-            WorkingDirectory = Path.GetDirectoryName(_game.Exe)!,
-        });
-    }
+    public void StartGame(ServerSettings settings) => RunCs2(settings.GameArguments(_game));
+
+    /// <summary>Starts CS2 (VAC off for this run) joining another server.</summary>
+    public void Join(ServerSettings settings, string address, string password) => RunCs2(settings.JoinArguments(_game, address, password));
+
+    private Process? RunCs2(string arguments) =>
+        Process.Start(new ProcessStartInfo(_game.Exe) { Arguments = arguments, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(_game.Exe)! });
 
     /// <summary>The dedicated server process started by this launcher (null after a launcher restart).</summary>
     public static Process? Server { get; private set; }
@@ -228,19 +222,11 @@ public class TestSession
     public void Stop()
     {
         StoppedOnPurpose = true;
-        foreach (var p in Process.GetProcessesByName("cs2"))
-        {
-            try
-            {
-                p.Kill();
-                p.WaitForExit(10_000);
-            }
-            catch (Exception) { /* already gone */ }
-        }
+        foreach (var p in Process.GetProcessesByName("cs2")) Kill(p);
         GameInfoPatcher.Disable(_game.GameInfo);
         try { File.Delete(SessionFile); } catch (Exception) { /* removed on the next Stop */ }
-        Upnp.RemoveMapping();
+        Upnp.RemoveMapping(); // close the router port again (internet mode)
         try { WorkshopMaps.RemoveCopies(_game); }
-        catch (Exception) { /* removed on the next Stop */ } // close the router port again (internet mode)
+        catch (Exception) { /* removed on the next Stop */ }
     }
 }
