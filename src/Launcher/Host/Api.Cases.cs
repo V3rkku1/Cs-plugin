@@ -285,6 +285,24 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    /// <summary>Loadout tab › Use Default on one side: that side goes back to the default gun, the other keeps what it wears.</summary>
+    [Call("cases.unequipSide")]
+    private void UnequipSide(SideArgs a)
+    {
+        var item = Inventory().FirstOrDefault(i => i.Uid == a.Uid && i.Kind == "skin" && i.Def != 0) ?? throw new ApiException("That skin isn't in your inventory any more.");
+        if (a.Team is not (2 or 3) || IsKnifeType(item.Def) || IsGloveType(item.Def)) { UnequipUnboxed(a.Uid); return; }
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var loadout = store.Get(LoadoutStore.LocalKey);
+        var (side, other) = a.Team == 2 ? (loadout.SkinsT, loadout.SkinsCT) : (loadout.SkinsCT, loadout.SkinsT);
+        // The shared skin becomes the other side's own, so it stays there.
+        if (loadout.Skins.Remove(item.Def, out var shared)) other.TryAdd(item.Def, shared);
+        // An empty (default) skin on this side wins over anything shared.
+        side[item.Def] = new SkinSettings();
+        store.Save();
+        Toast("Default gun on that side.");
+        App.NotifyChanged();
+    }
+
     private static string KindName(string kind) => kind switch
     {
         "agent" => "Agent", "sticker" => "Sticker", "patch" => "Patch", "graffiti" => "Graffiti", "music" => "Music Kit", "pin" => "Pin", "charm" => "Charm", _ => "Item",

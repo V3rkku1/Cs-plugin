@@ -2,6 +2,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 
 namespace LanSkinTester;
@@ -23,6 +24,7 @@ public partial class LanSkinTester
     // Remembered per player, side and round type: the eco pistol, the force SMG and the full rifle each come back.
     private readonly Dictionary<(ulong Id, CsTeam Team, BuyRound Round), RetakeLoadout> _retakeLoadouts = new();
     private BuyRound _currentRound;
+    private CounterStrikeSharp.API.Modules.Timers.Timer? _buyTimer; // the pending buy opening of this round
 
     private sealed class RetakeLoadout
     {
@@ -66,8 +68,10 @@ public partial class LanSkinTester
     public HookResult OnRetakeBuyRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         if (!_retakeBuy) return HookResult.Continue;
-        // Allocation runs on round_poststart, just after this event. Open the buy after that.
-        AddTimer(0.6f, OpenRetakeBuy);
+        // Allocation runs on round_poststart, just after this event. Open the buy after that, once: a round
+        // restart (or round_start twice) would strip and re-give the guns again and again.
+        _buyTimer?.Kill();
+        _buyTimer = AddTimer(0.6f, () => { _buyTimer = null; OpenRetakeBuy(); }, TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
     }
 
@@ -157,7 +161,9 @@ public partial class LanSkinTester
         if (!_retakeLoadouts.TryGetValue((RetakePlayerId(player), player.Team, _currentRound), out var loadout)) return false;
         if (loadout.Weapons.Count == 0) return false;
 
-        foreach (var name in loadout.Weapons)
+        // Never a second copy of a gun already in hand (it would drop on the floor).
+        var held = player.PlayerPawn.Value?.WeaponServices?.MyWeapons.Select(h => h.Value?.DesignerName).ToHashSet() ?? new();
+        foreach (var name in loadout.Weapons.Where(n => !held.Contains(n)))
             player.GiveNamedItem(name);
         if (loadout.Helmet) player.GiveNamedItem("item_assaultsuit");
         else if (loadout.Kevlar) player.GiveNamedItem("item_kevlar");

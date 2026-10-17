@@ -495,7 +495,7 @@ function LoadoutView({ items, cur }) {
       </div>
       <div class="picker-foot">${mine.some(onSide) && html`<${Button} onClick=${() => close("default")}>Use Default<//>`}<div class="grow"></div>
         <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`, { wide: true });
-    if (choice === "default") tryCall("cases.unequip", mine.find(onSide).item.uid);
+    if (choice === "default") tryCall("cases.unequipSide", { uid: mine.find(onSide).item.uid, team });
     else if (choice && !onSide(choice)) tryCall("cases.equipSide", { uid: choice.item.uid, team });
   };
   const slot = (key, name, mine) => {
