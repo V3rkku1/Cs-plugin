@@ -1,5 +1,5 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
-import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
+import { html, useState, useEffect, useRef, useMemo } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, navigate } from "../api.js";
 import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
 
@@ -8,7 +8,10 @@ const SYMBOL = { USD: "$", EUR: "€", GBP: "£" };
 export const money = (v, cur) => v == null ? "—" : cur === "EUR" ? `${v.toFixed(2).replace(".", ",")}€` : `${SYMBOL[cur] ?? "$"}${v.toFixed(2)}`;
 const GRADE_RANK = ["Consumer Grade", "Base Grade", "Industrial Grade", "Mil-Spec Grade", "High Grade", "Restricted", "Remarkable", "Classified", "Exotic", "Covert", "Extraordinary", "Contraband"];
 /** Everything a search can hit: name, wear, grade, case, StatTrak / Souvenir. Each typed word must match. */
-const haystack = v => `${v.item.statTrak ? "stattrak st " : ""}${v.item.souvenir ? "souvenir " : ""}${v.item.name} ${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : ""} ${v.item.grade} ${v.item.caseName} ${v.item.phase ?? ""}`.toLowerCase();
+// Worked out once per item (the page re-filters tens of thousands of items on every keystroke).
+const cached = fn => { const memo = new WeakMap(); return v => { let x = memo.get(v); if (x === undefined) memo.set(v, x = fn(v)); return x; }; };
+const haystack = cached(v => `${v.item.statTrak ? "stattrak st " : ""}${v.item.souvenir ? "souvenir " : ""}${v.item.name} ${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : ""} ${v.item.grade} ${v.item.caseName} ${v.item.phase ?? ""}`.toLowerCase());
+const openedAt = cached(v => Date.parse(v.item.opened));
 const searchWords = q => q.toLowerCase().split(/\s+/).filter(Boolean);
 const WEARS = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
 // Big inventories (free cases add up fast): draw cards a page at a time, drawing thousands at once takes seconds.
@@ -260,15 +263,17 @@ function TradeUpSheet({ close }) {
   const [wear, setWear] = useState("");
   const [limit, setLimit] = useState(PAGE);
   useEffect(() => setLimit(PAGE), [q, sort, grade, stFilter, wear]);
+  // Everything that can go in a contract at all (same for every keystroke and click until the inventory changes).
+  const [tradeable, index] = useMemo(() => !inv ? [[], new Map()] : [
+    inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && TU_GRADES.includes(v.item.grade)),
+    new Map(inv.items.map(v => [v.item.uid, v]))], [inv]);
   useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
   if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
   const cur = inv.currency;
-  const index = new Map(inv.items.map(v => [v.item.uid, v]));
   const byUid = uid => index.get(uid);
   const first = byUid(picked[0]);
   const needed = first?.item.grade === "Covert" ? 5 : 10;
-  // Everything that can go in a contract at all, then what fits the first item (same grade and StatTrak™ kind, like CS2).
-  const tradeable = inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && TU_GRADES.includes(v.item.grade));
+  // What fits the first item: same grade and StatTrak™ kind, like CS2.
   const words = searchWords(q);
   const eligible = tradeable.filter(v => !picked.includes(v.item.uid)
       && (!first || (v.item.grade === first.item.grade && v.item.statTrak === first.item.statTrak))
@@ -532,6 +537,12 @@ export function InventoryPage() {
   const [open, setOpen] = useState(null);
   const [limit, setLimit] = useState(PAGE);
   useEffect(() => setLimit(PAGE), [q, tab, sort, grade, wear, fromCase, onlyST, onlyFav, minP, maxP]);
+  // Copies of the same skin in the same exterior (and StatTrak™ / Souvenir): the lowest float stays, and anything
+  // equipped, favorite or with stickers. Other exteriors are different items, so they all stay.
+  const duplicates = useMemo(() => !state ? [] : Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"),
+      v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}|${v.item.paint > 0 ? wearName(v.item.wear) : ""}|${v.item.phase ?? ""}`))
+    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => b.equipped - a.equipped || a.item.wear - b.item.wear).slice(1))
+    .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length), [state, favs]);
   if (!state) return html`<${Page} title="Inventory" />`;
 
   const cur = state.currency;
@@ -551,19 +562,13 @@ export function InventoryPage() {
   const clearFilters = () => { setQ(""); setGrade(""); setWear(""); setFromCase(""); setOnlyST(false); setOnlyFav(false); setMinP(""); setMaxP(""); };
   const grades = GRADE_RANK.filter(g => state.items.some(v => v.item.grade === g)).reverse();
   const by = {
-    newest: (a, b) => new Date(b.item.opened) - new Date(a.item.opened),
+    newest: (a, b) => openedAt(b) - openedAt(a),
     rarity: (a, b) => GRADE_RANK.indexOf(b.item.grade) - GRADE_RANK.indexOf(a.item.grade) || (b.price ?? 0) - (a.price ?? 0),
     price: (a, b) => (b.price ?? -1) - (a.price ?? -1),
     name: (a, b) => a.item.name.localeCompare(b.item.name),
   };
   items = [...items].sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
   const cases = [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort();
-  // Copies of the same skin in the same exterior (and StatTrak™ / Souvenir): the lowest float stays, and anything
-  // equipped, favorite or with stickers. Other exteriors are different items, so they all stay.
-  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"),
-      v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}|${v.item.paint > 0 ? wearName(v.item.wear) : ""}|${v.item.phase ?? ""}`))
-    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => b.equipped - a.equipped || a.item.wear - b.item.wear).slice(1))
-    .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length);
   const removeDuplicates = async () => {
     if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nOne copy of each skin per exterior stays (the lowest float), and equipped and favorite items and guns with stickers. Undo Remove brings them back.`, ok: "Remove", danger: true }))
       tryCall("cases.removeMany", duplicates.map(v => v.item.uid));

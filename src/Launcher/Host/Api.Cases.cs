@@ -52,6 +52,14 @@ public partial class Api
         return _inventory;
     }
 
+    /// <summary>Most items kept: past this the oldest go (the inventory file and pages get slow beyond it).</summary>
+    private const int MaxInventory = 50_000;
+
+    private void TrimInventory()
+    {
+        if (Inventory().Count > MaxInventory) Inventory().RemoveRange(MaxInventory, Inventory().Count - MaxInventory);
+    }
+
     private static string NewUid() => Guid.NewGuid().ToString("N")[..12];
 
     private void SaveInventory()
@@ -120,7 +128,7 @@ public partial class Api
 
         var item = MakeItem(box, drop, random);
         Inventory().Insert(0, item);
-        if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
+        TrimInventory();
         SaveInventory();
         App.Settings.CasesOpened++;
         App.SaveSettings();
@@ -137,7 +145,7 @@ public partial class Api
         var items = Enumerable.Range(0, Math.Clamp(a.Count, 1, 50))
             .Select(_ => MakeItem(box, CaseRoller.Roll(box, Random.Shared).Item, Random.Shared)).ToList();
         Inventory().InsertRange(0, items);
-        if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
+        TrimInventory();
         SaveInventory();
         App.Settings.CasesOpened += items.Count;
         App.SaveSettings();
