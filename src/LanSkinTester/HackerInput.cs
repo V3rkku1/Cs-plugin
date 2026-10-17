@@ -14,7 +14,8 @@ public partial class LanSkinTester
     /// <summary>Jump was cleared in the air so the landing tick counts as a new press.</summary>
     private readonly HashSet<int> _bhopReleased = new();
 
-    private readonly List<CEntityInstance> _smokes = new();
+    /// <summary>Smoke entities (handles) that hackers with no-flash don't receive.</summary>
+    private readonly List<uint> _smokes = new();
 
     private static bool TryReadView(CCSPlayerPawn pawn, out float pitch, out float yaw)
     {
@@ -132,24 +133,24 @@ public partial class LanSkinTester
 
     private void OnHackSmokeSpawned(CEntityInstance entity)
     {
+        // No-flash hides smokes only in hacker mode. Outside it the list would grow all map long and keep
+        // the per-client transmit filter running every tick.
+        if (_hackMode == HackMode.Off) return;
         var name = entity.DesignerName;
-        if (name != null && name.Contains("smoke", StringComparison.OrdinalIgnoreCase))
-            _smokes.Add(entity);
+        if (name != null && name.Contains("smoke", StringComparison.OrdinalIgnoreCase) && HandleOf(entity) is var handle and not NoEntity)
+            _smokes.Add(handle);
     }
 
-    private void HideSmokes(CCheckTransmitInfo info, CCSPlayerController? viewer)
+    /// <summary>Indices of the smokes still in the world (the gone ones are dropped from the list).</summary>
+    private List<uint> SmokeIndices()
     {
-        if (_smokes.Count == 0 || viewer == null || !IsHacker(viewer) || !Has(viewer, Power.NoFlash)) return;
+        var indices = new List<uint>();
         for (var i = _smokes.Count - 1; i >= 0; i--)
         {
-            var smoke = _smokes[i];
-            if (!smoke.IsValid)
-            {
-                _smokes.RemoveAt(i);
-                continue;
-            }
-            info.TransmitEntities.Remove(smoke);
+            if (Resolve<CEntityInstance>(_smokes[i]) is { } smoke) indices.Add(smoke.Index);
+            else _smokes.RemoveAt(i);
         }
+        return indices;
     }
 
 }

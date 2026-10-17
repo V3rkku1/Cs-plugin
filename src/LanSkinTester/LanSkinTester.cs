@@ -936,7 +936,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
             "!save [name]  !load [name]  !spots  !rethrow  !damage  !armor  !nades  !clear  !swap",
             "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
-            "!hacks - hacker mode status",
+            "!cases [page]  !case <number|name> - open a weapon case",
+            "!hacks - hacker mode status  !cheats - cheat menu  !aimkey <key>  !aimtoggle",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);
     }

@@ -16,11 +16,12 @@ public partial class LanSkinTester
     private const int BoxEdges = 12;
     private const int BoneEdges = 16;
 
+    /// <summary>One player's visuals, as entity handles (see <see cref="Resolve{T}"/>).</summary>
     private sealed class PlayerEsp
     {
-        public CEnvBeam?[] Box = new CEnvBeam?[BoxEdges];
-        public CEnvBeam?[] Bones = new CEnvBeam?[BoneEdges];
-        public CPointWorldText? Tag;
+        public readonly uint[] Box = NoEntities(BoxEdges);
+        public readonly uint[] Bones = NoEntities(BoneEdges);
+        public uint Tag = NoEntity;
         public string TagShown = "";
     }
 
@@ -128,11 +129,13 @@ public partial class LanSkinTester
         };
     }
 
-    private bool VisualsWanted => Hackers().Any(h => Has(h, Power.BoxEsp) || Has(h, Power.BoneEsp) || Has(h, Power.Tags));
-
     private void UpdatePlayerEsp()
     {
-        if (!VisualsWanted)
+        // Which visuals any hacker uses, once per tick (not once per drawn player).
+        var hackers = Hackers();
+        var want = (Box: hackers.Any(h => Has(h, Power.BoxEsp)), Bones: hackers.Any(h => Has(h, Power.BoneEsp)),
+            Tags: hackers.Any(h => Has(h, Power.Tags)));
+        if (!want.Box && !want.Bones && !want.Tags)
         {
             ClearPlayerEsp();
             return;
@@ -146,7 +149,8 @@ public partial class LanSkinTester
             alive.Add(player.Slot);
             try
             {
-                DrawPlayerEsp(player, pawn, _esp.TryGetValue(player.Slot, out var existing) ? existing : _esp[player.Slot] = new PlayerEsp());
+                DrawPlayerEsp(player, pawn, _esp.TryGetValue(player.Slot, out var existing) ? existing : _esp[player.Slot] = new PlayerEsp(),
+                    want.Box, want.Bones, want.Tags);
             }
             catch (Exception ex)
             {
@@ -157,13 +161,10 @@ public partial class LanSkinTester
             if (!alive.Contains(slot)) RemovePlayerEsp(slot);
     }
 
-    private void DrawPlayerEsp(CCSPlayerController player, CCSPlayerPawn pawn, PlayerEsp esp)
+    private void DrawPlayerEsp(CCSPlayerController player, CCSPlayerPawn pawn, PlayerEsp esp, bool wantBox, bool wantBones, bool wantTags)
     {
         var origin = pawn.AbsOrigin!;
         var color = player.Team == CsTeam.Terrorist ? Color.FromArgb(255, 255, 80, 50) : Color.FromArgb(255, 90, 170, 255);
-        var wantBox = Hackers().Any(h => Has(h, Power.BoxEsp));
-        var wantBones = Hackers().Any(h => Has(h, Power.BoneEsp));
-        var wantTags = Hackers().Any(h => Has(h, Power.Tags));
 
         if (wantBox) DrawBox(esp, origin, EyeHeight(pawn) > 55f ? 72f : 54f, color);
         else HideOwnedBeams(esp.Box);
@@ -172,10 +173,10 @@ public partial class LanSkinTester
         else HideOwnedBeams(esp.Bones);
 
         if (wantTags) DrawTag(esp, player, pawn, origin);
-        else if (esp.Tag is { IsValid: true })
+        else if (esp.Tag != NoEntity)
         {
-            esp.Tag.Remove();
-            esp.Tag = null;
+            RemoveSpawned(esp.Tag);
+            esp.Tag = NoEntity;
             esp.TagShown = "";
         }
     }
@@ -256,6 +257,8 @@ public partial class LanSkinTester
 
     private void DrawTag(PlayerEsp esp, CCSPlayerController player, CCSPlayerPawn pawn, Vector origin)
     {
+        var tag = Resolve<CPointWorldText>(esp.Tag);
+        if (tag == null) esp.TagShown = ""; // never made, or a new round removed it
         if (_tick % 8 == 0 || esp.TagShown == "")
         {
             var gear = ReadGear(pawn);
@@ -264,24 +267,25 @@ public partial class LanSkinTester
             var line2 = $"{pawn.Health} HP  {gear.Armor}";
             var line3 = gear.Gun == "" ? gear.Utility : gear.Utility == "" ? gear.Gun : $"{gear.Gun}  {gear.Utility}";
             var text = line3 == "" ? $"{name}\n{line2}" : $"{name}\n{line2}\n{line3}";
-            if (esp.Tag == null || !esp.Tag.IsValid)
+            if (tag == null)
             {
-                esp.Tag = CreateEspTag(text, player.Team == CsTeam.Terrorist
+                tag = CreateEspTag(text, player.Team == CsTeam.Terrorist
                     ? Color.FromArgb(255, 255, 150, 110)
                     : Color.FromArgb(255, 170, 210, 255));
+                esp.Tag = HandleOf(tag);
                 esp.TagShown = text;
             }
             else if (text != esp.TagShown)
             {
-                esp.Tag.AcceptInput("SetMessage", esp.Tag, esp.Tag, text);
+                tag.AcceptInput("SetMessage", tag, tag, text);
                 esp.TagShown = text;
             }
         }
-        if (esp.Tag is { IsValid: true })
+        if (tag is { IsValid: true })
         {
             TryReadView(pawn, out _, out var yaw);
             var z = origin.Z + Math.Max(EyeHeight(pawn), 64f) + 18f;
-            esp.Tag.Teleport(new Vector(origin.X, origin.Y, z), new QAngle(0, yaw, 0), null);
+            tag.Teleport(new Vector(origin.X, origin.Y, z), new QAngle(0, yaw, 0), null);
         }
     }
 
@@ -309,12 +313,11 @@ public partial class LanSkinTester
         return entity;
     }
 
-    private CEnvBeam? EnsureBeam(CEnvBeam?[] slots, int index, Color color)
+    private CEnvBeam? EnsureBeam(uint[] slots, int index, Color color)
     {
-        var beam = slots[index];
-        if (beam is { IsValid: true }) return beam;
+        if (Resolve<CEnvBeam>(slots[index]) is { } beam) return beam;
         beam = CreateBeam(color);
-        slots[index] = beam;
+        slots[index] = HandleOf(beam);
         return beam;
     }
 
@@ -402,12 +405,13 @@ public partial class LanSkinTester
         }
     }
 
-    private static void HideOwnedBeams(CEnvBeam?[] slots)
+    private static void HideOwnedBeams(uint[] slots)
     {
         for (var i = 0; i < slots.Length; i++)
         {
-            if (slots[i] is { IsValid: true } beam) beam.Remove();
-            slots[i] = null;
+            if (slots[i] == NoEntity) continue;
+            RemoveSpawned(slots[i]);
+            slots[i] = NoEntity;
         }
     }
 
@@ -428,30 +432,25 @@ public partial class LanSkinTester
     {
         HideOwnedBeams(esp.Box);
         HideOwnedBeams(esp.Bones);
-        if (esp.Tag is { IsValid: true }) esp.Tag.Remove();
-        esp.Tag = null;
+        RemoveSpawned(esp.Tag);
+        esp.Tag = NoEntity;
     }
 
-    private bool CanSeeVisual(CCSPlayerController viewer, CCSPlayerController owner, Power power) =>
-        viewer.Slot != owner.Slot && viewer.IsValid && owner.IsValid && IsHacker(viewer) && Has(viewer, power);
-
-    private void FilterEsp(CCheckTransmitInfo info, CCSPlayerController? viewer)
+    /// <summary>
+    /// Every live ESP entity as (whose visual it is, the power needed to see it, entity index), for
+    /// CheckTransmit: a hacker sees it with that power on, never on themselves.
+    /// </summary>
+    private List<(int Owner, Power Power, uint Index)> EspIndices()
     {
+        var list = new List<(int, Power, uint)>();
         foreach (var (slot, esp) in _esp)
         {
-            var owner = Utilities.GetPlayerFromSlot(slot);
-            var box = owner != null && viewer != null && CanSeeVisual(viewer, owner, Power.BoxEsp);
-            var bones = owner != null && viewer != null && CanSeeVisual(viewer, owner, Power.BoneEsp);
-            var tags = owner != null && viewer != null && CanSeeVisual(viewer, owner, Power.Tags);
-            if (!box) DropBeams(info, esp.Box);
-            if (!bones) DropBeams(info, esp.Bones);
-            if (!tags && esp.Tag is { IsValid: true }) info.TransmitEntities.Remove(esp.Tag);
+            foreach (var handle in esp.Box)
+                if (Resolve<CEntityInstance>(handle) is { } beam) list.Add((slot, Power.BoxEsp, beam.Index));
+            foreach (var handle in esp.Bones)
+                if (Resolve<CEntityInstance>(handle) is { } beam) list.Add((slot, Power.BoneEsp, beam.Index));
+            if (Resolve<CEntityInstance>(esp.Tag) is { } tag) list.Add((slot, Power.Tags, tag.Index));
         }
-    }
-
-    private static void DropBeams(CCheckTransmitInfo info, CEnvBeam?[] slots)
-    {
-        foreach (var beam in slots)
-            if (beam is { IsValid: true }) info.TransmitEntities.Remove(beam);
+        return list;
     }
 }

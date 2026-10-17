@@ -23,8 +23,8 @@ public partial class LanSkinTester
         public int Cursor;
         public PlayerButtons LastButtons;
         public MoveType_t PreviousMoveType = MoveType_t.MOVETYPE_WALK;
-        public CPointWorldText? Title;
-        public CPointWorldText? Body;
+        public uint Title = NoEntity; // entity handles, see Resolve
+        public uint Body = NoEntity;
         public string Shown = "";
     }
 
@@ -146,11 +146,19 @@ public partial class LanSkinTester
         Reply(player, "Cheat menu open in front of you: W/S move, D switch / up, A down, R close.");
     }
 
+    /// <summary>A player left: remove their board (nothing to give back).</summary>
+    private void CloseCheatMenuOf(int slot)
+    {
+        if (!_cheatMenus.Remove(slot, out var state)) return;
+        RemoveSpawned(state.Title);
+        RemoveSpawned(state.Body);
+    }
+
     private void CloseCheatMenu(CCSPlayerController player)
     {
         if (!_cheatMenus.Remove(player.Slot, out var state)) return;
-        if (state.Title is { IsValid: true }) state.Title.Remove();
-        if (state.Body is { IsValid: true }) state.Body.Remove();
+        RemoveSpawned(state.Title);
+        RemoveSpawned(state.Body);
         if (player.IsValid && player.PlayerPawn.Value is { IsValid: true } pawn && pawn.MoveType == MoveType_t.MOVETYPE_NONE)
         {
             pawn.MoveType = pawn.ActualMoveType = state.PreviousMoveType == MoveType_t.MOVETYPE_NONE ? MoveType_t.MOVETYPE_WALK : state.PreviousMoveType;
@@ -185,13 +193,15 @@ public partial class LanSkinTester
                 eyeZ);
             var facing = new QAngle(0, yaw + 270, 90);
 
-            state.Title = CreateText("H4X MENU", Color.FromArgb(255, 57, 255, 20), MenuFontSize * 1.25f);
-            state.Body = CreateText(RenderBody(player, state), Color.FromArgb(255, 235, 235, 235), MenuFontSize);
-            if (state.Title == null || state.Body == null) return false;
-            state.Shown = state.Body.MessageText;
+            var title = CreateText("H4X MENU", Color.FromArgb(255, 57, 255, 20), MenuFontSize * 1.25f);
+            var body = CreateText(RenderBody(player, state), Color.FromArgb(255, 235, 235, 235), MenuFontSize);
+            state.Title = HandleOf(title);
+            state.Body = HandleOf(body);
+            if (title == null || body == null) return false;
+            state.Shown = body.MessageText;
 
-            state.Title.Teleport(new Vector(left.X, left.Y, left.Z + 11f), facing, null);
-            state.Body.Teleport(new Vector(left.X, left.Y, left.Z + 7.5f), facing, null);
+            title.Teleport(new Vector(left.X, left.Y, left.Z + 11f), facing, null);
+            body.Teleport(new Vector(left.X, left.Y, left.Z + 7.5f), facing, null);
             return true;
         }
         catch (Exception ex)
@@ -246,15 +256,17 @@ public partial class LanSkinTester
             if (player == null || !player.IsValid || !player.PawnIsAlive)
             {
                 if (player != null) CloseCheatMenu(player);
-                else if (_cheatMenus.Remove(slot, out var gone))
-                {
-                    if (gone.Title is { IsValid: true }) gone.Title.Remove();
-                    if (gone.Body is { IsValid: true }) gone.Body.Remove();
-                }
+                else CloseCheatMenuOf(slot);
                 continue;
             }
 
             var state = _cheatMenus[slot];
+            // A new round removes the board: close the menu so the player can move (and reopen it).
+            if (Resolve<CPointWorldText>(state.Body) is not { } board)
+            {
+                CloseCheatMenu(player);
+                continue;
+            }
             var buttons = player.Buttons;
             var pressed = buttons & ~state.LastButtons;
             state.LastButtons = buttons;
@@ -272,22 +284,23 @@ public partial class LanSkinTester
             if (!_cheatMenus.ContainsKey(slot)) continue; // "Close" was picked
 
             var text = RenderBody(player, state);
-            if (text != state.Shown && state.Body is { IsValid: true } body)
+            if (text != state.Shown && board.IsValid)
             {
-                body.AcceptInput("SetMessage", body, body, text);
+                board.AcceptInput("SetMessage", board, board, text);
                 state.Shown = text;
             }
         }
     }
 
-    /// <summary>Only the menu's owner receives its board.</summary>
-    private void HideOtherMenus(CCheckTransmitInfo info, CCSPlayerController? viewer)
+    /// <summary>Board entity indices by owner, for CheckTransmit: only the menu's owner receives its board.</summary>
+    private List<(int Owner, uint Index)> MenuBoardIndices()
     {
+        var list = new List<(int, uint)>();
         foreach (var (slot, state) in _cheatMenus)
         {
-            if (viewer != null && viewer.Slot == slot) continue;
-            if (state.Title is { IsValid: true }) info.TransmitEntities.Remove(state.Title);
-            if (state.Body is { IsValid: true }) info.TransmitEntities.Remove(state.Body);
+            if (Resolve<CEntityInstance>(state.Title) is { } title) list.Add((slot, title.Index));
+            if (Resolve<CEntityInstance>(state.Body) is { } body) list.Add((slot, body.Index));
         }
+        return list;
     }
 }

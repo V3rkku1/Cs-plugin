@@ -270,7 +270,46 @@ public partial class LanSkinTester
         if (int.TryParse(cmd.GetArg(1), out var level)) _defaultAggression = Math.Clamp(level, 1, 10);
     }
     private readonly HashSet<int> _hackerSlots = new();
-    private readonly Dictionary<int, (CCSPlayerController Owner, CDynamicProp Relay, CDynamicProp Glow)> _glows = new();
+    private readonly Dictionary<int, (CCSPlayerController Owner, uint Relay, uint Glow)> _glows = new();
+
+    // ---------------------------------------------------------------------------------------------
+    // Entities hacker mode spawns (glows, ESP beams and tags, cheat-menu boards) are kept as entity
+    // handles, not wrappers. A new round deletes them, and a kept wrapper then reads freed memory: a
+    // crash, or moving / removing whatever entity took its place. A handle just resolves to null.
+    // ---------------------------------------------------------------------------------------------
+
+    private const uint NoEntity = uint.MaxValue;
+
+    private static uint HandleOf(CEntityInstance? entity) => entity is { IsValid: true } ? entity.EntityHandle.Raw : NoEntity;
+
+    private static T? Resolve<T>(uint handle) where T : CEntityInstance =>
+        handle == NoEntity ? null : new CHandle<T>(handle).Value is { IsValid: true } entity ? entity : null;
+
+    private static void RemoveSpawned(uint handle)
+    {
+        if (Resolve<CEntityInstance>(handle) is { } entity) entity.Remove();
+    }
+
+    private static uint[] NoEntities(int count) => Enumerable.Repeat(NoEntity, count).ToArray();
+
+    // Who hacks, worked out once per tick: CheckTransmit asks for every viewer and every visual.
+    private int _hackersTick = -1;
+    private readonly HashSet<int> _hackersNow = new();
+
+    private HashSet<int> HackerSlots()
+    {
+        if (_hackersTick == Server.TickCount) return _hackersNow;
+        _hackersTick = Server.TickCount;
+        _hackersNow.Clear();
+        if (_hackMode == HackMode.Off) return _hackersNow;
+        foreach (var player in Utilities.GetPlayers())
+            if (IsHumanPlayer(player) && (_hackMode == HackMode.Everyone || _hackerSlots.Contains(player.Slot)))
+                _hackersNow.Add(player.Slot);
+        return _hackersNow;
+    }
+
+    /// <summary>The mode or the chosen hacker changed: work it out again now, not next tick.</summary>
+    private void ForgetHackers() => _hackersTick = -1;
 
     private void LoadHackerMode()
     {
@@ -282,6 +321,7 @@ public partial class LanSkinTester
         {
             _glows.Clear();
             _hackerSlots.Clear();
+            ForgetHackers(); // the tick count starts again with the map
             _cheatMenus.Clear(); // their boards went with the old map
             _aimLocks.Clear();
             _esp.Clear();
@@ -296,7 +336,10 @@ public partial class LanSkinTester
         {
             RemoveGlow(slot);
             RemovePlayerEsp(slot);
+            CloseCheatMenuOf(slot);
             _hackerSlots.Remove(slot);
+            ForgetHackers();
+            _thirdPerson.Remove(slot);
             _personal.Remove(slot);
             _aggression.Remove(slot);
             _aimLocks.Remove(slot);
@@ -306,7 +349,6 @@ public partial class LanSkinTester
             _aimBones.Remove(slot);
             _aimHeld.Remove(slot);
             _aimToggled.Remove(slot);
-            _cheatMenus.Remove(slot);
             _espText.Remove(slot);
             _triggers.Remove(slot);
             _silentRestore.Remove(slot);
@@ -347,6 +389,7 @@ public partial class LanSkinTester
 
         _hackMode = mode;
         _hackerSlots.Clear();
+        ForgetHackers();
         _personal.Clear(); // everyone starts from the server's powers again
         if (mode == HackMode.OneRandom) PickRandomHacker();
         ResetSpeed();
@@ -394,17 +437,13 @@ public partial class LanSkinTester
     private bool Has(CCSPlayerController player, Power power) => (PowersOf(player) & power) != 0;
 
     /// <summary>
-    /// Everyone mode: every human. One random: the chosen one. Off: whoever turned cheats on for
-    /// themselves in the cheat menu (practice, LAN / private servers only).
+    /// Everyone mode: every human. One random: the chosen one. Off: nobody (cheats only exist in hacker mode).
     /// </summary>
-    private bool IsHacker(CCSPlayerController? player) => player != null && IsHumanPlayer(player) && _hackMode switch
-    {
-        HackMode.Everyone => true,
-        HackMode.OneRandom => _hackerSlots.Contains(player.Slot),
-        _ => false, // cheats only exist in hacker mode
-    };
+    private bool IsHacker(CCSPlayerController? player) => player != null && player.IsValid && HackerSlots().Contains(player.Slot);
 
-    private IEnumerable<CCSPlayerController> Hackers() => Utilities.GetPlayers().Where(IsHacker);
+    /// <summary>A copy: callers may change who hacks while they go through the list.</summary>
+    private List<CCSPlayerController> Hackers() =>
+        HackerSlots().Select(Utilities.GetPlayerFromSlot).Where(p => p is { IsValid: true }).Select(p => p!).ToList();
 
     private void PickRandomHacker()
     {
@@ -412,6 +451,7 @@ public partial class LanSkinTester
         if (candidates.Count == 0) candidates = Humans().ToList();
         _hackerSlots.Clear();
         if (candidates.Count > 0) _hackerSlots.Add(candidates[Random.Shared.Next(candidates.Count)].Slot);
+        ForgetHackers();
     }
 
     private static bool IsEnemy(CCSPlayerController a, CCSPlayerController b)
@@ -573,6 +613,7 @@ public partial class LanSkinTester
             ReleaseAllForcedAttacks();
             _silentRestore.Clear();
             ClearPlayerEsp();
+            _smokes.Clear();
             return;
         }
         _tick++;
@@ -1063,7 +1104,7 @@ public partial class LanSkinTester
 
             relay.AcceptInput("FollowEntity", pawn, relay, "!activator");
             glow.AcceptInput("FollowEntity", relay, glow, "!activator");
-            _glows[player.Slot] = (player, relay, glow);
+            _glows[player.Slot] = (player, HandleOf(relay), HandleOf(glow));
         }
         catch (Exception ex)
         {
@@ -1074,8 +1115,8 @@ public partial class LanSkinTester
     private void RemoveGlow(int slot)
     {
         if (!_glows.Remove(slot, out var g)) return;
-        if (g.Glow.IsValid) g.Glow.Remove();
-        if (g.Relay.IsValid) g.Relay.Remove();
+        RemoveSpawned(g.Glow);
+        RemoveSpawned(g.Relay);
     }
 
     private void RemoveAllGlows()
@@ -1098,16 +1139,27 @@ public partial class LanSkinTester
     private void OnHackCheckTransmit(CCheckTransmitInfoList infoList)
     {
         if (_glows.Count == 0 && _cheatMenus.Count == 0 && _esp.Count == 0 && _smokes.Count == 0) return;
+
+        // Each spawned entity is looked up once per tick, not once per viewer.
+        var glows = new List<(CCSPlayerController Owner, uint Index)>();
+        foreach (var (_, (owner, _, glow)) in _glows)
+            if (Resolve<CEntityInstance>(glow) is { } entity) glows.Add((owner, entity.Index));
+        var menus = MenuBoardIndices();
+        var smokes = SmokeIndices();
+        var esp = EspIndices();
+
         foreach (var (info, viewer) in infoList)
         {
-            if (_cheatMenus.Count > 0) HideOtherMenus(info, viewer);
-            if (_smokes.Count > 0) HideSmokes(info, viewer);
-            foreach (var (_, (owner, _, glow)) in _glows)
-            {
-                if (!glow.IsValid) continue;
-                if (viewer == null || !CanSeeGlow(viewer, owner)) info.TransmitEntities.Remove(glow);
-            }
-            if (_esp.Count > 0) FilterEsp(info, viewer);
+            var slot = viewer?.Slot ?? -1;
+            var powers = viewer != null && IsHacker(viewer) ? PowersOf(viewer) : Power.None;
+            foreach (var (owner, index) in menus)
+                if (owner != slot) info.TransmitEntities.Remove(index);
+            if ((powers & Power.NoFlash) != 0)
+                foreach (var index in smokes) info.TransmitEntities.Remove(index);
+            foreach (var (owner, index) in glows)
+                if (viewer == null || !CanSeeGlow(viewer, owner)) info.TransmitEntities.Remove(index);
+            foreach (var (owner, power, index) in esp)
+                if (owner == slot || (powers & power) == 0) info.TransmitEntities.Remove(index);
         }
     }
 }
