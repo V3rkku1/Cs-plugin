@@ -117,7 +117,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "clock", color: "red" }} title="Style" subtitle="Valve's cards, or the cs2-retakes plugin">
             <${Segmented} options=${state.retakeStyles} value=${s.retakeStyle} onChange=${v => set("retakeStyle", v)} />
           <//>
-          ${!plugin && html`<${Row} title="Valve Retakes" subtitle="3 terrorists vs 4 counter-terrorists. Loadout cards each round." />`}
+          ${!plugin && html`<${Row} title="Valve Retakes" subtitle="3 terrorists vs 4 counter-terrorists. Loadout cards each round, the buy menu is open at the start." />`}
           ${plugin && html`
             <${Row} title="Max Players" subtitle="Seats in the match, including you (2-10)">
               <${Stepper} value=${s.retakeMaxPlayers} min=${2} max=${10} onChange=${v => set("retakeMaxPlayers", v)} /><//>
@@ -125,10 +125,15 @@ export function LivePage() {
               <${Stepper} value=${s.retakeTerroristPercent} min=${10} max=${80} step=${5} format=${v => v + "%"} parse=${t => parseInt(t)} onChange=${v => set("retakeTerroristPercent", v)} /><//>
             <${Row} title="Guns" subtitle="Buy your own, or pistol / half-buy / rifle rounds">
               <${Segmented} options=${["Buy", "Allocator"]} value=${s.retakeWeapons === 1 ? 1 : 0} onChange=${v => set("retakeWeapons", v)} /><//>
-            ${buy
-              ? html`<${Row} title="Buy Time" subtitle="Seconds to buy. Your guns come back next round">
-                  <${Stepper} value=${s.retakeBuySeconds} min=${4} max=${20} onChange=${v => set("retakeBuySeconds", v)} /><//>`
-              : html`<${Row} title="Allocator" subtitle="Type !guns to choose. One AWP per team." />`}
+            ${!buy && html`<${Row} title="Allocator" subtitle="Type !guns to choose. One AWP per team. The buy menu is open too." />`}
+            <${Row} title="Buy Time" subtitle="Seconds of buy menu at the start of the round">
+              <${Stepper} value=${s.retakeBuySeconds} min=${4} max=${20} onChange=${v => set("retakeBuySeconds", v)} /><//>
+            <${Row} title="Full Buys" subtitle="Chance weight of a round with all the money ($16000)">
+              <${Stepper} value=${s.retakeFullPercent} min=${0} max=${100} step=${5} onChange=${v => set("retakeFullPercent", v)} /><//>
+            <${Row} title="Force Buys" subtitle="Weight of a round with $2900: SMGs, cheap rifles, armor">
+              <${Stepper} value=${s.retakeForcePercent} min=${0} max=${100} step=${5} onChange=${v => set("retakeForcePercent", v)} /><//>
+            <${Row} title="Eco Rounds" subtitle="Weight of a round with $800: pistols and armor only. Only full buys: 100 / 0 / 0">
+              <${Stepper} value=${s.retakeEcoPercent} min=${0} max=${100} step=${5} onChange=${v => set("retakeEcoPercent", v)} /><//>
             <${Row} title="Bomb Timer" subtitle="Seconds until the bomb explodes">
               <${Stepper} value=${s.retakeBombTimer} min=${15} max=${60} onChange=${v => set("retakeBombTimer", v)} /><//>
             <${Row} title="Instadefuse" subtitle="The bomb defuses instantly when nothing can stop it">
