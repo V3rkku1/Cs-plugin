@@ -317,6 +317,18 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    /// <summary>Removes many items at once (Remove Duplicates): one save and one page reload.</summary>
+    [Call("cases.removeMany")]
+    private int RemoveManyUnboxed(List<string> uids)
+    {
+        var gone = uids.ToHashSet();
+        var removed = Inventory().RemoveAll(i => gone.Contains(i.Uid));
+        SaveInventory();
+        Toast($"Removed {removed} duplicate{(removed == 1 ? "" : "s")}.", "good");
+        App.NotifyChanged();
+        return removed;
+    }
+
     /// <summary>The owner's admin code unlocks every skin on this PC. Wrong codes get no hint.</summary>
     [Call("cases.unlock")]
     private bool UnlockCases(string code)

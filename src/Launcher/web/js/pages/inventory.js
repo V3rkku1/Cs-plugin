@@ -555,7 +555,7 @@ export function InventoryPage() {
     .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length);
   const removeDuplicates = async () => {
     if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nThe lowest-float copy of each skin, equipped and favorite items, and guns with stickers stay.`, ok: "Remove", danger: true }))
-      for (const v of duplicates) await call("cases.remove", v.item.uid).catch(() => null);
+      tryCall("cases.removeMany", duplicates.map(v => v.item.uid));
   };
   const selected = state.items.find(v => v.item.uid === open);
   const tradeUp = async () => {
