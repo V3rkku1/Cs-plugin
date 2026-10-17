@@ -160,8 +160,12 @@ public class TestSession
         settings.WriteCfg(_game);
         MarkSession();
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
-        // The last server's: CS2 must wait until this server's plugin writes a new one.
-        try { File.Delete(Path.Combine(_game.PluginDir, ServerStatus.LoadedFileName)); }
+        // The last server's: CS2 must wait until this server's plugin writes new ones.
+        try
+        {
+            File.Delete(Path.Combine(_game.PluginDir, ServerStatus.LoadedFileName));
+            File.Delete(Path.Combine(_game.PluginDir, ServerStatus.FileName));
+        }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* its time is older than this start */ }
         Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {

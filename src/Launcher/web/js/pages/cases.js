@@ -1,6 +1,6 @@
 // Cases: open CS2 containers like in the game (reel, real odds), keep what you unbox and equip it.
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, img, toast } from "../api.js";
+import { call, tryCall, useApi, img } from "../api.js";
 import { Page, Section, Button, Segmented, Select, TextField, Icon, prompt, sheet } from "../ui.js";
 import { money } from "./inventory.js";
 import { navigate } from "../app.js";
@@ -147,7 +147,7 @@ function Reel({ result, onDone }) {
   </div>`;
 }
 
-function Reveal({ view, cur, onAgain, onBack, onInventory }) {
+function Reveal({ view, cur, onAgain, onQuick, onBack, onInventory }) {
   const item = view.item;
   useEffect(() => sound.reveal(item.color), []);
   const title = (item.souvenir ? "Souvenir " : "") + (item.statTrak && item.kind === "skin" ? "StatTrak™ " : "") + item.name;
@@ -165,6 +165,7 @@ function Reveal({ view, cur, onAgain, onBack, onInventory }) {
       ${equippable(item) && html`<${Button} kind="prominent" icon="check" onClick=${() => tryCall("cases.equip", item.uid)}>Equip<//>`}
       <${Button} icon="skins" onClick=${onInventory}>Inventory<//>
       <${Button} icon="refresh" onClick=${onAgain}>Open Another<//>
+      <${Button} icon="bolt" onClick=${onQuick}>Quick Open<//>
       <${Button} kind="plain" onClick=${onBack}>Back to Case<//>
     </div>
   </div>`;
@@ -184,21 +185,26 @@ function ContentCard({ name, image, color, price, cur, rare, count }) {
   </div>`;
 }
 
-function CaseSheet({ id, close }) {
+function CaseSheet({ id, close, quick }) {
   const [contents] = useApi("cases.contents", id);
   const [state] = useApi("cases.state");
   const [phase, setPhase] = useState("view"); // view | unlock | spin | reveal
   const [result, setResult] = useState(null);
   const [recent, setRecent] = useState([]);
-  const open = async () => {
-    try { ctx(); } catch { /* no sound */ }
-    setPhase("unlock");
-    sound.unlock();
-    const [r] = await Promise.all([call("cases.open", id).catch(() => null), new Promise(ok => setTimeout(ok, 900))]);
+  // Quick open skips the unlock animation and the reel and goes straight to the reveal.
+  const open = async (fast = false) => {
+    if (!fast) {
+      try { ctx(); } catch { /* no sound */ }
+      setPhase("unlock");
+      sound.unlock();
+    }
+    const [r] = await Promise.all([call("cases.open", id).catch(() => null), new Promise(ok => setTimeout(ok, fast ? 0 : 900))]);
     if (!r) { setPhase("view"); return; }
     setResult(r);
-    setPhase("spin");
+    if (fast) { setRecent(list => [r.item, ...list].slice(0, 12)); setPhase("reveal"); }
+    else setPhase("spin");
   };
+  useEffect(() => { if (quick) open(true); }, []);
   const landed = () => { setRecent(list => [result.item, ...list].slice(0, 12)); setPhase("reveal"); };
   if (!contents) return html`<div class="case-sheet"><div class="empty small">Loading…</div></div>`;
   const cur = contents.currency;
@@ -224,7 +230,8 @@ function CaseSheet({ id, close }) {
             : html`<div class="inspect-row"><span>No key needed</span><b></b></div>`}
           <div class="inspect-row total"><span>Total</span><b>${money(cost, cur)}</b></div>
         </div>
-        <${Button} kind="prominent" size="lg" block icon="key" disabled=${short} onClick=${open}>Unlock Container<//>
+        <${Button} kind="prominent" size="lg" block icon="key" disabled=${short} onClick=${() => open()}>Unlock Container<//>
+        <${Button} block icon="bolt" disabled=${short} onClick=${() => open(true)}>Quick Open<//>
         ${short && html`<div class="small note-warn">Not enough in your wallet: add funds on the Cases page or sell items.</div>`}
         <div class="faint small">What you unbox goes to your Inventory here, not to Steam.</div>
       </div>
@@ -246,7 +253,7 @@ function CaseSheet({ id, close }) {
       <div class="stage-case"><${ItemPic} src=${contents.image} size=${256} /></div>
       <${Reel} result=${result} onDone=${landed} />
       <div class="stage-caption">Unlocking ${contents.name}…</div></div>`}
-    ${phase === "reveal" && html`<div class="case-stage"><${Reveal} view=${result.item} cur=${cur} onAgain=${open} onBack=${() => setPhase("view")}
+    ${phase === "reveal" && html`<div class="case-stage"><${Reveal} view=${result.item} cur=${cur} onAgain=${() => open()} onQuick=${() => open(true)} onBack=${() => setPhase("view")}
       onInventory=${() => { close(undefined); navigate("inventory"); }} /></div>`}
 
     ${recent.length > 0 && phase !== "spin" && html`<div class="recent-drops">
@@ -266,13 +273,7 @@ export function CasesPage() {
 
   const types = [...new Set(state.cases.map(c => c.type))];
   const shown = state.cases.filter(c => (types.length < 2 || c.type === type) && (!q || c.name.toLowerCase().includes(q.toLowerCase())));
-  const openCase = id => sheet(close => html`<${CaseSheet} id=${id} close=${close} />`, { wide: true });
-  // Quick open: no reel, just the result in a toast (skipped: sound, reveal screen).
-  const quickOpen = async (e, c) => {
-    e.stopPropagation();
-    const r = await call("cases.open", c.id).catch(() => null);
-    if (r) toast(`${c.name}: ${r.item.marketName}${r.item.price != null ? " · " + money(r.item.price, cur) : ""}`, "good");
-  };
+  const openCase = (id, quick) => sheet(close => html`<${CaseSheet} id=${id} close=${close} quick=${quick} />`, { wide: true });
   const enterCode = async () => {
     const code = await prompt({ title: "Admin Code", message: "Enter the admin code.", placeholder: "Code", ok: "OK" });
     if (code?.trim()) tryCall("cases.unlock", code.trim());
@@ -310,7 +311,7 @@ export function CasesPage() {
             <div class="name">${c.name}</div>
             <div class="faint small">${c.rare ? "★ knives / gloves" : `${c.count} items`}</div>
             <div class="case-price">${c.price != null ? money(c.price, cur) : ""}</div>
-            <${Button} size="sm" icon="bolt" onClick=${e => quickOpen(e, c)}>Quick Open<//>
+            <${Button} size="sm" icon="bolt" onClick=${e => { e.stopPropagation(); openCase(c.id, true); }}>Quick Open<//>
           </div>`)}
         </div>
         ${!state.useWallet && html`<div class="case-code faint small">Opening is free · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.wallet", { use: true }); }}>use a wallet</a></div>`}

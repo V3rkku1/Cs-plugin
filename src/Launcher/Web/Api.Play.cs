@@ -34,7 +34,8 @@ public partial class Api
     // the game was started early; if it hasn't joined a while after the server is up, it is sent again.
     private enum JoinWhenUp { None, StartGame, Reconnect, CheckJoined }
     private JoinWhenUp _joinWhenUp;
-    private DateTime? _joinUpSince, _joinAskedAt;
+    private DateTime? _joinUpSince;
+    private DateTimeOffset? _joinAskedAt;
     private bool WaitingForWorkshop => _pendingWorkshopId != null;
 
     partial void Init()
@@ -557,7 +558,7 @@ public partial class Api
     {
         _joinWhenUp = what;
         _joinUpSince = null;
-        _joinAskedAt = what == JoinWhenUp.None ? null : DateTime.UtcNow;
+        _joinAskedAt = what == JoinWhenUp.None ? null : DateTimeOffset.UtcNow;
     }
 
     /// <summary>Starts CS2 while the server loads, or reconnects it once the server reports it is up.</summary>
@@ -565,13 +566,14 @@ public partial class Api
     {
         if (_joinWhenUp == JoinWhenUp.None || App.Game == null) return;
         var now = DateTime.UtcNow;
-        if (!App.TestModeOn || now - _joinAskedAt > TimeSpan.FromMinutes(3))
+        if (!App.TestModeOn || DateTimeOffset.UtcNow - _joinAskedAt > TimeSpan.FromMinutes(3))
         {
             if (App.TestModeOn) App.Log($"The server took too long to load - press \"Open CS2\" (or connect 127.0.0.1:{ServerSettings.Port}).");
             SetJoinWhenUp(JoinWhenUp.None);
             return;
         }
-        if (status == null)
+        // Only a report written by the new server counts: the old one's last report is still fresh for ~8 s after a restart.
+        if (status == null || status.Map == "" || status.Time < _joinAskedAt!.Value.ToUnixTimeSeconds())
         {
             _joinUpSince = null;
             if (_joinWhenUp == JoinWhenUp.StartGame) StartGameEarly();

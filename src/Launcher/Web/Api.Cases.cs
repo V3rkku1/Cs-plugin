@@ -215,15 +215,6 @@ public partial class Api
         return gets;
     }
 
-    [Call("cases.resetStats")]
-    private void ResetCaseStats()
-    {
-        App.Settings.CasesSpent = 0;
-        App.Settings.CasesOpened = 0;
-        SaveSettingsQuietly();
-        App.NotifyChanged();
-    }
-
     /// <summary>Takes an equipped item off: the gun goes back to default, or the knife / gloves / pin / music kit.</summary>
     [Call("cases.unequip")]
     private void UnequipUnboxed(string uid)
