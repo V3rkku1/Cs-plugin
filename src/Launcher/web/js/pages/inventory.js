@@ -7,10 +7,14 @@ export const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear
 const SYMBOL = { USD: "$", EUR: "€", GBP: "£" };
 export const money = (v, cur) => v == null ? "—" : cur === "EUR" ? `${v.toFixed(2).replace(".", ",")}€` : `${SYMBOL[cur] ?? "$"}${v.toFixed(2)}`;
 const GRADE_RANK = ["Consumer Grade", "Base Grade", "Industrial Grade", "Mil-Spec Grade", "High Grade", "Restricted", "Remarkable", "Classified", "Exotic", "Covert", "Extraordinary", "Contraband"];
+/** Everything a search can hit: name, wear, grade, case, StatTrak / Souvenir. Each typed word must match. */
+const haystack = v => `${v.item.statTrak ? "stattrak st " : ""}${v.item.souvenir ? "souvenir " : ""}${v.item.name} ${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : ""} ${v.item.grade} ${v.item.caseName} ${v.item.phase ?? ""}`.toLowerCase();
+const searchWords = q => q.toLowerCase().split(/\s+/).filter(Boolean);
+const WEARS = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
 const equippable = v => (v.item.kind === "skin" && v.item.def) || ((v.item.kind === "pin" || v.item.kind === "music") && v.item.collectibleId);
 
 /** CS2's wear bar: the five wear bands with a marker at the float. */
-function WearBar({ wear }) {
+export function WearBar({ wear }) {
   return html`<div class="wear-bar">
     <div class="bands"><span class="fn"></span><span class="mw"></span><span class="ft"></span><span class="ww"></span><span class="bs"></span></div>
     <div class="marker" style=${`left:${(wear * 100).toFixed(3)}%`}></div>
@@ -43,12 +47,6 @@ function Inspect({ v, cur, close }) {
       ${equippable(v) && (v.equipped
         ? html`<${Button} block onClick=${() => tryCall("cases.unequip", i.uid)}>Unequip<//>`
         : html`<${Button} kind="prominent" block icon="check" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>`)}
-      ${v.price != null && html`<${Button} block icon="tag" onClick=${async () => {
-        const gets = Math.max(0.01, Math.floor(v.price / 1.15 * 100) / 100);
-        if (await confirm({ title: "Sell item?", message: `Sell ${i.name} on the market for ${money(v.price, cur)}?\nYou receive ${money(gets, cur)} (after Steam's fee) in your wallet.`, ok: "Sell" })) {
-          await tryCall("cases.sell", i.uid); close();
-        }
-      }}>Sell · ${money(v.price, cur)}<//>`}
       <${Button} kind="destructive" block icon="trash" onClick=${async () => {
         if (await confirm({ title: "Delete item?", message: `Remove ${i.name} from your inventory?`, ok: "Delete", danger: true })) { await tryCall("cases.remove", i.uid); close(); }
       }}>Delete<//>
@@ -69,37 +67,79 @@ function StickerSheet({ uid, close }) {
   const [sel, setSel] = useState(null);
   const [drag, setDrag] = useState(null); // { slot, x, y } while dragging
   const [local, setLocal] = useState({}); // slot -> edits not saved yet
-  const box = useRef();
+  const [placing, setPlacing] = useState(null); // a sticker from the inventory waiting for a click on the gun
+  const [ghost, setGhost] = useState(null); // where it would land, in % of the gun picture
+  const [zoom, setZoom] = useState(1);
+  const box = useRef(), stage = useRef(), live = useRef();
   const v = inv?.items.find(x => x.item.uid === uid);
-  if (!v) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
-  const gun = v.item;
-  const stickers = (gun.stickers ?? []).map(st => ({ ...st, ...(local[st.slot] ?? {}) }));
+  const gun = v?.item;
+  const stickers = (gun?.stickers ?? []).map(st => ({ ...st, ...(local[st.slot] ?? {}) }));
   const current = stickers.find(st => st.slot === sel);
 
   const save = (slot, change) => {
     const st = stickers.find(x => x.slot === slot);
     if (!st) return;
     const next = { ...st, ...change };
-    setLocal(l => ({ ...l, [slot]: change }));
+    setLocal(l => ({ ...l, [slot]: { ...(l[slot] ?? {}), ...change } }));
     tryCall("inventory.placeSticker", { gun: uid, slot, offsetX: next.offsetX, offsetY: next.offsetY, rotation: next.rotation, scale: next.scale, wear: next.wear })
       .then(() => setLocal(l => { const c = { ...l }; delete c[slot]; return c; }));
   };
+  const clamp = n => Math.max(-1, Math.min(1, n));
+  live.current = { placing, current, drag, save };
+  // Arrow keys nudge the selected sticker (Shift: bigger steps). Esc while placing only stops placing (capture: before the sheet closes).
+  useEffect(() => {
+    const key = e => {
+      const { placing, current, drag, save } = live.current;
+      if (e.key === "Escape" && placing) { e.stopPropagation(); setPlacing(null); setGhost(null); return; }
+      if (!current || drag || e.target.closest?.("input, textarea")) return;
+      const step = e.shiftKey ? 0.05 : 0.01;
+      const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
+      if (!d) return;
+      e.preventDefault();
+      save(current.slot, { offsetX: clamp(current.offsetX + d[0]), offsetY: clamp(current.offsetY + d[1]) });
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, []);
+  // Zooming keeps the selected sticker (or the middle of the gun) in view.
+  useEffect(() => {
+    const el = stage.current, st = live.current.current;
+    if (!el || !gun) return;
+    const at = st ? spot(gun.def, st.slot, st.offsetX, st.offsetY) : { left: 50, top: 50 };
+    el.scrollLeft = el.scrollWidth * at.left / 100 - el.clientWidth / 2;
+    el.scrollTop = el.scrollHeight * at.top / 100 - el.clientHeight / 2;
+  }, [zoom]);
+  if (!v) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
+
+  // A new sticker takes the free slot nearest to where it goes, so its offset stays small (and in range).
+  const nearestFree = left => [0, 1, 2, 3, 4].filter(n => stickers.every(st => st.slot !== n))
+    .sort((a, b) => Math.abs(slotX(gun.def, a) * 100 + 50 - left) - Math.abs(slotX(gun.def, b) * 100 + 50 - left))[0];
+  const nextSlot = placing && ghost ? nearestFree(ghost.left) : null;
   const toOffset = (e, slot) => {
     const r = box.current.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width - 0.5 - slotX(gun.def, slot)) / 0.45, y: -((e.clientY - r.top) / r.height - 0.5) / 0.4 };
   };
-  const clamp = n => Math.max(-1, Math.min(1, n));
   // The sticker keeps the spot you grabbed it at (dx, dy) instead of jumping under the cursor.
   const down = (e, slot) => {
-    e.preventDefault(); setSel(slot);
+    if (placing) return;
+    e.preventDefault(); e.stopPropagation(); setSel(slot);
     const st = stickers.find(x => x.slot === slot), p = toOffset(e, slot);
     setDrag({ slot, x: st.offsetX, y: st.offsetY, dx: st.offsetX - p.x, dy: st.offsetY - p.y });
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
-  const move = e => { if (drag) { const p = toOffset(e, drag.slot); setDrag({ ...drag, x: clamp(p.x + drag.dx), y: clamp(p.y + drag.dy) }); } };
+  const move = e => {
+    if (drag) { const p = toOffset(e, drag.slot); setDrag({ ...drag, x: clamp(p.x + drag.dx), y: clamp(p.y + drag.dy) }); }
+    else if (placing) { const r = box.current.getBoundingClientRect(); setGhost({ left: (e.clientX - r.left) / r.width * 100, top: (e.clientY - r.top) / r.height * 100 }); }
+  };
   const up = () => { if (drag) { save(drag.slot, { offsetX: drag.x, offsetY: drag.y }); setDrag(null); } };
-  const apply = async stUid => {
-    await tryCall("inventory.applySticker", { gun: uid, sticker: stUid, slot: 0, offsetX: 0, offsetY: 0, rotation: 0, scale: 1 });
+  const place = async e => {
+    if (!placing) return;
+    const r = box.current.getBoundingClientRect();
+    const slot = nearestFree((e.clientX - r.left) / r.width * 100), p = toOffset(e, slot);
+    const st = placing;
+    setPlacing(null); setGhost(null);
+    await tryCall("inventory.applySticker", { gun: uid, sticker: st.uid, slot, offsetX: clamp(p.x), offsetY: clamp(p.y), rotation: 0, scale: 1 });
+    setSel(slot);
     reloadChoices();
   };
   const scrape = async () => {
@@ -108,30 +148,52 @@ function StickerSheet({ uid, close }) {
       setSel(null);
     }
   };
+  const nudge = (dx, dy) => save(current.slot, { offsetX: clamp(current.offsetX + dx), offsetY: clamp(current.offsetY + dy) });
 
   return html`<div class="picker sticker-editor">
     <div class="picker-head"><h2>Stickers · ${v.weapon} | ${v.finish}</h2>
-      <span class="faint small">Drag a sticker to move it. The preview is a guide: check it in game (inspect with F) - equipped guns change within a second.</span></div>
+      <span class="faint small">${placing ? html`<b class="note-place">Click on the gun where ${placing.name} goes.</b> Esc or Cancel to stop.`
+        : "Pick a sticker below, then click on the gun to put it there. Drag to move, arrow keys to nudge. Check it in game with F (inspect): equipped guns change within a second."}</span></div>
     <div class="sticker-layout">
-      <div class="sticker-stage" ref=${box} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up}>
-        <${ItemPic} src=${gun.image} size=${1024} />
-        ${stickers.map(st => {
-          const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
-          const at = spot(gun.def, st.slot, x, y);
-          return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)}
-            style=${`left:${at.left}%;top:${at.top}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
-            <${ItemPic} src=${st.image} size=${128} /></div>`;
-        })}
+      <div class="sticker-left">
+        <div class=${"sticker-stage" + (placing ? " placing" : "")} ref=${stage}>
+          <div class="sticker-canvas" ref=${box} style=${`width:${zoom * 100}%`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${() => { up(); setGhost(null); }} onClick=${place}>
+            <${ItemPic} src=${gun.image} size=${1024} />
+            ${[0, 1, 2, 3, 4].map(n => {
+              const at = spot(gun.def, n, 0, 0);
+              return html`<div key=${"m" + n} class=${"slot-mark" + (n === nextSlot ? " next" : "")} style=${`left:${at.left}%;top:${at.top}%`}>${n + 1}</div>`;
+            })}
+            ${stickers.map(st => {
+              const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
+              const at = spot(gun.def, st.slot, x, y);
+              return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)} onClick=${e => e.stopPropagation()}
+                style=${`left:${at.left}%;top:${at.top}%;width:${11 * st.scale}%;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
+                <${ItemPic} src=${st.image} size=${128} /></div>`;
+            })}
+            ${placing && ghost && html`<div class="placed ghost" style=${`left:${ghost.left}%;top:${ghost.top}%;width:11%;transform:translate(-50%,-50%)`}>
+              <${ItemPic} src=${placing.image} size=${128} /></div>`}
+          </div>
+        </div>
+        <div class="hstack sticker-zoom">
+          <span class="faint small">Zoom</span>
+          <${Segmented} options=${[{ value: 1, label: "1×" }, { value: 1.6, label: "1.6×" }, { value: 2.4, label: "2.4×" }]} value=${zoom} onChange=${setZoom} />
+          <div class="grow"></div>
+          ${placing && html`<${Button} size="sm" onClick=${() => { setPlacing(null); setGhost(null); }}>Cancel<//>`}
+        </div>
       </div>
       <div class="sticker-side">
         <div class="field-label">On this gun (${stickers.length}/5)</div>
         <div class="sticker-slots">
           ${stickers.map(st => html`<button key=${st.slot} class=${"slot" + (sel === st.slot ? " selected" : "")} onClick=${() => setSel(st.slot)} title=${st.name}>
-            <${ItemPic} src=${st.image} size=${128} /></button>`)}
+            <${ItemPic} src=${st.image} size=${128} /><span class="slot-no">${st.slot + 1}</span></button>`)}
           ${stickers.length === 0 && html`<div class="faint small">No stickers yet. Pick one below.</div>`}
         </div>
         ${current && html`<div class="sticker-controls">
-          <div class="inspect-row"><span>${current.name}</span></div>
+          <div class="inspect-row"><span>${current.name}</span><b class="mono">x ${current.offsetX.toFixed(2)} · y ${current.offsetY.toFixed(2)}</b></div>
+          <div class="hstack nudge">
+            <${Button} size="sm" onClick=${() => nudge(-0.02, 0)} title="Left (←)">←<//><${Button} size="sm" onClick=${() => nudge(0, 0.02)} title="Up (↑)">↑<//>
+            <${Button} size="sm" onClick=${() => nudge(0, -0.02)} title="Down (↓)">↓<//><${Button} size="sm" onClick=${() => nudge(0.02, 0)} title="Right (→)">→<//>
+          </div>
           <div class="inspect-row"><span>Rotation</span><b class="mono">${Math.round(current.rotation)}°</b></div>
           <${Slider} min=${-180} max=${180} step=${1} value=${current.rotation} onChange=${r => setLocal(l => ({ ...l, [current.slot]: { ...(l[current.slot] ?? {}), rotation: r } }))}
             onCommit=${r => save(current.slot, { rotation: r })} format=${r => `${Math.round(r)}°`} />
@@ -146,12 +208,12 @@ function StickerSheet({ uid, close }) {
             <${Button} size="sm" kind="destructive" onClick=${scrape}>Scrape Off<//>
           </div>
         </div>`}
-        <div class="field-label">Your stickers</div>
+        <div class="field-label">Your stickers ${stickers.length >= 5 ? "· the gun is full" : "· click one, then click the gun"}</div>
         <div class="sticker-choices scroll">
           ${!choices ? html`<div class="faint small">Loading…</div>`
             : choices.length === 0 ? html`<div class="faint small">No stickers in your inventory. Open sticker capsules on the Cases page.</div>`
-            : choices.map(c => html`<button key=${c.uid} class="slot" style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
-                title=${`Apply ${c.name}`} onClick=${() => apply(c.uid)}><${ItemPic} src=${c.image} size=${128} /></button>`)}
+            : choices.map(c => html`<button key=${c.uid} class=${"slot" + (placing?.uid === c.uid ? " selected" : "")} style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
+                title=${`Place ${c.name}`} onClick=${() => { setSel(null); setPlacing(placing?.uid === c.uid ? null : c); }}><${ItemPic} src=${c.image} size=${128} /></button>`)}
         </div>
       </div>
     </div>
@@ -184,8 +246,9 @@ function Signature({ onChange }) {
   </div>`;
 }
 
-const TU_SORTS = [{ value: "new", label: "Newest" }, { value: "float", label: "Lowest float" }, { value: "floatDesc", label: "Highest float" },
-  { value: "price", label: "Cheapest" }, { value: "name", label: "Name" }];
+const TU_SORTS = [{ value: "float", label: "Lowest float" }, { value: "floatDesc", label: "Highest float" }, { value: "price", label: "Cheapest" },
+  { value: "new", label: "Newest" }, { value: "name", label: "Name" }];
+const TU_GRADES = ["Consumer Grade", "Industrial Grade", "Mil-Spec Grade", "Restricted", "Classified", "Covert"];
 
 /** CS2's Trade Up Contract: pick 10 guns of one grade (or 5 Coverts), submit, sign the contract, get the result. */
 function TradeUpSheet({ close }) {
@@ -196,25 +259,38 @@ function TradeUpSheet({ close }) {
   const [signed, setSigned] = useState(false);
   const [result, setResult] = useState(null);
   const [q, setQ] = useState("");
-  const [sort, setSort] = useState("new");
+  const [sort, setSort] = useState("float");
+  const [grade, setGrade] = useState("");
+  const [stFilter, setStFilter] = useState("");
+  const [wear, setWear] = useState("");
   useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
   if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
   const cur = inv.currency;
   const byUid = uid => inv.items.find(v => v.item.uid === uid);
   const first = byUid(picked[0]);
   const needed = first?.item.grade === "Covert" ? 5 : 10;
-  // Like CS2: once the first item is in, only items of the same grade and StatTrak™ kind can follow.
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  const eligible = inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && v.item.grade !== "Contraband"
-      && !picked.includes(v.item.uid)
+  // Everything that can go in a contract at all, then what fits the first item (same grade and StatTrak™ kind, like CS2).
+  const tradeable = inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && TU_GRADES.includes(v.item.grade));
+  const words = searchWords(q);
+  const eligible = tradeable.filter(v => !picked.includes(v.item.uid)
       && (!first || (v.item.grade === first.item.grade && v.item.statTrak === first.item.statTrak))
-      && words.every(w => v.item.name.toLowerCase().includes(w)))
+      && (!grade || v.item.grade === grade) && (!stFilter || (stFilter === "st") === v.item.statTrak)
+      && (!wear || wearName(v.item.wear) === wear) && words.every(w => haystack(v).includes(w)))
     .sort({
       float: (a, b) => a.item.wear - b.item.wear, floatDesc: (a, b) => b.item.wear - a.item.wear,
       price: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9), name: (a, b) => a.item.name.localeCompare(b.item.name), new: () => 0,
     }[sort]);
+  const count = g => tradeable.filter(v => v.item.grade === g && !picked.includes(v.item.uid)).length;
   const add = uid => setPicked(p => p.length < needed ? [...p, uid] : p);
   const remove = uid => setPicked(p => p.filter(x => x !== uid));
+  // Fill the free slots from the top of the list as sorted. With nothing in yet: the first grade (and StatTrak™ kind) that has enough.
+  const fillGroup = (() => {
+    if (first) return eligible.slice(0, needed - picked.length);
+    const groups = Object.values(Object.groupBy(eligible, v => `${v.item.grade}|${v.item.statTrak}`));
+    const enough = groups.find(g => g.length >= (g[0].item.grade === "Covert" ? 5 : 10));
+    return enough ? enough.slice(0, enough[0].item.grade === "Covert" ? 5 : 10) : [];
+  })();
+  const autoFill = () => setPicked(p => [...p, ...fillGroup.map(v => v.item.uid)]);
   const sign = async () => {
     setPhase("signing");
     const [r] = await Promise.all([call("tradeup.sign", { uids: picked }).catch(() => null), new Promise(ok => setTimeout(ok, 1600))]);
@@ -225,7 +301,8 @@ function TradeUpSheet({ close }) {
     <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
     ${v.item.statTrak && html`<span class="tu-st">ST™</span>`}
     <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
-    <div class="price">${v.item.wear.toFixed(4)}</div></button>`;
+    <div class="price">${v.item.wear.toFixed(4)}${v.price != null ? html` · <span class="tu-price">${money(v.price, cur)}</span>` : ""}</div></button>`;
+  const gain = check?.expectedValue != null && check?.inputValue != null ? check.expectedValue - check.inputValue : null;
 
   if (phase === "signing") return html`<div class="picker tradeup"><div class="tradeup-signing"><div class="pen">✍</div><h2>Signing the contract…</h2></div></div>`;
   if (phase === "done") {
@@ -266,17 +343,26 @@ function TradeUpSheet({ close }) {
     <div class="tradeup-layout">
       <div class="tradeup-left">
         <div class="hstack tradeup-tools">
-          <div class="grow"><${TextField} icon="search" placeholder="Search your items" value=${q} onInput=${setQ} /></div>
+          <div class="grow"><${TextField} icon="search" placeholder="Search: ak, redline, field-tested, stattrak…" value=${q} onInput=${setQ} /></div>
           <${Select} width=${150} value=${sort} onChange=${setSort} options=${TU_SORTS} />
         </div>
-        <div class="field-label">Your items ${first ? `· ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : "· click to add"}</div>
+        <div class="hstack tradeup-tools">
+          <${Select} width=${185} value=${first ? first.item.grade : grade} disabled=${!!first} onChange=${setGrade}
+            options=${[{ value: "", label: "Any grade" }, ...TU_GRADES.map(g => ({ value: g, label: `${g} (${count(g)})` }))]} />
+          <${Select} width=${115} value=${first ? (first.item.statTrak ? "st" : "normal") : stFilter} disabled=${!!first} onChange=${setStFilter}
+            options=${[{ value: "", label: "Any kind" }, { value: "st", label: "StatTrak™" }, { value: "normal", label: "Normal" }]} />
+          <${Select} width=${150} value=${wear} onChange=${setWear} options=${[{ value: "", label: "Any exterior" }, ...WEARS.map(w => ({ value: w, label: w }))]} />
+        </div>
+        <div class="field-label">Your items · ${eligible.length}${first ? ` · ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : " · click to add"}</div>
         <div class="tradeup-pool scroll">
-          ${eligible.length === 0 ? html`<div class="faint small">No items that can go in${q ? " with that search" : ""}. Open cases for more.</div>`
+          ${eligible.length === 0 ? html`<div class="faint small">No items that can go in${q || grade || wear || stFilter ? " with these filters" : ""}. Open cases for more.</div>`
             : eligible.map(v => Card(v, () => add(v.item.uid), "Add to the contract"))}
         </div>
       </div>
       <div class="tradeup-right">
-        <div class="field-label">Contract · ${picked.length}/${needed}</div>
+        <div class="hstack"><div class="field-label grow">Contract · ${picked.length}/${needed}</div>
+          <${Button} size="sm" icon="sparkles" disabled=${picked.length >= needed || !fillGroup.length} onClick=${autoFill}
+            title="Fill the free slots from the top of your list (as sorted and filtered)">Auto-fill<//></div>
         <div class="tradeup-slots">
           ${Array.from({ length: needed }, (_, n) => {
             const v = byUid(picked[n]);
@@ -295,7 +381,8 @@ function TradeUpSheet({ close }) {
         </div>
         <div class="tradeup-sum">
           <div class="inspect-row"><span>Put in</span><b>${money(check?.inputValue, cur)}</b></div>
-          <div class="inspect-row"><span>Average result</span><b>${money(check?.expectedValue, cur)}</b></div>
+          <div class="inspect-row"><span>Average result</span><b>${money(check?.expectedValue, cur)}${gain != null
+            ? html` <span class=${gain >= 0 ? "gain" : "drop"}>(${gain >= 0 ? "+" : "−"}${money(Math.abs(gain), cur)})</span>` : ""}</b></div>
           ${check && !check.ok && picked.length > 0 && html`<div class="small note-warn">${check.message}</div>`}
           <div class="hstack">
             <${Button} kind="plain" disabled=${!picked.length} onClick=${() => setPicked([])}>Clear<//>
@@ -431,13 +518,15 @@ export function InventoryPage() {
   const [minP, setMinP] = useState("");
   const [maxP, setMaxP] = useState("");
   const [tab, setTab] = useState("all");
+  const [grade, setGrade] = useState("");
+  const [wear, setWear] = useState("");
   const [sort, setSort] = useState("newest");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(null);
   if (!state) return html`<${Page} title="Inventory" />`;
 
   const cur = state.currency;
-  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const words = searchWords(q);
   const toggleFav = uid => setFavs(f => {
     const n = new Set(f); n.has(uid) ? n.delete(uid) : n.add(uid);
     try { localStorage.setItem("inv.favs", JSON.stringify([...n])); } catch { /* no storage */ }
@@ -447,7 +536,11 @@ export function InventoryPage() {
   let items = state.items.filter(v => (tab === "all" || tab === "loadout" || v.category === tab)
     && (!onlyST || v.item.statTrak) && (!onlyFav || favs.has(v.item.uid)) && (!fromCase || v.item.caseName === fromCase)
     && (isNaN(lo) || (v.price ?? 0) >= lo) && (isNaN(hi) || (v.price ?? 0) <= hi)
-    && words.every(w => `${v.item.name} ${v.item.caseName} ${v.item.grade}`.toLowerCase().includes(w)));
+    && (!grade || v.item.grade === grade) && (!wear || (v.item.kind === "skin" && v.item.paint > 0 && wearName(v.item.wear) === wear))
+    && words.every(w => haystack(v).includes(w)));
+  const filtered = q || grade || wear || fromCase || onlyST || onlyFav || minP || maxP;
+  const clearFilters = () => { setQ(""); setGrade(""); setWear(""); setFromCase(""); setOnlyST(false); setOnlyFav(false); setMinP(""); setMaxP(""); };
+  const grades = GRADE_RANK.filter(g => state.items.some(v => v.item.grade === g)).reverse();
   const by = {
     newest: (a, b) => new Date(b.item.opened) - new Date(a.item.opened),
     rarity: (a, b) => GRADE_RANK.indexOf(b.item.grade) - GRADE_RANK.indexOf(a.item.grade) || (b.price ?? 0) - (a.price ?? 0),
@@ -456,14 +549,13 @@ export function InventoryPage() {
   };
   items = [...items].sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
   const cases = [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort();
-  // Keeps the best-priced copy of each skin (and anything equipped or favorite); sells the rest.
-  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"), v => v.item.name))
-    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => (b.price ?? 0) - (a.price ?? 0)).slice(1))
-    .filter(v => !v.equipped && !favs.has(v.item.uid) && v.price != null);
-  const sellDuplicates = async () => {
-    const total = duplicates.reduce((n, v) => n + v.price, 0);
-    if (await confirm({ title: "Sell duplicates?", message: `Sell ${duplicates.length} extra copies for about ${money(total, cur)}?\nThe best copy of each skin, equipped and favorite items stay.`, ok: "Sell All" }))
-      for (const v of duplicates) await call("cases.sell", v.item.uid).catch(() => null);
+  // Keeps the best copy of each skin (lowest float), and anything equipped, favorite or with stickers; removes the rest.
+  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"), v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}`))
+    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => b.equipped - a.equipped || a.item.wear - b.item.wear).slice(1))
+    .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length);
+  const removeDuplicates = async () => {
+    if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nThe lowest-float copy of each skin, equipped and favorite items, and guns with stickers stay.`, ok: "Remove", danger: true }))
+      for (const v of duplicates) await call("cases.remove", v.item.uid).catch(() => null);
   };
   const selected = state.items.find(v => v.item.uid === open);
   const tradeUp = async () => {
@@ -476,25 +568,28 @@ export function InventoryPage() {
   };
 
   return html`<${Page} title="Inventory" class="inventory-page"
-      subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}${state.useWallet ? ` · wallet ${money(state.wallet, cur)}` : ""}`}
+      subtitle=${`${state.items.length} items · worth ${money(state.total, cur)}`}
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
-        <${Button} icon="tag" disabled=${!duplicates.length} onClick=${sellDuplicates} title="Sell extra copies of the same skin">Sell Duplicates (${duplicates.length})<//>
+        <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin">Remove Duplicates (${duplicates.length})<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "loadout", label: "Loadout" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
         { value: "graphics", label: "Stickers & Graffiti" }, { value: "other", label: "Collectibles" }]} value=${tab} onChange=${setTab} />
-      <div class="grow"><${TextField} icon="search" placeholder="Search inventory" value=${q} onInput=${setQ} /></div>
+      <div class="grow"><${TextField} icon="search" placeholder="Search: ak redline, karambit, factory new, stattrak…" value=${q} onInput=${setQ} /></div>
       <${Select} width=${150} value=${sort} onChange=${setSort}
         options=${[{ value: "newest", label: "Newest" }, { value: "rarity", label: "Rarity" }, { value: "price", label: "Price" }, { value: "name", label: "Name" }]} />
     </div>
     ${tab !== "loadout" && html`<div class="hstack inv-bar">
-      <${Select} width=${200} value=${fromCase} onChange=${setFromCase} options=${[{ value: "", label: "Any case" }, ...cases.map(c => ({ value: c, label: c }))]} />
+      <${Select} width=${170} value=${grade} onChange=${setGrade} options=${[{ value: "", label: "Any grade" }, ...grades.map(g => ({ value: g, label: g }))]} />
+      <${Select} width=${150} value=${wear} onChange=${setWear} options=${[{ value: "", label: "Any exterior" }, ...WEARS.map(w => ({ value: w, label: w }))]} />
+      <${Select} width=${190} value=${fromCase} onChange=${setFromCase} options=${[{ value: "", label: "Any case" }, ...cases.map(c => ({ value: c, label: c }))]} />
       <${Toggle} value=${onlyST} onChange=${setOnlyST} /><span class="small">StatTrak™</span>
       <${Toggle} value=${onlyFav} onChange=${setOnlyFav} /><span class="small">Favorites</span>
       <${TextField} width=${90} placeholder="Min price" value=${minP} onInput=${setMinP} />
       <${TextField} width=${90} placeholder="Max price" value=${maxP} onInput=${setMaxP} />
+      ${filtered && html`<${Button} size="sm" kind="plain" icon="x" onClick=${clearFilters}>Clear filters · ${items.length} shown<//>`}
     </div>`}
     ${tab === "loadout" ? html`<${LoadoutView} items=${state.items} cur=${cur} />` : html`
     <div class=${"inv-layout" + (selected ? " with-inspect" : "")}>

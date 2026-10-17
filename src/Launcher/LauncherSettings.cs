@@ -45,18 +45,13 @@ public class LauncherSettings
 
     /// <summary>
     /// The owner's admin code was entered on this PC: every skin, knife, glove, sticker and agent can be used.
-    /// Without it, the Skins page only offers what was unboxed on the Cases page ("unbox only").
+    /// Without it, only what was unboxed on the Cases page can be equipped ("unbox only").
     /// </summary>
     public bool AdminUnlocked { get; set; }
     public int CasesOpened { get; set; }
 
-    /// <summary>Prices are shown in this currency (USD, EUR or GBP); what the opened cases and keys cost so far.</summary>
+    /// <summary>Market prices are shown in this currency (USD, EUR or GBP). Opening cases is free.</summary>
     public string Currency { get; set; } = "USD";
-    public double CasesSpent { get; set; }
-
-    /// <summary>The play wallet (Cases / Inventory): opening costs money, selling pays the market price minus Steam's fee.</summary>
-    public double Wallet { get; set; } = 100;
-    public bool UseWallet { get; set; } = true;
 
     public static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");

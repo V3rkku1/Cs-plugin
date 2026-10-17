@@ -143,26 +143,6 @@ public class ItemDatabase
         File.WriteAllText(Path.Combine(skinNamesDir, "skins.json"), JsonSerializer.Serialize(list));
     }
 
-    /// <summary>
-    /// The plugin's case list (cases\cases.json): each skin with its weapon's definition index and
-    /// float range, so !case can open real cases in game.
-    /// </summary>
-    public void WritePluginCases(string casesDir)
-    {
-        if (Cases.Count == 0) return;
-        Directory.CreateDirectory(casesDir);
-        object? Item(CaseItem item)
-        {
-            if (WeaponOfItem(item.Name) is not { } def) return null;
-            var skin = item.Paint != 0 ? Find(def, item.Paint) : null;
-            return new { def, paint = item.Paint, name = item.Name.Replace("★", "").Trim(), rarity = item.Rarity, min = skin?.MinFloat ?? 0f, max = skin?.MaxFloat ?? 1f };
-        }
-        var list = Cases.Where(c => c.Type == "Case")
-            .Select(c => new { name = c.Name, items = c.Items.Select(Item).OfType<object>().ToList(), rare = c.Rare.Select(Item).OfType<object>().ToList() })
-            .Where(c => c.items.Count > 0).ToList();
-        File.WriteAllText(Path.Combine(casesDir, "cases.json"), JsonSerializer.Serialize(list));
-    }
-
     /// <summary>The weapon (or knife / gloves) a "★ Karambit | Fade" style name is for, or null for stickers and such.</summary>
     public ushort? WeaponOfItem(string itemName)
     {

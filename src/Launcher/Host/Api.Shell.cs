@@ -288,7 +288,7 @@ public partial class Api
 
     /// <summary>
     /// Setup › Reset Launcher (the page asks first): deletes everything the launcher keeps (settings, inventory,
-    /// wallet, item data, pictures, theme, backups) and the loadout in the CS2 folder, then starts again fresh.
+    /// case history, item data, pictures, theme, backups) and the loadout in the CS2 folder, then starts again fresh.
     /// The mods in the CS2 folder stay: Uninstall Everything removes those.
     /// </summary>
     [Call("app.resetAll")]

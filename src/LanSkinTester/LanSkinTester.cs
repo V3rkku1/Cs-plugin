@@ -941,7 +941,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
             "!save [name]  !load [name]  !spots  !rethrow  !damage  !armor  !nades  !clear  !swap",
             "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
-            "!cases [page]  !case <number|name> - open a weapon case",
             "!hacks - hacker mode status  !cheats - cheat menu  !aimkey <key>  !aimtoggle",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);
@@ -987,7 +986,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
 
     /// <summary>
     /// lst_skin_commands 0: the launcher's "unbox only" mode (no admin code on the host's launcher). Skins then
-    /// come only from cases (the launcher's Cases page, or !case), so !skin, !gen, !knife and !gloves are off.
+    /// come only from cases (the launcher's Cases page), so !skin, !gen, !knife and !gloves are off.
     /// </summary>
     private bool _skinCommands = true;
 
@@ -999,7 +998,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     {
         if (!CheckAllowed(player)) return false;
         if (_skinCommands) return true;
-        Reply(player!, "Skins come from cases on this server: type !cases, or open cases in the launcher.");
+        Reply(player!, "Skins come from cases on this server: open cases in the launcher (Cases page).");
         return false;
     }
 

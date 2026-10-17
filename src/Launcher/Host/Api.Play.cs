@@ -754,8 +754,8 @@ public partial class Api
         var tail = new TestSession(App.Game).ConsoleTail();
         if (tail.Length == 0) App.Log("   (no console log - it closed before writing one)");
         foreach (var line in tail) App.Log("   " + line);
-        _startError = "The server closed unexpectedly - its last console lines are in the activity log.";
-        Toast("The server closed unexpectedly - see the activity log on Live Server.", "bad");
+        _startError = "The server closed unexpectedly - its last console lines are in Logs (Live Server). Copy Logs to ask for help.";
+        Toast("The server closed unexpectedly - see Logs on Live Server.", "bad");
         App.NotifyChanged();
     }
 

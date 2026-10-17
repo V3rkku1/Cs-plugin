@@ -1,6 +1,6 @@
 // Live Server: the server settings (most used first) and the controls for the running match.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { tryCall, navigate } from "../api.js";
+import { call, tryCall, navigate } from "../api.js";
 import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt, LogView } from "../ui.js";
 import { usePlay } from "./play.js";
 
@@ -35,6 +35,44 @@ function LiveSlider({ value, onCommit, ...props }) {
   return html`<${Slider} ...${props} value=${v ?? value} onChange=${setV} onCommit=${onCommit} />`;
 }
 
+
+const isError = l => /error|eror|\[err|\[wrn|fail|exception|crash|could not|couldn't|unable|missing|not found|denied|warning/i.test(l);
+
+/** Launcher activity, the server console and CounterStrikeSharp's log, with an errors-only filter and one copy button. */
+function Logs() {
+  const [tab, setTab] = useState("activity");
+  const [errorsOnly, setErrorsOnly] = useState(false);
+  const [find, setFind] = useState("");
+  const [files, setFiles] = useState(null);
+  useEffect(() => {
+    if (tab === "activity") return;
+    const load = () => call("live.logs").then(setFiles, () => {});
+    load();
+    const t = setInterval(load, 2000);
+    return () => clearInterval(t);
+  }, [tab]);
+  const lines = tab === "console" ? files?.console : files?.plugin;
+  const words = find.toLowerCase().split(/\s+/).filter(Boolean);
+  const shown = (lines ?? []).filter(l => (!errorsOnly || isError(l)) && words.every(w => l.toLowerCase().includes(w)));
+  return html`<div class="logs-box">
+    <div class="hstack logs-tools">
+      <${Segmented} options=${[{ value: "activity", label: "Launcher" }, { value: "console", label: "Server" }, { value: "plugin", label: "Plugin" }]} value=${tab} onChange=${setTab} />
+      <div class="grow"></div>
+      <${Button} size="sm" kind="prominent" icon="copy" onClick=${() => tryCall("live.copyLogs")} title="Copies every log as one block, errors first">Copy Logs<//>
+    </div>
+    ${tab === "activity" ? html`<${LogView} height=${300} />` : html`
+      <div class="hstack logs-tools">
+        <div class="grow"><${TextField} icon="search" placeholder="Find in log" value=${find} onInput=${setFind} /></div>
+        <${Toggle} value=${errorsOnly} onChange=${setErrorsOnly} /><span class="small">Errors only</span>
+        <${Button} size="sm" icon="folder" onClick=${() => tryCall("live.openLog", tab)} title="Open the whole file" />
+      </div>
+      <div class="log" style="height:300px">
+        ${files == null ? html`<span class="faint">Loading…</span>`
+          : shown.length === 0 ? html`<span class="faint">${lines.length ? "No matching lines." : tab === "console" ? "No console log yet: it is written while the server runs." : "No CounterStrikeSharp log yet."}</span>`
+          : shown.map(l => html`<div class=${isError(l) ? "fail" : ""}>${l}</div>`)}
+      </div>`}
+  </div>`;
+}
 
 function StatusCard({ state }) {
   const color = { good: "var(--green)", warning: "var(--orange)", busy: "var(--blue)", off: "var(--text-3)" }[state.liveKind];
@@ -310,8 +348,8 @@ export function LivePage() {
             <${Button} size="sm" kind="prominent" disabled=${!up || !command.trim()} onClick=${run}>Run<//>
           </div>
         <//>
-        <${Section} title="Activity">
-          <${LogView} height=${300} />
+        <${Section} title="Logs" note="find errors fast · Copy Logs to paste them when asking for help">
+          <${Logs} />
         <//>
       </div>
     </div>

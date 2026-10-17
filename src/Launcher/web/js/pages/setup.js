@@ -18,7 +18,7 @@ function LauncherSection() {
     if (await confirm({
       title: "Reset the launcher?",
       message: "Are you sure you want to do this? It deletes everything the launcher keeps:\n" +
-        "• your inventory, wallet and case history\n• your equipped loadout\n• saved setups, friends and recent servers\n" +
+        "• your inventory and case history\n• your equipped loadout\n• saved setups, friends and recent servers\n" +
         "• all settings, the theme and the backups\n\nThis can't be undone. The launcher restarts like a fresh install. " +
         "The mods in your CS2 folder stay (Uninstall Everything removes those).",
       ok: "Delete Everything", danger: true,

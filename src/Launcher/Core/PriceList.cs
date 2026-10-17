@@ -13,9 +13,6 @@ public class PriceList(string dir, Action<string> log, Action changed)
 {
     public static readonly string[] Currencies = ["USD", "EUR", "GBP"];
 
-    /// <summary>A case key from Valve's store (not on the market): the usual price in each currency.</summary>
-    public static double KeyPrice(string currency) => currency switch { "EUR" => 2.35, "GBP" => 2.05, _ => 2.49 };
-
     private static readonly string[] WearOrder = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
     private static readonly SemaphoreSlim SteamGate = new(1, 1);
     private static readonly HttpClient Http = CreateHttp();

@@ -174,32 +174,32 @@ graffiti. Nothing touches a Steam inventory.
 Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
 an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
 came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
-from your inventory (applying uses the sticker up, like in the game), drag them anywhere on the gun, turn,
+from your inventory (applying uses the sticker up, like in the game): pick one, then click on the gun where it goes
+(numbered marks show the five slots, zoom up to 2.4×, arrow keys nudge the selected sticker), drag them anywhere, turn,
 resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
 within a second (the launcher's preview is a guide). **Trade Up** (Inventory) works like CS2's Trade Up Contract: 10 guns of one grade
 (all StatTrak™ or none, no souvenirs) for one gun of the next grade from the inputs' collections, with
 CS2's ticket odds (each input adds one ticket for every next-grade item of its collection, one ticket wins);
-or 5 Covert guns for a knife or gloves from their cases. Pick from your filtered items (search and sort by
-float or price), press *Submit Contract*, then sign the contract with the mouse, like in CS2. The float follows CS2's current formula (each input's place in its own float range, averaged, put
+or 5 Covert guns for a knife or gloves from their cases. Pick from your filtered items (search, grade, exterior and StatTrak™
+filters, sort by float or price; *Auto-fill* fills the free slots), press *Submit Contract*, then sign the contract with the mouse, like in CS2. The float follows CS2's current formula (each input's place in its own float range, averaged, put
 on the new skin's range). Before signing you see every possible result with its chance, float and price. With the admin code, **Add Item**
 puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
 pattern, StatTrak or Souvenir you pick.
 
-**Prices** are real market prices: Skinport's public price list (refreshed every 12 hours, cached), with
-the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page). Opening a weapon case
-costs the case's market price plus a key (2.49 USD / 2.35 EUR / 2.05 GBP); the Cases page keeps a tally
-of what you spent against what you unboxed. A play **wallet** (starts at 100, *Add Funds* is free) pays for openings; **Sell** in the
-Inventory pays an item's market price minus Steam's fee (about 13%) into it. The wallet can be switched off
-to open for free.
+**Opening is free:** every case, capsule and package opens without money or keys, as often as you like.
+*Open ×5* / *Open ×10* open several at once, Space opens, and a click (or Space) on the reel skips the spin.
 
-**Unbox only and the admin code:** by default the Skins page only offers what you unboxed on the Cases page
+**Prices** are real market prices, shown for information: Skinport's public price list (refreshed every 12 hours,
+cached), with the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page).
+
+**Unbox only and the admin code:** by default you can only equip what you unboxed on the Cases page
 (plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on
-your server (`!case` still works). The owner's admin code (Cases page › *Admin code*) turns on Inventory ›
+your server. The owner's admin code (Cases page › *Admin code*) turns on Inventory ›
 *Add Item* (any skin, knife, glove, sticker, agent, pin or music kit) on that PC; *back to unbox only* locks it again.
 
-**Cases in game:** type `!cases` to list the real CS2 weapon cases and `!case <number>` to open one. It
-spins on your screen with Valve's odds (knife or gloves 0.26%) and equips what you unbox with a random
-float, pattern and a 10% StatTrak chance. Only on your server: your Steam inventory is never touched.
+**Logs** (Live Server › *Logs*): the launcher's activity, the server console (`console.log`) and the
+CounterStrikeSharp log, with search and *Errors only*. **Copy Logs** (also in Ctrl+K) copies all of them as one
+block, errors first, ready to paste when asking for help.
 
 **Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
 

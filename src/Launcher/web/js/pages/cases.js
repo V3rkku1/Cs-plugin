@@ -2,7 +2,7 @@
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, navigate } from "../api.js";
 import { Page, Section, Button, Segmented, Select, TextField, Icon, ItemPic, prompt, sheet } from "../ui.js";
-import { money, wearName } from "./inventory.js";
+import { money, wearName, WearBar } from "./inventory.js";
 
 const CARD = 168; // reel card width incl. gap
 const SPIN_MS = 7200;
@@ -70,6 +70,8 @@ function thump(at, gain = 0.5) {
   g.gain.setValueAtTime(gain, at); g.gain.exponentialRampToValueAtTime(0.0001, at + 0.45);
   o.connect(g).connect(master); o.start(at); o.stop(at + 0.5);
 }
+/** 1 (blue and below) to 5 (gold) by rarity colour. */
+const gradeLevel = color => ({ "#e4ae39": 5, "#ffd700": 5, "#eb4b4b": 4, "#d32ce6": 3, "#8847ff": 2 })[color] ?? 1;
 const sound = {
   /** The reel passing an item: a crisp plastic tick, a little different every time. */
   tick() {
@@ -92,7 +94,7 @@ const sound = {
   reveal(color) {
     if (muted) return;
     const a = ctx(), t = a.currentTime + 0.02;
-    const level = { "#e4ae39": 5, "#ffd700": 5, "#eb4b4b": 4, "#d32ce6": 3, "#8847ff": 2 }[color] ?? 1;
+    const level = gradeLevel(color);
     const chords = [[523.3], [523.3, 659.3], [523.3, 659.3, 784], [392, 523.3, 659.3, 784, 1046.5], [392, 523.3, 659.3, 784, 1046.5, 1318.5]];
     if (level >= 4) thump(t, level === 5 ? 0.6 : 0.45);
     chords[level - 1].forEach((f, i) => bell(t + i * (level >= 4 ? 0.07 : 0.11), f, { gain: 0.1 + level * 0.015, decay: 1.2 + level * 0.3 }));
@@ -101,7 +103,7 @@ const sound = {
 };
 
 // ---- the reel ----
-function Reel({ result, onDone }) {
+function Reel({ result, onDone, skip }) {
   const strip = useRef(), box = useRef();
   const [landed, setLanded] = useState(false);
   useEffect(() => {
@@ -115,7 +117,7 @@ function Reel({ result, onDone }) {
     // Quick start, long slow end: CS2's reel slows down over its last few seconds.
     const ease = t => 1 - Math.pow(1 - t, 4.6);
     const step = now => {
-      const t = Math.min(1, (now - start) / spinMs);
+      const t = skip.current ? 1 : Math.min(1, (now - start) / spinMs);
       const x = target * ease(t);
       strip.current.style.transform = `translate3d(${-x}px,0,0)`;
       // Motion blur while it's fast.
@@ -125,15 +127,16 @@ function Reel({ result, onDone }) {
       const under = Math.floor((x + width / 2) / CARD);
       if (under !== last) { last = under; if (t < 1) sound.tick(); }
       if (t < 1) frame = requestAnimationFrame(step);
-      else { setLanded(true); setTimeout(onDone, 1100); }
+      else { setLanded(true); setTimeout(onDone, skip.current ? 250 : 1100); }
     };
     frame = requestAnimationFrame(step);
     return () => cancelAnimationFrame(frame);
   }, []);
-  return html`<div class=${"reel" + (landed ? " landed" : "")} ref=${box}>
+  return html`<div class=${"reel" + (landed ? " landed" : "")} ref=${box} onClick=${() => { skip.current = true; }} title="Click to skip">
     <div class="reel-strip" ref=${strip}>
       ${result.reel.map((r, i) => html`<div key=${i} class=${"reel-card" + (r.rare ? " rare" : "") + (landed && i === result.win ? " winner" : "")} style=${`--c:${r.color}`}>
         <div class="pic">${r.rare && !r.image ? html`<span class="rare-star">★</span>` : html`<${ItemPic} src=${r.image} size=${256} />`}</div>
+        <div class="name">${r.rare ? "Rare Special Item" : splitName(r.name)[1] || r.name}</div>
       </div>`)}
     </div>
     <div class="reel-marker"></div>
@@ -142,6 +145,7 @@ function Reel({ result, onDone }) {
 
 function Reveal({ view, cur, onAgain, onQuick, onBack, onInventory }) {
   const item = view.item;
+  const [equipped, setEquipped] = useState(view.equipped);
   useEffect(() => sound.reveal(item.color), []);
   const title = (item.souvenir ? "Souvenir " : "") + (item.statTrak && item.kind === "skin" ? "StatTrak™ " : "") + item.name;
   return html`<div class="reveal" style=${`--c:${item.color}`}>
@@ -151,11 +155,13 @@ function Reveal({ view, cur, onAgain, onQuick, onBack, onInventory }) {
     <div class="reveal-grade">${item.grade}${item.phase ? ` · ${item.phase}` : ""}</div>
     <h2 class="reveal-name">${title}</h2>
     ${item.kind === "skin" && item.paint > 0 && html`<div class="reveal-stats mono">
-      <span>${wearName(item.wear)}</span><span>Float ${item.wear.toFixed(9)}</span><span>Pattern ${item.seed}</span></div>`}
+      <span>${wearName(item.wear)}</span><span>Float ${item.wear.toFixed(9)}</span><span>Pattern ${item.seed}</span></div>
+      <div class="reveal-wear"><${WearBar} wear=${item.wear} /></div>`}
     ${item.kind === "skin" && item.paint === 0 && html`<div class="reveal-stats mono"><span>Vanilla</span><span>Pattern ${item.seed}</span></div>`}
-    <div class="reveal-price">${view.price != null ? money(view.price, cur) : "No market price yet"}</div>
+    <div class="reveal-price">${view.price != null ? `Market ${money(view.price, cur)}` : "No market price yet"}</div>
     <div class="hstack reveal-actions">
-      ${equippable(item) && html`<${Button} kind="prominent" icon="check" onClick=${() => tryCall("cases.equip", item.uid)}>Equip<//>`}
+      ${equippable(item) && html`<${Button} kind="prominent" icon="check" disabled=${equipped}
+        onClick=${() => call("cases.equip", item.uid).then(() => setEquipped(true), () => {})}>${equipped ? "Equipped" : "Equip"}<//>`}
       <${Button} icon="skins" onClick=${onInventory}>Inventory<//>
       <${Button} icon="refresh" onClick=${onAgain}>Open Another<//>
       <${Button} icon="bolt" onClick=${onQuick}>Quick Open<//>
@@ -178,14 +184,37 @@ function ContentCard({ name, image, color, price, cur, rare, count }) {
   </div>`;
 }
 
+/** Several quick opens in a row: the drops side by side, the best one highlighted. */
+function MultiReveal({ drops, cur, onAgain, onBack, onInventory }) {
+  const best = drops.reduce((a, b) => (gradeLevel(b.item.color) - gradeLevel(a.item.color) || (b.price ?? 0) - (a.price ?? 0)) > 0 ? b : a, drops[0]);
+  useEffect(() => sound.reveal(best.item.color), []);
+  return html`<div class="multi-reveal">
+    <div class="multi-grid">${drops.map((v, n) => html`<div key=${n} class=${"multi-drop" + (v === best ? " best" : "")} style=${`--c:${v.item.color}`}
+        title=${`${v.item.statTrak && v.item.kind === "skin" ? "StatTrak™ " : ""}${v.item.name}`}>
+      <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
+      <div class="cc-weapon">${v.item.statTrak && v.item.kind === "skin" ? "StatTrak™ " : ""}${v.weapon}</div>
+      <div class="cc-finish">${v.finish}</div>
+      <div class="faint small">${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : v.item.grade}${v.price != null ? ` · ${money(v.price, cur)}` : ""}</div>
+    </div>`)}</div>
+    <div class="hstack reveal-actions">
+      <${Button} kind="prominent" icon="refresh" onClick=${onAgain}>Open ${drops.length} More<//>
+      <${Button} icon="skins" onClick=${onInventory}>Inventory<//>
+      <${Button} kind="plain" onClick=${onBack}>Back to Case<//>
+    </div>
+  </div>`;
+}
+
 function CaseSheet({ id, close }) {
   const [contents] = useApi("cases.contents", id);
-  const [state] = useApi("cases.state");
-  const [phase, setPhase] = useState("view"); // view | unlock | spin | reveal
+  const [phase, setPhase] = useState("view"); // view | unlock | spin | reveal | multi
   const [result, setResult] = useState(null);
+  const [drops, setDrops] = useState([]);
   const [recent, setRecent] = useState([]);
+  const skip = useRef(false);
+  const busy = phase === "unlock" || phase === "spin" || phase === "opening";
   // Quick open skips the unlock animation and the reel and goes straight to the reveal.
   const open = async (fast = false) => {
+    skip.current = false;
     if (!fast) {
       try { ctx(); } catch { /* no sound */ }
       setPhase("unlock");
@@ -194,19 +223,42 @@ function CaseSheet({ id, close }) {
     const [r] = await Promise.all([call("cases.open", id).catch(() => null), new Promise(ok => setTimeout(ok, fast ? 0 : 900))]);
     if (!r) { setPhase("view"); return; }
     setResult(r);
-    if (fast) { setRecent(list => [r.item, ...list].slice(0, 12)); setPhase("reveal"); }
+    if (fast) { setRecent(list => [r.item, ...list].slice(0, 30)); setPhase("reveal"); }
     else setPhase("spin");
   };
-  const landed = () => { setRecent(list => [result.item, ...list].slice(0, 12)); setPhase("reveal"); };
+  const openMany = async n => {
+    try { ctx(); } catch { /* no sound */ }
+    setPhase("opening");
+    const got = [];
+    for (let i = 0; i < n; i++) {
+      const r = await call("cases.open", id).catch(() => null);
+      if (!r) break;
+      got.push(r.item);
+    }
+    if (!got.length) { setPhase("view"); return; }
+    setDrops(got);
+    setRecent(list => [...got.slice().reverse(), ...list].slice(0, 30));
+    setPhase("multi");
+  };
+  const landed = () => { setRecent(list => [result.item, ...list].slice(0, 30)); setPhase("reveal"); };
+  // Space opens (Shift+Space: quick open); during the spin it skips to the drop. Focused buttons keep their own Space.
+  useEffect(() => {
+    const key = e => {
+      if (e.code !== "Space" || e.target.closest?.("input, textarea, button")) return;
+      e.preventDefault();
+      if (phase === "spin") skip.current = true;
+      else if (phase === "view" || phase === "reveal") open(e.shiftKey);
+    };
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
+  });
   if (!contents) return html`<div class="case-sheet"><div class="empty small">Loading…</div></div>`;
   const cur = contents.currency;
-  const cost = (contents.casePrice ?? 0) + (contents.needsKey ? contents.keyPrice : 0);
-  const short = state?.useWallet && state.wallet < cost;
+  const toInventory = () => { close(undefined); navigate("inventory"); };
 
   return html`<div class=${"case-sheet phase-" + phase}>
     <div class="case-topbar">
-      <div class="grow"><h2>${contents.name}</h2><div class="faint small">${TYPE_NAMES[contents.type] ?? contents.type} · Odds as in CS2</div></div>
-      ${state?.useWallet && html`<span class="wallet">Wallet <b>${money(state.wallet, cur)}</b></span>`}
+      <div class="grow"><h2>${contents.name}</h2><div class="faint small">${TYPE_NAMES[contents.type] ?? contents.type} · Free to open · Odds as in CS2</div></div>
       <${Button} kind="plain" icon="x" onClick=${() => close(undefined)} title="Close" />
     </div>
 
@@ -215,19 +267,15 @@ function CaseSheet({ id, close }) {
       <div class="case-hero-side">
         <div class="odds-legend">${contents.groups.map(g => html`<div class="odd" style=${`--c:${g.color}`}>
           <span class="dot"></span><span class="grow">${g.grade}</span><b>${pct(g.chance)}</b></div>`)}</div>
-        <div class="case-cost">
-          ${contents.needsKey
-            ? html`<div class="inspect-row"><span>Container</span><b>${money(contents.casePrice, cur)}</b></div>
-                <div class="inspect-row"><span>Key</span><b>${money(contents.keyPrice, cur)}</b></div>`
-            : html`<div class="inspect-row"><span>No key needed</span><b></b></div>`}
-          <div class="inspect-row total"><span>Total</span><b>${money(cost, cur)}</b></div>
-        </div>
         <div class="hstack open-buttons">
-          <${Button} kind="prominent" icon="key" disabled=${short} onClick=${() => open()}>Unlock Container<//>
-          <${Button} icon="bolt" disabled=${short} onClick=${() => open(true)} title="Skip the animation">Quick Open<//>
+          <${Button} kind="prominent" icon="key" disabled=${busy} onClick=${() => open()} title="Space">Unlock Container<//>
+          <${Button} icon="bolt" disabled=${busy} onClick=${() => open(true)} title="Skip the animation (Shift+Space)">Quick Open<//>
         </div>
-        ${short && html`<div class="small note-warn">Not enough in your wallet: add funds on the Cases page or sell items.</div>`}
-        <div class="faint small">What you unbox goes to your Inventory here, not to Steam.</div>
+        <div class="hstack open-many">
+          <${Button} size="sm" disabled=${busy} onClick=${() => openMany(5)}>Open ×5<//>
+          <${Button} size="sm" disabled=${busy} onClick=${() => openMany(10)}>Open ×10<//>
+        </div>
+        <div class="faint small">Free and unlimited. What you unbox goes to your Inventory here, not to Steam. Space opens, click the reel to skip.</div>
       </div>
     </div>
     <div class="case-contents scroll">
@@ -243,15 +291,19 @@ function CaseSheet({ id, close }) {
 
     ${phase === "unlock" && html`<div class="case-stage"><div class="case-unlocking"><div class="pic"><${ItemPic} src=${contents.image} size=${512} /></div></div>
       <div class="stage-caption">Unlocking…</div></div>`}
+    ${phase === "opening" && html`<div class="case-stage"><div class="case-unlocking"><div class="pic"><${ItemPic} src=${contents.image} size=${512} /></div></div>
+      <div class="stage-caption">Opening…</div></div>`}
     ${phase === "spin" && html`<div class="case-stage">
       <div class="stage-case"><${ItemPic} src=${contents.image} size=${256} /></div>
-      <${Reel} result=${result} onDone=${landed} />
-      <div class="stage-caption">Unlocking ${contents.name}…</div></div>`}
+      <${Reel} result=${result} onDone=${landed} skip=${skip} />
+      <div class="stage-caption">Unlocking ${contents.name}… <span class="faint">click or Space to skip</span></div></div>`}
     ${phase === "reveal" && html`<div class="case-stage"><${Reveal} view=${result.item} cur=${cur} onAgain=${() => open()} onQuick=${() => open(true)} onBack=${() => setPhase("view")}
-      onInventory=${() => { close(undefined); navigate("inventory"); }} /></div>`}
+      onInventory=${toInventory} /></div>`}
+    ${phase === "multi" && html`<div class="case-stage"><${MultiReveal} drops=${drops} cur=${cur} onAgain=${() => openMany(drops.length)} onBack=${() => setPhase("view")}
+      onInventory=${toInventory} /></div>`}
 
     ${recent.length > 0 && phase !== "spin" && html`<div class="recent-drops">
-      <span class="faint small">This session</span>
+      <span class="faint small">This session · ${recent.length}</span>
       ${recent.map((v, n) => html`<div key=${n} class="recent" style=${`--c:${v.item.color}`} title=${`${v.item.statTrak ? "StatTrak™ " : ""}${v.item.name}${v.price != null ? " · " + money(v.price, cur) : ""}`}>
         <${ItemPic} src=${v.item.image} size=${128} /></div>`)}
     </div>`}
@@ -274,21 +326,8 @@ export function CasesPage() {
   };
 
   const cur = state.currency;
-  const profit = state.inventoryValue - state.spent;
-  const addFunds = async () => {
-    const r = await sheet(close => html`<div class="sheet-body">
-      <h2>Add Funds</h2><p class="muted">Play money for opening cases. Free, and only in this launcher.</p>
-      <div class="hstack">${[10, 25, 50, 100, 250].map(a => html`<${Button} onClick=${() => close(a)}>+${money(a, cur)}<//>`)}</div>
-      <div class="hstack" style="margin-top:14px"><${Button} kind="plain" onClick=${() => close("off")}>Open cases for free (no wallet)<//><div class="grow"></div>
-        <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`);
-    if (r === "off") tryCall("cases.wallet", { use: false });
-    else if (r) tryCall("cases.wallet", { add: r });
-  };
-  return html`<${Page} title="Cases" subtitle=${html`${state.opened} opened · spent ${money(state.spent, cur)} · unboxed ${money(state.inventoryValue, cur)} ·
-        <span class=${profit >= 0 ? "profit" : "loss"}>${profit >= 0 ? "+" : "−"}${money(Math.abs(profit), cur)}</span>`}
+  return html`<${Page} title="Cases" subtitle=${`Free to open · ${state.opened} opened · inventory worth ${money(state.inventoryValue, cur)}`}
       actions=${html`
-        ${state.useWallet && html`<span class="wallet" title="Play money: opening costs money, selling items pays">Wallet <b>${money(state.wallet, cur)}</b></span>
-          <${Button} icon="plus" onClick=${addFunds}>Add Funds<//>`}
         <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
         <${Button} icon="skins" onClick=${() => navigate("inventory")}>Inventory (${state.inventoryCount})<//>`}>
@@ -304,10 +343,8 @@ export function CasesPage() {
             <div class="pic"><${ItemPic} src=${c.image} size=${256} /></div>
             <div class="name">${c.name}</div>
             <div class="faint small">${c.rare ? "★ knives / gloves" : `${c.count} items`}</div>
-            <div class="case-price">${c.price != null ? money(c.price, cur) : ""}</div>
           </div>`)}
         </div>
-        ${!state.useWallet && html`<div class="case-code faint small">Opening is free · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.wallet", { use: true }); }}>use a wallet</a></div>`}
         <div class="case-code faint small">${state.unlocked
           ? html`Admin: every skin is unlocked on this PC · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.lock"); }}>back to unbox only</a>`
           : html`<a href="#" onClick=${e => { e.preventDefault(); enterCode(); }}>Admin code</a>`}</div>

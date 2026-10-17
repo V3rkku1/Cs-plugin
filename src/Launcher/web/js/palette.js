@@ -26,6 +26,7 @@ async function actions(navigate) {
     for (const p of play.presets)
       list.push({ label: p.title, note: p.subtitle, icon: "bolt", group: "Quick starts", run: () => tryCall("play.preset", { title: p.title, saved: p.saved }) });
   }
+  list.push({ label: "Copy logs (to ask for help)", icon: "copy", group: "Server", run: () => tryCall("live.copyLogs") });
   list.push({ label: "Full screen on / off (F11)", icon: "sparkles", group: "Window", run: () => tryCall("app.fullscreen") });
   list.push({ label: "Check for launcher updates", icon: "download", group: "Setup", run: () => tryCall("app.checkUpdate") });
   list.push({ label: "Check for component updates", icon: "refresh", group: "Setup", run: () => tryCall("setup.checkUpdates") });

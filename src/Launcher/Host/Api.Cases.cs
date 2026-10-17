@@ -8,8 +8,8 @@ namespace LanSkinTester.Launcher.Host;
 
 /// <summary>
 /// Cases page: open CS2 containers like in the game (reel, real odds, floats, StatTrak), keep what you
-/// unbox in an inventory and equip it on the local server. Every container can be opened. Without the
-/// owner's admin code the Skins page only offers what was unboxed here; the code unlocks every skin.
+/// unbox in an inventory and equip it on the local server. Every container opens for free. Without the
+/// owner's admin code only what was unboxed here can be equipped; the code unlocks every skin.
 /// Nothing here touches a Steam inventory.
 /// </summary>
 public partial class Api
@@ -17,13 +17,13 @@ public partial class Api
     /// <summary>SHA-256 of "lst-cases-v1:" + the code in capitals. Only the owner knows the code.</summary>
     private const string UnlockHash = "3a42e485acc4d2705bd2f66f6a7fd3f2694eb41d0b94b1c149d9ed6c0d3b6aef";
 
-    public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare, double? Price);
+    public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare);
     public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
-        string Currency, double KeyPrice, double Spent, double InventoryValue, double Wallet, bool UseWallet);
+        string Currency, double InventoryValue);
 
     public record ContentItem(string Name, string Image, string Color, string? Phase, double? Price);
     public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items, string? Image = null);
-    public record CaseContents(string Id, string Name, string Image, string Type, List<ContentGroup> Groups, double? CasePrice, double KeyPrice, bool NeedsKey, string Currency);
+    public record CaseContents(string Id, string Name, string Image, string Type, List<ContentGroup> Groups, string Currency);
 
     /// <summary>An unboxed item. Def/Paint for weapons, knives and gloves; CollectibleId for pins and music kits.</summary>
     public record InventoryItem(string Uid, string Kind, string Name, string Image, string Grade, string Color,
@@ -34,12 +34,12 @@ public partial class Api
     public record AppliedSticker(int Slot, int Id, string Name, string Image, float OffsetX, float OffsetY, float Rotation, float Scale, float Wear);
 
     public record ReelItem(string Name, string Image, string Color, bool Rare);
-    public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item, double Cost);
+    public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item);
 
     /// <summary>An inventory item as the pages show it: its price now, whether it's equipped, and its name split like CS2 shows it.</summary>
     public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category,
         bool EquippedT, bool EquippedCT);
-    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin, double Wallet, bool UseWallet);
+    public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin);
 
     private static string InventoryFile => Path.Combine(AppState.LauncherDataDir, "inventory.json");
     private List<InventoryItem>? _inventory;
@@ -68,17 +68,15 @@ public partial class Api
     private CasesState CasesStateNow()
     {
         var unlocked = App.Settings.AdminUnlocked;
-        var prices = PricesNow();
         // Newest first, like the game's store.
         var rows = App.Db.Cases
             .Select((c, i) => (c, i))
             .OrderBy(x => x.c.Type == "Case" ? 0 : 1).ThenByDescending(x => x.i)
-            .Select(x => new CaseRow2(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0, prices.Price(x.c.Name)))
+            .Select(x => new CaseRow2(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0))
             .ToList();
         var value = Inventory().Sum(i => PriceOf(i) ?? 0);
         return new CasesState(App.Db.Cases.Count == 0, unlocked, App.Settings.CasesOpened, rows, Inventory().Count,
-            App.Settings.Currency, PriceList.KeyPrice(App.Settings.Currency), Math.Round(App.Settings.CasesSpent, 2), Math.Round(value, 2),
-            Math.Round(App.Settings.Wallet, 2), App.Settings.UseWallet);
+            App.Settings.Currency, Math.Round(value, 2));
     }
 
     private CaseInfo FindCase(string id) =>
@@ -97,18 +95,13 @@ public partial class Api
             var color = o.Grade == "Rare" ? "#e4ae39" : items.FirstOrDefault()?.Color ?? "#b0c3d9";
             return new ContentGroup(o.Grade == "Rare" ? "Rare Special Item" : o.Grade, color, o.Chance, shown, o.Grade == "Rare" ? box.RareImage : null);
         }).ToList();
-        return new CaseContents(box.Id, box.Name, box.Image, box.Type, groups, PricesNow().Price(box.Name),
-            PriceList.KeyPrice(App.Settings.Currency), NeedsKey(box), App.Settings.Currency);
+        return new CaseContents(box.Id, box.Name, box.Image, box.Type, groups, App.Settings.Currency);
     }
 
     [Call("cases.open")]
     private OpenResult OpenCase(string id)
     {
         var box = FindCase(id);
-        // What it costs in the game: the container from the market, plus a key for cases.
-        var cost = Math.Round((PricesNow().Price(box.Name) ?? 0) + (NeedsKey(box) ? PriceList.KeyPrice(App.Settings.Currency) : 0), 2);
-        if (App.Settings.UseWallet && App.Settings.Wallet + 0.0001 < cost)
-            throw new ApiException($"Not enough money in your wallet ({App.Settings.Wallet:0.00} for {cost:0.00}). Add funds or sell items on the Inventory page.");
         var random = Random.Shared;
         var (drop, rare) = CaseRoller.Roll(box, random);
 
@@ -130,10 +123,8 @@ public partial class Api
         if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
         SaveInventory();
         App.Settings.CasesOpened++;
-        App.Settings.CasesSpent += cost;
-        if (App.Settings.UseWallet) App.Settings.Wallet = Math.Round(App.Settings.Wallet - cost, 2);
         App.SaveSettings();
-        return new OpenResult(reel, win, View(item, ReadLoadout()), Math.Round(cost, 2));
+        return new OpenResult(reel, win, View(item, ReadLoadout()));
     }
 
     private InventoryItem MakeItem(CaseInfo box, CaseItem drop, Random random)
@@ -170,8 +161,7 @@ public partial class Api
     {
         var loadout = ReadLoadout();
         var items = Inventory().Select(i => View(i, loadout)).ToList();
-        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked,
-            Math.Round(App.Settings.Wallet, 2), App.Settings.UseWallet);
+        return new InventoryState(items, Math.Round(items.Sum(v => v.Price ?? 0), 2), App.Settings.Currency, App.Settings.AdminUnlocked);
     }
 
     [Call("cases.currency")]
@@ -181,38 +171,6 @@ public partial class Api
         App.Settings.Currency = currency;
         App.SaveSettings();
         App.NotifyChanged();
-    }
-
-    public record WalletArgs(double? Add, bool? Use);
-
-    /// <summary>Play money: add funds (free) or switch the wallet off (opening is then free).</summary>
-    [Call("cases.wallet")]
-    private void SetWallet(WalletArgs a)
-    {
-        if (a.Add is { } add && add > 0 && add <= 10_000) App.Settings.Wallet = Math.Round(App.Settings.Wallet + add, 2);
-        if (a.Use is { } use) App.Settings.UseWallet = use;
-        App.SaveSettings();
-        App.NotifyChanged();
-    }
-
-    /// <summary>Steam keeps about 13% (5% Steam + 10% CS2): the seller gets the price divided by 1.15.</summary>
-    private static double SellerGets(double price) => Math.Max(0.01, Math.Floor(price / 1.15 * 100) / 100);
-
-    /// <summary>Sells an item at its market price minus Steam's fee; the money goes to the wallet.</summary>
-    [Call("cases.sell")]
-    private double SellItem(string uid)
-    {
-        var item = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That item isn't in your inventory any more.");
-        var price = PriceOf(item) ?? throw new ApiException("No market price for this item yet, so it can't be sold.");
-        if (View(item, ReadLoadout()).Equipped) UnequipUnboxed(uid);
-        var gets = SellerGets(price);
-        Inventory().Remove(item);
-        SaveInventory();
-        App.Settings.Wallet = Math.Round(App.Settings.Wallet + gets, 2);
-        App.SaveSettings();
-        Toast($"Sold for {gets:0.00} (market {price:0.00} minus Steam's fee).", "good");
-        App.NotifyChanged();
-        return gets;
     }
 
     /// <summary>Takes an equipped item off: the gun goes back to default, or the knife / gloves / pin / music kit.</summary>
@@ -248,9 +206,6 @@ public partial class Api
         App.Prices.Ensure(App.Settings.Currency);
         return App.Prices;
     }
-
-    /// <summary>Cases need a key; capsules, souvenir packages and boxes open without one.</summary>
-    private static bool NeedsKey(CaseInfo box) => box.Type == "Case";
 
     private double? PriceOf(InventoryItem i) => PricesNow().Price(
         PriceList.MarketName(i.Name, i.Kind == "skin", i.Paint != 0, i.Wear, i.StatTrak, i.Souvenir));
@@ -346,7 +301,7 @@ public partial class Api
                 break;
             default:
                 throw new ApiException(item.Kind == "sticker" || item.Kind == "patch"
-                    ? "Stickers go on a gun: open the gun on the Skins page and add it in Stickers and Charm."
+                    ? "Stickers go on a gun: click the gun in your Inventory and press Stickers."
                     : "This item can't be equipped.");
         }
         store.Save();
@@ -401,7 +356,7 @@ public partial class Api
     }
 
     // ---------------------------------------------------------------------------------------------
-    // Unbox only: what the Skins page may offer without the admin code
+    // Unbox only: what can be equipped without the admin code
     // ---------------------------------------------------------------------------------------------
 
     private bool UnboxOnly => !App.Settings.AdminUnlocked;
@@ -547,7 +502,8 @@ public partial class Api
         var sticker = Inventory().FirstOrDefault(i => i.Uid == a.Sticker && i.Kind == "sticker") ?? throw new ApiException("That sticker isn't in your inventory any more.");
         var list = (gun.Stickers ?? new List<AppliedSticker>()).ToList();
         if (list.Count >= 5) throw new ApiException("A gun holds up to 5 stickers. Scrape one off first.");
-        var slot = Enumerable.Range(0, 5).FirstOrDefault(n => list.All(s => s.Slot != n));
+        // The slot the page picked (nearest to where you clicked) when it is free, else the first free one.
+        var slot = a.Slot is >= 0 and <= 4 && list.All(s => s.Slot != a.Slot) ? a.Slot : Enumerable.Range(0, 5).First(n => list.All(s => s.Slot != n));
         list.Add(new AppliedSticker(slot, StickerIdOf(sticker), sticker.Name, sticker.Image,
             Math.Clamp(a.OffsetX, -1f, 1f), Math.Clamp(a.OffsetY, -1f, 1f), Math.Clamp(a.Rotation, -180f, 180f), Math.Clamp(a.Scale, 0.5f, 2f), 0f));
         Inventory().Remove(sticker); // used up, like in the game
