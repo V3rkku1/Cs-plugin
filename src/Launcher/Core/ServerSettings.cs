@@ -111,6 +111,10 @@ public class ServerSettings
     public string Mode { get; set; } = "Deathmatch";
     public string Map { get; set; } = "de_dust2";
     public int Bots { get; set; } = 10;
+
+    /// <summary>Most players per side in classic modes (people and bots).</summary>
+    public int TeamSizeT { get; set; } = 5;
+    public int TeamSizeCT { get; set; } = 5;
     public int Difficulty { get; set; } = 3;
     public int BotTeam { get; set; }
     public int BotWeapons { get; set; }
@@ -582,6 +586,8 @@ public class ServerSettings
     public GameMode GetMode()
     {
         var mode = Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
+        // Workshop maps (movement hubs, surf...) start in casual: other modes' rules break on them.
+        if (WorkshopMapId != null && !IsRetakes) return Modes.First(m => m.Name == "Casual");
         // Plugin retakes runs on competitive rules. Valve's mode is game_type 0 / game_mode 5.
         if (IsPluginRetakes) return mode with { GameType = 0, Mode = 1 };
         return mode;
@@ -740,6 +746,9 @@ public class ServerSettings
         sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)} {(IsValveRetakes ? 1 : 0)}");
         // A side that already has more players must not grey out in the team menu: retakes picks the sides.
         sb.AppendLine($"mp_limitteams {(IsRetakes ? 0 : 2)}");
+        // Team sizes only for classic rounds: deathmatch and arms race are free-for-all, retakes have seats.
+        var sized = !IsRetakes && mode.GameType == 0;
+        sb.AppendLine($"lst_team_sizes {(sized ? Math.Clamp(TeamSizeT, 1, 32) : 0)} {(sized ? Math.Clamp(TeamSizeCT, 1, 32) : 0)}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");

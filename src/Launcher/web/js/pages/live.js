@@ -162,6 +162,9 @@ export function LivePage() {
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Weapons" subtitle=${owns ? "This mode hands out its own guns" : ""}>
             <${Select} width=${200} disabled=${owns} value=${s.botWeapons} options=${state.botWeapons.map((t, i) => ({ value: i, label: t }))} onChange=${v => set("botWeapons", v)} />
           <//>
+          <${Row} title="Team Size" subtitle="Most players per side, people and bots (classic modes)">
+            <${Stepper} value=${s.teamSizeT} min=${1} max=${16} format=${v => v + " T"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeT", v)} />
+            <${Stepper} value=${s.teamSizeCT} min=${1} max=${16} format=${v => v + " CT"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeCT", v)} /><//>
           <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
             <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
           <//>

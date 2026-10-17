@@ -102,8 +102,6 @@ public partial class Api
             ServerSettings.HackerModes, ServerSettings.AimStyles, ServerSettings.AimBones, ServerSettings.AimTargets, ServerSettings.AimKeys);
     }
 
-    /// <summary>One line for a summary row elsewhere (the Play page's "Hacker Mode" row).</summary>
-    [Call("hacker.summary")]
     private string HackerSummary() => App.Settings.Server.HackerMode switch
     {
         1 => "On · everyone hacks",
