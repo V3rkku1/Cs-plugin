@@ -480,34 +480,12 @@ your gloves and weapon from outside).
 
 ## 1b. Or: use your normal CS2 install (Windows)
 
-You don't need to download a second copy of CS2. Your game folder can run a server as well
-(`cs2.exe -dedicated`). The only risk is `gameinfo.gi`: while the Metamod line is in it, you
-**must** start CS2 with `-insecure` (VAC off). If you forget, VAC can see Metamod as a cheat.
-Two scripts in `scripts/windows/` switch this on and off for you.
-
-1. Find your CS2 folder: in Steam, right-click CS2 → *Manage* → *Browse local files*.
-   That opens `...\steamapps\common\Counter-Strike Global Offensive`.
-2. Extract **Metamod 2.x dev**, **CounterStrikeSharp with-runtime** and **LanSkinTester.zip**
-   into `game\csgo\` inside that folder (the same as steps 2–5 above, **but don't edit `gameinfo.gi`
-   yourself**). Just having these files in the folder does nothing until `gameinfo.gi` points to them.
-3. Copy `skin-test.ps1`, `skin-test-ON.bat` and `skin-test-OFF.bat` from `scripts/windows/`
-   anywhere (for example your desktop).
-4. **To test skins:** close CS2 and double-click `skin-test-ON.bat`. It
-   - adds the Metamod line to `gameinfo.gi` (and saves a `gameinfo.gi.backup`)
-   - starts a local server window (`-dedicated -insecure +sv_lan 1 +map de_dust2`)
-   - starts CS2 with `-insecure` and connects to `localhost`
-
-   Type `!skinhelp` in chat. Use `!knife`, `!skin`, `!gloves` and the other commands.
-5. **When you're done:** close CS2 **and** the server window, then double-click `skin-test-OFF.bat`.
-   It removes the Metamod line and your game is back to normal for matchmaking, Premier and FACEIT.
-
-If the scripts can't find CS2 (for example in an unusual Steam library), run in PowerShell:
-`powershell -ExecutionPolicy Bypass -File skin-test.ps1 on -GamePath "D:\SteamLibrary\steamapps\common\Counter-Strike Global Offensive"`.
-To try another map, add `-Map de_mirage`.
+You don't need a second copy of CS2: the launcher (`LanSkinTesterLauncher.exe`, or the installer) runs a
+server from your normal game folder and starts CS2 with `-insecure` (VAC off) for you. It adds the Metamod
+line to `gameinfo.gi` only while the test is on, and **Stop** puts the game back to normal.
 
 If anything goes wrong, Steam → CS2 → *Properties* → *Installed Files* → *Verify integrity of
-game files* also puts back the original `gameinfo.gi`. A CS2 update can do the same, and after
-that you just run `skin-test-ON.bat` again.
+game files* also puts back the original `gameinfo.gi`. A CS2 update can do the same.
 
 ## 2. Commands
 
@@ -671,7 +649,7 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 
 This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
 `build/LanSkinTesterLauncher.exe` and `build/LanSkinTesterLauncher-small.zip` (the launcher, with the plugin built in).
-On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
+On Windows without bash, run `dotnet publish src/Plugin -c Release -o out` and copy
 `LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
 
 The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/web/DESIGN.md`). Run

@@ -12,7 +12,7 @@ REV=$(git rev-parse HEAD 2>/dev/null || true)
 
 OUT=build/addons/counterstrikesharp/plugins/LanSkinTester
 rm -rf build
-dotnet publish src/LanSkinTester -c Release -o "$OUT"
+dotnet publish src/Plugin -c Release -o "$OUT"
 # Only our own DLL is needed; CounterStrikeSharp provides the rest at runtime.
 find "$OUT" -maxdepth 1 -type f ! -name 'LanSkinTester.dll' ! -name 'LanSkinTester.deps.json' -delete
 (cd build && zip -qr LanSkinTester.zip addons) && echo "Built build/LanSkinTester.zip"
@@ -33,7 +33,7 @@ echo "Built build/LanSkinTesterLauncher-small.zip"
 
 # Installer (needs NSIS: apt-get install nsis). Wraps the self-contained exe.
 if command -v makensis >/dev/null; then
-  VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/LanSkinTester/LanSkinTester.csproj | head -1)
+  VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/Plugin/LanSkinTester.csproj | head -1)
   makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$PWD/build/LanSkinTesterLauncher.exe" \
     -DOUT="$PWD/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
   echo "Built build/LanSkinTesterSetup.exe"

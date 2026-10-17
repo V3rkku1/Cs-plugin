@@ -25,10 +25,10 @@
 
   <!-- Same item tables / loadout format as the plugin. -->
   <ItemGroup>
-    <Compile Include="..\LanSkinTester\ItemData.cs" Link="Shared\ItemData.cs" />
-    <Compile Include="..\LanSkinTester\Loadout.cs" Link="Shared\Loadout.cs" />
-    <Compile Include="..\LanSkinTester\ItemImport.cs" Link="Shared\ItemImport.cs" />
-    <Compile Include="..\LanSkinTester\ServerStatus.cs" Link="Shared\ServerStatus.cs" />
+    <Compile Include="..\Plugin\Shared\ItemData.cs" Link="Shared\ItemData.cs" />
+    <Compile Include="..\Plugin\Shared\Loadout.cs" Link="Shared\Loadout.cs" />
+    <Compile Include="..\Plugin\Shared\ItemImport.cs" Link="Shared\ItemImport.cs" />
+    <Compile Include="..\Plugin\Shared\ServerStatus.cs" Link="Shared\ServerStatus.cs" />
   </ItemGroup>
 
   <!-- The built plugin ships inside the exe (build.sh builds the plugin first). -->

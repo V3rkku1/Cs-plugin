@@ -26,20 +26,20 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\LanSkinTester\LanSkinTester.csproj" />
+    <ProjectReference Include="..\..\src\Plugin\LanSkinTester.csproj" />
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\Launcher\Core\ServerSettings.cs" Link="Launcher\ServerSettings.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameFolder.cs" Link="Launcher\GameFolder.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameModeCatalog.cs" Link="Launcher\GameModeCatalog.cs" />
-    <Compile Include="..\..\src\Launcher\Core\WorkshopMaps.cs" Link="Launcher\WorkshopMaps.cs" />
-    <Compile Include="..\..\src\Launcher\Core\FireRelay.cs" Link="Launcher\FireRelay.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameInfoPatcher.cs" Link="Launcher\GameInfoPatcher.cs" />
-    <Compile Include="..\..\src\Launcher\Core\TestSession.cs" Link="Launcher\TestSession.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Upnp.cs" Link="Launcher\Upnp.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Network.cs" Link="Launcher\Network.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Installer.cs" Link="Launcher\Installer.cs" />
+    <Compile Include="..\..\src\Launcher\Game\ServerSettings.cs" Link="Launcher\ServerSettings.cs" />
+    <Compile Include="..\..\src\Launcher\Game\GameFolder.cs" Link="Launcher\GameFolder.cs" />
+    <Compile Include="..\..\src\Launcher\Game\GameModeCatalog.cs" Link="Launcher\GameModeCatalog.cs" />
+    <Compile Include="..\..\src\Launcher\Game\WorkshopMaps.cs" Link="Launcher\WorkshopMaps.cs" />
+    <Compile Include="..\..\src\Launcher\Net\FireRelay.cs" Link="Launcher\FireRelay.cs" />
+    <Compile Include="..\..\src\Launcher\Game\GameInfoPatcher.cs" Link="Launcher\GameInfoPatcher.cs" />
+    <Compile Include="..\..\src\Launcher\Game\TestSession.cs" Link="Launcher\TestSession.cs" />
+    <Compile Include="..\..\src\Launcher\Net\Upnp.cs" Link="Launcher\Upnp.cs" />
+    <Compile Include="..\..\src\Launcher\Net\Network.cs" Link="Launcher\Network.cs" />
+    <Compile Include="..\..\src\Launcher\Setup\Installer.cs" Link="Launcher\Installer.cs" />
   </ItemGroup>
 
 </Project>
