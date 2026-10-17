@@ -127,6 +127,24 @@ public partial class Api
         return new OpenResult(reel, win, View(item, ReadLoadout()));
     }
 
+    public record OpenManyArgs(string Id, int Count);
+
+    /// <summary>Open ×5 / ×10: all drops at once, with one save (a save per drop is slow on a big inventory).</summary>
+    [Call("cases.openMany")]
+    private List<InventoryView> OpenMany(OpenManyArgs a)
+    {
+        var box = FindCase(a.Id);
+        var items = Enumerable.Range(0, Math.Clamp(a.Count, 1, 50))
+            .Select(_ => MakeItem(box, CaseRoller.Roll(box, Random.Shared).Item, Random.Shared)).ToList();
+        Inventory().InsertRange(0, items);
+        if (Inventory().Count > 5000) Inventory().RemoveRange(5000, Inventory().Count - 5000);
+        SaveInventory();
+        App.Settings.CasesOpened += items.Count;
+        App.SaveSettings();
+        var loadout = ReadLoadout();
+        return items.Select(i => View(i, loadout)).ToList();
+    }
+
     private InventoryItem MakeItem(CaseInfo box, CaseItem drop, Random random)
     {
         var kind = drop.Id.Split('-')[0] switch

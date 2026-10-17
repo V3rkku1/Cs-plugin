@@ -229,13 +229,8 @@ function CaseSheet({ id, close }) {
   const openMany = async n => {
     try { ctx(); } catch { /* no sound */ }
     setPhase("opening");
-    const got = [];
-    for (let i = 0; i < n; i++) {
-      const r = await call("cases.open", id).catch(() => null);
-      if (!r) break;
-      got.push(r.item);
-    }
-    if (!got.length) { setPhase("view"); return; }
+    const got = await call("cases.openMany", { id, count: n }).catch(() => null);
+    if (!got?.length) { setPhase("view"); return; }
     setDrops(got);
     setRecent(list => [...got.slice().reverse(), ...list].slice(0, 30));
     setPhase("multi");

@@ -11,6 +11,10 @@ const GRADE_RANK = ["Consumer Grade", "Base Grade", "Industrial Grade", "Mil-Spe
 const haystack = v => `${v.item.statTrak ? "stattrak st " : ""}${v.item.souvenir ? "souvenir " : ""}${v.item.name} ${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : ""} ${v.item.grade} ${v.item.caseName} ${v.item.phase ?? ""}`.toLowerCase();
 const searchWords = q => q.toLowerCase().split(/\s+/).filter(Boolean);
 const WEARS = ["Factory New", "Minimal Wear", "Field-Tested", "Well-Worn", "Battle-Scarred"];
+// Big inventories (free cases add up fast): draw cards a page at a time, drawing thousands at once takes seconds.
+const PAGE = 120;
+const More = ({ shown, total, onMore }) => total > shown
+  && html`<div class="show-more"><${Button} onClick=${onMore}>Show more · ${shown} of ${total}<//></div>`;
 const equippable = v => (v.item.kind === "skin" && v.item.def) || ((v.item.kind === "pin" || v.item.kind === "music") && v.item.collectibleId);
 
 /** CS2's wear bar: the five wear bands with a marker at the float. */
@@ -249,6 +253,7 @@ function Signature({ onChange }) {
 const TU_SORTS = [{ value: "float", label: "Lowest float" }, { value: "floatDesc", label: "Highest float" }, { value: "price", label: "Cheapest" },
   { value: "new", label: "Newest" }, { value: "name", label: "Name" }];
 const TU_GRADES = ["Consumer Grade", "Industrial Grade", "Mil-Spec Grade", "Restricted", "Classified", "Covert"];
+const TU_COLORS = ["#b0c3d9", "#5e98d9", "#4b69ff", "#8847ff", "#d32ce6", "#eb4b4b"];
 
 /** CS2's Trade Up Contract: pick 10 guns of one grade (or 5 Coverts), submit, sign the contract, get the result. */
 function TradeUpSheet({ close }) {
@@ -263,10 +268,13 @@ function TradeUpSheet({ close }) {
   const [grade, setGrade] = useState("");
   const [stFilter, setStFilter] = useState("");
   const [wear, setWear] = useState("");
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => setLimit(PAGE), [q, sort, grade, stFilter, wear]);
   useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
   if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
   const cur = inv.currency;
-  const byUid = uid => inv.items.find(v => v.item.uid === uid);
+  const index = new Map(inv.items.map(v => [v.item.uid, v]));
+  const byUid = uid => index.get(uid);
   const first = byUid(picked[0]);
   const needed = first?.item.grade === "Covert" ? 5 : 10;
   // Everything that can go in a contract at all, then what fits the first item (same grade and StatTrak™ kind, like CS2).
@@ -280,7 +288,11 @@ function TradeUpSheet({ close }) {
       float: (a, b) => a.item.wear - b.item.wear, floatDesc: (a, b) => b.item.wear - a.item.wear,
       price: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9), name: (a, b) => a.item.name.localeCompare(b.item.name), new: () => 0,
     }[sort]);
-  const count = g => tradeable.filter(v => v.item.grade === g && !picked.includes(v.item.uid)).length;
+  // Grade / StatTrak™ chips: locked to the first item's once one is in, like CS2.
+  const gradeNow = first ? first.item.grade : grade, stNow = first ? (first.item.statTrak ? "st" : "normal") : stFilter;
+  const count = (g, st = stNow) => tradeable.filter(v => v.item.grade === g && (!st || (st === "st") === v.item.statTrak) && !picked.includes(v.item.uid)).length;
+  const chip = (active, color, label, n, onClick, disabled) => html`<button class=${"tu-chip" + (active ? " on" : "")} style=${`--c:${color}`}
+      disabled=${disabled} onClick=${onClick}><span class="dot"></span>${label}${n != null ? html`<b>${n}</b>` : ""}</button>`;
   const add = uid => setPicked(p => p.length < needed ? [...p, uid] : p);
   const remove = uid => setPicked(p => p.filter(x => x !== uid));
   // Fill the free slots from the top of the list as sorted. With nothing in yet: the first grade (and StatTrak™ kind) that has enough.
@@ -346,17 +358,22 @@ function TradeUpSheet({ close }) {
           <div class="grow"><${TextField} icon="search" placeholder="Search: ak, redline, field-tested, stattrak…" value=${q} onInput=${setQ} /></div>
           <${Select} width=${150} value=${sort} onChange=${setSort} options=${TU_SORTS} />
         </div>
-        <div class="hstack tradeup-tools">
-          <${Select} width=${185} value=${first ? first.item.grade : grade} disabled=${!!first} onChange=${setGrade}
-            options=${[{ value: "", label: "Any grade" }, ...TU_GRADES.map(g => ({ value: g, label: `${g} (${count(g)})` }))]} />
-          <${Select} width=${115} value=${first ? (first.item.statTrak ? "st" : "normal") : stFilter} disabled=${!!first} onChange=${setStFilter}
-            options=${[{ value: "", label: "Any kind" }, { value: "st", label: "StatTrak™" }, { value: "normal", label: "Normal" }]} />
+        <div class="tu-chips">
+          ${chip(!gradeNow, "var(--text-3)", "All grades", null, () => setGrade(""), !!first)}
+          ${TU_GRADES.map((g, n) => chip(gradeNow === g, TU_COLORS[n], g.replace(" Grade", ""), count(g), () => setGrade(gradeNow === g ? "" : g), !!first || (!count(g) && gradeNow !== g)))}
+        </div>
+        <div class="tu-chips">
+          ${chip(!stNow, "var(--text-3)", "Normal + StatTrak™", null, () => setStFilter(""), !!first)}
+          ${chip(stNow === "normal", "var(--text-2)", "Normal", null, () => setStFilter("normal"), !!first)}
+          ${chip(stNow === "st", "#cf6a32", "StatTrak™", null, () => setStFilter("st"), !!first)}
+          <div class="grow"></div>
           <${Select} width=${150} value=${wear} onChange=${setWear} options=${[{ value: "", label: "Any exterior" }, ...WEARS.map(w => ({ value: w, label: w }))]} />
         </div>
         <div class="field-label">Your items · ${eligible.length}${first ? ` · ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : " · click to add"}</div>
         <div class="tradeup-pool scroll">
           ${eligible.length === 0 ? html`<div class="faint small">No items that can go in${q || grade || wear || stFilter ? " with these filters" : ""}. Open cases for more.</div>`
-            : eligible.map(v => Card(v, () => add(v.item.uid), "Add to the contract"))}
+            : html`${eligible.slice(0, limit).map(v => Card(v, () => add(v.item.uid), "Add to the contract"))}
+              <${More} shown=${Math.min(limit, eligible.length)} total=${eligible.length} onMore=${() => setLimit(l => l + PAGE)} />`}
         </div>
       </div>
       <div class="tradeup-right">
@@ -523,6 +540,8 @@ export function InventoryPage() {
   const [sort, setSort] = useState("newest");
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(null);
+  const [limit, setLimit] = useState(PAGE);
+  useEffect(() => setLimit(PAGE), [q, tab, sort, grade, wear, fromCase, onlyST, onlyFav, minP, maxP]);
   if (!state) return html`<${Page} title="Inventory" />`;
 
   const cur = state.currency;
@@ -596,7 +615,7 @@ export function InventoryPage() {
       ${items.length === 0
         ? html`<div class="empty"><${Icon} name="key" size=${32} /><div>${state.items.length ? "Nothing matches." : "Your inventory is empty. Open cases to get skins."}</div>
             ${!state.items.length && html`<div style="margin-top:12px"><${Button} kind="prominent" onClick=${() => navigate("cases")}>Open Cases<//></div>`}</div>`
-        : html`<div class="cs-grid">${items.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (open === v.item.uid ? " selected" : "")}
+        : html`<div class="cs-grid">${items.slice(0, limit).map(v => html`<button key=${v.item.uid} class=${"cs-item" + (open === v.item.uid ? " selected" : "")}
             style=${`--c:${v.item.color}`} onClick=${() => setOpen(open === v.item.uid ? null : v.item.uid)}>
           <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
           <span class=${"fav" + (favs.has(v.item.uid) ? " on" : "")} role="button" title="Favorite" onClick=${e => { e.stopPropagation(); toggleFav(v.item.uid); }}>★</span>
@@ -608,7 +627,7 @@ export function InventoryPage() {
             <div class="fin">${v.finish}</div>
           </div>
           <div class="price">${money(v.price, cur)}</div>
-        </button>`)}</div>`}
+        </button>`)}<${More} shown=${Math.min(limit, items.length)} total=${items.length} onMore=${() => setLimit(l => l + PAGE)} /></div>`}
       ${selected && html`<${Inspect} v=${selected} cur=${cur} close=${() => setOpen(null)} />`}
     </div>`}
   <//>`;
