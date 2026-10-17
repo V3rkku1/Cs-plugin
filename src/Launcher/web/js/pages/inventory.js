@@ -71,8 +71,6 @@ function StickerSheet({ uid, close }) {
   const [sel, setSel] = useState(null);
   const [drag, setDrag] = useState(null); // { slot, x, y } while dragging
   const [local, setLocal] = useState({}); // slot -> edits not saved yet
-  const [placing, setPlacing] = useState(null); // a sticker from the inventory waiting for a click on the gun
-  const [ghost, setGhost] = useState(null); // where it would land, in % of the gun picture
   const [zoom, setZoom] = useState(1);
   const box = useRef(), stage = useRef(), live = useRef();
   const v = inv?.items.find(x => x.item.uid === uid);
@@ -89,12 +87,11 @@ function StickerSheet({ uid, close }) {
       .then(() => setLocal(l => { const c = { ...l }; delete c[slot]; return c; }));
   };
   const clamp = n => Math.max(-1, Math.min(1, n));
-  live.current = { placing, current, drag, save };
-  // Arrow keys nudge the selected sticker (Shift: bigger steps). Esc while placing only stops placing (capture: before the sheet closes).
+  live.current = { current, drag, save };
+  // Arrow keys nudge the selected sticker (Shift: bigger steps).
   useEffect(() => {
     const key = e => {
-      const { placing, current, drag, save } = live.current;
-      if (e.key === "Escape" && placing) { e.stopPropagation(); setPlacing(null); setGhost(null); return; }
+      const { current, drag, save } = live.current;
       if (!current || drag || e.target.closest?.("input, textarea")) return;
       const step = e.shiftKey ? 0.05 : 0.01;
       const d = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, step], ArrowDown: [0, -step] }[e.key];
@@ -102,8 +99,8 @@ function StickerSheet({ uid, close }) {
       e.preventDefault();
       save(current.slot, { offsetX: clamp(current.offsetX + d[0]), offsetY: clamp(current.offsetY + d[1]) });
     };
-    window.addEventListener("keydown", key, true);
-    return () => window.removeEventListener("keydown", key, true);
+    window.addEventListener("keydown", key);
+    return () => window.removeEventListener("keydown", key);
   }, []);
   // Zooming keeps the selected sticker (or the middle of the gun) in view.
   useEffect(() => {
@@ -115,17 +112,13 @@ function StickerSheet({ uid, close }) {
   }, [zoom]);
   if (!v) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
 
-  // A new sticker takes the free slot nearest to where it goes, so its offset stays small (and in range).
-  const nearestFree = left => [0, 1, 2, 3, 4].filter(n => stickers.every(st => st.slot !== n))
-    .sort((a, b) => Math.abs(slotX(gun.def, a) * 100 + 50 - left) - Math.abs(slotX(gun.def, b) * 100 + 50 - left))[0];
-  const nextSlot = placing && ghost ? nearestFree(ghost.left) : null;
+  const freeSlot = [0, 1, 2, 3, 4].find(n => stickers.every(st => st.slot !== n));
   const toOffset = (e, slot) => {
     const r = box.current.getBoundingClientRect();
     return { x: ((e.clientX - r.left) / r.width - 0.5 - slotX(gun.def, slot)) / 0.45, y: -((e.clientY - r.top) / r.height - 0.5) / 0.4 };
   };
   // The sticker keeps the spot you grabbed it at (dx, dy) instead of jumping under the cursor.
   const down = (e, slot) => {
-    if (placing) return;
     e.preventDefault(); e.stopPropagation(); setSel(slot);
     const st = stickers.find(x => x.slot === slot), p = toOffset(e, slot);
     setDrag({ slot, x: st.offsetX, y: st.offsetY, dx: st.offsetX - p.x, dy: st.offsetY - p.y });
@@ -133,18 +126,19 @@ function StickerSheet({ uid, close }) {
   };
   const move = e => {
     if (drag) { const p = toOffset(e, drag.slot); setDrag({ ...drag, x: clamp(p.x + drag.dx), y: clamp(p.y + drag.dy) }); }
-    else if (placing) { const r = box.current.getBoundingClientRect(); setGhost({ left: (e.clientX - r.left) / r.width * 100, top: (e.clientY - r.top) / r.height * 100 }); }
   };
   const up = () => { if (drag) { save(drag.slot, { offsetX: drag.x, offsetY: drag.y }); setDrag(null); } };
-  const place = async e => {
-    if (!placing) return;
-    const r = box.current.getBoundingClientRect();
-    const slot = nearestFree((e.clientX - r.left) / r.width * 100), p = toOffset(e, slot);
-    const st = placing;
-    setPlacing(null); setGhost(null);
-    await tryCall("inventory.applySticker", { gun: uid, sticker: st.uid, slot, offsetX: clamp(p.x), offsetY: clamp(p.y), rotation: 0, scale: 1 });
-    setSel(slot);
+  // A sticker from the inventory goes on at once (its slot's spot, selected); then drag it, or click the gun to move it there.
+  const apply = async c => {
+    const slot = freeSlot;
+    if (slot == null) return;
+    await call("inventory.applySticker", { gun: uid, sticker: c.uid, slot, offsetX: 0, offsetY: 0, rotation: 0, scale: 1 }).then(() => setSel(slot), () => {});
     reloadChoices();
+  };
+  const moveHere = e => {
+    if (!current) return;
+    const p = toOffset(e, current.slot);
+    save(current.slot, { offsetX: clamp(p.x), offsetY: clamp(p.y) });
   };
   const scrape = async () => {
     if (await confirm({ title: "Scrape off?", message: `${current.name} comes off the gun for good (like in CS2).`, ok: "Scrape Off", danger: true })) {
@@ -156,16 +150,15 @@ function StickerSheet({ uid, close }) {
 
   return html`<div class="picker sticker-editor">
     <div class="picker-head"><h2>Stickers · ${v.weapon} | ${v.finish}</h2>
-      <span class="faint small">${placing ? html`<b class="note-place">Click on the gun where ${placing.name} goes.</b> Esc or Cancel to stop.`
-        : "Pick a sticker below, then click on the gun to put it there. Drag to move, arrow keys to nudge. Check it in game with F (inspect): equipped guns change within a second."}</span></div>
+      <span class="faint small">Click a sticker below to put it on. Then drag it, or click on the gun to move the selected one there; arrow keys nudge. Check it in game with F (inspect): equipped guns change within a second.</span></div>
     <div class="sticker-layout">
       <div class="sticker-left">
-        <div class=${"sticker-stage" + (placing ? " placing" : "")} ref=${stage}>
-          <div class="sticker-canvas" ref=${box} style=${`width:${zoom * 100}%`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${() => { up(); setGhost(null); }} onClick=${place}>
+        <div class=${"sticker-stage" + (current ? " placing" : "")} ref=${stage}>
+          <div class="sticker-canvas" ref=${box} style=${`width:${zoom * 100}%`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up} onClick=${moveHere}>
             <${ItemPic} src=${gun.image} size=${1024} />
             ${[0, 1, 2, 3, 4].map(n => {
               const at = spot(gun.def, n, 0, 0);
-              return html`<div key=${"m" + n} class=${"slot-mark" + (n === nextSlot ? " next" : "")} style=${`left:${at.left}%;top:${at.top}%`}>${n + 1}</div>`;
+              return html`<div key=${"m" + n} class=${"slot-mark" + (n === freeSlot ? " next" : "")} style=${`left:${at.left}%;top:${at.top}%`}>${n + 1}</div>`;
             })}
             ${stickers.map(st => {
               const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
@@ -174,15 +167,12 @@ function StickerSheet({ uid, close }) {
                 style=${`left:${at.left}%;top:${at.top}%;width:${11 * st.scale}%;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
                 <${ItemPic} src=${st.image} size=${128} /></div>`;
             })}
-            ${placing && ghost && html`<div class="placed ghost" style=${`left:${ghost.left}%;top:${ghost.top}%;width:11%;transform:translate(-50%,-50%)`}>
-              <${ItemPic} src=${placing.image} size=${128} /></div>`}
           </div>
         </div>
         <div class="hstack sticker-zoom">
           <span class="faint small">Zoom</span>
           <${Segmented} options=${[{ value: 1, label: "1×" }, { value: 1.6, label: "1.6×" }, { value: 2.4, label: "2.4×" }]} value=${zoom} onChange=${setZoom} />
           <div class="grow"></div>
-          ${placing && html`<${Button} size="sm" onClick=${() => { setPlacing(null); setGhost(null); }}>Cancel<//>`}
         </div>
       </div>
       <div class="sticker-side">
@@ -212,12 +202,12 @@ function StickerSheet({ uid, close }) {
             <${Button} size="sm" kind="destructive" onClick=${scrape}>Scrape Off<//>
           </div>
         </div>`}
-        <div class="field-label">Your stickers ${stickers.length >= 5 ? "· the gun is full" : "· click one, then click the gun"}</div>
+        <div class="field-label">Your stickers ${stickers.length >= 5 ? "· the gun is full" : "· click one to put it on"}</div>
         <div class="sticker-choices scroll">
           ${!choices ? html`<div class="faint small">Loading…</div>`
             : choices.length === 0 ? html`<div class="faint small">No stickers in your inventory. Open sticker capsules on the Cases page.</div>`
-            : choices.map(c => html`<button key=${c.uid} class=${"slot" + (placing?.uid === c.uid ? " selected" : "")} style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
-                title=${`Place ${c.name}`} onClick=${() => { setSel(null); setPlacing(placing?.uid === c.uid ? null : c); }}><${ItemPic} src=${c.image} size=${128} /></button>`)}
+            : choices.map(c => html`<button key=${c.uid} class="slot" style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
+                title=${`Put on ${c.name}`} onClick=${() => apply(c)}><${ItemPic} src=${c.image} size=${128} /></button>`)}
         </div>
       </div>
     </div>
