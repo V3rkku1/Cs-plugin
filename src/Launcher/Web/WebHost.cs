@@ -186,8 +186,9 @@ public static class WebFiles
     {
         if (DevDir != null)
         {
-            var full = Path.GetFullPath(Path.Combine(DevDir, path));
-            return full.StartsWith(Path.GetFullPath(DevDir)) && File.Exists(full) ? File.ReadAllBytes(full) : null;
+            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(DevDir)) + Path.DirectorySeparatorChar;
+            var full = Path.GetFullPath(Path.Combine(root, path));
+            return full.StartsWith(root, StringComparison.OrdinalIgnoreCase) && File.Exists(full) ? File.ReadAllBytes(full) : null;
         }
         if (!Names.TryGetValue("web/" + path.Replace('\\', '/'), out var name)) return null;
         using var stream = typeof(WebFiles).Assembly.GetManifestResourceStream(name);

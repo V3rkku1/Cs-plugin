@@ -685,4 +685,4 @@ browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
 - The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms, agents, pins)
   and the function signature come from [cs2-WeaponPaints](https://github.com/Nereziel/cs2-WeaponPaints) by Nereziel.
-- Launcher font: [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License, `assets/fonts/Inter-LICENSE.txt`).
+- Launcher font: [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License, `src/Launcher/web/fonts/Inter-LICENSE.txt`).

@@ -77,7 +77,6 @@ public partial class Api
         }
 
         var outcomes = Outcomes(pool, inputs);
-        var prices = PricesNow();
         double? inputValue = inputs.All(i => PriceOf(i) != null) ? inputs.Sum(i => PriceOf(i) ?? 0) : null;
         double? expected = outcomes.All(o => o.Price != null) ? outcomes.Sum(o => o.Chance * (o.Price ?? 0)) : null;
         var ok = inputs.Count == needed;
