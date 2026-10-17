@@ -19,4 +19,7 @@ public class ServerStatus
     public long Time { get; set; }
 
     public const string FileName = "status.json";
+
+    /// <summary>Written (unix seconds) when Metamod loads the plugin: the server has read gameinfo.gi by then.</summary>
+    public const string LoadedFileName = "loaded.txt";
 }

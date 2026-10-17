@@ -29,18 +29,19 @@ public partial class Api
     private bool _startGameAfterWorkshop;
     private DateTime? _serverUpSince, _workshopSentAt;
 
-    // CS2 joins only once the server reports it is up: start the game, or (after a server restart with
-    // the game left open) reconnect it.
-    private enum JoinWhenUp { None, StartGame, Reconnect }
+    // CS2 joins once the server is up: start the game (as soon as the server has read gameinfo.gi, so
+    // both load at once), or (after a server restart with the game left open) reconnect it. CheckJoined:
+    // the game was started early; if it hasn't joined a while after the server is up, it is sent again.
+    private enum JoinWhenUp { None, StartGame, Reconnect, CheckJoined }
     private JoinWhenUp _joinWhenUp;
     private DateTime? _joinUpSince, _joinAskedAt;
     private bool WaitingForWorkshop => _pendingWorkshopId != null;
 
     partial void Init()
     {
-        // The old pages polled every 2 seconds; one timer on the window thread does it for all of them
-        // and only tells the page when something it shows has changed.
-        var poll = new System.Windows.Forms.Timer { Interval = 2000 };
+        // One timer on the window thread polls for every page (every second, so CS2 starts without
+        // delay) and only tells the page when something it shows has changed.
+        var poll = new System.Windows.Forms.Timer { Interval = 1000 };
         poll.Tick += (_, _) => PollServer();
         poll.Start();
         RouterPort.Changed += App.NotifyChanged;
@@ -327,7 +328,7 @@ public partial class Api
             if (server.Friends != ServerSettings.FriendsNetwork.Lan)
                 App.Log($"Friends mode: {(server.Friends == ServerSettings.FriendsNetwork.Vpn ? "Radmin / VPN" : "internet (UPnP)")} (sv_lan 0, unlisted, VAC off).");
             App.Log(!server.AutoStartGame ? "Server only - press \"Open CS2\" when you want to join."
-                : startGame ? $"CS2 starts as soon as the server has loaded. If it doesn't join: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
+                : startGame ? $"CS2 starts while the server loads and joins when it is up. If it doesn't join: console (~) → connect 127.0.0.1:{ServerSettings.Port}"
                 : "CS2 starts by itself as soon as the server has downloaded and loaded the Workshop map.");
         }
         catch (Exception ex)
@@ -561,7 +562,7 @@ public partial class Api
         _joinAskedAt = what == JoinWhenUp.None ? null : DateTime.UtcNow;
     }
 
-    /// <summary>Starts or reconnects CS2 a few seconds after the server reports it is up.</summary>
+    /// <summary>Starts CS2 while the server loads, or reconnects it once the server reports it is up.</summary>
     private void HandleJoinWhenUp(ServerStatus? status)
     {
         if (_joinWhenUp == JoinWhenUp.None || App.Game == null) return;
@@ -575,10 +576,23 @@ public partial class Api
         if (status == null)
         {
             _joinUpSince = null;
+            if (_joinWhenUp == JoinWhenUp.StartGame) StartGameEarly();
             return;
         }
         _joinUpSince ??= now;
-        if (now - _joinUpSince < TimeSpan.FromSeconds(3)) return; // let the map finish loading
+        if (_joinWhenUp == JoinWhenUp.CheckJoined)
+        {
+            if (status.Humans > 0 || !TestSession.ClientRunning()) SetJoinWhenUp(JoinWhenUp.None);
+            else if (now - _joinUpSince >= TimeSpan.FromSeconds(30))
+            {
+                // CS2 gave up connecting before the map was up: send it again.
+                SetJoinWhenUp(JoinWhenUp.None);
+                try { TestSession.ReconnectClient(App.Settings.Server.Password); }
+                catch (Exception ex) { App.Log("Could not make CS2 join: " + ex.Message); }
+            }
+            return;
+        }
+        if (now - _joinUpSince < TimeSpan.FromSeconds(2)) return; // let the map finish loading
         var what = _joinWhenUp;
         SetJoinWhenUp(JoinWhenUp.None);
         try
@@ -596,6 +610,32 @@ public partial class Api
         }
         catch (Exception ex)
         {
+            App.Log("Could not start CS2: " + ex.Message);
+        }
+    }
+
+    /// <summary>Starts CS2 once the server has read gameinfo.gi, without waiting for the map to load.</summary>
+    private void StartGameEarly()
+    {
+        if (TestSession.ClientRunning()) return;
+        var session = new TestSession(App.Game!);
+        try
+        {
+            if (!session.IsolateClientEarly()) return;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return; // gameinfo.gi is busy: try again on the next tick, or start once the server is up
+        }
+        SetJoinWhenUp(JoinWhenUp.CheckJoined);
+        try
+        {
+            session.StartGame(App.Settings.Server);
+            App.Log("Server is loading - starting CS2 (VAC off), it joins when the map is up...");
+        }
+        catch (Exception ex)
+        {
+            SetJoinWhenUp(JoinWhenUp.None);
             App.Log("Could not start CS2: " + ex.Message);
         }
     }
