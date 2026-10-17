@@ -263,3 +263,23 @@ public class RetakeSeatsTests
     public void ValveRetakesMakesRoomForPeople(int onWanted, int wantedSeats, int onOther, int otherSeats, bool bot, Seats.RoomMove expected) =>
         Assert.Equal(expected, Seats.MakeRoom(onWanted, wantedSeats, onOther, otherSeats, bot));
 }
+
+public class OwnSkinsTests
+{
+    [Fact]
+    public void LoadoutSurvivesTheTripThroughConsoleChunks()
+    {
+        var loadout = new PlayerLoadout { Knife = 507, Gloves = 5030, Pin = 6101 };
+        loadout.Skins[7] = new SkinSettings { Paint = 44, Wear = 0.0712f, Seed = 661, StatTrak = true,
+            Stickers = [new StickerSettings { Slot = 2, Id = 4321, OffsetX = 0.25f, OffsetY = -0.1f }] };
+        for (ushort d = 1; d < 40; d++) loadout.SkinsT[d] = new SkinSettings { Paint = 300 + d, Nametag = "long name tag " + d };
+
+        var chunks = LoadoutCodec.Encode(loadout);
+        Assert.True(chunks.Count > 1);
+        // Only characters a console argument keeps as they are.
+        Assert.All(chunks, c => Assert.Matches("^[A-Za-z0-9_=-]{1,200}$", c));
+        var back = LoadoutCodec.Decode(chunks)!;
+        Assert.Equal(System.Text.Json.JsonSerializer.Serialize(loadout), System.Text.Json.JsonSerializer.Serialize(back));
+        Assert.Null(LoadoutCodec.Decode(["not a loadout!"]));
+    }
+}

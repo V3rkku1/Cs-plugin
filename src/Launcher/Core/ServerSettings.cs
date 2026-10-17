@@ -542,7 +542,8 @@ public class ServerSettings
         var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
         var pass = string.IsNullOrWhiteSpace(password) ? "" : $"+password \"{password.Trim()}\" ";
         var exec = WriteClientCfg(game) ? $"+exec {ClientCfg} " : "";
-        return $"-insecure {extra} {exec}{pass}+connect {address}".Replace("  ", " ");
+        // -netconport: the launcher can type in this CS2's console (sends your skins on a friend's server).
+        return $"-insecure -netconport {ClientConsole.Port} -netconpassword {ClientConsole.Password} {extra} {exec}{pass}+connect {address}".Replace("  ", " ");
     }
 
     public const string ClientCfg = "lanskintester_client";

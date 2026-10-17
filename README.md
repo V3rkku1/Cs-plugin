@@ -197,6 +197,11 @@ cached), with the Steam Community Market for anything it lacks. USD, EUR or GBP 
 your server. The owner's admin code (Cases page › *Admin code*) turns on Inventory ›
 *Add Item* (any skin, knife, glove, sticker, agent, pin or music kit) on that PC; *back to unbox only* locks it again.
 
+**Your skins on a friend's server:** when you join with *Join a Friend*, your launcher writes your loadout to
+`cfg/lst_myskins.cfg` and runs it in your CS2 (through its local console port) while you play, so the friend's
+plugin gives you your own skins, even when they share theirs with everyone. Both launchers need this version.
+If they don't show, open the console (~) and type `exec lst_myskins`.
+
 **Logs** (Live Server › *Logs*): the launcher's activity, the server console (`console.log`) and the
 CounterStrikeSharp log, with search and *Errors only*. **Copy Logs** (also in Ctrl+K) copies all of them as one
 block, errors first, ready to paste when asking for help.

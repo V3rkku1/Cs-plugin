@@ -148,6 +148,11 @@ public class LoadoutStore
         return loadout;
     }
 
+    /// <summary>The loadout under this key, or null (unlike <see cref="Get"/>, doesn't create one).</summary>
+    public PlayerLoadout? Find(string key) => _loadouts.GetValueOrDefault(key);
+
+    public void Set(string key, PlayerLoadout loadout) => _loadouts[key] = loadout;
+
     // Write to a temp file and swap it in, so the other side never reads a half-written file.
     public void Save()
     {
@@ -155,5 +160,34 @@ public class LoadoutStore
         File.WriteAllText(temp, JsonSerializer.Serialize(_loadouts, JsonOptions));
         File.Move(temp, _path, overwrite: true);
         _lastWriteUtc = File.GetLastWriteTimeUtc(_path);
+    }
+}
+
+/// <summary>
+/// A loadout as console-safe text chunks, so a friend's launcher can hand its loadout to the host's plugin
+/// through the game (css_myskins PART TOTAL CHUNK lines in a cfg the friend's CS2 runs).
+/// </summary>
+public static class LoadoutCodec
+{
+    public const int ChunkLength = 200;
+    public const int MaxChunks = 200;
+
+    public static List<string> Encode(PlayerLoadout loadout)
+    {
+        var text = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(JsonSerializer.Serialize(loadout)))
+            .Replace('+', '-').Replace('/', '_'); // + and / are fine, but keep to letters, digits, - _ =
+        return Enumerable.Range(0, (text.Length + ChunkLength - 1) / ChunkLength)
+            .Select(i => text.Substring(i * ChunkLength, Math.Min(ChunkLength, text.Length - i * ChunkLength))).ToList();
+    }
+
+    /// <summary>Null when the chunks don't make a valid loadout.</summary>
+    public static PlayerLoadout? Decode(IEnumerable<string> chunks)
+    {
+        try
+        {
+            var bytes = Convert.FromBase64String(string.Concat(chunks).Replace('-', '+').Replace('_', '/'));
+            return JsonSerializer.Deserialize<PlayerLoadout>(bytes);
+        }
+        catch (Exception e) when (e is FormatException or JsonException) { return null; }
     }
 }

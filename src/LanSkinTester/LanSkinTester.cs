@@ -147,10 +147,14 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     private void RefreshEveryone(string message)
     {
         foreach (var player in Utilities.GetPlayers().Where(p => IsHumanPlayer(p) && p.PawnIsAlive))
-        {
-            var weapons = player.PlayerPawn.Value?.WeaponServices?.MyWeapons;
-            if (weapons == null) continue;
+            RefreshPlayer(player, message);
+    }
 
+    private void RefreshPlayer(CCSPlayerController player, string message)
+    {
+        var weapons = player.PawnIsAlive ? player.PlayerPawn.Value?.WeaponServices?.MyWeapons : null;
+        if (weapons != null) // dead players get it on their next spawn
+        {
             var skinnable = weapons
                 .Select(h => h.Value)
                 .Where(w => w != null && w.IsValid &&
@@ -160,8 +164,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             foreach (var weapon in skinnable) RefreshWeapon(player, weapon!);
             ApplyAgentAndPin(player);
             ApplyGloves(player);
-            Reply(player, message);
         }
+        Reply(player, message);
     }
 
     private void WriteStatus()
@@ -1098,7 +1102,10 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     // The host (on this PC, or the launcher's Steam account) always gets the launcher's loadout.
     private PlayerLoadout GetLoadout(CCSPlayerController player)
     {
-        if (SharedLoadout || IsHost(player)) return _store.Get(LoadoutStore.LocalKey);
+        if (IsHost(player)) return _store.Get(LoadoutStore.LocalKey);
+        // A friend whose launcher sent their own skins (css_myskins) wears those.
+        if (_store.Find(OwnKey(player)) is { } own) return own;
+        if (SharedLoadout) return _store.Get(LoadoutStore.LocalKey);
         return _store.Get(player.SteamID != 0 ? player.SteamID.ToString() : "name:" + player.PlayerName);
     }
 

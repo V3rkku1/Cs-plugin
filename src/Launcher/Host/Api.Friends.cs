@@ -207,12 +207,32 @@ public partial class Api
             }
             Toast($"Joining {target.Address}…");
             Remember(target);
+            SendMySkins(game);
         }
         catch (Exception ex)
         {
             App.Log("Could not join: " + ex.Message);
             throw new ApiException("Could not join: " + ex.Message);
         }
+    }
+
+    /// <summary>Your own skins on the friend's server (their plugin wears them for you); see <see cref="ClientConsole"/>.</summary>
+    private void SendMySkins(GameFolder game)
+    {
+        var started = DateTime.UtcNow;
+        void Refresh()
+        {
+            var l = ReadLoadout();
+            var cfg = Path.Combine(game.Csgo, "cfg", ClientConsole.SkinsCfg + ".cfg");
+            var empty = l.Skins.Count + l.SkinsT.Count + l.SkinsCT.Count == 0 && l.Knife == 0 && l.Gloves == 0
+                        && l.AgentT == null && l.AgentCT == null && l.Pin == 0 && l.MusicKit == 0;
+            if (empty || !ClientConsole.WriteSkinsCfg(game, l)) File.Delete(cfg);
+        }
+        try { Refresh(); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not write your skins for the friend's server: " + ex.Message); return; }
+        // Until CS2 closes (it may take a while to start), and not while you host your own server.
+        ClientConsole.StartSendingSkins(() => (TestSession.Cs2Running() || DateTime.UtcNow - started < TimeSpan.FromSeconds(90)) && TestSession.FindServer() == null, Refresh);
+        App.Log($"Your skins go along to the friend's server (their launcher must be up to date). If they don't show: console (~) → exec {ClientConsole.SkinsCfg}");
     }
 
     private void Remember(JoinTarget target)
