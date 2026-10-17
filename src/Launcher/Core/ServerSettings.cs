@@ -136,9 +136,8 @@ public class ServerSettings
     public bool BotHider { get; set; }
     public bool DeathmatchPlugin { get; set; }
 
-    /// <summary>Downloaded bot plugins: ed0ard's Bot Improver suite, BotAI on its own, and XBribo's Bot Controller.</summary>
-    public bool BotImprover { get; set; }
-    public bool BotAi { get; set; }
+    /// <summary>Downloaded bot plugins: ed0ard's Bot Improver suite (includes BotAI) and XBribo's Bot Controller.</summary>
+    public bool BotImprover { get; set; } = true;
     public bool BotController { get; set; }
 
     /// <summary>Bot Improver's console commands: bot_aim, bot_nades and the forced weapon ("ak47"; "" = normal buying).</summary>

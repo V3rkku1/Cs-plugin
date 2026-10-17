@@ -525,9 +525,6 @@ public partial class Api
         if (server.BotImprover)
             await DownloadRetakePlugin(game, "Bot Improver", () => Installer.BotImproverInstalled(game),
                 i => i.InstallBotImproverAsync(), "Check your internet connection, or turn Bot Improver off (Live Server › Server Plugins).");
-        if (server.BotAi && !server.BotImprover)
-            await DownloadRetakePlugin(game, "BotAI", () => Installer.BotAiInstalled(game),
-                i => i.InstallBotAiAsync(), "Check your internet connection, or turn BotAI off.");
         if (server.BotController && !server.BotImprover)
             await DownloadRetakePlugin(game, "Bot Controller", () => Installer.BotControllerInstalled(game),
                 i => i.InstallBotControllerAsync(), "Check your internet connection, or turn Bot Controller off.");
