@@ -117,6 +117,22 @@ public class ServerSettings
     /// <summary>Most players per side in classic modes (people and bots).</summary>
     public int TeamSizeT { get; set; } = 5;
     public int TeamSizeCT { get; set; } = 5;
+
+    /// <summary>Per map (Workshop id or map name): team sizes {T, CT} saved with "Save for this map".</summary>
+    public Dictionary<string, int[]> MapTeamSizes { get; set; } = new();
+
+    /// <summary>Per Workshop map id: the game mode it was last played in (movement hubs want Custom).</summary>
+    public Dictionary<string, string> MapModes { get; set; } = new();
+
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string MapKey => WorkshopMapId ?? Map;
+
+    public void RememberMapMode() { if (WorkshopMapId is { } id) MapModes[id] = Mode; }
+
+    public void RecallMapMode()
+    {
+        if (WorkshopMapId is { } id && MapModes.TryGetValue(id, out var m) && Modes.Any(x => x.Name == m)) Mode = m;
+    }
     public int Difficulty { get; set; } = 3;
     public int BotTeam { get; set; }
     public int BotWeapons { get; set; }
@@ -747,7 +763,8 @@ public class ServerSettings
         sb.AppendLine($"mp_limitteams {(IsRetakes ? 0 : 2)}");
         // Team sizes only for classic rounds: deathmatch and arms race are free-for-all, retakes have seats.
         var sized = !IsRetakes && mode.GameType is 0 or 3;
-        sb.AppendLine($"lst_team_sizes {(sized ? Math.Clamp(TeamSizeT, 1, 32) : 0)} {(sized ? Math.Clamp(TeamSizeCT, 1, 32) : 0)}");
+        var (sizeT, sizeCT) = MapTeamSizes.TryGetValue(MapKey, out var saved) && saved.Length == 2 ? (saved[0], saved[1]) : (TeamSizeT, TeamSizeCT);
+        sb.AppendLine($"lst_team_sizes {(sized ? Math.Clamp(sizeT, 1, 32) : 0)} {(sized ? Math.Clamp(sizeCT, 1, 32) : 0)}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
             sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");

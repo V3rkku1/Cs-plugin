@@ -38,7 +38,8 @@ public partial class Api
     public record OpenResult(List<ReelItem> Reel, int Win, InventoryView Item, double Cost);
 
     /// <summary>An inventory item as the pages show it: its price now, whether it's equipped, and its name split like CS2 shows it.</summary>
-    public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category);
+    public record InventoryView(InventoryItem Item, double? Price, bool Equipped, string MarketName, string Weapon, string Finish, string Category,
+        bool EquippedT, bool EquippedCT);
     public record InventoryState(List<InventoryView> Items, double Total, string Currency, bool Admin, double Wallet, bool UseWallet);
 
     private static string InventoryFile => Path.Combine(AppState.LauncherDataDir, "inventory.json");
@@ -226,6 +227,8 @@ public partial class Api
         {
             case "skin":
                 loadout.Skins.Remove(item.Def);
+                loadout.SkinsT.Remove(item.Def);
+                loadout.SkinsCT.Remove(item.Def);
                 if (loadout.Knife == item.Def) loadout.Knife = 0;
                 if (loadout.Gloves == item.Def) loadout.Gloves = 0;
                 break;
@@ -269,8 +272,7 @@ public partial class Api
     {
         var equipped = i.Kind switch
         {
-            "skin" => loadout.Skins.TryGetValue(i.Def, out var s) && s.Paint == i.Paint && s.Seed == i.Seed && Math.Abs(s.Wear - (i.Wear > 0 ? i.Wear : 0.01f)) < 0.0000005f
-                      && (!IsKnifeType(i.Def) || loadout.Knife == i.Def) && (!IsGloveType(i.Def) || loadout.Gloves == i.Def),
+            "skin" => Matches(loadout.Skins, i) && (!IsKnifeType(i.Def) || loadout.Knife == i.Def) && (!IsGloveType(i.Def) || loadout.Gloves == i.Def),
             "pin" => loadout.Pin == i.CollectibleId && i.CollectibleId > 0,
             "music" => loadout.MusicKit == i.CollectibleId && i.CollectibleId > 0,
             "agent" => i.ItemId != null && (loadout.AgentCT == i.ItemId || loadout.AgentT == i.ItemId),
@@ -283,7 +285,32 @@ public partial class Api
         var category = i.Kind != "skin" ? i.Kind switch { "sticker" or "patch" or "graffiti" => "graphics", _ => "other" }
             : IsKnifeType(i.Def) || IsGloveType(i.Def) ? "special" : "weapons";
         var market = PriceList.MarketName(i.Name, i.Kind == "skin", i.Paint != 0, i.Wear, i.StatTrak, i.Souvenir);
-        return new InventoryView(i, PricesNow().Price(market), equipped, market, weapon, finish, category);
+        // A side's own skin wins; otherwise the side wears the shared one.
+        bool OnSide(Dictionary<ushort, SkinSettings> side) => i.Kind == "skin" && (side.ContainsKey(i.Def) ? Matches(side, i) : equipped);
+        return new InventoryView(i, PricesNow().Price(market), equipped || OnSide(loadout.SkinsT) || OnSide(loadout.SkinsCT), market, weapon, finish, category,
+            OnSide(loadout.SkinsT), OnSide(loadout.SkinsCT));
+    }
+
+    private static bool Matches(Dictionary<ushort, SkinSettings> skins, InventoryItem i) =>
+        skins.TryGetValue(i.Def, out var s) && s.Paint == i.Paint && s.Seed == i.Seed && Math.Abs(s.Wear - (i.Wear > 0 ? i.Wear : 0.01f)) < 0.0000005f;
+
+    public record SideArgs(string Uid, int Team);
+
+    /// <summary>Puts a gun skin on one side only (2 = T, 3 = CT); the other side keeps what it had.</summary>
+    [Call("cases.equipSide")]
+    private void EquipSide(SideArgs a)
+    {
+        var item = Inventory().FirstOrDefault(i => i.Uid == a.Uid && i.Kind == "skin" && i.Def != 0) ?? throw new ApiException("That skin isn't in your inventory any more.");
+        if (a.Team is not (2 or 3) || IsKnifeType(item.Def) || IsGloveType(item.Def)) { EquipUnboxed(a.Uid); return; }
+        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var loadout = store.Get(LoadoutStore.LocalKey);
+        // The other side keeps the shared skin it had before this one became side-specific.
+        if (loadout.Skins.TryGetValue(item.Def, out var shared))
+            foreach (var side in new[] { loadout.SkinsT, loadout.SkinsCT }) side.TryAdd(item.Def, shared);
+        (a.Team == 2 ? loadout.SkinsT : loadout.SkinsCT)[item.Def] = SkinOf(item);
+        store.Save();
+        Toast(a.Team == 2 ? "Equipped for Terrorists." : "Equipped for Counter-Terrorists.", "good");
+        App.NotifyChanged();
     }
 
     private static string KindName(string kind) => kind switch
@@ -305,6 +332,8 @@ public partial class Api
                 if (IsGloveType(item.Def)) loadout.Gloves = item.Def;
                 var skin = SkinOf(item);
                 if (skin.HasCustomization || IsKnifeType(item.Def)) loadout.Skins[item.Def] = skin;
+                loadout.SkinsT.Remove(item.Def);
+                loadout.SkinsCT.Remove(item.Def);
                 break;
             case "pin" when item.CollectibleId > 0:
                 loadout.Pin = (ushort)item.CollectibleId;
@@ -571,11 +600,11 @@ public partial class Api
         {
             var store = new LoadoutStore(game.LoadoutFile);
             var loadout = store.Get(LoadoutStore.LocalKey);
-            if (View(old, loadout).Equipped)
-            {
-                loadout.Skins[updated.Def] = SkinOf(updated);
-                store.Save();
-            }
+            // The gun may be on the shared slot and/or one side: update each place it is worn.
+            var worn = false;
+            foreach (var skins in new[] { loadout.Skins, loadout.SkinsT, loadout.SkinsCT })
+                if (Matches(skins, old)) { skins[updated.Def] = SkinOf(updated); worn = true; }
+            if (worn) store.Save();
         }
         App.NotifyChanged();
     }

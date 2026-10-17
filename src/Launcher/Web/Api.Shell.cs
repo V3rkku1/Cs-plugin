@@ -217,6 +217,7 @@ public partial class Api
             _updateProgress = "Restarting";
             App.NotifyChanged();
             App.Log("Update downloaded - restarting the launcher.");
+            BackupUserData();
             Updater.ReplaceAfterExit(file);
             await OnUi(() =>
             {
@@ -289,5 +290,19 @@ public partial class Api
             catch (Exception ex) { MessageBox.Show(Window, "Could not restore gameinfo.gi: " + ex.Message); }
         }
         return true;
+    }
+
+    /// <summary>Copies inventory.json and loadouts.json to a dated folder before an update; keeps the last 5.</summary>
+    private void BackupUserData()
+    {
+        try
+        {
+            var root = Path.Combine(AppState.LauncherDataDir, "backups");
+            var dir = Directory.CreateDirectory(Path.Combine(root, DateTime.Now.ToString("yyyyMMdd-HHmmss"))).FullName;
+            foreach (var file in new[] { InventoryFile, App.Game?.LoadoutFile })
+                if (file != null && File.Exists(file)) File.Copy(file, Path.Combine(dir, Path.GetFileName(file)));
+            foreach (var old in Directory.GetDirectories(root).OrderByDescending(d => d).Skip(5)) Directory.Delete(old, true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not back up your data: " + ex.Message); }
     }
 }

@@ -14,7 +14,7 @@ namespace LanSkinTester.Launcher.Web;
 public partial class Api
 {
     public record WorkshopItem(string Id, string Title, string Preview, string Size, string Updated, bool Downloaded, bool Cs2, string Tags);
-    public record WorkshopState(bool HasGame, List<WorkshopItem> Downloaded, string? Hosting);
+    public record WorkshopState(bool HasGame, List<WorkshopItem> Downloaded, string? Hosting, string[] Modes, Dictionary<string, string> MapModes);
 
     /// <summary>Titles and pictures from Steam, kept for the launcher's run (they rarely change).</summary>
     private static readonly Dictionary<string, JsonElement> WorkshopDetails = new();
@@ -23,11 +23,12 @@ public partial class Api
     private async Task<WorkshopState> WorkshopStateNow()
     {
         var game = App.Game;
-        if (game == null) return new WorkshopState(false, [], null);
+        if (game == null) return new WorkshopState(false, [], null, [], []);
         var downloaded = WorkshopMaps.AllDownloaded(game).OrderByDescending(d => d.Updated).ToList();
         await LoadWorkshopDetails(downloaded.Select(d => d.Id));
         var items = downloaded.Select(d => ToItem(d.Id, true, d.Bytes, d.Updated)).ToList();
-        return new WorkshopState(true, items, App.TestModeOn ? App.Settings.Server.WorkshopMapId : null);
+        return new WorkshopState(true, items, App.TestModeOn ? App.Settings.Server.WorkshopMapId : null,
+            ServerSettings.Modes.Select(m => m.Name).ToArray(), App.Settings.Server.MapModes);
     }
 
     public record WorkshopSearch(string? Text, string? Sort, int Page);
@@ -72,11 +73,24 @@ public partial class Api
     }
 
     /// <summary>Hosts the map: switches the running server to it, or starts the server on it.</summary>
+    public record MapModeArgs(string Id, string Mode);
+
+    [Call("workshop.setMode")]
+    private void SetWorkshopMode(MapModeArgs a)
+    {
+        if (a.Mode != "" && ServerSettings.Modes.All(m => m.Name != a.Mode) || !Regex.IsMatch(a.Id ?? "", @"^\d{6,}$")) throw new ApiException("Unknown mode.");
+        if (a.Mode == "") App.Settings.Server.MapModes.Remove(a.Id);
+        else App.Settings.Server.MapModes[a.Id] = a.Mode;
+        SavePlaySettings();
+        App.NotifyChanged();
+    }
+
     [Call("workshop.host")]
     private async Task HostWorkshopMap(string id)
     {
         if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
         App.Settings.Server.WorkshopMap = id!;
+        App.Settings.Server.RecallMapMode();
         SavePlaySettings();
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());

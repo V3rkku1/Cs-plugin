@@ -190,6 +190,21 @@ public partial class Api
         App.Log("Repairing...");
         if (!App.TestModeOn) GameInfoPatcher.Disable(App.Game!.GameInfo); // leftover line from a crash
         await Step("plugin", () => StepWork(i, "plugin"));
+        // Download the add-ons the current settings use again (a damaged or half-updated copy is replaced).
+        var server = App.Settings.Server;
+        var addons = new List<(string Name, Func<Task> Install)>();
+        if (server.IsPluginRetakes)
+        {
+            addons.Add(("retakes plugin", () => i.InstallRetakesAsync()));
+            addons.Add(("instadefuse", () => i.InstallInstadefuseAsync()));
+        }
+        if (server.UsesAllocator) addons.Add(("retakes allocator", () => i.InstallAllocatorAsync()));
+        if (server.BotImprover) addons.Add(("Bot Improver", () => i.InstallBotImproverAsync()));
+        foreach (var (name, install) in addons)
+        {
+            try { await install(); App.Log($"Reinstalled {name}."); }
+            catch (Exception ex) { App.Log($"Could not reinstall {name}: {ex.Message}"); }
+        }
         App.AllowSkinsInCss();
         if (!App.Db.IsEmpty) App.Db.WritePluginSkinNames(App.Game!.SkinNamesDir);
         App.TryWriteCases();

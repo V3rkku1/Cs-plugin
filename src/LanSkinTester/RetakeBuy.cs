@@ -20,7 +20,9 @@ public partial class LanSkinTester
     private int _wFull = 1, _wForce, _wEco;
     private enum BuyRound { Full, Force, Eco }
     private static readonly int[] BuyMoney = [16000, 2900, 800];
-    private readonly Dictionary<(ulong Id, CsTeam Team), RetakeLoadout> _retakeLoadouts = new();
+    // Remembered per player, side and round type: the eco pistol, the force SMG and the full rifle each come back.
+    private readonly Dictionary<(ulong Id, CsTeam Team, BuyRound Round), RetakeLoadout> _retakeLoadouts = new();
+    private BuyRound _currentRound;
 
     private sealed class RetakeLoadout
     {
@@ -90,7 +92,7 @@ public partial class LanSkinTester
 
         // Same round type for everyone. Eco and force rounds are enforced by the money: 800 buys pistols and
         // armor only, 2900 a SMG or a cheap rifle. Allocator guns stay; the money is just for extras.
-        var round = PickBuyRound();
+        var round = _currentRound = PickBuyRound();
         foreach (var player in Humans())
         {
             if (!player.PawnIsAlive) continue;
@@ -103,11 +105,33 @@ public partial class LanSkinTester
             }
 
             if (round == BuyRound.Eco && !_retakeKeepGuns)
-                player.GiveNamedItem(player.Team == CsTeam.CounterTerrorist ? "weapon_hkp2000" : "weapon_glock");
-            if (round == BuyRound.Full && !_retakeKeepGuns && EquipRemembered(player))
+                player.GiveNamedItem(DefaultPistol(player));
+            if (!_retakeKeepGuns && EquipRemembered(player))
                 Reply(player, "Your guns are back. Buy if you want to change them.");
             else
                 Reply(player, $"{round} buy round: ${BuyMoney[(int)round]}. {_retakeBuySeconds} seconds.");
+            player.PrintToCenter($"{round.ToString().ToUpperInvariant()} ROUND  ·  ${BuyMoney[(int)round]}");
+        }
+        if (round != BuyRound.Full) LimitBots(round);
+    }
+
+    private static string DefaultPistol(CCSPlayerController p) => p.Team == CsTeam.CounterTerrorist ? "weapon_hkp2000" : "weapon_glock";
+
+    private static readonly string[] BigGuns =
+        ["weapon_ak47", "weapon_m4a1", "weapon_m4a1_silencer", "weapon_famas", "weapon_galilar", "weapon_sg556", "weapon_aug",
+         "weapon_awp", "weapon_ssg08", "weapon_scar20", "weapon_g3sg1", "weapon_m249", "weapon_negev"];
+
+    /// <summary>Bots obey the round type too: pistols only on an eco, no rifles or snipers on a force buy.</summary>
+    private void LimitBots(BuyRound round)
+    {
+        foreach (var bot in Utilities.GetPlayers().Where(p => p.IsValid && IsBotPlayer(p) && p.PawnIsAlive
+                                                              && p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist))
+        {
+            var held = bot.PlayerPawn.Value?.WeaponServices?.MyWeapons.Select(h => h.Value?.DesignerName).ToList() ?? new();
+            foreach (var gun in held.Where(n => n != null && (round == BuyRound.Eco ? IsPrimaryGun(n) && !ItemData.IsKnifeClassname(n) && !n.Contains("c4") : BigGuns.Contains(n))))
+                Utilities.RemoveItemByDesignerName(bot, gun!);
+            if (round == BuyRound.Eco) bot.GiveNamedItem(DefaultPistol(bot));
+            else if (held.Any(n => n != null && BigGuns.Contains(n))) bot.GiveNamedItem(bot.Team == CsTeam.CounterTerrorist ? "weapon_mp9" : "weapon_mac10");
         }
     }
 
@@ -118,7 +142,7 @@ public partial class LanSkinTester
             if (!player.IsValid || !player.PawnIsAlive) continue;
             if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) continue;
             var loadout = CaptureRetakeLoadout(player);
-            var key = (RetakePlayerId(player), player.Team);
+            var key = (RetakePlayerId(player), player.Team, _currentRound);
             // Armor alone is the plugin's free helmet. A remembered buy needs a gun or a grenade.
             if (loadout.Weapons.Count == 0)
                 _retakeLoadouts.Remove(key);
@@ -130,7 +154,7 @@ public partial class LanSkinTester
     private bool EquipRemembered(CCSPlayerController player)
     {
         if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return false;
-        if (!_retakeLoadouts.TryGetValue((RetakePlayerId(player), player.Team), out var loadout)) return false;
+        if (!_retakeLoadouts.TryGetValue((RetakePlayerId(player), player.Team, _currentRound), out var loadout)) return false;
         if (loadout.Weapons.Count == 0) return false;
 
         foreach (var name in loadout.Weapons)
