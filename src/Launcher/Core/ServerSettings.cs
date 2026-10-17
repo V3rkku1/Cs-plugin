@@ -85,8 +85,10 @@ public class ServerSettings
     /// <summary>0 = freeze-time buy, 1 = the retakes allocator (pistol, half-buy, rifle).</summary>
     public int RetakeWeapons { get; set; }
 
-    /// <summary>Plugin retakes: freeze time is a buy period. Kept in step with <see cref="RetakeWeapons"/>.</summary>
-    public bool RetakeBuy { get; set; } = true;
+    /// <summary>How often a plugin retakes round is a full buy, a force buy or an eco (weights, e.g. 100/0/0 = full buys only).</summary>
+    public int RetakeFullPercent { get; set; } = 100;
+    public int RetakeForcePercent { get; set; }
+    public int RetakeEcoPercent { get; set; }
 
     /// <summary>Plugin retakes: instadefuse when nothing can stop the defuse.</summary>
     public bool RetakeInstadefuse { get; set; } = true;
@@ -95,9 +97,9 @@ public class ServerSettings
     public bool UsesAllocator => IsPluginRetakes && RetakeWeapons == 1;
 
     [System.Text.Json.Serialization.JsonIgnore]
-    public bool UsesRetakeBuy => IsPluginRetakes && RetakeWeapons != 1;
+    public bool UsesRetakeBuy => IsPluginRetakes;
 
-    /// <summary>Seconds of freeze time to buy, when <see cref="RetakeBuy"/> is on.</summary>
+    /// <summary>Seconds of freeze time to buy, at the start of a retakes round.</summary>
     public int RetakeBuySeconds { get; set; } = 12;
 
     /// <summary>Plugin retakes: bomb timer in seconds.</summary>
@@ -447,7 +449,6 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 1;
             s.RetakeWeapons = 1;
-            s.RetakeBuy = false;
             s.RetakeInstadefuse = true;
         }),
         new("Retake buy", "Plugin retakes · you buy the guns", s =>
@@ -458,7 +459,6 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 1;
             s.RetakeWeapons = 0;
-            s.RetakeBuy = true;
             s.RetakeBuySeconds = 12;
             s.RetakeInstadefuse = true;
         }),
@@ -571,7 +571,8 @@ public class ServerSettings
         RetakeMaxPlayers = 9;
         RetakeTerroristPercent = 45;
         RetakeWeapons = 0;
-        RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeBuy = RetakeInstadefuse = true;
+        RetakeScramble = RetakeBalance = RetakeAutoPlant = RetakeAnnounce = RetakeAutoJoin = RetakeInstadefuse = true;
+        (RetakeFullPercent, RetakeForcePercent, RetakeEcoPercent) = (100, 0, 0);
         RetakeScrambleRounds = 5;
         RetakeBuySeconds = 12;
         RetakeBombTimer = 40;
@@ -586,8 +587,6 @@ public class ServerSettings
     public GameMode GetMode()
     {
         var mode = Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
-        // Workshop maps (movement hubs, surf...) start in casual: other modes' rules break on them.
-        if (WorkshopMapId != null && !IsRetakes) return Modes.First(m => m.Name == "Casual");
         // Plugin retakes runs on competitive rules. Valve's mode is game_type 0 / game_mode 5.
         if (IsPluginRetakes) return mode with { GameType = 0, Mode = 1 };
         return mode;
@@ -747,7 +746,7 @@ public class ServerSettings
         // A side that already has more players must not grey out in the team menu: retakes picks the sides.
         sb.AppendLine($"mp_limitteams {(IsRetakes ? 0 : 2)}");
         // Team sizes only for classic rounds: deathmatch and arms race are free-for-all, retakes have seats.
-        var sized = !IsRetakes && mode.GameType == 0;
+        var sized = !IsRetakes && mode.GameType is 0 or 3;
         sb.AppendLine($"lst_team_sizes {(sized ? Math.Clamp(TeamSizeT, 1, 32) : 0)} {(sized ? Math.Clamp(TeamSizeCT, 1, 32) : 0)}");
 
         if (mode.GameType == 1 && mode.Mode == 2)
@@ -763,6 +762,14 @@ public class ServerSettings
             sb.AppendLine($"mp_freezetime {seconds}");
             sb.AppendLine($"mp_buytime {seconds}");
             sb.AppendLine("mp_buy_anywhere 1");
+        }
+        else if (IsValveRetakes)
+        {
+            // Valve's cards give the guns; the buy menu stays open for changes at the start of the round.
+            sb.AppendLine("mp_maxmoney 16000");
+            sb.AppendLine("mp_startmoney 16000");
+            sb.AppendLine("mp_buy_anywhere 1");
+            sb.AppendLine($"mp_buytime {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         }
         else if (MaxMoney && !OwnsLoadout)
         {
@@ -808,7 +815,8 @@ public class ServerSettings
         sb.AppendLine($"mp_items_prohibited \"{string.Join(",", prohibited)}\"");
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin && !IsPluginRetakes)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
-        sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
+        sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)} {(UsesAllocator ? 1 : 0)} " +
+                      $"{Math.Clamp(RetakeFullPercent, 0, 100)} {Math.Clamp(RetakeForcePercent, 0, 100)} {Math.Clamp(RetakeEcoPercent, 0, 100)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the

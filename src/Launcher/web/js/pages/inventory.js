@@ -63,6 +63,10 @@ function Inspect({ v, cur, close }) {
 }
 
 /** CS2-style sticker editor for one gun: apply from your inventory, drag to place, turn, size, scrape. */
+// Each slot has its own spot on the gun (offset 0 = that spot), so stickers don't pile up in the middle.
+const SLOT_X = [-0.3, -0.15, 0, 0.15, 0.3];
+const spot = (slot, x, y) => ({ left: 50 + (SLOT_X[slot] + x * 0.45) * 100, top: 50 - y * 40 });
+
 function StickerSheet({ uid, close }) {
   const [inv] = useApi("cases.inventory");
   const [choices, reloadChoices] = useApi("inventory.stickers");
@@ -84,12 +88,19 @@ function StickerSheet({ uid, close }) {
     tryCall("inventory.placeSticker", { gun: uid, slot, offsetX: next.offsetX, offsetY: next.offsetY, rotation: next.rotation, scale: next.scale, wear: next.wear })
       .then(() => setLocal(l => { const c = { ...l }; delete c[slot]; return c; }));
   };
-  const toOffset = e => {
+  const toOffset = (e, slot) => {
     const r = box.current.getBoundingClientRect();
-    return { x: Math.max(-1, Math.min(1, ((e.clientX - r.left) / r.width - 0.5) / 0.45)), y: Math.max(-1, Math.min(1, -((e.clientY - r.top) / r.height - 0.5) / 0.4)) };
+    return { x: ((e.clientX - r.left) / r.width - 0.5 - SLOT_X[slot]) / 0.45, y: -((e.clientY - r.top) / r.height - 0.5) / 0.4 };
   };
-  const down = (e, slot) => { e.preventDefault(); setSel(slot); setDrag({ slot, ...toOffset(e) }); e.currentTarget.setPointerCapture?.(e.pointerId); };
-  const move = e => { if (drag) setDrag({ ...drag, ...toOffset(e) }); };
+  const clamp = n => Math.max(-1, Math.min(1, n));
+  // The sticker keeps the spot you grabbed it at (dx, dy) instead of jumping under the cursor.
+  const down = (e, slot) => {
+    e.preventDefault(); setSel(slot);
+    const st = stickers.find(x => x.slot === slot), p = toOffset(e, slot);
+    setDrag({ slot, x: st.offsetX, y: st.offsetY, dx: st.offsetX - p.x, dy: st.offsetY - p.y });
+    e.currentTarget.setPointerCapture?.(e.pointerId);
+  };
+  const move = e => { if (drag) { const p = toOffset(e, drag.slot); setDrag({ ...drag, x: clamp(p.x + drag.dx), y: clamp(p.y + drag.dy) }); } };
   const up = () => { if (drag) { save(drag.slot, { offsetX: drag.x, offsetY: drag.y }); setDrag(null); } };
   const apply = async stUid => {
     await tryCall("inventory.applySticker", { gun: uid, sticker: stUid, slot: 0, offsetX: 0, offsetY: 0, rotation: 0, scale: 1 });
@@ -110,8 +121,9 @@ function StickerSheet({ uid, close }) {
         <${Pic} src=${gun.image} size=${1024} />
         ${stickers.map(st => {
           const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
+          const at = spot(st.slot, x, y);
           return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)}
-            style=${`left:${50 + x * 45}%;top:${50 - y * 40}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
+            style=${`left:${at.left}%;top:${at.top}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
             <${Pic} src=${st.image} size=${128} /></div>`;
         })}
       </div>
@@ -297,6 +309,57 @@ function AddItemSheet({ close }) {
   </div>`;
 }
 
+// CS2's loadout screen: the weapons of each side by group, with the skin you have on. Team: 0 both, 2 T, 3 CT.
+const LOADOUT = [
+  { name: "Pistols", guns: [[4, "Glock-18", 2], [61, "USP-S", 3], [32, "P2000", 3], [2, "Dual Berettas", 0], [36, "P250", 0], [3, "Five-SeveN", 3], [30, "Tec-9", 2], [63, "CZ75-Auto", 0], [1, "Desert Eagle", 0], [64, "R8 Revolver", 0]] },
+  { name: "SMGs", guns: [[17, "MAC-10", 2], [34, "MP9", 3], [33, "MP7", 0], [23, "MP5-SD", 0], [24, "UMP-45", 0], [19, "P90", 0], [26, "PP-Bizon", 0]] },
+  { name: "Heavy", guns: [[35, "Nova", 0], [25, "XM1014", 0], [29, "Sawed-Off", 2], [27, "MAG-7", 3], [14, "M249", 0], [28, "Negev", 0]] },
+  { name: "Rifles", guns: [[7, "AK-47", 2], [16, "M4A4", 3], [60, "M4A1-S", 3], [13, "Galil AR", 2], [10, "FAMAS", 3], [39, "SG 553", 2], [8, "AUG", 3], [40, "SSG 08", 0], [9, "AWP", 0], [11, "G3SG1", 2], [38, "SCAR-20", 3]] },
+];
+const isGlove = v => /gloves|wraps/i.test(v.weapon);
+
+function LoadoutView({ items, cur }) {
+  const [team, setTeam] = useState(2);
+  const pick = async (title, mine) => {
+    const choice = await sheet(close => html`<div class="picker">
+      <div class="picker-head"><h2>${title}</h2><span class="faint small">Your skins for this slot. Pick one to put it on.</span></div>
+      <div class="picker-grid scroll">
+        ${mine.length === 0 ? html`<div class="empty small">None in your inventory. Open cases to get some.</div>`
+          : mine.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (v.equipped ? " selected" : "")} style=${`--c:${v.item.color}`} onClick=${() => close(v)}>
+              <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+              <div class="text"><div class="fin">${v.finish}</div><div class="weapon">${v.item.statTrak ? "StatTrak™ · " : ""}${wearName(v.item.wear)}</div></div>
+              <div class="price">${money(v.price, cur)}</div></button>`)}
+      </div>
+      <div class="picker-foot">${mine.some(v => v.equipped) && html`<${Button} onClick=${() => close("default")}>Use Default<//>`}<div class="grow"></div>
+        <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`, { wide: true });
+    if (choice === "default") tryCall("cases.unequip", mine.find(v => v.equipped).item.uid);
+    else if (choice && !choice.equipped) tryCall("cases.equip", choice.item.uid);
+  };
+  const slot = (key, name, mine) => {
+    const on = mine.find(v => v.equipped);
+    return html`<button key=${key} class=${"cs-item loadout-slot" + (on ? " selected" : "")} style=${`--c:${on?.item.color ?? "transparent"}`}
+        onClick=${() => pick(name, mine)}>
+      <div class="pic">${on ? html`<${Pic} src=${on.item.image} size=${256} />` : html`<${Icon} name="crosshair" size=${30} />`}</div>
+      <div class="text"><div class="weapon">${name}</div><div class="fin">${on ? on.finish : "Default"}</div></div>
+      <div class="price">${mine.length ? `${mine.length} owned` : ""}</div>
+    </button>`;
+  };
+  const skins = items.filter(v => v.item.kind === "skin");
+  const of = def => skins.filter(v => v.item.def === def);
+  const special = skins.filter(v => v.category === "special");
+  const knives = special.filter(v => !isGlove(v)), gloves = special.filter(isGlove);
+  return html`<div class="loadout">
+    <${Segmented} options=${[{ value: 2, label: "Terrorists" }, { value: 3, label: "Counter-Terrorists" }]} value=${team} onChange=${setTeam} />
+    <div class="loadout-group"><h3>Melee</h3><div class="cs-grid">
+      ${slot("knife", "Knife", knives)}
+    </div></div>
+    ${LOADOUT.map(g => html`<div class="loadout-group" key=${g.name}><h3>${g.name}</h3><div class="cs-grid">
+      ${g.guns.filter(([, , t]) => t === 0 || t === team).map(([def, name]) => slot(def, name, of(def)))}
+    </div></div>`)}
+    <div class="loadout-group"><h3>Gloves</h3><div class="cs-grid">${slot("gloves", "Gloves", gloves)}</div></div>
+  </div>`;
+}
+
 export function InventoryPage() {
   const [state] = useApi("cases.inventory");
   const [tab, setTab] = useState("all");
@@ -307,7 +370,7 @@ export function InventoryPage() {
 
   const cur = state.currency;
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
-  let items = state.items.filter(v => (tab === "all" || v.category === tab)
+  let items = state.items.filter(v => (tab === "all" || tab === "loadout" || v.category === tab)
     && words.every(w => `${v.item.name} ${v.item.caseName} ${v.item.grade}`.toLowerCase().includes(w)));
   const by = {
     newest: (a, b) => new Date(b.item.opened) - new Date(a.item.opened),
@@ -333,12 +396,13 @@ export function InventoryPage() {
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
-      <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
+      <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "loadout", label: "Loadout" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
         { value: "graphics", label: "Stickers & Graffiti" }, { value: "other", label: "Collectibles" }]} value=${tab} onChange=${setTab} />
       <div class="grow"><${TextField} icon="search" placeholder="Search inventory" value=${q} onInput=${setQ} /></div>
       <${Select} width=${150} value=${sort} onChange=${setSort}
         options=${[{ value: "newest", label: "Newest" }, { value: "rarity", label: "Rarity" }, { value: "price", label: "Price" }, { value: "name", label: "Name" }]} />
     </div>
+    ${tab === "loadout" ? html`<${LoadoutView} items=${state.items} cur=${cur} />` : html`
     <div class=${"inv-layout" + (selected ? " with-inspect" : "")}>
       ${items.length === 0
         ? html`<div class="empty"><${Icon} name="key" size=${32} /><div>${state.items.length ? "Nothing matches." : "Your inventory is empty. Open cases to get skins."}</div>
@@ -356,6 +420,6 @@ export function InventoryPage() {
           <div class="price">${money(v.price, cur)}</div>
         </button>`)}</div>`}
       ${selected && html`<${Inspect} v=${selected} cur=${cur} close=${() => setOpen(null)} />`}
-    </div>
+    </div>`}
   <//>`;
 }

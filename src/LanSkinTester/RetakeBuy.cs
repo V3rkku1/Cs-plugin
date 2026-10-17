@@ -15,7 +15,11 @@ public partial class LanSkinTester
 {
     private bool _retakeBuy;
     private int _retakeBuySeconds = 12;
-    private bool _retakeBuyListening;
+    private bool _retakeBuyListening, _retakeKeepGuns;
+    // How often a round is a full buy, a force buy or an eco (weights), and the money each one gets.
+    private int _wFull = 1, _wForce, _wEco;
+    private enum BuyRound { Full, Force, Eco }
+    private static readonly int[] BuyMoney = [16000, 2900, 800];
     private readonly Dictionary<(ulong Id, CsTeam Team), RetakeLoadout> _retakeLoadouts = new();
 
     private sealed class RetakeLoadout
@@ -26,8 +30,8 @@ public partial class LanSkinTester
         public bool Defuser;
     }
 
-    [ConsoleCommand("lst_retake_buy", "Plugin retakes buy period: lst_retake_buy 0|1 [seconds]")]
-    [CommandHelper(minArgs: 1, usage: "0|1 [seconds]", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    [ConsoleCommand("lst_retake_buy", "Plugin retakes buy period: lst_retake_buy 0|1 [seconds] [keepGuns] [full] [force] [eco]")]
+    [CommandHelper(minArgs: 1, usage: "0|1 [seconds] [keepGuns] [full] [force] [eco]", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnRetakeBuyCommand(CCSPlayerController? caller, CommandInfo cmd)
     {
         if (!_retakeBuyListening)
@@ -41,6 +45,19 @@ public partial class LanSkinTester
         _retakeBuy = on;
         if (cmd.ArgCount > 2 && int.TryParse(cmd.GetArg(2), out var seconds))
             _retakeBuySeconds = Math.Clamp(seconds, 4, 20);
+        _retakeKeepGuns = cmd.ArgCount > 3 && cmd.GetArg(3) == "1";
+        if (cmd.ArgCount > 6)
+        {
+            int W(int i) => int.TryParse(cmd.GetArg(i), out var n) ? Math.Clamp(n, 0, 100) : 0;
+            (_wFull, _wForce, _wEco) = (W(4), W(5), W(6));
+            if (_wFull + _wForce + _wEco == 0) _wFull = 1;
+        }
+    }
+
+    private BuyRound PickBuyRound()
+    {
+        var roll = Random.Shared.Next(_wFull + _wForce + _wEco);
+        return roll < _wFull ? BuyRound.Full : roll < _wFull + _wForce ? BuyRound.Force : BuyRound.Eco;
     }
 
     [GameEventHandler]
@@ -71,21 +88,26 @@ public partial class LanSkinTester
         Server.ExecuteCommand($"mp_buytime {_retakeBuySeconds}");
         Server.ExecuteCommand($"mp_freezetime {_retakeBuySeconds}");
 
+        // Same round type for everyone. Eco and force rounds are enforced by the money: 800 buys pistols and
+        // armor only, 2900 a SMG or a cheap rifle. Allocator guns stay; the money is just for extras.
+        var round = PickBuyRound();
         foreach (var player in Humans())
         {
             if (!player.PawnIsAlive) continue;
-            StripGuns(player);
+            if (!_retakeKeepGuns) StripGuns(player);
             var money = player.InGameMoneyServices;
             if (money != null)
             {
-                money.Account = 16000;
+                money.Account = BuyMoney[(int)round];
                 Utilities.SetStateChanged(player, "CCSPlayerController", "m_pInGameMoneyServices");
             }
 
-            if (EquipRemembered(player))
+            if (round == BuyRound.Eco && !_retakeKeepGuns)
+                player.GiveNamedItem(player.Team == CsTeam.CounterTerrorist ? "weapon_hkp2000" : "weapon_glock");
+            if (round == BuyRound.Full && !_retakeKeepGuns && EquipRemembered(player))
                 Reply(player, "Your guns are back. Buy if you want to change them.");
             else
-                Reply(player, $"Buy your guns. {_retakeBuySeconds} seconds.");
+                Reply(player, $"{round} buy round: ${BuyMoney[(int)round]}. {_retakeBuySeconds} seconds.");
         }
     }
 

@@ -869,7 +869,10 @@ public partial class Api
         s.RetakeTerroristPercent = Math.Clamp(s.RetakeTerroristPercent, 10, 80);
         s.RetakeScrambleRounds = Math.Clamp(s.RetakeScrambleRounds, 1, 30);
         s.RetakeWeapons = s.RetakeWeapons == 1 ? 1 : 0;
-        s.RetakeBuy = s.RetakeWeapons != 1;
+        s.RetakeFullPercent = Math.Clamp(s.RetakeFullPercent, 0, 100);
+        s.RetakeForcePercent = Math.Clamp(s.RetakeForcePercent, 0, 100);
+        s.RetakeEcoPercent = Math.Clamp(s.RetakeEcoPercent, 0, 100);
+        if (s.RetakeFullPercent + s.RetakeForcePercent + s.RetakeEcoPercent == 0) s.RetakeFullPercent = 100;
         s.RetakeBuySeconds = Math.Clamp(s.RetakeBuySeconds, 4, 20);
         s.RetakeBombTimer = Math.Clamp(s.RetakeBombTimer, 15, 60);
         s.WorkshopMap = (s.WorkshopMap ?? "").Trim();
