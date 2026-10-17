@@ -89,8 +89,7 @@ public partial class Api
     private async Task HostWorkshopMap(string id)
     {
         if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
-        App.Settings.Server.WorkshopMap = id!;
-        App.Settings.Server.RecallMapMode();
+        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id!);
         SavePlaySettings();
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());
