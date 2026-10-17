@@ -3,9 +3,9 @@ using System.Text.RegularExpressions;
 namespace LanSkinTester.Launcher.Core;
 
 /// <summary>Paths inside a CS2 install ("...\steamapps\common\Counter-Strike Global Offensive").</summary>
-public class GameFolder
+public class GameFolder(string root)
 {
-    public string Root { get; }
+    public string Root { get; } = root;
     public string Csgo => Path.Combine(Root, "game", "csgo");
     public string GameInfo => Path.Combine(Csgo, "gameinfo.gi");
     public string Exe => Path.Combine(Root, "game", "bin", "win64", "cs2.exe");
@@ -20,8 +20,6 @@ public class GameFolder
     public bool PluginInstalled => File.Exists(Path.Combine(PluginDir, "LanSkinTester.dll"));
     public bool SkinNamesInstalled => Directory.Exists(SkinNamesDir) && Directory.GetFiles(SkinNamesDir, "*.json").Length > 0;
 
-    public GameFolder(string root) => Root = root;
-
     public static bool IsValid(string? root) => root != null && File.Exists(Path.Combine(root, "game", "csgo", "gameinfo.gi"));
 
     /// <summary>Looks through every Steam library for CS2.</summary>
@@ -33,15 +31,9 @@ public class GameFolder
             libraries.Add(steamPath);
             var vdf = Path.Combine(steamPath, "steamapps", "libraryfolders.vdf");
             if (File.Exists(vdf))
-            {
-                foreach (Match m in Regex.Matches(File.ReadAllText(vdf), "\"path\"\\s+\"([^\"]+)\""))
-                    libraries.Add(m.Groups[1].Value.Replace(@"\\", @"\"));
-            }
+                libraries.AddRange(Regex.Matches(File.ReadAllText(vdf), "\"path\"\\s+\"([^\"]+)\"").Select(m => m.Groups[1].Value.Replace(@"\\", @"\")));
         }
         libraries.Add(@"C:\Program Files (x86)\Steam");
-
-        return libraries
-            .Select(lib => Path.Combine(lib, "steamapps", "common", "Counter-Strike Global Offensive"))
-            .FirstOrDefault(IsValid);
+        return libraries.Select(lib => Path.Combine(lib, "steamapps", "common", "Counter-Strike Global Offensive")).FirstOrDefault(IsValid);
     }
 }

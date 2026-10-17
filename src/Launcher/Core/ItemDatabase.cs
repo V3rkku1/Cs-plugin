@@ -4,6 +4,8 @@ using System.Text.Json.Nodes;
 
 namespace LanSkinTester.Launcher.Core;
 
+// The records below are also the on-disk cache format: renaming a property loses users' cached data.
+
 public record WeaponInfo(ushort DefIndex, string Name, string Category, string Image);
 
 public record SkinInfo(
@@ -40,8 +42,7 @@ public class ItemDatabase
 {
     private const string Api = "https://raw.githubusercontent.com/ByMykel/CSGO-API/main/public/api/en/";
 
-    public static string DataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanSkinTester", "data");
+    public static string DataDir => Path.Combine(AppState.LauncherDataDir, "data");
 
     public List<WeaponInfo> Weapons { get; private set; } = new();
     public List<SkinInfo> Skins { get; private set; } = new();
@@ -57,6 +58,7 @@ public class ItemDatabase
     private Dictionary<(ushort, int), SkinInfo> _byPaint = new();
     private Dictionary<int, StickerInfo> _stickersById = new();
     private Dictionary<int, StickerInfo> _charmsById = new();
+    private Dictionary<string, ushort>? _weaponsByName;
 
     public SkinInfo? Find(ushort defIndex, int paint) => _byPaint.GetValueOrDefault((defIndex, paint));
     public StickerInfo? Sticker(int id) => _stickersById.GetValueOrDefault(id);
@@ -66,25 +68,33 @@ public class ItemDatabase
 
     public static ItemDatabase LoadCached(string dir)
     {
-        var db = new ItemDatabase();
+        List<T> Load<T>(string file) =>
+            File.Exists(Path.Combine(dir, file)) ? JsonSerializer.Deserialize<List<T>>(File.ReadAllText(Path.Combine(dir, file))) ?? new() : new();
+        ItemDatabase db;
         try
         {
-            db.Weapons = Read<List<WeaponInfo>>(Path.Combine(dir, "weapons.json")) ?? new();
-            db.Skins = Read<List<SkinInfo>>(Path.Combine(dir, "skins.json")) ?? new();
-            db.Stickers = Read<List<StickerInfo>>(Path.Combine(dir, "stickers.json")) ?? new();
-            db.Charms = Read<List<StickerInfo>>(Path.Combine(dir, "charms.json")) ?? new();
-            db.Agents = Read<List<AgentInfo>>(Path.Combine(dir, "agents.json")) ?? new();
-            db.Pins = Read<List<PinInfo>>(Path.Combine(dir, "pins.json")) ?? new();
-            db.MusicKits = Read<List<MusicKitInfo>>(Path.Combine(dir, "musickits.json")) ?? new();
-            db.Cases = Read<List<CaseInfo>>(Path.Combine(dir, "cases.json")) ?? new();
-            // An older launcher saved cases without their type and pictures: download again to get them.
-            if (db.Cases.Any(c => c.Type == null || c.Items.Any(i => i.Id == null))) db.Cases = new();
+            db = new ItemDatabase
+            {
+                Weapons = Load<WeaponInfo>("weapons.json"),
+                Skins = Load<SkinInfo>("skins.json"),
+                Stickers = Load<StickerInfo>("stickers.json"),
+                Charms = Load<StickerInfo>("charms.json"),
+                Agents = Load<AgentInfo>("agents.json"),
+                Pins = Load<PinInfo>("pins.json"),
+                MusicKits = Load<MusicKitInfo>("musickits.json"),
+                Cases = Load<CaseInfo>("cases.json"),
+            };
         }
         catch (Exception e) when (e is JsonException or IOException)
         {
             return new ItemDatabase();
         }
-        db.Index();
+        // An older launcher saved cases without their type and pictures: download again to get them.
+        if (db.Cases.Any(c => c.Type == null || c.Items.Any(i => i.Id == null))) db.Cases = new();
+        db._byPaint = new();
+        foreach (var s in db.Skins) db._byPaint.TryAdd((s.DefIndex, s.Paint), s);
+        db._stickersById = db.Stickers.GroupBy(s => s.Id).ToDictionary(g => g.Key, g => g.First());
+        db._charmsById = db.Charms.GroupBy(s => s.Id).ToDictionary(g => g.Key, g => g.First());
         return db;
     }
 
@@ -92,31 +102,32 @@ public class ItemDatabase
     public static async Task DownloadAsync(HttpClient http, string dir, Action<string> log)
     {
         Directory.CreateDirectory(dir);
+        async Task<List<T>> Get<T>(string file, Func<JsonNode, T?> parse, string? message) where T : class
+        {
+            if (message != null) log(message);
+            await using var stream = await http.GetStreamAsync(Api + file);
+            var array = (JsonArray)(await JsonNode.ParseAsync(stream))!;
+            return array.Where(n => n != null).Select(n => parse(n!)).OfType<T>().ToList();
+        }
 
-        log("Downloading weapon list...");
-        var weapons = Convert(await GetArray(http, "base_weapons.json"), ParseWeapon);
-        log("Downloading skin list...");
-        var skins = Convert(await GetArray(http, "skins.json"), ParseSkin);
-        log("Downloading sticker list (big, ~20 MB)...");
-        var stickers = Convert(await GetArray(http, "stickers.json"), ParseSticker);
-        log("Downloading charm list...");
-        var charms = Convert(await GetArray(http, "keychains.json"), ParseSticker);
-        log("Downloading agents and pins...");
-        var agents = Convert(await GetArray(http, "agents.json"), ParseAgent);
-        var pins = Convert(await GetArray(http, "collectibles.json"), ParsePin);
-        log("Downloading music kits...");
-        var musicKits = Convert(await GetArray(http, "music_kits.json"), ParseMusicKit);
-        log("Downloading weapon cases...");
-        var cases = Convert(await GetArray(http, "crates.json"), ParseCase);
+        var weapons = await Get("base_weapons.json", ParseWeapon, "Downloading weapon list...");
+        var skins = await Get("skins.json", ParseSkin, "Downloading skin list...");
+        var stickers = await Get("stickers.json", ParseSticker, "Downloading sticker list (big, ~20 MB)...");
+        var charms = await Get("keychains.json", ParseSticker, "Downloading charm list...");
+        var agents = await Get("agents.json", ParseAgent, "Downloading agents and pins...");
+        var pins = await Get("collectibles.json", ParsePin, null);
+        var musicKits = await Get("music_kits.json", ParseMusicKit, "Downloading music kits...");
+        var cases = await Get("crates.json", ParseCase, "Downloading weapon cases...");
 
-        Write(Path.Combine(dir, "weapons.json"), weapons);
-        Write(Path.Combine(dir, "skins.json"), skins);
-        Write(Path.Combine(dir, "stickers.json"), stickers);
-        Write(Path.Combine(dir, "charms.json"), charms);
-        Write(Path.Combine(dir, "agents.json"), agents);
-        Write(Path.Combine(dir, "pins.json"), pins);
-        Write(Path.Combine(dir, "musickits.json"), musicKits);
-        Write(Path.Combine(dir, "cases.json"), cases);
+        void Write<T>(string file, T value) => File.WriteAllText(Path.Combine(dir, file), JsonSerializer.Serialize(value));
+        Write("weapons.json", weapons);
+        Write("skins.json", skins);
+        Write("stickers.json", stickers);
+        Write("charms.json", charms);
+        Write("agents.json", agents);
+        Write("pins.json", pins);
+        Write("musickits.json", musicKits);
+        Write("cases.json", cases);
         log($"Item data ready: {skins.Count} skins, {stickers.Count} stickers, {charms.Count} charms, {agents.Count} agents, " +
             $"{pins.Count} pins, {musicKits.Count} music kits.");
     }
@@ -128,63 +139,8 @@ public class ItemDatabase
         // Older launcher versions put WeaponPaints files here; one source avoids duplicates.
         foreach (var old in new[] { "skins_en.json", "gloves_en.json" })
             File.Delete(Path.Combine(skinNamesDir, old));
-
-        var list = Skins.Select(s => new
-        {
-            weapon_defindex = s.DefIndex,
-            paint = s.Paint,
-            paint_name = s.FullName,
-            legacy_model = s.Legacy,
-        });
+        var list = Skins.Select(s => new { weapon_defindex = s.DefIndex, paint = s.Paint, paint_name = s.FullName, legacy_model = s.Legacy });
         File.WriteAllText(Path.Combine(skinNamesDir, "skins.json"), JsonSerializer.Serialize(list));
-    }
-
-    private void Index()
-    {
-        _byPaint = new();
-        foreach (var s in Skins) _byPaint.TryAdd((s.DefIndex, s.Paint), s);
-        _stickersById = Stickers.GroupBy(s => s.Id).ToDictionary(g => g.Key, g => g.First());
-        _charmsById = Charms.GroupBy(s => s.Id).ToDictionary(g => g.Key, g => g.First());
-    }
-
-    // ---- ByMykel JSON -> compact records ----
-
-    private static WeaponInfo? ParseWeapon(JsonNode n)
-    {
-        var def = Int(n["def_index"]);
-        var category = n["category"]?["name"]?.GetValue<string>() ?? "";
-        if (def == 0 || category is not ("Pistols" or "Rifles" or "SMGs" or "Heavy" or "Knives" or "Gloves" or "Equipment")) return null;
-        if (def is 42 or 59 or 5028 or 5029) return null; // default team knives/gloves
-        return new WeaponInfo((ushort)def, Str(n["name"]), category, Str(n["image"]));
-    }
-
-    private static AgentInfo? ParseAgent(JsonNode n)
-    {
-        var model = Str(n["model_player"]);
-        var team = Str(n["team"]?["id"]) switch { "terrorists" => "T", "counter-terrorists" => "CT", _ => "" };
-        if (!model.StartsWith("agents/models/") || team == "") return null;
-        return new AgentInfo(Str(n["name"]), team, model, Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
-    }
-
-    private static PinInfo? ParsePin(JsonNode n)
-    {
-        var id = Int(n["def_index"]);
-        if (Str(n["type"]) != "Pin" || id is <= 0 or > ushort.MaxValue) return null;
-        return new PinInfo(id, Str(n["name"]), Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
-    }
-
-    private static CaseInfo? ParseCase(JsonNode n)
-    {
-        var type = Str(n["type"]);
-        if (type == "" || n["contains"] is not JsonArray contains || contains.Count == 0) return null;
-        static List<CaseItem> Items(JsonNode? list) => list is JsonArray a
-            ? a.Where(x => x != null).Select(x => new CaseItem(Str(x!["id"]), Str(x["name"]), Int(x["paint_index"]), Str(x["rarity"]?["name"]),
-                Str(x["rarity"]?["color"]), Str(x["image"]), x["phase"]?.GetValueKind() == JsonValueKind.String ? x["phase"]!.GetValue<string>() : null))
-                .Where(i => i.Name != "").ToList()
-            : new List<CaseItem>();
-        // The case's own "Rare Special Item" picture (the gold card the game shows in the reel).
-        var rareImage = Str(n["loot_list"]?["image"]);
-        return new CaseInfo(Str(n["id"]), Str(n["name"]), Str(n["image"]), type, Items(contains), Items(n["contains_rare"]), rareImage == "" ? null : rareImage);
     }
 
     /// <summary>
@@ -201,16 +157,11 @@ public class ItemDatabase
             var skin = item.Paint != 0 ? Find(def, item.Paint) : null;
             return new { def, paint = item.Paint, name = item.Name.Replace("★", "").Trim(), rarity = item.Rarity, min = skin?.MinFloat ?? 0f, max = skin?.MaxFloat ?? 1f };
         }
-        var list = Cases.Where(c => c.Type == "Case").Select(c => new
-        {
-            name = c.Name,
-            items = c.Items.Select(Item).Where(i => i != null).ToList(),
-            rare = c.Rare.Select(Item).Where(i => i != null).ToList(),
-        }).Where(c => c.items.Count > 0).ToList();
+        var list = Cases.Where(c => c.Type == "Case")
+            .Select(c => new { name = c.Name, items = c.Items.Select(Item).OfType<object>().ToList(), rare = c.Rare.Select(Item).OfType<object>().ToList() })
+            .Where(c => c.items.Count > 0).ToList();
         File.WriteAllText(Path.Combine(casesDir, "cases.json"), JsonSerializer.Serialize(list));
     }
-
-    private Dictionary<string, ushort>? _weaponsByName;
 
     /// <summary>The weapon (or knife / gloves) a "★ Karambit | Fade" style name is for, or null for stickers and such.</summary>
     public ushort? WeaponOfItem(string itemName)
@@ -222,13 +173,57 @@ public class ItemDatabase
         return _weaponsByName.TryGetValue((bar < 0 ? name : name[..bar]).Trim(), out var def) ? def : null;
     }
 
+    // ---- ByMykel JSON -> compact records ----
+
+    private static (string Name, string Color) Rarity(JsonNode n) => (Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]));
+
+    private static WeaponInfo? ParseWeapon(JsonNode n)
+    {
+        var def = Int(n["def_index"]);
+        var category = n["category"]?["name"]?.GetValue<string>() ?? "";
+        if (def == 0 || category is not ("Pistols" or "Rifles" or "SMGs" or "Heavy" or "Knives" or "Gloves" or "Equipment")) return null;
+        if (def is 42 or 59 or 5028 or 5029) return null; // default team knives/gloves
+        return new WeaponInfo((ushort)def, Str(n["name"]), category, Str(n["image"]));
+    }
+
+    private static AgentInfo? ParseAgent(JsonNode n)
+    {
+        var model = Str(n["model_player"]);
+        var team = Str(n["team"]?["id"]) switch { "terrorists" => "T", "counter-terrorists" => "CT", _ => "" };
+        if (!model.StartsWith("agents/models/") || team == "") return null;
+        var (rarity, color) = Rarity(n);
+        return new AgentInfo(Str(n["name"]), team, model, rarity, color, Str(n["image"]));
+    }
+
+    private static PinInfo? ParsePin(JsonNode n)
+    {
+        var id = Int(n["def_index"]);
+        if (Str(n["type"]) != "Pin" || id is <= 0 or > ushort.MaxValue) return null;
+        var (rarity, color) = Rarity(n);
+        return new PinInfo(id, Str(n["name"]), rarity, color, Str(n["image"]));
+    }
+
+    private static CaseInfo? ParseCase(JsonNode n)
+    {
+        var type = Str(n["type"]);
+        if (type == "" || n["contains"] is not JsonArray { Count: > 0 } contains) return null;
+        static List<CaseItem> Items(JsonNode? list) => list is JsonArray a
+            ? a.OfType<JsonNode>().Select(x => new CaseItem(Str(x["id"]), Str(x["name"]), Int(x["paint_index"]), Rarity(x).Name, Rarity(x).Color,
+                Str(x["image"]), x["phase"]?.GetValueKind() == JsonValueKind.String ? x["phase"]!.GetValue<string>() : null))
+                .Where(i => i.Name != "").ToList()
+            : new();
+        // The case's own "Rare Special Item" picture (the gold card the game shows in the reel).
+        var rareImage = Str(n["loot_list"]?["image"]);
+        return new CaseInfo(Str(n["id"]), Str(n["name"]), Str(n["image"]), type, Items(contains), Items(n["contains_rare"]), rareImage == "" ? null : rareImage);
+    }
+
     /// <summary>Each kit is listed twice, plain and StatTrak ("music_kit-3_st"); the plain one is enough.</summary>
     private static MusicKitInfo? ParseMusicKit(JsonNode n)
     {
         var id = Int(n["def_index"]);
         if (id is <= 0 or > ushort.MaxValue || Str(n["id"]).EndsWith("_st")) return null;
-        var name = Str(n["name"]).Replace("StatTrak™ ", "").Replace("Music Kit | ", "");
-        return new MusicKitInfo(id, name, Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]));
+        var (rarity, color) = Rarity(n);
+        return new MusicKitInfo(id, Str(n["name"]).Replace("StatTrak™ ", "").Replace("Music Kit | ", ""), rarity, color, Str(n["image"]));
     }
 
     private static SkinInfo? ParseSkin(JsonNode n)
@@ -239,13 +234,11 @@ public class ItemDatabase
 
         var name = Str(n["name"]).Replace("★ ", "");
         var bar = name.IndexOf('|');
-        var weapon = Str(n["weapon"]?["name"]);
         var finish = bar < 0 ? Str(n["pattern"]?["name"]) : name[(bar + 1)..].Trim();
         var phase = n["phase"]?.GetValue<string>();
-
-        return new SkinInfo((ushort)def, paint, weapon, finish, string.IsNullOrEmpty(phase) ? null : phase,
-            Str(n["category"]?["name"]), Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]),
-            Float(n["min_float"], 0), Float(n["max_float"], 1), Str(n["image"]),
+        var (rarity, color) = Rarity(n);
+        return new SkinInfo((ushort)def, paint, Str(n["weapon"]?["name"]), finish, string.IsNullOrEmpty(phase) ? null : phase,
+            Str(n["category"]?["name"]), rarity, color, Float(n["min_float"], 0), Float(n["max_float"], 1), Str(n["image"]),
             n["legacy_model"]?.GetValue<bool>() ?? false, n["stattrak"]?.GetValue<bool>() ?? false);
     }
 
@@ -256,21 +249,9 @@ public class ItemDatabase
         var name = Str(n["name"]);
         foreach (var prefix in new[] { "Sticker | ", "Charm | " })
             if (name.StartsWith(prefix)) name = name[prefix.Length..];
-        return new StickerInfo(id, name, Str(n["rarity"]?["name"]), Str(n["rarity"]?["color"]), Str(n["image"]), Str(n["effect"]));
+        var (rarity, color) = Rarity(n);
+        return new StickerInfo(id, name, rarity, color, Str(n["image"]), Str(n["effect"]));
     }
-
-    private static async Task<JsonArray> GetArray(HttpClient http, string file)
-    {
-        await using var stream = await http.GetStreamAsync(Api + file);
-        return (JsonArray)(await JsonNode.ParseAsync(stream))!;
-    }
-
-    private static List<T> Convert<T>(JsonArray array, Func<JsonNode, T?> parse) where T : class =>
-        array.Where(n => n != null).Select(n => parse(n!)).Where(x => x != null).Select(x => x!).ToList();
-
-    private static T? Read<T>(string path) => File.Exists(path) ? JsonSerializer.Deserialize<T>(File.ReadAllText(path)) : default;
-
-    private static void Write<T>(string path, T value) => File.WriteAllText(path, JsonSerializer.Serialize(value));
 
     private static string Str(JsonNode? n) => n?.GetValueKind() == JsonValueKind.String ? n.GetValue<string>() : "";
 

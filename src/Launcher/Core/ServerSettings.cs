@@ -1,6 +1,9 @@
 using System.Reflection;
 using System.Text;
+using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 
 namespace LanSkinTester.Launcher.Core;
 
@@ -53,7 +56,7 @@ public class ServerSettings
         return true;
     }
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool IsRetakes => Mode == RetakesMode;
 
     /// <summary>0 = Valve's built-in retakes, 1 = B3none's cs2-retakes plugin.</summary>
@@ -61,10 +64,10 @@ public class ServerSettings
 
     public static readonly string[] RetakeStyles = ["Valve", "Plugin"];
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool IsPluginRetakes => IsRetakes && RetakeStyle == 1;
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool IsValveRetakes => IsRetakes && RetakeStyle != 1;
 
     /// <summary>Plugin retakes: players in the match, including you (2-10).</summary>
@@ -93,10 +96,10 @@ public class ServerSettings
     /// <summary>Plugin retakes: instadefuse when nothing can stop the defuse.</summary>
     public bool RetakeInstadefuse { get; set; } = true;
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool UsesAllocator => IsPluginRetakes && RetakeWeapons == 1;
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool UsesRetakeBuy => IsPluginRetakes;
 
     /// <summary>Seconds of freeze time to buy, at the start of a retakes round.</summary>
@@ -124,7 +127,7 @@ public class ServerSettings
     /// <summary>Per Workshop map id: the game mode it was last played in (movement hubs want Custom).</summary>
     public Dictionary<string, string> MapModes { get; set; } = new();
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public string MapKey => WorkshopMapId ?? Map;
 
     public void RememberMapMode() { if (WorkshopMapId is { } id) MapModes[id] = Mode; }
@@ -185,8 +188,8 @@ public class ServerSettings
     public IEnumerable<string> BotImproverCommands()
     {
         if (!BotImprover) yield break;
-        yield return $"bot_aim {BotAimModes[Math.Clamp(BotAim, 0, BotAimModes.Length - 1)]}";
-        yield return $"bot_nades {BotNadeModes[Math.Clamp(BotNades, 0, BotNadeModes.Length - 1)]}";
+        yield return $"bot_aim {Pick(BotAimModes, BotAim)}";
+        yield return $"bot_nades {Pick(BotNadeModes, BotNades)}";
     }
 
     /// <summary>
@@ -204,7 +207,7 @@ public class ServerSettings
     };
 
     /// <summary>Every bot gets one weapon (Bot Improver's "Bots Buy").</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool ForcesBotWeapon => BotImprover && BotLoadoutFor(BotForceWeapon) != null;
 
     private bool ForcesBotSniper => ForcesBotWeapon && BotForceWeapon is "awp" or "ssg08" or "scar20" or "g3sg1";
@@ -265,7 +268,7 @@ public class ServerSettings
     public bool NoFallDamage { get; set; }
     public bool AutoBhop { get; set; }
 
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool UsesDeathmatchPlugin => DeathmatchPlugin && Mode == "Deathmatch";
 
     /// <summary>Round length in minutes; 0 = the game mode's default.</summary>
@@ -291,24 +294,19 @@ public class ServerSettings
     /// sv_lan 0: friends over Radmin / the internet, or the server has to download a Workshop map
     /// itself (an sv_lan 1 server is offline from Steam and can't).
     /// </summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool PrivateServer => Friends != FriendsNetwork.Lan || WorkshopNeedsDownload;
 
-    /// <summary>The Workshop map copied into csgo\maps for this session (see <see cref="WorkshopMaps"/>), or null.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
-    public string? LocalWorkshopMap { get; private set; }
-
-    [System.Text.Json.Serialization.JsonIgnore]
-    public bool WorkshopNeedsDownload => WorkshopMapId != null && LocalWorkshopMap == null;
+    [JsonIgnore]
+    public bool WorkshopNeedsDownload => WorkshopMapId != null;
 
     /// <summary>
     /// Workshop maps always load the official way (host_workshop_map, server online). Copying the
     /// downloaded .vpk into csgo\maps broke maps that Steam stores as a split archive (_dir/_000)
-    /// and crashed the server, so that is no longer done; old copies are cleaned up.
+    /// and crashed the server, so that is no longer done; copies an older launcher made are cleaned up.
     /// </summary>
-    public void PrepareWorkshopMap(GameFolder game, bool forFriends)
+    public static void PrepareWorkshopMap(GameFolder game)
     {
-        LocalWorkshopMap = null;
         try { WorkshopMaps.RemoveCopies(game); }
         catch (Exception) { /* not important */ }
     }
@@ -320,9 +318,7 @@ public class ServerSettings
     /// server is up (PlayPage).
     /// </summary>
     private string MapCommand(bool running) =>
-        LocalWorkshopMap != null ? $"{(running ? "changelevel" : "map")} {LocalWorkshopMap}"
-        : WorkshopMapId != null && running ? $"host_workshop_map {WorkshopMapId}"
-        : $"{(running ? "changelevel" : "map")} {Map}";
+        WorkshopMapId != null && running ? $"host_workshop_map {WorkshopMapId}" : $"{(running ? "changelevel" : "map")} {Map}";
 
     /// <summary>Everyone uses the launcher's loadout (off = each friend picks skins in chat; the host keeps the launcher's).</summary>
     public bool SharedSkins { get; set; } = true;
@@ -641,7 +637,7 @@ public class ServerSettings
         // Retake team sizes have to be set before the map loads (they decide the slot count).
         var skirmish = IsValveRetakes ? 12 : 0;
         var retake = IsValveRetakes ? " +mp_retake_t_count 3 +mp_retake_ct_count 4" : "";
-        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {(PrivateServer ? 0 : 1)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake} +{MapCommand(running: false)}";
+        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {B(!PrivateServer)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake} +{MapCommand(running: false)}";
     }
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
@@ -649,10 +645,12 @@ public class ServerSettings
     {
         get
         {
-            var m = System.Text.RegularExpressions.Regex.Match(WorkshopMap ?? "", @"(\d{6,})");
+            var m = WorkshopIdPattern.Match(WorkshopMap ?? "");
             return m.Success ? m.Groups[1].Value : null;
         }
     }
+
+    private static readonly Regex WorkshopIdPattern = new(@"(\d{6,})");
 
     public const int Port = 27015;
 
@@ -674,7 +672,7 @@ public class ServerSettings
     public static string? CleanKey(string? key)
     {
         key = (key ?? "").Trim().ToLowerInvariant();
-        return System.Text.RegularExpressions.Regex.IsMatch(key, "^[a-z0-9_]{1,16}$") ? key : null;
+        return Regex.IsMatch(key, "^[a-z0-9_]{1,16}$") ? key : null;
     }
 
     /// <summary>
@@ -721,6 +719,9 @@ public class ServerSettings
 
     private static int B(bool on) => on ? 1 : 0;
 
+    /// <summary>The entry at <paramref name="index"/>, clamped into the list.</summary>
+    private static string Pick(string[] list, int index) => list[Math.Clamp(index, 0, list.Length - 1)];
+
     public string ToCfg()
     {
         var mode = GetMode();
@@ -728,9 +729,9 @@ public class ServerSettings
         var sb = new StringBuilder();
         sb.AppendLine("// Written by the LAN Skin Tester launcher - changes here are overwritten.");
         sb.AppendLine("sv_hibernate_when_empty 0"); // keep running with nobody connected (launcher commands, bots)
-        sb.AppendLine($"sv_lan {(PrivateServer ? 0 : 1)}");
-        sb.AppendLine($"lst_private_server {(PrivateServer ? 1 : 0)}");
-        sb.AppendLine($"lst_shared_loadout {(SharedSkins ? 1 : 0)}");
+        sb.AppendLine($"sv_lan {B(!PrivateServer)}");
+        sb.AppendLine($"lst_private_server {B(PrivateServer)}");
+        sb.AppendLine($"lst_shared_loadout {B(SharedSkins)}");
         sb.AppendLine($"lst_host_account {ActiveSteamAccount()}");
         sb.AppendLine($"sv_password \"{(Password ?? "").Replace("\"", "").Trim()}\"");
 
@@ -738,14 +739,14 @@ public class ServerSettings
         sb.AppendLine("sv_cheats 1");
         // 1 = the magazine never empties; 2 = spare ammo never runs out (you still reload).
         sb.AppendLine($"sv_infinite_ammo {(InfiniteAmmo ? 1 : ReloadOnKill ? 2 : 0)}");
-        sb.AppendLine($"bot_dont_shoot {(BotsDontShoot ? 1 : 0)}");
+        sb.AppendLine($"bot_dont_shoot {B(BotsDontShoot)}");
         sb.AppendLine($"sv_gravity {(LowGravity ? 220 : 800)}");
         sb.AppendLine($"sv_airaccelerate {(LowGravity || AutoBhop ? 2000 : 12)}");
         sb.AppendLine($"sv_autobunnyhopping {B(AutoBhop)}");
         sb.AppendLine($"sv_enablebunnyhopping {B(AutoBhop)}");
         foreach (var line in RecoilCvars()) sb.AppendLine(line);
         sb.AppendLine(BotLoadoutCommand());
-        sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
+        sb.AppendLine($"sv_cheats {B(cheats)}");
 
         // Bots: difficulty only applies to newly added bots, so kick and re-add them.
         sb.AppendLine($"bot_difficulty {Math.Clamp(Difficulty, 0, 3)}");
@@ -754,16 +755,14 @@ public class ServerSettings
         sb.AppendLine($"bot_join_team {(IsRetakes ? "any" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
         // Retakes, Arms Race and Demolition hand out their own guns. A forced sniper (Bot Improver) wins over Rifles.
         var rifles = !OwnsLoadout && BotWeapons == 0 && !ForcesBotSniper;
-        sb.AppendLine($"bot_knives_only {(BotWeapons == 3 && !OwnsLoadout ? 1 : 0)}");
-        sb.AppendLine($"bot_pistols_only {((BotWeapons == 1 || PistolsOnly) && !OwnsLoadout ? 1 : 0)}");
-        sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 && !OwnsLoadout ? 1 : 0)}");
-        sb.AppendLine($"bot_allow_snipers {(rifles ? 0 : 1)}");
-        sb.AppendLine($"bot_allow_shotguns {(rifles ? 0 : 1)}");
-        sb.AppendLine($"bot_allow_sub_machine_guns {(rifles ? 0 : 1)}");
-        sb.AppendLine($"bot_allow_machine_guns {(rifles ? 0 : 1)}");
+        sb.AppendLine($"bot_knives_only {B(BotWeapons == 3 && !OwnsLoadout)}");
+        sb.AppendLine($"bot_pistols_only {B((BotWeapons == 1 || PistolsOnly) && !OwnsLoadout)}");
+        sb.AppendLine($"bot_snipers_only {B(BotWeapons == 2 && !OwnsLoadout)}");
+        foreach (var kind in new[] { "snipers", "shotguns", "sub_machine_guns", "machine_guns" })
+            sb.AppendLine($"bot_allow_{kind} {B(!rifles)}");
         sb.AppendLine("bot_allow_rifles 1");
         sb.AppendLine("bot_allow_pistols 1");
-        sb.AppendLine($"lst_bot_no_snipers {(rifles ? 1 : 0)}"); // plugin safety net: swaps snipers for AK/M4
+        sb.AppendLine($"lst_bot_no_snipers {B(rifles)}"); // plugin safety net: swaps snipers for AK/M4
         // Bot Hider gives every bot a Steam identity; take the display name from that same identity, so the
         // name on the scoreboard matches the profile you see when you click the bot. (Only new bots: set
         // before the kick and re-add below.)
@@ -776,7 +775,7 @@ public class ServerSettings
         var seats = RetakeSeats;
         if (seats > 0) quota = Math.Min(quota, Math.Max(0, seats - 1));
         sb.AppendLine($"bot_quota {quota}");
-        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)} {(IsValveRetakes ? 1 : 0)}");
+        sb.AppendLine($"lst_retake_seats {seats} {Math.Clamp(Bots, 0, 31)} {B(IsValveRetakes)}");
         // A side that already has more players must not grey out in the team menu: retakes picks the sides.
         sb.AppendLine($"mp_limitteams {(IsRetakes ? 0 : 2)}");
         // Team sizes only for classic rounds: deathmatch and arms race are free-for-all, retakes have seats.
@@ -784,18 +783,15 @@ public class ServerSettings
         var (sizeT, sizeCT) = MapTeamSizes.TryGetValue(MapKey, out var saved) && saved.Length == 2 ? (saved[0], saved[1]) : (TeamSizeT, TeamSizeCT);
         sb.AppendLine($"lst_team_sizes {(sized ? Math.Clamp(sizeT, 1, 32) : 0)} {(sized ? Math.Clamp(sizeCT, 1, 32) : 0)}");
 
-        if (mode.GameType == 1 && mode.Mode == 2)
-            sb.AppendLine($"mp_teammates_are_enemies {(FreeForAll ? 1 : 0)}");
-        else
-            sb.AppendLine("mp_teammates_are_enemies 0");
+        sb.AppendLine($"mp_teammates_are_enemies {B(FreeForAll && mode is { GameType: 1, Mode: 2 })}");
 
+        var buySeconds = Math.Clamp(RetakeBuySeconds, 4, 20);
         if (UsesRetakeBuy)
         {
-            var seconds = Math.Clamp(RetakeBuySeconds, 4, 20);
             sb.AppendLine("mp_maxmoney 16000");
             sb.AppendLine("mp_startmoney 16000");
-            sb.AppendLine($"mp_freezetime {seconds}");
-            sb.AppendLine($"mp_buytime {seconds}");
+            sb.AppendLine($"mp_freezetime {buySeconds}");
+            sb.AppendLine($"mp_buytime {buySeconds}");
             sb.AppendLine("mp_buy_anywhere 1");
         }
         else if (IsValveRetakes)
@@ -804,13 +800,11 @@ public class ServerSettings
             sb.AppendLine("mp_maxmoney 16000");
             sb.AppendLine("mp_startmoney 16000");
             sb.AppendLine("mp_buy_anywhere 1");
-            sb.AppendLine($"mp_buytime {Math.Clamp(RetakeBuySeconds, 4, 20)}");
+            sb.AppendLine($"mp_buytime {buySeconds}");
         }
         else if (MaxMoney && !OwnsLoadout)
         {
-            sb.AppendLine("mp_maxmoney 65535");
-            sb.AppendLine("mp_startmoney 65535");
-            sb.AppendLine("mp_afterroundmoney 65535");
+            foreach (var cvar in new[] { "mp_maxmoney", "mp_startmoney", "mp_afterroundmoney" }) sb.AppendLine($"{cvar} 65535");
             sb.AppendLine("mp_buy_anywhere 1");
             sb.AppendLine("mp_buytime 9999");
         }
@@ -827,9 +821,8 @@ public class ServerSettings
 
         if (RoundTime > 0 && !OwnsLoadout)
         {
-            sb.AppendLine($"mp_roundtime {RoundTime}");
-            sb.AppendLine($"mp_roundtime_defuse {RoundTime}");
-            sb.AppendLine($"mp_roundtime_hostage {RoundTime}");
+            foreach (var cvar in new[] { "mp_roundtime", "mp_roundtime_defuse", "mp_roundtime_hostage" })
+                sb.AppendLine($"{cvar} {RoundTime}");
         }
         if (FriendlyFire) sb.AppendLine("mp_friendlyfire 1");
 
@@ -837,7 +830,7 @@ public class ServerSettings
         sb.AppendLine($"lst_fire_relay {FireRelay.Port}");
         sb.AppendLine($"lst_skin_commands {B(SkinCommands)}"); // the triggerbot presses fire through the launcher on this PC
         foreach (var line in BotImproverCommands()) sb.AppendLine(line);
-        sb.AppendLine($"lst_show_damage {(ShowDamage ? 1 : 0)}");
+        sb.AppendLine($"lst_show_damage {B(ShowDamage)}");
         sb.AppendLine($"lst_hsonly {B(HeadshotOnly)}");
         sb.AppendLine($"lst_pistols {B(PistolsOnly)}");
         sb.AppendLine($"lst_reload_on_kill {B(ReloadOnKill)}");
@@ -850,9 +843,9 @@ public class ServerSettings
         sb.AppendLine($"mp_items_prohibited \"{string.Join(",", prohibited)}\"");
         sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin && !IsPluginRetakes)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
-        sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)} {(UsesAllocator ? 1 : 0)} " +
+        sb.AppendLine($"lst_retake_buy {B(UsesRetakeBuy)} {buySeconds} {B(UsesAllocator)} " +
                       $"{Math.Clamp(RetakeFullPercent, 0, 100)} {Math.Clamp(RetakeForcePercent, 0, 100)} {Math.Clamp(RetakeEcoPercent, 0, 100)}");
-        sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
+        sb.AppendLine($"lst_weapons_expert {B(Mode == WeaponsExpertMode)}");
 
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes. Every other mode, including the
         // plugin, clears it. Don't end warmup on either retake style: Valve's cards and the plugin's
@@ -891,11 +884,11 @@ public class ServerSettings
     }
 
     /// <summary>Places in a retakes match (plugin: its MaxPlayers, Valve: 3 T + 4 CT), or 0 for other modes.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public int RetakeSeats => IsPluginRetakes ? Math.Clamp(RetakeMaxPlayers, 2, 10) : IsValveRetakes ? 7 : 0;
 
     /// <summary>Arms Race, Demolition and both retake styles bring their own guns, money and round length.</summary>
-    [System.Text.Json.Serialization.JsonIgnore]
+    [JsonIgnore]
     public bool OwnsLoadout => IsRetakes || Mode is "Arms Race" or "Demolition";
 
     /// <summary>
@@ -911,7 +904,7 @@ public class ServerSettings
         {
             root = File.Exists(path) ? JsonNode.Parse(File.ReadAllText(path)) ?? new JsonObject() : new JsonObject();
         }
-        catch (System.Text.Json.JsonException)
+        catch (JsonException)
         {
             root = new JsonObject();
         }
@@ -936,7 +929,7 @@ public class ServerSettings
         Set(root, "QueueSettings", "ShouldAutoJoinSpectators", !RetakeAutoJoin);
         if (root["ConfigVersion"] == null) root["ConfigVersion"] = 2;
 
-        File.WriteAllText(path, root.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     private static void Set(JsonNode root, string section, string key, JsonNode? value)
@@ -959,8 +952,8 @@ public class ServerSettings
     /// <summary>A detached copy (saved setups must not keep changing with the Play page).</summary>
     public ServerSettings Clone()
     {
-        var json = System.Text.Json.JsonSerializer.Serialize(this);
-        return System.Text.Json.JsonSerializer.Deserialize<ServerSettings>(json) ?? new ServerSettings();
+        var json = JsonSerializer.Serialize(this);
+        return JsonSerializer.Deserialize<ServerSettings>(json) ?? new ServerSettings();
     }
 
     /// <summary>
@@ -972,7 +965,7 @@ public class ServerSettings
         foreach (var prop in typeof(ServerSettings).GetProperties(BindingFlags.Instance | BindingFlags.Public))
         {
             if (!prop.CanRead || !prop.CanWrite) continue;
-            if (prop.GetCustomAttribute<System.Text.Json.Serialization.JsonIgnoreAttribute>() != null) continue;
+            if (prop.GetCustomAttribute<JsonIgnoreAttribute>() != null) continue;
             if (prop.Name is nameof(Friends) or nameof(Password) or nameof(SharedSkins)) continue;
             prop.SetValue(this, prop.GetValue(source));
         }
@@ -986,7 +979,7 @@ public class ServerSettings
         yield return $"weapon_recoil_scale {(noRecoil ? 0 : 2)}";
         yield return $"weapon_recoil_view_punch_extra {(noRecoil ? "0" : "0.055")}";
         yield return $"weapon_recoil_suppression_shots {(noRecoil ? 999 : 4)}";
-        yield return $"weapon_accuracy_nospread {(HackerMode != 0 && HackNoSpread ? 1 : 0)}";
+        yield return $"weapon_accuracy_nospread {B(HackerMode != 0 && HackNoSpread)}";
     }
 
     /// <summary>Everything hacker mode needs, without touching bots or the round (for live changes).</summary>
@@ -996,30 +989,20 @@ public class ServerSettings
         {
             yield return "sv_cheats 1";
             foreach (var line in RecoilCvars()) yield return line;
-            yield return $"sv_cheats {(NeedsCheats ? 1 : 0)}";
+            yield return $"sv_cheats {B(NeedsCheats)}";
         }
-        var powers = new List<string>();
-        if (HackWallhack) powers.Add("wallhack");
-        if (HackAimbot) powers.Add("aimbot");
-        if (HackOneTap) powers.Add("onetap");
-        if (HackAmmo) powers.Add("ammo");
-        if (HackSpeed) powers.Add("speed");
-        if (HackBhop) powers.Add("bhop");
-        if (HackNoFlash) powers.Add("noflash");
-        if (HackEspInfo) powers.Add("espinfo");
-        if (HackAimWalls) powers.Add("aimwalls");
-        if (HackNoRecoil) powers.Add("norecoil");
-        if (HackRadar) powers.Add("radar");
-        if (HackBoxEsp) powers.Add("boxesp");
-        if (HackBoneEsp) powers.Add("boneesp");
-        if (HackTags) powers.Add("tags");
-        if (HackTrigger) powers.Add("trigger");
+        var powers = new (bool On, string Name)[]
+        {
+            (HackWallhack, "wallhack"), (HackAimbot, "aimbot"), (HackOneTap, "onetap"), (HackAmmo, "ammo"), (HackSpeed, "speed"),
+            (HackBhop, "bhop"), (HackNoFlash, "noflash"), (HackEspInfo, "espinfo"), (HackAimWalls, "aimwalls"), (HackNoRecoil, "norecoil"),
+            (HackRadar, "radar"), (HackBoxEsp, "boxesp"), (HackBoneEsp, "boneesp"), (HackTags, "tags"), (HackTrigger, "trigger"),
+        }.Where(p => p.On).Select(p => p.Name).ToList();
         yield return $"lst_hack_powers {(powers.Count > 0 ? string.Join(",", powers) : "none")}";
         yield return $"lst_aim_aggression {Math.Clamp(HackAggression, 1, 10)}";
-        yield return $"lst_aim_target {AimTargetCommands[Math.Clamp(HackAimTarget, 0, AimTargetCommands.Length - 1)]}";
-        yield return $"lst_aim_style {AimStyleCommands[Math.Clamp(HackAimStyle, 0, AimStyleCommands.Length - 1)]}";
-        yield return $"lst_aim_bone {AimBoneCommands[Math.Clamp(HackAimBone, 0, AimBoneCommands.Length - 1)]}";
-        yield return $"lst_aim_key {AimKeyCommands[Math.Clamp(HackAimKey, 0, AimKeyCommands.Length - 1)]}";
+        yield return $"lst_aim_target {Pick(AimTargetCommands, HackAimTarget)}";
+        yield return $"lst_aim_style {Pick(AimStyleCommands, HackAimStyle)}";
+        yield return $"lst_aim_bone {Pick(AimBoneCommands, HackAimBone)}";
+        yield return $"lst_aim_key {Pick(AimKeyCommands, HackAimKey)}";
         yield return $"lst_hack {HackerMode switch { 1 => "all", 2 => "one", _ => "off" }}";
     }
 
@@ -1044,9 +1027,9 @@ public class ServerSettings
     /// (the plugin then runs the cfg again); otherwise the cfg is just re-run. Returns a warning when
     /// the new Workshop map can't load on this server, else null.
     /// </summary>
-    public string? ApplyToRunningServer(GameFolder game, bool mapOrModeChanged, bool serverOnline, bool forFriends)
+    public string? ApplyToRunningServer(GameFolder game, bool mapOrModeChanged, bool serverOnline)
     {
-        if (mapOrModeChanged) PrepareWorkshopMap(game, forFriends);
+        if (mapOrModeChanged) PrepareWorkshopMap(game);
         if (WorkshopNeedsDownload && !serverOnline)
             return "This Workshop map isn't downloaded and the server is in offline LAN mode, so it can't fetch it. " +
                    "Press Subscribe (Steam downloads it, then Apply again), or Stop and Start so the server goes online to download it.";

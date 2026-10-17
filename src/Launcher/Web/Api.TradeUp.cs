@@ -48,7 +48,7 @@ public partial class Api
     private (TradeCheck Check, List<(CaseItem Item, CaseInfo Box, double Chance, bool Rare)> Pool, List<InventoryItem> Inputs) PlanTrade(List<string> uids)
     {
         var inv = Inventory();
-        var inputs = uids.Distinct().Select(u => inv.FirstOrDefault(i => i.Uid == u)).Where(i => i != null).Select(i => i!).ToList();
+        var inputs = uids.Distinct().Select(u => inv.FirstOrDefault(i => i.Uid == u)).OfType<InventoryItem>().ToList();
         TradeCheck Fail(string msg, int needed = 10) => new(false, msg, needed, inputs.FirstOrDefault()?.Grade, inputs.FirstOrDefault()?.StatTrak, [], null, null);
         var empty = new List<(CaseItem, CaseInfo, double, bool)>();
         if (inputs.Count == 0) return (Fail("Add 10 guns of the same grade (or 5 Covert guns for a knife or gloves)."), empty, inputs);
@@ -128,19 +128,13 @@ public partial class Api
         var (check, pool, inputs) = PlanTrade(a.Uids ?? new List<string>());
         if (!check.Ok) throw new ApiException(check.Message);
 
-        var roll = Random.Shared.NextDouble();
-        var pick = pool[^1];
-        foreach (var p in pool)
-        {
-            roll -= p.Chance;
-            if (roll < 0) { pick = p; break; }
-        }
+        var pick = CaseRoller.Pick(pool, p => p.Chance, Random.Shared.NextDouble());
         // Knives: a Doppler finish rolls its phase like a case does.
         var drop = pick.Rare ? CaseRoller.Roll(pick.Box with { Items = [], Rare = pick.Box.Rare.Where(r => r.Name == pick.Item.Name).ToList() }, Random.Shared).Item : pick.Item;
         var def = App.Db.WeaponOfItem(drop.Name) ?? 0;
         var wear = drop.Paint != 0 ? TradeFloat(inputs, def, drop.Paint) : 0f;
         var gloves = drop.Name.Contains("Gloves") || drop.Name.Contains("Wraps");
-        var item = new InventoryItem(Guid.NewGuid().ToString("N")[..12], "skin", drop.Name.Replace("StatTrak™ ", ""), drop.Image, drop.Rarity, drop.Color,
+        var item = new InventoryItem(NewUid(), "skin", drop.Name.Replace("StatTrak™ ", ""), drop.Image, drop.Rarity, drop.Color,
             def, drop.Paint, wear, Random.Shared.Next(0, 1001), inputs[0].StatTrak && !gloves, false, drop.Phase, "Trade Up Contract", 0, DateTime.UtcNow, drop.Id);
 
         var used = inputs.Select(i => i.Uid).ToHashSet();

@@ -60,10 +60,10 @@ public partial class Api
     [Call("workshop.subscribe")]
     private void OpenInSteam(string id)
     {
-        if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
+        if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(WorkshopMaps.SubscribeUrl(id!)) { UseShellExecute = true });
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(WorkshopMaps.SubscribeUrl(id)) { UseShellExecute = true });
             Toast("Opened in Steam: press Subscribe. It shows under Downloaded once Steam has it.");
         }
         catch (Exception ex)
@@ -72,25 +72,29 @@ public partial class Api
         }
     }
 
-    /// <summary>Hosts the map: switches the running server to it, or starts the server on it.</summary>
+    /// <summary>A Workshop item id: six or more digits.</summary>
+    private static bool IsWorkshopId([System.Diagnostics.CodeAnalysis.NotNullWhen(true)] string? id) => Regex.IsMatch(id ?? "", @"^\d{6,}$");
+
+    /// <summary>The game mode a Workshop map is hosted in ("" forgets it).</summary>
     public record MapModeArgs(string Id, string Mode);
 
     [Call("workshop.setMode")]
     private void SetWorkshopMode(MapModeArgs a)
     {
-        if (a.Mode != "" && ServerSettings.Modes.All(m => m.Name != a.Mode) || !Regex.IsMatch(a.Id ?? "", @"^\d{6,}$")) throw new ApiException("Unknown mode.");
+        if (a.Mode != "" && ServerSettings.Modes.All(m => m.Name != a.Mode) || !IsWorkshopId(a.Id)) throw new ApiException("Unknown mode.");
         if (a.Mode == "") App.Settings.Server.MapModes.Remove(a.Id);
         else App.Settings.Server.MapModes[a.Id] = a.Mode;
-        SavePlaySettings();
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
+    /// <summary>Hosts the map: switches the running server to it, or starts the server on it.</summary>
     [Call("workshop.host")]
     private async Task HostWorkshopMap(string id)
     {
-        if (!Regex.IsMatch(id ?? "", @"^\d{6,}$")) throw new ApiException("Not a Workshop item.");
-        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id!);
-        SavePlaySettings();
+        if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
+        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id);
+        App.SaveSettings();
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());
         else await StartServerAsync(new AskArgs());

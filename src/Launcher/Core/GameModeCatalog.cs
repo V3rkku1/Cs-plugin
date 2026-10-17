@@ -13,24 +13,17 @@ public static class GameModeCatalog
     {
         try
         {
-            var text = ReadGameModes(game);
-            if (text == null) return null;
+            if (ReadGameModes(game) is not { } text) return null;
             var root = KeyValues.Parse(text);
-            var types = root.Child("gameTypes");
-            if (types == null) return null;
-
-            foreach (var type in types.Children)
+            foreach (var type in root.Child("gameTypes")?.Children ?? [])
             {
                 if (!int.TryParse(type.Child("value")?.Value, out var typeValue)) continue;
-                var modes = type.Child("gameModes");
-                if (modes == null) continue;
-                foreach (var mode in modes.Children)
+                foreach (var mode in type.Child("gameModes")?.Children ?? [])
                 {
                     if (!mode.Key.Contains(name, StringComparison.OrdinalIgnoreCase)) continue;
                     if (!int.TryParse(mode.Child("value")?.Value, out var modeValue)) continue;
                     var maps = MapsOf(root, mode, game);
-                    if (maps.Length == 0) continue;
-                    return new GameMode(displayName, typeValue, modeValue, maps);
+                    if (maps.Length > 0) return new GameMode(displayName, typeValue, modeValue, maps);
                 }
             }
         }
@@ -47,19 +40,15 @@ public static class GameModeCatalog
         foreach (var key in new[] { "maplist", "maps" })
             if (mode.Child(key) is { } list) maps.AddRange(list.Children.Select(c => c.Key));
 
-        var groups = root.Child("mapgroups");
-        foreach (var key in new[] { "mapgroupsMP", "mapgroupsSP", "mapgroups" })
-        {
-            if (mode.Child(key) is not { } used || groups == null) continue;
-            foreach (var group in used.Children)
-                if (groups.Child(group.Key)?.Child("maps") is { } groupMaps)
-                    maps.AddRange(groupMaps.Children.Select(c => c.Key));
-        }
+        if (root.Child("mapgroups") is { } groups)
+            foreach (var key in new[] { "mapgroupsMP", "mapgroupsSP", "mapgroups" })
+                foreach (var group in mode.Child(key)?.Children ?? [])
+                    if (groups.Child(group.Key)?.Child("maps") is { } groupMaps)
+                        maps.AddRange(groupMaps.Children.Select(c => c.Key));
 
         // Prefer the maps that are installed as maps\<name>.vpk (all of them if none are found there).
         var all = maps.Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
-        var mapsDir = Path.Combine(game.Csgo, "maps");
-        var installed = all.Where(m => File.Exists(Path.Combine(mapsDir, m + ".vpk"))).ToArray();
+        var installed = all.Where(m => File.Exists(Path.Combine(game.Csgo, "maps", m + ".vpk"))).ToArray();
         return installed.Length > 0 ? installed : all;
     }
 
@@ -68,12 +57,11 @@ public static class GameModeCatalog
         foreach (var loose in new[] { "gamemodes.txt", "gamemodes_server.txt" })
         {
             var path = Path.Combine(game.Csgo, loose);
-            if (File.Exists(path) && File.ReadAllText(path).Contains("gameTypes", StringComparison.OrdinalIgnoreCase))
-                return File.ReadAllText(path);
+            if (File.Exists(path) && File.ReadAllText(path) is var text && text.Contains("gameTypes", StringComparison.OrdinalIgnoreCase))
+                return text;
         }
         var dir = Path.Combine(game.Csgo, "pak01_dir.vpk");
-        var bytes = File.Exists(dir) ? Vpk.Read(dir, "", "gamemodes", "txt") : null;
-        return bytes == null ? null : Encoding.UTF8.GetString(bytes);
+        return File.Exists(dir) && Vpk.Read(dir, "", "gamemodes", "txt") is { } bytes ? Encoding.UTF8.GetString(bytes) : null;
     }
 }
 
@@ -95,49 +83,36 @@ public static class Vpk
         if (version == 2) reader.ReadBytes(16); // section sizes
 
         var wantFolder = folder == "" ? " " : folder.Replace('\\', '/');
-        while (true)
+        bool Same(string a, string b) => a.Equals(b, StringComparison.OrdinalIgnoreCase);
+        // The tree: extension, then folder, then file name; each level ends with an empty string.
+        for (var ext = ReadString(reader); ext != ""; ext = ReadString(reader))
+        for (var path = ReadString(reader); path != ""; path = ReadString(reader))
+        for (var file = ReadString(reader); file != ""; file = ReadString(reader))
         {
-            var ext = ReadString(reader);
-            if (ext == "") break;
-            while (true)
+            reader.ReadUInt32(); // CRC
+            var preloadBytes = reader.ReadUInt16();
+            var archiveIndex = reader.ReadUInt16();
+            var offset = reader.ReadUInt32();
+            var length = reader.ReadUInt32();
+            reader.ReadUInt16(); // terminator
+            var preload = reader.ReadBytes(preloadBytes);
+            if (!Same(ext, extension) || !Same(path, wantFolder) || !Same(file, name)) continue;
+
+            if (length == 0) return preload;
+            byte[] data;
+            if (archiveIndex == 0x7FFF)
             {
-                var path = ReadString(reader);
-                if (path == "") break;
-                while (true)
-                {
-                    var file = ReadString(reader);
-                    if (file == "") break;
-                    reader.ReadUInt32(); // CRC
-                    var preloadBytes = reader.ReadUInt16();
-                    var archiveIndex = reader.ReadUInt16();
-                    var offset = reader.ReadUInt32();
-                    var length = reader.ReadUInt32();
-                    reader.ReadUInt16(); // terminator
-                    var preload = reader.ReadBytes(preloadBytes);
-
-                    if (!ext.Equals(extension, StringComparison.OrdinalIgnoreCase) ||
-                        !path.Equals(wantFolder, StringComparison.OrdinalIgnoreCase) ||
-                        !file.Equals(name, StringComparison.OrdinalIgnoreCase))
-                        continue;
-
-                    if (length == 0) return preload;
-                    byte[] data;
-                    if (archiveIndex == 0x7FFF)
-                    {
-                        stream.Position = headerSize + treeSize + offset;
-                        data = reader.ReadBytes((int)length);
-                    }
-                    else
-                    {
-                        var archive = dirFile.Replace("_dir.vpk", $"_{archiveIndex:000}.vpk");
-                        using var part = File.OpenRead(archive);
-                        part.Position = offset;
-                        data = new byte[length];
-                        part.ReadExactly(data);
-                    }
-                    return [.. preload, .. data];
-                }
+                stream.Position = headerSize + treeSize + offset;
+                data = reader.ReadBytes((int)length);
             }
+            else
+            {
+                data = new byte[length];
+                using var part = File.OpenRead(dirFile.Replace("_dir.vpk", $"_{archiveIndex:000}.vpk"));
+                part.Position = offset;
+                part.ReadExactly(data);
+            }
+            return [.. preload, .. data];
         }
         return null;
     }
@@ -145,8 +120,7 @@ public static class Vpk
     private static string ReadString(BinaryReader reader)
     {
         var bytes = new List<byte>();
-        byte b;
-        while ((b = reader.ReadByte()) != 0) bytes.Add(b);
+        for (byte b; (b = reader.ReadByte()) != 0;) bytes.Add(b);
         return Encoding.UTF8.GetString(bytes.ToArray());
     }
 }
@@ -155,7 +129,7 @@ public static class Vpk
 public class KeyValues
 {
     public string Key { get; }
-    public string? Value { get; private set; }
+    public string? Value { get; private init; }
     public List<KeyValues> Children { get; } = new();
 
     private KeyValues(string key) => Key = key;
@@ -164,35 +138,31 @@ public class KeyValues
 
     public static KeyValues Parse(string text)
     {
-        var tokens = Tokenize(text).GetEnumerator();
         var root = new KeyValues("");
-        var stack = new Stack<KeyValues>();
-        stack.Push(root);
+        var stack = new Stack<KeyValues>([root]);
         string? pendingKey = null;
-        while (tokens.MoveNext())
+        foreach (var token in Tokenize(text))
         {
-            var token = tokens.Current;
             if (token == "{")
             {
                 var node = new KeyValues(pendingKey ?? "");
                 stack.Peek().Children.Add(node);
                 stack.Push(node);
-                pendingKey = null;
             }
             else if (token == "}")
             {
                 if (stack.Count > 1) stack.Pop();
-                pendingKey = null;
             }
-            else if (pendingKey == null) pendingKey = token;
-            else
+            else if (pendingKey == null)
             {
-                stack.Peek().Children.Add(new KeyValues(pendingKey) { Value = token });
-                pendingKey = null;
+                pendingKey = token;
+                continue;
             }
+            else stack.Peek().Children.Add(new KeyValues(pendingKey) { Value = token });
+            pendingKey = null;
         }
         // The file's own top-level block ("GameModes.txt" { ... }) holds everything.
-        return root.Children.Count == 1 && root.Children[0].Value == null ? root.Children[0] : root;
+        return root.Children is [{ Value: null } only] ? only : root;
     }
 
     private static IEnumerable<string> Tokenize(string text)
@@ -201,35 +171,35 @@ public class KeyValues
         while (i < text.Length)
         {
             var c = text[i];
-            if (char.IsWhiteSpace(c)) { i++; continue; }
-            if (c == '/' && i + 1 < text.Length && text[i + 1] == '/')
-            {
+            if (char.IsWhiteSpace(c)) i++;
+            else if (c == '/' && i + 1 < text.Length && text[i + 1] == '/')
                 while (i < text.Length && text[i] != '\n') i++;
-                continue;
+            else if (c is '{' or '}')
+            {
+                i++;
+                yield return c.ToString();
             }
-            if (c is '{' or '}') { i++; yield return c.ToString(); continue; }
-            if (c == '[') // platform conditionals like [$WIN32]
+            else if (c == '[') // platform conditionals like [$WIN32]
             {
                 while (i < text.Length && text[i] != ']') i++;
-                i++;
-                continue;
-            }
-            var sb = new StringBuilder();
-            if (c == '"')
-            {
-                i++;
-                while (i < text.Length && text[i] != '"')
-                {
-                    if (text[i] == '\\' && i + 1 < text.Length) i++;
-                    sb.Append(text[i++]);
-                }
                 i++;
             }
             else
             {
-                while (i < text.Length && !char.IsWhiteSpace(text[i]) && text[i] is not ('{' or '}' or '"')) sb.Append(text[i++]);
+                var sb = new StringBuilder();
+                if (c == '"')
+                {
+                    for (i++; i < text.Length && text[i] != '"'; i++)
+                    {
+                        if (text[i] == '\\' && i + 1 < text.Length) i++;
+                        sb.Append(text[i]);
+                    }
+                    i++;
+                }
+                else
+                    while (i < text.Length && !char.IsWhiteSpace(text[i]) && text[i] is not ('{' or '}' or '"')) sb.Append(text[i++]);
+                yield return sb.ToString();
             }
-            yield return sb.ToString();
         }
     }
 }

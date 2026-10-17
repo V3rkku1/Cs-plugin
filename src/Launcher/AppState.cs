@@ -38,6 +38,17 @@ public class AppState
 
     public void NotifyChanged() => Changed?.Invoke();
 
+    /// <summary>Saves launcher.json; a failure is only logged (it is saved again with the next change).</summary>
+    public void SaveSettings()
+    {
+        try { Settings.Save(); }
+        catch (IOException ex) { Log("Could not save settings: " + ex.Message); }
+    }
+
+    /// <summary>Steam's folder from the registry, for finding CS2.</summary>
+    public static string? SteamPath() =>
+        Microsoft.Win32.Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string;
+
     public void SetGame(string? path)
     {
         Game = GameFolder.IsValid(path) ? new GameFolder(path!) : null;

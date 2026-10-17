@@ -45,10 +45,11 @@ public static class FireRelay
                 var data = udp.Receive(ref from);
                 if (Encoding.ASCII.GetString(data) != Message || !IPAddress.IsLoopback(from.Address)) continue;
                 // The plugin paces shots by the gun's fire rate; this only stops a flood.
-                if (DateTime.UtcNow - last < TimeSpan.FromMilliseconds(35)) continue;
-                if (!allowed() || !GameInFront()) continue;
+                if (DateTime.UtcNow - last < TimeSpan.FromMilliseconds(35) || !allowed() || !GameInFront()) continue;
                 last = DateTime.UtcNow;
-                Click();
+                Send(MouseLeftDown);
+                Thread.Sleep(18); // long enough for the game to see the press
+                Send(MouseLeftUp);
             }
             catch (Exception)
             {
@@ -74,20 +75,10 @@ public static class FireRelay
         }
     }
 
-    private static void Click()
-    {
-        Send(MouseLeftDown);
-        Thread.Sleep(18); // long enough for the game to see the press
-        Send(MouseLeftUp);
-    }
-
-    private static void Send(uint flags)
-    {
-        var input = new INPUT { type = InputMouse, mi = new MOUSEINPUT { dwFlags = flags } };
-        SendInput(1, [input], Marshal.SizeOf<INPUT>());
-    }
-
     private const uint InputMouse = 0, MouseLeftDown = 0x0002, MouseLeftUp = 0x0004;
+
+    private static void Send(uint flags) =>
+        SendInput(1, [new INPUT { type = InputMouse, mi = new MOUSEINPUT { dwFlags = flags } }], Marshal.SizeOf<INPUT>());
 
     [StructLayout(LayoutKind.Sequential)]
     private struct INPUT
@@ -99,11 +90,8 @@ public static class FireRelay
     [StructLayout(LayoutKind.Sequential)]
     private struct MOUSEINPUT
     {
-        public int dx;
-        public int dy;
-        public uint mouseData;
-        public uint dwFlags;
-        public uint time;
+        public int dx, dy;
+        public uint mouseData, dwFlags, time;
         public IntPtr dwExtraInfo;
     }
 

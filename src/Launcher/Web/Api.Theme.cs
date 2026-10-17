@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Globalization;
 using System.Text;
 using System.Text.Json;
@@ -43,7 +44,7 @@ public partial class Api
     private void SetTheme(Dictionary<string, string?> changes)
     {
         ApplyTheme(changes, replace: false);
-        SaveSettingsQuietly();
+        SaveTheme();
         App.NotifyChanged();
     }
 
@@ -68,7 +69,7 @@ public partial class Api
     {
         App.Settings.Theme.Clear();
         foreach (var file in ImageExtensions.Select(BackgroundFile)) TryDelete(file);
-        SaveSettingsQuietly();
+        SaveTheme();
         Toast("Appearance back to the default look.", "good");
         App.NotifyChanged();
     }
@@ -94,7 +95,7 @@ public partial class Api
         File.Copy(file, BackgroundFile(ext), overwrite: true);
         // The value only changes the picture's address, so the page loads the new one.
         App.Settings.Theme["image"] = DateTime.UtcNow.Ticks.ToString(CultureInfo.InvariantCulture);
-        SaveSettingsQuietly();
+        SaveTheme();
         App.NotifyChanged();
     }
 
@@ -103,7 +104,7 @@ public partial class Api
     {
         foreach (var file in ImageExtensions.Select(BackgroundFile)) TryDelete(file);
         App.Settings.Theme.Remove("image");
-        SaveSettingsQuietly();
+        SaveTheme();
         App.NotifyChanged();
     }
 
@@ -139,7 +140,7 @@ public partial class Api
         if (values == null || values.Count == 0) throw new ApiException("That isn't a theme code (they start with LST1-).");
         values.Remove("image");
         ApplyTheme(values, replace: true);
-        SaveSettingsQuietly();
+        SaveTheme();
         Toast("Theme applied.", "good");
         App.NotifyChanged();
     }
@@ -175,22 +176,21 @@ public partial class Api
         if (!File.Exists(CustomCssFile)) File.WriteAllText(CustomCssFile, CustomCssTemplate);
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(CustomCssFile) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(CustomCssFile) { UseShellExecute = true });
         }
         catch (Exception)
         {
             // No app for .css files: Notepad always exists.
-            System.Diagnostics.Process.Start("notepad.exe", $"\"{CustomCssFile}\"");
+            Process.Start("notepad.exe", $"\"{CustomCssFile}\"");
         }
         Toast("custom.css opened. Save it, then click the launcher to see the change.");
     }
 
-    private void SaveSettingsQuietly()
+    private void SaveTheme()
     {
         // The title bar is drawn by Windows: give it the new colours too.
         _ = OnUi(() => (Window as ShellForm)?.ApplyTitleBar());
-        try { App.Settings.Save(); }
-        catch (IOException ex) { App.Log("Could not save settings: " + ex.Message); }
+        App.SaveSettings();
     }
 
     private static void TryDelete(string file)

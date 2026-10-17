@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Net.Http.Headers;
 using System.Text;
 using System.Text.Json;
 
@@ -37,10 +36,7 @@ public static class Updater
     /// <summary>Downloads the new exe and returns its path. Throws with a readable message on failure.</summary>
     public static async Task<string> DownloadAsync(HttpClient http, Action<double>? progress = null)
     {
-        using var request = new HttpRequestMessage(HttpMethod.Get, ReleaseApi);
-        request.Headers.UserAgent.Add(new ProductInfoHeaderValue("LanSkinTester-Launcher", "1.0"));
-        request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/vnd.github+json"));
-        using var response = await http.SendAsync(request);
+        using var response = await UpdateCheck.GitHubGetAsync(http, ReleaseApi);
         response.EnsureSuccessStatusCode();
         using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
         var url = doc.RootElement.GetProperty("assets").EnumerateArray()
@@ -57,22 +53,7 @@ public static class Updater
         }
         var target = Path.Combine(dir, $"LanSkinTesterLauncher-{DateTime.UtcNow:yyyyMMddHHmmss}.exe");
 
-        using (var download = await http.GetAsync(url, HttpCompletionOption.ResponseHeadersRead))
-        {
-            download.EnsureSuccessStatusCode();
-            var total = download.Content.Headers.ContentLength ?? -1;
-            await using var input = await download.Content.ReadAsStreamAsync();
-            await using var output = File.Create(target);
-            var buffer = new byte[81920];
-            long done = 0;
-            int read;
-            while ((read = await input.ReadAsync(buffer)) > 0)
-            {
-                await output.WriteAsync(buffer.AsMemory(0, read));
-                done += read;
-                if (total > 0) progress?.Invoke((double)done / total);
-            }
-        }
+        await Installer.DownloadToFileAsync(http, url, target, p => { if (p >= 0) progress?.Invoke(p); });
 
         // Sanity check: a real Windows exe of a plausible size.
         var info = new FileInfo(target);

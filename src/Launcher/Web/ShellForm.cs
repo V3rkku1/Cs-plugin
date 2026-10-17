@@ -130,7 +130,6 @@ public sealed class ShellForm : Form
         if (Math.Abs(_view.ZoomFactor - zoom) > 0.001) _view.ZoomFactor = zoom;
     }
 
-    /// <summary>F11: borderless full screen (covers the taskbar), and back.</summary>
     /// <summary>Closes for a self-update: no "test mode is on" question, the test was already stopped.</summary>
     public void CloseForUpdate()
     {
@@ -140,6 +139,7 @@ public sealed class ShellForm : Form
         Close();
     }
 
+    /// <summary>F11: borderless full screen (covers the taskbar), and back.</summary>
     public void ToggleFullscreen()
     {
         if (!_fullscreen)
@@ -214,8 +214,7 @@ public sealed class ShellForm : Form
         _app.Settings.Maximized = WindowState == FormWindowState.Maximized;
         var b = WindowState == FormWindowState.Normal ? Bounds : RestoreBounds;
         _app.Settings.Window = [b.X, b.Y, b.Width, b.Height];
-        try { _app.Settings.Save(); }
-        catch (IOException) { /* not important */ }
+        _app.SaveSettings();
     }
 
     [DllImport("dwmapi.dll")]

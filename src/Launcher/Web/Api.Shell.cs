@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using LanSkinTester.Launcher.Core;
-using Microsoft.Win32;
 
 namespace LanSkinTester.Launcher.Web;
 
@@ -17,9 +16,7 @@ public partial class Api
     /// <summary>Called once the server is up: find CS2 and look for a launcher update.</summary>
     public void Started()
     {
-        App.SetGame(GameFolder.IsValid(App.Settings.GamePath)
-            ? App.Settings.GamePath
-            : GameFolder.Find(Registry.GetValue(@"HKEY_CURRENT_USER\Software\Valve\Steam", "SteamPath", null) as string));
+        App.SetGame(GameFolder.IsValid(App.Settings.GamePath) ? App.Settings.GamePath : GameFolder.Find(AppState.SteamPath()));
         if (App.Game == null) App.Log("CS2 not found automatically - press Browse on the Setup page.");
         ReportLastUpdate();
         _ = CheckForUpdateAsync(startup: true);
@@ -54,8 +51,7 @@ public partial class Api
     {
         _ = OnUi(() => (Window as ShellForm)?.ShowPage(page));
         App.Settings.LastPage = page;
-        try { App.Settings.Save(); }
-        catch (IOException) { /* not important */ }
+        App.SaveSettings();
     }
 
     [Call("app.openUrl")]
@@ -119,8 +115,7 @@ public partial class Api
         if (startup && App.Settings.AutoUpdate && !recently && !App.TestModeOn && Updater.CanSelfUpdate())
         {
             App.Settings.LastAutoUpdate = DateTime.UtcNow;
-            try { App.Settings.Save(); }
-            catch (IOException) { /* not important */ }
+            App.SaveSettings();
             App.Log($"Newer launcher build {found.Commit[..7]} on GitHub - updating automatically.");
             App.NotifyChanged();
             await InstallUpdateAsync(automatic: true);
@@ -171,8 +166,7 @@ public partial class Api
     private void SetAutoUpdate(bool on)
     {
         App.Settings.AutoUpdate = on;
-        try { App.Settings.Save(); }
-        catch (IOException) { /* not important */ }
+        App.SaveSettings();
         App.NotifyChanged();
     }
 
