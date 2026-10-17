@@ -1,6 +1,6 @@
 // Cases: open CS2 containers like in the game (reel, real odds), keep what you unbox and equip it.
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, img } from "../api.js";
+import { call, tryCall, useApi, img, toast } from "../api.js";
 import { Page, Section, Button, Segmented, Select, TextField, Icon, prompt, sheet } from "../ui.js";
 import { money } from "./inventory.js";
 import { navigate } from "../app.js";
@@ -267,6 +267,12 @@ export function CasesPage() {
   const types = [...new Set(state.cases.map(c => c.type))];
   const shown = state.cases.filter(c => (types.length < 2 || c.type === type) && (!q || c.name.toLowerCase().includes(q.toLowerCase())));
   const openCase = id => sheet(close => html`<${CaseSheet} id=${id} close=${close} />`, { wide: true });
+  // Quick open: no reel, just the result in a toast (skipped: sound, reveal screen).
+  const quickOpen = async (e, c) => {
+    e.stopPropagation();
+    const r = await call("cases.open", c.id).catch(() => null);
+    if (r) toast(`${c.name}: ${r.item.marketName}${r.item.price != null ? " · " + money(r.item.price, cur) : ""}`, "good");
+  };
   const enterCode = async () => {
     const code = await prompt({ title: "Admin Code", message: "Enter the admin code.", placeholder: "Code", ok: "OK" });
     if (code?.trim()) tryCall("cases.unlock", code.trim());
@@ -299,12 +305,13 @@ export function CasesPage() {
           <div class="grow"><${TextField} icon="search" placeholder="Search cases" value=${q} onInput=${setQ} /></div>
         </div>
         <div class="case-grid">
-          ${shown.map(c => html`<button key=${c.id} class="case-tile glass" onClick=${() => openCase(c.id)} title=${c.name}>
+          ${shown.map(c => html`<div key=${c.id} class="case-tile glass" role="button" tabindex="0" onClick=${() => openCase(c.id)} title=${c.name}>
             <div class="pic"><${ItemPic} src=${c.image} size=${256} /></div>
             <div class="name">${c.name}</div>
             <div class="faint small">${c.rare ? "★ knives / gloves" : `${c.count} items`}</div>
             <div class="case-price">${c.price != null ? money(c.price, cur) : ""}</div>
-          </button>`)}
+            <${Button} size="sm" icon="bolt" onClick=${e => quickOpen(e, c)}>Quick Open<//>
+          </div>`)}
         </div>
         ${!state.useWallet && html`<div class="case-code faint small">Opening is free · <a href="#" onClick=${e => { e.preventDefault(); tryCall("cases.wallet", { use: true }); }}>use a wallet</a></div>`}
         <div class="case-code faint small">${state.unlocked

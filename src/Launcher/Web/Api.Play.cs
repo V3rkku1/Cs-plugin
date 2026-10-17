@@ -255,6 +255,7 @@ public partial class Api
     {
         if (App.Game == null) throw new ApiException("Pick your CS2 folder first (Setup page).");
         if (_playBusy) return;
+        ReadLoadout(); // prunes skins you don't own before the plugin reads them
         if (App.TestModeOn) throw new ApiException("The server is already running - press Apply Changes, or Stop first.");
         if (!App.Ready) throw new ApiException("Install first (Setup page).");
         var server = App.Settings.Server;

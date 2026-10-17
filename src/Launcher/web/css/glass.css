@@ -746,7 +746,7 @@ kbd { font-family: var(--font); }
 .case-filters { flex-wrap: wrap; }
 .case-filters .segmented { max-width: 100%; overflow-x: auto; }
 .case-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
-.case-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 12px; border: 0; color: var(--text); text-align: center; border-radius: var(--r-lg); transition: transform 0.15s; }
+.case-tile { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 14px 12px; border: 0; cursor: pointer; color: var(--text); text-align: center; border-radius: var(--r-lg); transition: transform 0.15s; }
 .case-tile:hover { transform: translateY(-3px); }
 .case-tile .pic { height: 110px; display: grid; place-items: center; }
 .case-tile .pic img { max-height: 110px; max-width: 100%; }

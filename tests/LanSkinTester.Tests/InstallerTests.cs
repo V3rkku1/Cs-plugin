@@ -56,7 +56,7 @@ public sealed class InstallerTests : IDisposable
     public void BotImproverOffParksBothHalvesOfEveryBotPlugin()
     {
         InstallBotImprover();
-        var off = new ServerSettings();
+        var off = new ServerSettings { BotImprover = false };
         Assert.True(Installer.ExtraPluginsMismatch(_game, off));
 
         Installer.SetExtraPlugins(_game, off);
@@ -72,7 +72,7 @@ public sealed class InstallerTests : IDisposable
     public void BotImproverOnLoadsEverythingButSkinsUntilAsked()
     {
         InstallBotImprover();
-        Installer.SetExtraPlugins(_game, new ServerSettings()); // parked first
+        Installer.SetExtraPlugins(_game, new ServerSettings { BotImprover = false }); // parked first
         var on = new ServerSettings { BotImprover = true };
         Assert.True(Installer.ExtraPluginsMismatch(_game, on));
 
@@ -92,7 +92,7 @@ public sealed class InstallerTests : IDisposable
     public void FreshDownloadWinsOverAnOlderParkedCopy()
     {
         InstallBotImprover();
-        Installer.SetExtraPlugins(_game, new ServerSettings()); // park the old copy
+        Installer.SetExtraPlugins(_game, new ServerSettings { BotImprover = false }); // park the old copy
         // A new download lands in plugins/ while the old copy is still parked.
         Directory.CreateDirectory(Css("plugins", "BotState"));
         File.WriteAllText(Css("plugins", "BotState", "BotState.dll"), "new");
