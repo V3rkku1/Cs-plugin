@@ -5,6 +5,7 @@ using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
+using CounterStrikeSharp.API.Modules.Utils;
 
 namespace LanSkinTester;
 
@@ -32,6 +33,7 @@ public partial class LanSkinTester
         if (!_seatsListening)
         {
             _seatsListening = true;
+            AddCommandListener("jointeam", OnRetakeJoinTeam);
             RegisterListener<Listeners.OnMapStart>(_ =>
             {
                 _roundRunning = false;
@@ -78,6 +80,43 @@ public partial class LanSkinTester
         // The retakes plugin fills free seats from its queue on the next round's pre-start.
         if (_seats > 0 && _seatsPending) UpdateSeats();
         return HookResult.Continue;
+    }
+
+    public enum RoomMove { None, MoveBot, KickBot }
+
+    /// <summary>
+    /// Valve retakes: a person picking a full side. A bot on it moves to the other side when that has room,
+    /// else it is kicked (bot_quota adds a new one where there is room). Without a bot there: the game says full.
+    /// </summary>
+    internal static RoomMove MakeRoom(int onWanted, int wantedSeats, int onOther, int otherSeats, bool botOnWanted) =>
+        onWanted < wantedSeats || !botOnWanted ? RoomMove.None : onOther < otherSeats ? RoomMove.MoveBot : RoomMove.KickBot;
+
+    private HookResult OnRetakeJoinTeam(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!_seatsLive || _seats <= 0 || player is not { IsValid: true } || IsBotPlayer(player)) return HookResult.Continue;
+        if (!int.TryParse(cmd.GetArg(1), out var wanted) || wanted is not (2 or 3)) return HookResult.Continue;
+        try
+        {
+            var team = (CsTeam)wanted;
+            var other = team == CsTeam.Terrorist ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+            int Seats(CsTeam t) => ConVar.Find(t == CsTeam.Terrorist ? "mp_retake_t_count" : "mp_retake_ct_count")?.GetPrimitiveValue<int>() ?? (t == CsTeam.Terrorist ? 3 : 4);
+            var players = Utilities.GetPlayers().Where(p => p.IsValid && p != player && !p.IsHLTV).ToList();
+            var bot = players.LastOrDefault(p => p.Team == team && IsBotPlayer(p));
+            switch (MakeRoom(players.Count(p => p.Team == team), Seats(team), players.Count(p => p.Team == other), Seats(other), bot != null))
+            {
+                case RoomMove.MoveBot:
+                    bot!.ChangeTeam(other);
+                    break;
+                case RoomMove.KickBot:
+                    Server.ExecuteCommand($"kickid {bot!.UserId}");
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Could not make room on the retakes team");
+        }
+        return HookResult.Continue; // the game seats the person as usual, now there is room
     }
 
     /// <summary>B3none's retakes plugin runs this match (plugin retakes; Valve retakes changes bots live).</summary>

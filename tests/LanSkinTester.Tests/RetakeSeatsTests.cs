@@ -254,4 +254,12 @@ public class RetakeSeatsTests
             Assert.Contains($"bot_quota {Seats.SeatQuota(maxPlayers, Math.Min(bots, 31), 1)}\n", s.ToCfg().Replace("\r", ""));
         }
     }
+
+    [Theory]
+    [InlineData(3, 3, 3, 4, true, Seats.RoomMove.MoveBot)]   // T full of bots, CT has a free seat: a T bot goes to CT
+    [InlineData(3, 3, 4, 4, true, Seats.RoomMove.KickBot)]   // both full: a T bot leaves, bot_quota re-adds one where there is room
+    [InlineData(2, 3, 4, 4, true, Seats.RoomMove.None)]      // a free seat already
+    [InlineData(3, 3, 3, 4, false, Seats.RoomMove.None)]     // full of people: nothing to make room with
+    public void ValveRetakesMakesRoomForPeople(int onWanted, int wantedSeats, int onOther, int otherSeats, bool bot, Seats.RoomMove expected) =>
+        Assert.Equal(expected, Seats.MakeRoom(onWanted, wantedSeats, onOther, otherSeats, bot));
 }

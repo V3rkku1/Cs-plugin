@@ -152,14 +152,16 @@ export function Select({ options, value, onChange, placeholder = "Choose…", di
   const current = items.find(o => o.value === value);
   const show = () => {
     const r = button.current.getBoundingClientRect();
-    const below = window.innerHeight - r.bottom;
-    setOpen({ left: r.left, top: below > 260 ? r.bottom + 6 : undefined, bottom: below > 260 ? undefined : window.innerHeight - r.top + 6, width: Math.max(r.width, 200) });
+    // Opens on the side with more room and never runs off the window (cut-off items couldn't be picked).
+    const below = window.innerHeight - r.bottom, above = r.top, down = below >= 260 || below >= above;
+    setOpen({ left: Math.min(r.left, window.innerWidth - Math.max(r.width, 200) - 8), top: down ? r.bottom + 6 : undefined, bottom: down ? undefined : window.innerHeight - r.top + 6,
+      width: Math.max(r.width, 200), max: Math.min(360, (down ? below : above) - 18) });
   };
   useEffect(() => {
     if (!open) return;
     // Rendered at the body: a glass card's backdrop-filter would otherwise offset and clip a fixed menu.
     const host = document.body.appendChild(document.createElement("div"));
-    render(html`<div class="menu glass" style=${`left:${open.left}px;${open.top != null ? `top:${open.top}px;` : `bottom:${open.bottom}px;`}min-width:${open.width}px`}
+    render(html`<div class="menu glass" style=${`left:${open.left}px;${open.top != null ? `top:${open.top}px;` : `bottom:${open.bottom}px;`}min-width:${open.width}px;max-height:${open.max}px`}
         ref=${el => el?.querySelector(".active")?.scrollIntoView({ block: "nearest" })}>
       ${items.map(o => html`<button class=${o.value === value ? "active" : ""} onClick=${() => { setOpen(null); onChange?.(o.value); }}>
         ${o.label}${o.note && html`<small>${o.note}</small>`}
@@ -168,11 +170,15 @@ export function Select({ options, value, onChange, placeholder = "Choose…", di
     </div>`, host);
     const close = e => { if (!host.contains(e.target) && !button.current?.contains(e.target)) setOpen(null); };
     const resize = () => setOpen(null);
+    // Scrolling the page would leave the menu floating away from its button: close it (its own scrolling is fine).
+    const scroll = e => { if (!host.contains(e.target)) setOpen(null); };
     setTimeout(() => window.addEventListener("pointerdown", close), 0);
     window.addEventListener("resize", resize);
+    window.addEventListener("scroll", scroll, true);
     return () => {
       window.removeEventListener("pointerdown", close);
       window.removeEventListener("resize", resize);
+      window.removeEventListener("scroll", scroll, true);
       render(null, host);
       host.remove();
     };
