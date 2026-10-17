@@ -600,6 +600,24 @@ public class ServerSettings
         HackAggression = 5;
     }
 
+    /// <summary>
+    /// A Workshop map from the manager runs as shipped: stock rules, no bots, and no add-on plugins except the
+    /// skins plugin (extras like gun menus and bot plugins can cover or break a map's own menu). Friends,
+    /// password and launch options carry over, and so do the remembered per-map modes and team sizes.
+    /// </summary>
+    public static ServerSettings ForWorkshop(ServerSettings old, string id)
+    {
+        var s = new ServerSettings
+        {
+            Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins, GameArgs = old.GameArgs,
+            AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey, MapModes = old.MapModes, MapTeamSizes = old.MapTeamSizes,
+            Mode = "Casual", WorkshopMap = id, Bots = 0, BotImprover = false, CalmBots = false, MaxMoney = false, AllowCheats = false,
+            SpawnProtection = false, GunMenu = false, MapVote = false, RoundSummary = false, WelcomeMessage = false, CleanupGuns = false,
+        };
+        s.RecallMapMode();
+        return s;
+    }
+
     public GameMode GetMode()
     {
         var mode = Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
