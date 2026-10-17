@@ -1,4 +1,4 @@
-"""Draws the app icon (assets/app.png, src/Launcher/app.ico). Run: python3 assets/make_icon.py"""
+"""Draws the app icon (src/Launcher/web/app.png, src/Launcher/app.ico). Run: python3 assets/make_icon.py"""
 import math, os
 from PIL import Image, ImageDraw, ImageFilter
 
@@ -44,7 +44,7 @@ def icon(size=S):
     return img
 
 big = icon()
-big.resize((512, 512), Image.LANCZOS).save(os.path.join(HERE, "app.png"))
+big.resize((512, 512), Image.LANCZOS).save(os.path.join(HERE, "..", "src", "Launcher", "web", "app.png"))
 sizes = [16, 24, 32, 48, 64, 128, 256]
 big.save(os.path.join(HERE, "..", "src", "Launcher", "app.ico"), sizes=[(s, s) for s in sizes])
 print("ok")
