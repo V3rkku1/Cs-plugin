@@ -13,7 +13,14 @@ public class TestSession
     /// Test mode: Metamod is in gameinfo.gi, or our server is running (it has read gameinfo.gi already,
     /// and the line is taken out again so the game doesn't load the server plugins, see <see cref="IsolateClient"/>).
     /// </summary>
-    public bool IsOn => GameInfoPatcher.IsEnabled(_game.GameInfo) || FindServer() != null;
+    public bool IsOn => GameInfoPatcher.IsEnabled(_game.GameInfo) || File.Exists(SessionFile) || FindServer() != null;
+
+    /// <summary>
+    /// Written when a server starts, removed by Stop. gameinfo.gi is already clean while the server runs,
+    /// so without it a server that closed (or crashed) would skip Stop's clean-up: the router port and
+    /// Workshop map copies.
+    /// </summary>
+    private static string SessionFile => Path.Combine(AppState.LauncherDataDir, "test-session.on");
 
     /// <summary>
     /// The game reads the same gameinfo.gi as the server. With the Metamod line in it, CS2 itself loads
@@ -110,6 +117,7 @@ public class TestSession
     private void LaunchServer(ServerSettings settings)
     {
         settings.WriteCfg(_game);
+        try { File.WriteAllText(SessionFile, ""); } catch (Exception) { /* test mode still shows while the server runs */ }
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
         Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {
@@ -182,6 +190,7 @@ public class TestSession
             catch (Exception) { /* already gone */ }
         }
         GameInfoPatcher.Disable(_game.GameInfo);
+        try { File.Delete(SessionFile); } catch (Exception) { /* removed on the next Stop */ }
         Upnp.RemoveMapping();
         try { WorkshopMaps.RemoveCopies(_game); }
         catch (Exception) { /* removed on the next Stop */ } // close the router port again (internet mode)
