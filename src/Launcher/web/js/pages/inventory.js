@@ -1,19 +1,13 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, img } from "../api.js";
-import { Page, Button, Segmented, Select, TextField, Icon, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
-import { navigate } from "../app.js";
+import { call, tryCall, useApi, navigate } from "../api.js";
+import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
 
-const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
+export const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
 const SYMBOL = { USD: "$", EUR: "€", GBP: "£" };
 export const money = (v, cur) => v == null ? "—" : cur === "EUR" ? `${v.toFixed(2).replace(".", ",")}€` : `${SYMBOL[cur] ?? "$"}${v.toFixed(2)}`;
 const GRADE_RANK = ["Consumer Grade", "Base Grade", "Industrial Grade", "Mil-Spec Grade", "High Grade", "Restricted", "Remarkable", "Classified", "Exotic", "Covert", "Extraordinary", "Contraband"];
 const equippable = v => (v.item.kind === "skin" && v.item.def) || ((v.item.kind === "pin" || v.item.kind === "music") && v.item.collectibleId);
-
-function Pic({ src, size = 256 }) {
-  const [bad, setBad] = useState(false);
-  return src && !bad ? html`<img src=${img(src, size)} alt="" loading="lazy" onError=${() => setBad(true)} />` : html`<${Icon} name="skins" size=${30} />`;
-}
 
 /** CS2's wear bar: the five wear bands with a marker at the float. */
 function WearBar({ wear }) {
@@ -28,7 +22,7 @@ function Inspect({ v, cur, close }) {
   const st = i.statTrak && i.kind === "skin";
   return html`<aside class="inv-inspect glass" style=${`--c:${i.color}`}>
     <div class="hstack"><div class="grow"></div><${Button} kind="plain" icon="x" onClick=${close} title="Close" /></div>
-    <div class="inspect-pic"><${Pic} src=${i.image} size=${512} /></div>
+    <div class="inspect-pic"><${ItemPic} src=${i.image} size=${512} /></div>
     <div class="inspect-grade">${i.grade}${i.phase ? ` · ${i.phase}` : ""}</div>
     <div class="inspect-weapon">${st ? html`<span class="st-tag">StatTrak™</span> ` : ""}${i.souvenir ? html`<span class="sv-tag">Souvenir</span> ` : ""}${v.weapon}</div>
     <h2 class="inspect-finish">${v.finish}</h2>
@@ -40,7 +34,7 @@ function Inspect({ v, cur, close }) {
     ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">0</b></div>`}
     ${i.kind === "skin" && v.category === "weapons" && html`
       <div class="inspect-row"><span>Stickers</span><b>${(i.stickers ?? []).length}/5</b></div>
-      ${(i.stickers ?? []).length > 0 && html`<div class="inspect-stickers">${i.stickers.map(st => html`<span title=${st.name}><${Pic} src=${st.image} size=${128} /></span>`)}</div>`}
+      ${(i.stickers ?? []).length > 0 && html`<div class="inspect-stickers">${i.stickers.map(st => html`<span title=${st.name}><${ItemPic} src=${st.image} size=${128} /></span>`)}</div>`}
       <${Button} block icon="layers" onClick=${() => sheet(close => html`<${StickerSheet} uid=${i.uid} close=${close} />`, { wide: true })}>Stickers…<//>`}
     <div class="inspect-row"><span>Market price</span><b>${money(v.price, cur)}</b></div>
     <div class="inspect-row"><span>Unboxed from</span><b>${i.caseName}</b></div>
@@ -120,20 +114,20 @@ function StickerSheet({ uid, close }) {
       <span class="faint small">Drag a sticker to move it. The preview is a guide: check it in game (inspect with F) - equipped guns change within a second.</span></div>
     <div class="sticker-layout">
       <div class="sticker-stage" ref=${box} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up}>
-        <${Pic} src=${gun.image} size=${1024} />
+        <${ItemPic} src=${gun.image} size=${1024} />
         ${stickers.map(st => {
           const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
           const at = spot(gun.def, st.slot, x, y);
           return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)}
             style=${`left:${at.left}%;top:${at.top}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
-            <${Pic} src=${st.image} size=${128} /></div>`;
+            <${ItemPic} src=${st.image} size=${128} /></div>`;
         })}
       </div>
       <div class="sticker-side">
         <div class="field-label">On this gun (${stickers.length}/5)</div>
         <div class="sticker-slots">
           ${stickers.map(st => html`<button key=${st.slot} class=${"slot" + (sel === st.slot ? " selected" : "")} onClick=${() => setSel(st.slot)} title=${st.name}>
-            <${Pic} src=${st.image} size=${128} /></button>`)}
+            <${ItemPic} src=${st.image} size=${128} /></button>`)}
           ${stickers.length === 0 && html`<div class="faint small">No stickers yet. Pick one below.</div>`}
         </div>
         ${current && html`<div class="sticker-controls">
@@ -157,7 +151,7 @@ function StickerSheet({ uid, close }) {
           ${!choices ? html`<div class="faint small">Loading…</div>`
             : choices.length === 0 ? html`<div class="faint small">No stickers in your inventory. Open sticker capsules on the Cases page.</div>`
             : choices.map(c => html`<button key=${c.uid} class="slot" style=${`--c:${c.color}`} disabled=${stickers.length >= 5}
-                title=${`Apply ${c.name}`} onClick=${() => apply(c.uid)}><${Pic} src=${c.image} size=${128} /></button>`)}
+                title=${`Apply ${c.name}`} onClick=${() => apply(c.uid)}><${ItemPic} src=${c.image} size=${128} /></button>`)}
         </div>
       </div>
     </div>
@@ -192,7 +186,7 @@ function TradeUpSheet({ close }) {
     const v = result.item, i = v.item;
     return html`<div class="picker tradeup"><div class="reveal" style=${`--c:${i.color}`}>
       <div class="reveal-glow"></div>
-      <div class="reveal-pic"><${Pic} src=${i.image} size=${512} /></div>
+      <div class="reveal-pic"><${ItemPic} src=${i.image} size=${512} /></div>
       <div class="reveal-grade">${i.grade}${i.phase ? ` · ${i.phase}` : ""}</div>
       <h2 class="reveal-name">${i.statTrak ? "StatTrak™ " : ""}${i.name}</h2>
       ${i.paint > 0 && html`<div class="reveal-stats mono"><span>${wearName(i.wear)}</span><span>Float ${i.wear.toFixed(9)}</span><span>Pattern ${i.seed}</span></div>`}
@@ -214,7 +208,7 @@ function TradeUpSheet({ close }) {
           ${Array.from({ length: needed }, (_, n) => {
             const v = inv.items.find(x => x.item.uid === picked[n]);
             return v ? html`<button class="cs-item" style=${`--c:${v.item.color}`} onClick=${() => toggle(v.item.uid)} title="Take out">
-                <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+                <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
                 <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
                 <div class="price">${v.item.wear.toFixed(4)}</div></button>`
               : html`<div class="tradeup-empty">${n + 1}</div>`;
@@ -225,7 +219,7 @@ function TradeUpSheet({ close }) {
           ${eligible.length === 0 ? html`<div class="faint small">No items that can go in. Open cases for more.</div>`
             : eligible.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (picked.includes(v.item.uid) ? " selected" : "")} style=${`--c:${v.item.color}`}
                 onClick=${() => toggle(v.item.uid)}>
-                <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+                <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
                 <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
                 <div class="price">${v.item.wear.toFixed(4)}</div></button>`)}
         </div>
@@ -235,7 +229,7 @@ function TradeUpSheet({ close }) {
         <div class="tradeup-outcomes scroll">
           ${(check?.outcomes ?? []).length === 0 ? html`<div class="faint small">${check?.message ?? ""}</div>`
             : check.outcomes.map(o => html`<div class="outcome" style=${`--c:${o.color}`}>
-                <div class="pic"><${Pic} src=${o.image} size=${128} /></div>
+                <div class="pic"><${ItemPic} src=${o.image} size=${128} /></div>
                 <div class="grow"><div class="fin">${o.name}</div>
                   <div class="faint small">${o.wear ? `${o.wear} · ${o.float.toFixed(6)} · ` : ""}${o.collection}</div></div>
                 <div class="odds"><b>${(o.chance * 100).toFixed(o.chance < 0.1 ? 2 : 1)}%</b><span>${money(o.price, cur)}</span></div>
@@ -282,7 +276,7 @@ function AddItemSheet({ close }) {
       <div class="grow"><${TextField} icon="search" placeholder="Search: ak redline, karambit fade, sticker…" value=${q} onInput=${setQ} autofocus /></div>
     </div>
     ${pick ? html`<div class="add-detail" style=${`--c:${pick.color}`}>
-        <div class="inspect-pic"><${Pic} src=${pick.image} size=${512} /></div>
+        <div class="inspect-pic"><${ItemPic} src=${pick.image} size=${512} /></div>
         <div class="add-form">
           <div class="inspect-grade">${pick.grade}</div>
           <h2 class="inspect-finish">${pick.name}</h2>
@@ -303,7 +297,7 @@ function AddItemSheet({ close }) {
       : html`<div class="picker-grid scroll">
         ${list == null ? html`<div class="empty small">Loading…</div>` : list.length === 0 ? html`<div class="empty small">Nothing found.</div>`
           : list.map(c => html`<button key=${c.key} class="cs-item" style=${`--c:${c.color}`} onClick=${() => choose(c)} title=${c.name}>
-              <div class="pic"><${Pic} src=${c.image} size=${256} /></div>
+              <div class="pic"><${ItemPic} src=${c.image} size=${256} /></div>
               <div class="text"><div class="fin">${c.name}</div><div class="weapon">${c.grade}${c.team ? ` · ${c.team}` : ""}</div></div>
             </button>`)}
       </div>`}
@@ -329,7 +323,7 @@ function LoadoutView({ items, cur }) {
       <div class="picker-grid scroll">
         ${mine.length === 0 ? html`<div class="empty small">None in your inventory. Open cases to get some.</div>`
           : mine.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (onSide(v) ? " selected" : "")} style=${`--c:${v.item.color}`} onClick=${() => close(v)}>
-              <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+              <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
               <div class="text"><div class="fin">${v.finish}</div><div class="weapon">${v.item.statTrak ? "StatTrak™ · " : ""}${wearName(v.item.wear)}</div></div>
               <div class="price">${money(v.price, cur)}</div></button>`)}
       </div>
@@ -342,7 +336,7 @@ function LoadoutView({ items, cur }) {
     const on = mine.find(onSide);
     return html`<button key=${key} class=${"cs-item loadout-slot" + (on ? " selected" : "")} style=${`--c:${on?.item.color ?? "transparent"}`}
         onClick=${() => pick(name, mine)}>
-      <div class="pic">${on ? html`<${Pic} src=${on.item.image} size=${256} />` : html`<${Icon} name="crosshair" size=${30} />`}</div>
+      <div class="pic">${on ? html`<${ItemPic} src=${on.item.image} size=${256} />` : html`<${Icon} name="crosshair" size=${30} />`}</div>
       <div class="text"><div class="weapon">${name}</div><div class="fin">${on ? on.finish : "Default"}</div></div>
       <div class="price">${mine.length ? `${mine.length} owned` : ""}</div>
     </button>`;
@@ -447,7 +441,7 @@ export function InventoryPage() {
             ${!state.items.length && html`<div style="margin-top:12px"><${Button} kind="prominent" onClick=${() => navigate("cases")}>Open Cases<//></div>`}</div>`
         : html`<div class="cs-grid">${items.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (open === v.item.uid ? " selected" : "")}
             style=${`--c:${v.item.color}`} onClick=${() => setOpen(open === v.item.uid ? null : v.item.uid)}>
-          <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+          <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
           <span class=${"fav" + (favs.has(v.item.uid) ? " on" : "")} role="button" title="Favorite" onClick=${e => { e.stopPropagation(); toggleFav(v.item.uid); }}>★</span>
           ${v.equipped && html`<span class="equipped" title="Equipped"><${Icon} name="check" size=${12} stroke=${3} /></span>`}
           ${v.item.statTrak && v.item.kind === "skin" && html`<span class="st">ST™</span>`}

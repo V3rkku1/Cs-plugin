@@ -309,7 +309,6 @@ button { cursor: pointer; }
 .faint { color: var(--text-3); }
 .small { font-size: 0.86em; }
 .mono { font-family: var(--mono); }
-.center { text-align: center; }
 
 /* !important: pages may set their own column widths inline. */
 @media (max-width: 1240px) { .cols.wrap { grid-template-columns: minmax(0, 1fr) !important; } }
@@ -754,22 +753,16 @@ kbd { font-family: var(--font); }
 .case-code { text-align: center; padding: 8px; opacity: 0.6; }
 .case-code a { color: inherit; }
 
-
-
-
-
-
-
 .case-contents { flex: 1; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; padding-right: 4px; }
 .grade-head { display: flex; align-items: center; gap: 8px; font-weight: 700; margin: 0 2px 8px; }
 .grade-head .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--c); }
 .grade-head .faint { margin-left: auto; font-weight: 500; }
 .grade-items { display: grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap: 8px; }
-.content-card, .reel-card, .inv-card { position: relative; display: flex; flex-direction: column; border-radius: var(--r-sm); overflow: hidden;
+.content-card, .reel-card { position: relative; display: flex; flex-direction: column; border-radius: var(--r-sm); overflow: hidden;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.04), color-mix(in srgb, var(--c) 22%, transparent)); box-shadow: inset 0 -3px 0 var(--c); }
-.content-card .pic, .reel-card .pic, .inv-card .pic { position: relative; height: 86px; display: grid; place-items: center; color: var(--text-3); }
-.content-card img, .reel-card img, .inv-card img { max-width: 92%; max-height: 82px; }
-.content-card .name, .reel-card .name, .inv-card .name { padding: 4px 8px 8px; font-size: 0.78em; font-weight: 600; line-height: 1.2; }
+.content-card .pic, .reel-card .pic { position: relative; height: 86px; display: grid; place-items: center; color: var(--text-3); }
+.content-card img, .reel-card img { max-width: 92%; max-height: 82px; }
+.content-card .name, .reel-card .name { padding: 4px 8px 8px; font-size: 0.78em; font-weight: 600; line-height: 1.2; }
 .rare-star { font-size: 44px; color: #e4ae39; text-shadow: 0 0 18px rgba(228, 174, 57, 0.7); }
 
 .reel { position: relative; overflow: hidden; height: 170px; flex-shrink: 0; width: 100%; border-radius: var(--r-md); background: rgba(0, 0, 0, 0.35);
@@ -788,13 +781,6 @@ kbd { font-family: var(--font); }
 .reveal-name { position: relative; margin: 0; text-align: center; }
 .reveal-stats { position: relative; display: flex; gap: 14px; color: var(--text-2); font-size: 0.9em; }
 .reveal-actions { position: relative; margin-top: 8px; }
-
-.inv-filter { padding: 12px 14px 0; }
-.inv-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 14px; }
-.inv-card .meta { padding: 0 8px; font-size: 0.74em; }
-.inv-card .acts { display: flex; gap: 4px; padding: 6px 8px 8px; }
-.inv-card .st { position: absolute; top: 6px; left: 6px; font-size: 0.68em; font-weight: 800; color: #cf6a32; }
-.inv-card .st.sv { left: auto; right: 6px; color: #ffd700; }
 
 /* -------------------------------------------------------------------------------------------- */
 /* Inventory page (CS2 style)                                                                    */

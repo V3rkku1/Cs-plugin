@@ -1,6 +1,6 @@
 // Play: the server's status with one clear action, and the quick starts (built in and saved).
 import { html, useState } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, on } from "../api.js";
+import { call, tryCall, useApi, on, navigate } from "../api.js";
 import { Page, Section, Button, Icon, confirm, prompt } from "../ui.js";
 
 // The launcher asks before some actions (restart for retakes, start without the router port, replace a
@@ -8,8 +8,6 @@ import { Page, Section, Button, Icon, confirm, prompt } from "../ui.js";
 on("play.ask", async a => {
   if (await confirm({ title: a.title, message: a.message, ok: a.ok, danger: a.danger })) tryCall(a.call, a.args);
 });
-
-export const go = page => window.dispatchEvent(new CustomEvent("navigate", { detail: page }));
 
 /** play.state, reloaded on every change and whenever the running server's status changes. */
 export const usePlay = () => useApi("play.state", undefined, ["play.tick"]);
@@ -115,8 +113,8 @@ function Hero({ state }) {
         ${on && html`<${Button} size="lg" icon="game" onClick=${() => tryCall("play.openGame")}>Open CS2<//>`}
         ${on && html`<${Button} size="lg" kind="destructive" icon="stop" title="Close the server and CS2, back to normal (Shift+F5)"
             onClick=${() => tryCall("play.stop")}>Stop<//>`}
-        ${!state.ready && html`<${Button} size="lg" icon="setup" onClick=${() => go("setup")}>Open Setup<//>`}
-        <${Button} kind="plain" icon="sliders" onClick=${() => go("live")}>Server Settings<//>
+        ${!state.ready && html`<${Button} size="lg" icon="setup" onClick=${() => navigate("setup")}>Open Setup<//>`}
+        <${Button} kind="plain" icon="sliders" onClick=${() => navigate("live")}>Server Settings<//>
       </div>
     </div>
     <aside class="hero-invite">
@@ -124,7 +122,7 @@ function Hero({ state }) {
       <div class=${"invite-address" + (state.invite.address ? " mono" : " faint")}>${state.invite.address ?? "No address yet"}</div>
       <div class="small muted">${state.invite.address ? `${state.invite.how} · change on the Friends page` : state.invite.text}</div>
       <${CopyButtons} address=${state.invite.address} />
-      <${Button} kind="plain" size="sm" onClick=${() => go("friends")}>Friends Page <${Icon} name="chevronRight" size=${14} /><//>
+      <${Button} kind="plain" size="sm" onClick=${() => navigate("friends")}>Friends Page <${Icon} name="chevronRight" size=${14} /><//>
     </aside>
   </section>`;
 }

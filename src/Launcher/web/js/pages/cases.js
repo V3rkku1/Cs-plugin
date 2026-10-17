@@ -1,9 +1,8 @@
 // Cases: open CS2 containers like in the game (reel, real odds), keep what you unbox and equip it.
 import { html, useState, useEffect, useRef } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, img } from "../api.js";
-import { Page, Section, Button, Segmented, Select, TextField, Icon, prompt, sheet } from "../ui.js";
-import { money } from "./inventory.js";
-import { navigate } from "../app.js";
+import { call, tryCall, useApi, navigate } from "../api.js";
+import { Page, Section, Button, Segmented, Select, TextField, Icon, ItemPic, prompt, sheet } from "../ui.js";
+import { money, wearName } from "./inventory.js";
 
 const CARD = 168; // reel card width incl. gap
 const SPIN_MS = 7200;
@@ -11,8 +10,7 @@ const TYPE_NAMES = {
   "Case": "Weapon Cases", "Sticker Capsule": "Sticker Capsules", "Autograph Capsule": "Autographs", "Souvenir": "Souvenirs",
   "Souvenir Highlight": "Highlights", "Music Kit Box": "Music Kits", "Pins": "Pins", "Patch Capsule": "Patches", "Graffiti": "Graffiti",
 };
-const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
-const pct = c => c >= 0.01 ? `${(c * 100).toFixed(2)}%` : `${(c * 100).toFixed(2)}%`;
+const pct = c => `${(c * 100).toFixed(2)}%`;
 const equippable = i => (i.kind === "skin" && i.def) || ((i.kind === "pin" || i.kind === "music") && i.collectibleId);
 
 // ---- sounds: synthesized with Web Audio (no game files), shaped after CS2's case sounds ----
@@ -101,11 +99,6 @@ const sound = {
     if (level === 5) for (let i = 0; i < 14; i++) hit(t + 0.25 + i * 0.06, { freq: 6000 + Math.random() * 3000, q: 15, gain: 0.06, decay: 0.08 });
   },
 };
-
-function ItemPic({ src, size = 256 }) {
-  const [bad, setBad] = useState(false);
-  return src && !bad ? html`<img src=${img(src, size)} alt="" loading="lazy" onError=${() => setBad(true)} />` : html`<${Icon} name="skins" size=${30} />`;
-}
 
 // ---- the reel ----
 function Reel({ result, onDone }) {

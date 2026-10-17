@@ -1,7 +1,7 @@
 // Setup › Appearance: turns the saved theme values into CSS variables, plus the background picture
 // and the user's custom.css (both served by the launcher from its data folder).
 
-const token = new URLSearchParams(location.search).get("t") ?? "";
+import { token } from "./api.js";
 
 /** Ready-made looks. Picking one sets these values; each can still be changed after. */
 export const PRESETS = [

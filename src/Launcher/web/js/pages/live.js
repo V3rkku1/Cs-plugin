@@ -1,8 +1,8 @@
 // Live Server: the server settings (most used first) and the controls for the running match.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { tryCall } from "../api.js";
+import { tryCall, navigate } from "../api.js";
 import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt, LogView } from "../ui.js";
-import { usePlay, go } from "./play.js";
+import { usePlay } from "./play.js";
 
 const set = (key, value) => tryCall("live.set", { [key]: value });
 const send = command => tryCall("live.command", command);
@@ -258,8 +258,8 @@ export function LivePage() {
 
         <${Section} title="Hacker Mode">
           <${Row} icon=${{ name: "hacker", color: "green" }} title="Hacker Mode" subtitle=${state.hackerDetail}
-              subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => go("hacker")}>
-            <${Button} size="sm" onClick=${e => { e.stopPropagation(); go("hacker"); }}>Open<//>
+              subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => navigate("hacker")}>
+            <${Button} size="sm" onClick=${e => { e.stopPropagation(); navigate("hacker"); }}>Open<//>
           <//>
         <//>
 

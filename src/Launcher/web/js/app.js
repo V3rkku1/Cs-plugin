@@ -1,6 +1,6 @@
 // The window: floating glass sidebar, the pages, toasts and keyboard shortcuts.
 import { html, render, useState, useEffect, useRef, useLayoutEffect } from "./vendor/preact-htm.js";
-import { call, tryCall, useApi, on, prefetch } from "./api.js";
+import { tryCall, useApi, prefetch } from "./api.js";
 import { Icon, Toasts, sheen } from "./ui.js";
 import { openPalette } from "./palette.js";
 import { UpdatePopup, openUpdate } from "./update.js";
@@ -24,9 +24,6 @@ const pages = [
   { id: "friends", label: "Friends", icon: "friends", component: FriendsPage },
   { id: "setup", label: "Setup", icon: "setup", component: SetupPage },
 ];
-
-/** Other pages can switch pages: navigate("live"). */
-export const navigate = id => window.dispatchEvent(new CustomEvent("navigate", { detail: id }));
 
 const statusColors = { good: "var(--green)", warning: "var(--orange)", bad: "var(--red)" };
 
