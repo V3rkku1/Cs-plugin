@@ -75,7 +75,7 @@ public partial class Api
         var tick = JsonSerializer.Serialize(new
         {
             status?.Map, status?.GameType, status?.GameMode, status?.Humans, status?.Bots, status?.Players,
-            status?.SkinsAllowed, status?.DisabledReason, on = App.TestModeOn, w = _pendingWorkshopId, s = _workshopSentAt,
+            status?.SkinsAllowed, status?.DisabledReason, on = App.TestModeOn, step = JoinStep(status), w = _pendingWorkshopId, s = _workshopSentAt,
             sub = g != null && id != null && WorkshopMaps.FindDownloaded(g, id) != null,
         });
         if (tick == _lastTick) return;
@@ -120,7 +120,7 @@ public partial class Api
     public record PlayState(bool HasGame, bool Ready, bool TestMode, bool Busy, string? StartError, ServerSettings Settings,
         LiveStatus? Status, string LiveTitle, string LiveDetail, string LiveKind, InviteInfo Invite, List<PresetTile> Presets,
         List<ModeInfo> Modes, WorkshopInfo Workshop, string HackerDetail, string[] Difficulties, string[] BotTeams,
-        string[] BotWeapons, string[] RetakeStyles, List<GiveItem> Give, int Port);
+        string[] BotWeapons, string[] RetakeStyles, List<GiveItem> Give, int Port, int Step, string? ConsoleError);
 
     private static readonly List<GiveItem> GiveItems =
     [
@@ -174,8 +174,16 @@ public partial class Api
                 _ => "Off · aimbot, wallhack, radar and more",
             },
             ServerSettings.Difficulties, ServerSettings.BotTeams, ServerSettings.BotWeaponChoices, ServerSettings.RetakeStyles,
-            GiveItems, ServerSettings.Port);
+            GiveItems, ServerSettings.Port, JoinStep(status), status == null && App.TestModeOn ? MapError() : null);
     }
+
+    /// <summary>Where a start is: 0 server loading, 1 map up (CS2 not started), 2 CS2 joining, 3 joined, -1 not running.</summary>
+    private int JoinStep(ServerStatus? status) =>
+        !App.TestModeOn ? -1 : status == null ? 0 : status.Humans > 0 ? 3 : TestSession.ClientRunning() ? 2 : 1;
+
+    /// <summary>The newest console line that looks like a map or load failure, so it can be shown instead of "loading" forever.</summary>
+    private string? MapError() => App.Game == null ? null : new TestSession(App.Game).ConsoleTail(60)
+        .LastOrDefault(l => System.Text.RegularExpressions.Regex.IsMatch(l, @"(failed|unable|can't|cannot|couldn't|missing|not found).*(map|workshop|load)|(map|workshop).*(failed|not found|missing)", System.Text.RegularExpressions.RegexOptions.IgnoreCase));
 
     private static string PluralOf(int n, string word) => $"{n} {word}{(n == 1 ? "" : "s")}";
 
@@ -816,6 +824,17 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    /// <summary>Keeps the current team sizes for this map (a Workshop map or a stock one).</summary>
+    [Call("live.saveTeamSize")]
+    private void SaveTeamSize()
+    {
+        var s = App.Settings.Server;
+        s.MapTeamSizes[s.MapKey] = [s.TeamSizeT, s.TeamSizeCT];
+        SavePlaySettings();
+        Toast($"Team sizes {s.TeamSizeT}v{s.TeamSizeCT} saved for this map.", "good");
+        App.NotifyChanged();
+    }
+
     /// <summary>The page asks "are you sure" first.</summary>
     [Call("play.deleteSetup")]
     private void DeleteSetup(string name)
@@ -851,6 +870,10 @@ public partial class Api
         }
 
         if (ServerSettings.Modes.All(m => m.Name != s.Mode)) s.Mode = oldMode;
+        if (changes.ContainsKey("mode")) s.RememberMapMode();
+        else if (changes.ContainsKey("workshopMap")) s.RecallMapMode();
+        if ((changes.ContainsKey("teamSizeT") || changes.ContainsKey("teamSizeCT")) && s.MapTeamSizes.ContainsKey(s.MapKey))
+            s.MapTeamSizes[s.MapKey] = [s.TeamSizeT, s.TeamSizeCT];
         // A new mode keeps the map only when that mode has it.
         if (s.Mode != oldMode && !changes.ContainsKey("map") && s.GetMode().Maps is { Length: > 0 } maps && !maps.Contains(s.Map))
             s.Map = maps[0];

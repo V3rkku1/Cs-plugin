@@ -169,7 +169,8 @@ export function LivePage() {
           <//>
           <${Row} title="Team Size" subtitle="Most players per side, people and bots (classic modes)">
             <${Stepper} value=${s.teamSizeT} min=${1} max=${16} format=${v => v + " T"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeT", v)} />
-            <${Stepper} value=${s.teamSizeCT} min=${1} max=${16} format=${v => v + " CT"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeCT", v)} /><//>
+            <${Stepper} value=${s.teamSizeCT} min=${1} max=${16} format=${v => v + " CT"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeCT", v)} />
+            <${Button} size="sm" onClick=${() => tryCall("live.saveTeamSize")} title="Remember these sizes whenever this map is played">Save for this map<//><//>
           <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
             <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
           <//>

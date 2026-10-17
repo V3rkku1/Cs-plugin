@@ -101,6 +101,10 @@ function Hero({ state }) {
         <${Stat} icon="person" label="Players" value=${st ? st.humans : "–"} color="green" />
         <${Stat} icon="bot" label="Bots" value=${st ? st.bots : bots} color="orange" />
       </div>
+      ${state.step >= 0 && state.step < 3 && html`<div class="join-steps">
+        ${["Server loading", "Map loaded", "CS2 joining", "Joined"].map((name, n) =>
+          html`<span class=${"join-step" + (n < state.step ? " done" : n === state.step ? " now" : "")}>${name}</span>`)}</div>`}
+      ${state.consoleError && html`<div class="hero-error"><${Icon} name="warning" size=${16} stroke=${2} /><span>Server console: ${state.consoleError}</span></div>`}
       ${state.startError && html`<div class="hero-error"><${Icon} name="warning" size=${16} stroke=${2} /><span>${state.startError}</span></div>`}
       <div class="hero-actions">
         ${on

@@ -440,7 +440,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         }
 
         var defIndex = item.ItemDefinitionIndex;
-        if (!loadout.Skins.TryGetValue(defIndex, out var skin) || !skin.HasCustomization)
+        var skin = loadout.SkinFor(defIndex, player.TeamNum);
+        if (skin == null || !skin.HasCustomization)
         {
             if (isKnife && loadout.Knife != 0)
             {

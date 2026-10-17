@@ -64,8 +64,10 @@ function Inspect({ v, cur, close }) {
 
 /** CS2-style sticker editor for one gun: apply from your inventory, drag to place, turn, size, scrape. */
 // Each slot has its own spot on the gun (offset 0 = that spot), so stickers don't pile up in the middle.
-const SLOT_X = [-0.3, -0.15, 0, 0.15, 0.3];
-const spot = (slot, x, y) => ({ left: 50 + (SLOT_X[slot] + x * 0.45) * 100, top: 50 - y * 40 });
+// Short guns have their slots close together, long ones (snipers) far apart.
+const PISTOLS = [1, 2, 3, 4, 30, 32, 36, 61, 63, 64], LONG = [9, 11, 38, 40];
+const slotX = (def, slot) => [-2, -1, 0, 1, 2][slot] * (PISTOLS.includes(def) ? 0.07 : LONG.includes(def) ? 0.19 : 0.15);
+const spot = (def, slot, x, y) => ({ left: 50 + (slotX(def, slot) + x * 0.45) * 100, top: 50 - y * 40 });
 
 function StickerSheet({ uid, close }) {
   const [inv] = useApi("cases.inventory");
@@ -90,7 +92,7 @@ function StickerSheet({ uid, close }) {
   };
   const toOffset = (e, slot) => {
     const r = box.current.getBoundingClientRect();
-    return { x: ((e.clientX - r.left) / r.width - 0.5 - SLOT_X[slot]) / 0.45, y: -((e.clientY - r.top) / r.height - 0.5) / 0.4 };
+    return { x: ((e.clientX - r.left) / r.width - 0.5 - slotX(gun.def, slot)) / 0.45, y: -((e.clientY - r.top) / r.height - 0.5) / 0.4 };
   };
   const clamp = n => Math.max(-1, Math.min(1, n));
   // The sticker keeps the spot you grabbed it at (dx, dy) instead of jumping under the cursor.
@@ -121,7 +123,7 @@ function StickerSheet({ uid, close }) {
         <${Pic} src=${gun.image} size=${1024} />
         ${stickers.map(st => {
           const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
-          const at = spot(st.slot, x, y);
+          const at = spot(gun.def, st.slot, x, y);
           return html`<div key=${st.slot} class=${"placed" + (sel === st.slot ? " selected" : "")} onPointerDown=${e => down(e, st.slot)}
             style=${`left:${at.left}%;top:${at.top}%;width:${64 * st.scale}px;transform:translate(-50%,-50%) rotate(${st.rotation}deg);opacity:${1 - st.wear * 0.75}`}>
             <${Pic} src=${st.image} size=${128} /></div>`;
@@ -320,23 +322,24 @@ const isGlove = v => /gloves|wraps/i.test(v.weapon);
 
 function LoadoutView({ items, cur }) {
   const [team, setTeam] = useState(2);
+  const onSide = v => team === 2 ? v.equippedT : v.equippedCT;
   const pick = async (title, mine) => {
     const choice = await sheet(close => html`<div class="picker">
       <div class="picker-head"><h2>${title}</h2><span class="faint small">Your skins for this slot. Pick one to put it on.</span></div>
       <div class="picker-grid scroll">
         ${mine.length === 0 ? html`<div class="empty small">None in your inventory. Open cases to get some.</div>`
-          : mine.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (v.equipped ? " selected" : "")} style=${`--c:${v.item.color}`} onClick=${() => close(v)}>
+          : mine.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (onSide(v) ? " selected" : "")} style=${`--c:${v.item.color}`} onClick=${() => close(v)}>
               <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
               <div class="text"><div class="fin">${v.finish}</div><div class="weapon">${v.item.statTrak ? "StatTrak™ · " : ""}${wearName(v.item.wear)}</div></div>
               <div class="price">${money(v.price, cur)}</div></button>`)}
       </div>
-      <div class="picker-foot">${mine.some(v => v.equipped) && html`<${Button} onClick=${() => close("default")}>Use Default<//>`}<div class="grow"></div>
+      <div class="picker-foot">${mine.some(onSide) && html`<${Button} onClick=${() => close("default")}>Use Default<//>`}<div class="grow"></div>
         <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`, { wide: true });
-    if (choice === "default") tryCall("cases.unequip", mine.find(v => v.equipped).item.uid);
-    else if (choice && !choice.equipped) tryCall("cases.equip", choice.item.uid);
+    if (choice === "default") tryCall("cases.unequip", mine.find(onSide).item.uid);
+    else if (choice && !onSide(choice)) tryCall("cases.equipSide", { uid: choice.item.uid, team });
   };
   const slot = (key, name, mine) => {
-    const on = mine.find(v => v.equipped);
+    const on = mine.find(onSide);
     return html`<button key=${key} class=${"cs-item loadout-slot" + (on ? " selected" : "")} style=${`--c:${on?.item.color ?? "transparent"}`}
         onClick=${() => pick(name, mine)}>
       <div class="pic">${on ? html`<${Pic} src=${on.item.image} size=${256} />` : html`<${Icon} name="crosshair" size=${30} />`}</div>
@@ -360,8 +363,17 @@ function LoadoutView({ items, cur }) {
   </div>`;
 }
 
+// Favorites live in this browser only: a per-PC convenience, not game data.
+const readFavs = () => { try { return new Set(JSON.parse(localStorage.getItem("inv.favs") ?? "[]")); } catch { return new Set(); } };
+
 export function InventoryPage() {
   const [state] = useApi("cases.inventory");
+  const [favs, setFavs] = useState(readFavs);
+  const [onlyST, setOnlyST] = useState(false);
+  const [onlyFav, setOnlyFav] = useState(false);
+  const [fromCase, setFromCase] = useState("");
+  const [minP, setMinP] = useState("");
+  const [maxP, setMaxP] = useState("");
   const [tab, setTab] = useState("all");
   const [sort, setSort] = useState("newest");
   const [q, setQ] = useState("");
@@ -370,7 +382,15 @@ export function InventoryPage() {
 
   const cur = state.currency;
   const words = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const toggleFav = uid => setFavs(f => {
+    const n = new Set(f); n.has(uid) ? n.delete(uid) : n.add(uid);
+    try { localStorage.setItem("inv.favs", JSON.stringify([...n])); } catch { /* no storage */ }
+    return n;
+  });
+  const lo = parseFloat(minP), hi = parseFloat(maxP);
   let items = state.items.filter(v => (tab === "all" || tab === "loadout" || v.category === tab)
+    && (!onlyST || v.item.statTrak) && (!onlyFav || favs.has(v.item.uid)) && (!fromCase || v.item.caseName === fromCase)
+    && (isNaN(lo) || (v.price ?? 0) >= lo) && (isNaN(hi) || (v.price ?? 0) <= hi)
     && words.every(w => `${v.item.name} ${v.item.caseName} ${v.item.grade}`.toLowerCase().includes(w)));
   const by = {
     newest: (a, b) => new Date(b.item.opened) - new Date(a.item.opened),
@@ -378,7 +398,17 @@ export function InventoryPage() {
     price: (a, b) => (b.price ?? -1) - (a.price ?? -1),
     name: (a, b) => a.item.name.localeCompare(b.item.name),
   };
-  items = [...items].sort(by[sort]);
+  items = [...items].sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
+  const cases = [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort();
+  // Keeps the best-priced copy of each skin (and anything equipped or favorite); sells the rest.
+  const duplicates = Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"), v => v.item.name))
+    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => (b.price ?? 0) - (a.price ?? 0)).slice(1))
+    .filter(v => !v.equipped && !favs.has(v.item.uid) && v.price != null);
+  const sellDuplicates = async () => {
+    const total = duplicates.reduce((n, v) => n + v.price, 0);
+    if (await confirm({ title: "Sell duplicates?", message: `Sell ${duplicates.length} extra copies for about ${money(total, cur)}?\nThe best copy of each skin, equipped and favorite items stay.`, ok: "Sell All" }))
+      for (const v of duplicates) await call("cases.sell", v.item.uid).catch(() => null);
+  };
   const selected = state.items.find(v => v.item.uid === open);
   const tradeUp = async () => {
     const got = await sheet(close => html`<${TradeUpSheet} close=${close} />`, { wide: true });
@@ -394,6 +424,7 @@ export function InventoryPage() {
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
+        <${Button} icon="tag" disabled=${!duplicates.length} onClick=${sellDuplicates} title="Sell extra copies of the same skin">Sell Duplicates (${duplicates.length})<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "loadout", label: "Loadout" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },
@@ -402,6 +433,13 @@ export function InventoryPage() {
       <${Select} width=${150} value=${sort} onChange=${setSort}
         options=${[{ value: "newest", label: "Newest" }, { value: "rarity", label: "Rarity" }, { value: "price", label: "Price" }, { value: "name", label: "Name" }]} />
     </div>
+    ${tab !== "loadout" && html`<div class="hstack inv-bar">
+      <${Select} width=${200} value=${fromCase} onChange=${setFromCase} options=${[{ value: "", label: "Any case" }, ...cases.map(c => ({ value: c, label: c }))]} />
+      <${Toggle} value=${onlyST} onChange=${setOnlyST} /><span class="small">StatTrak™</span>
+      <${Toggle} value=${onlyFav} onChange=${setOnlyFav} /><span class="small">Favorites</span>
+      <${TextField} width=${90} placeholder="Min price" value=${minP} onInput=${setMinP} />
+      <${TextField} width=${90} placeholder="Max price" value=${maxP} onInput=${setMaxP} />
+    </div>`}
     ${tab === "loadout" ? html`<${LoadoutView} items=${state.items} cur=${cur} />` : html`
     <div class=${"inv-layout" + (selected ? " with-inspect" : "")}>
       ${items.length === 0
@@ -410,6 +448,7 @@ export function InventoryPage() {
         : html`<div class="cs-grid">${items.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (open === v.item.uid ? " selected" : "")}
             style=${`--c:${v.item.color}`} onClick=${() => setOpen(open === v.item.uid ? null : v.item.uid)}>
           <div class="pic"><${Pic} src=${v.item.image} size=${256} /></div>
+          <span class=${"fav" + (favs.has(v.item.uid) ? " on" : "")} role="button" title="Favorite" onClick=${e => { e.stopPropagation(); toggleFav(v.item.uid); }}>★</span>
           ${v.equipped && html`<span class="equipped" title="Equipped"><${Icon} name="check" size=${12} stroke=${3} /></span>`}
           ${v.item.statTrak && v.item.kind === "skin" && html`<span class="st">ST™</span>`}
           ${v.item.souvenir && html`<span class="st sv">SV</span>`}

@@ -23,6 +23,9 @@ public partial class Api
         var pins = OwnedIds("pin");
         var kits = OwnedIds("music");
         var changed = false;
+        foreach (var side in new[] { l.SkinsT, l.SkinsCT })
+            foreach (var (def, s) in side.ToList())
+                if (s.Paint != 0 && !skins.Contains((def, s.Paint))) { side.Remove(def); changed = true; }
         foreach (var (def, s) in l.Skins.ToList())
         {
             // Vanilla guns (paint 0) are always fine; knives and gloves must be owned either way.

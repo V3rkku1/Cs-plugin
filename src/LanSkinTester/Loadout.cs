@@ -59,6 +59,13 @@ public class PlayerLoadout
     /// <summary>Weapon/knife/glove definition index -> skin.</summary>
     public Dictionary<ushort, SkinSettings> Skins { get; set; } = new();
 
+    /// <summary>Per-side skins: they win over <see cref="Skins"/> for players on that side (2 = T, 3 = CT).</summary>
+    public Dictionary<ushort, SkinSettings> SkinsT { get; set; } = new();
+    public Dictionary<ushort, SkinSettings> SkinsCT { get; set; } = new();
+
+    public SkinSettings? SkinFor(ushort def, int team) =>
+        (team == 2 ? SkinsT : team == 3 ? SkinsCT : null)?.GetValueOrDefault(def) ?? Skins.GetValueOrDefault(def);
+
     /// <summary>Selected knife definition index (0 = default team knife).</summary>
     public ushort Knife { get; set; }
 

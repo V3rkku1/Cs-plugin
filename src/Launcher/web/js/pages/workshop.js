@@ -1,9 +1,9 @@
 // Workshop: maps Steam has downloaded for CS2 (click Host to play one), and a search of the Steam Workshop.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, img } from "../api.js";
-import { Page, Section, Button, Segmented, TextField, Icon } from "../ui.js";
+import { Page, Section, Button, Segmented, Select, TextField, Icon } from "../ui.js";
 
-function MapCard({ item, hosting }) {
+function MapCard({ item, hosting, state }) {
   const live = hosting === item.id;
   return html`<div class=${"ws-card glass" + (live ? " live" : "")}>
     <div class="ws-pic">${item.preview ? html`<img src=${img(item.preview, 512)} alt="" loading="lazy" />` : html`<${Icon} name="map" size=${34} />`}
@@ -12,6 +12,8 @@ function MapCard({ item, hosting }) {
     <div class="ws-body">
       <div class="ws-title" title=${item.title}>${item.title}</div>
       <div class="ws-meta faint small">${[item.size, item.updated, item.tags].filter(Boolean).join(" · ")}</div>
+      ${item.downloaded && state && html`<${Select} width=${170} value=${state.mapModes[item.id] ?? ""} onChange=${v => tryCall("workshop.setMode", { id: item.id, mode: v })}
+        options=${[{ value: "", label: "Mode: as set" }, ...state.modes.map(m => ({ value: m, label: m }))]} />`}
       <div class="ws-actions">
         ${item.downloaded
           ? html`<${Button} size="sm" kind="prominent" icon="play" onClick=${() => tryCall("workshop.host", item.id)}>${live ? "Restart" : "Host"}<//>`
@@ -47,7 +49,7 @@ export function WorkshopPage() {
       ${!state ? html`<div class="empty small">Loading…</div>`
         : !state.hasGame ? html`<div class="empty small">Pick your CS2 folder on Setup first.</div>`
         : state.downloaded.length === 0 ? html`<div class="empty small"><${Icon} name="map" size=${28} /><div>No Workshop maps downloaded yet. Find one below and press Subscribe.</div></div>`
-        : html`<div class="ws-grid">${state.downloaded.map(i => html`<${MapCard} key=${i.id} item=${i} hosting=${state.hosting} />`)}</div>`}
+        : html`<div class="ws-grid">${state.downloaded.map(i => html`<${MapCard} key=${i.id} item=${i} hosting=${state.hosting} state=${state} />`)}</div>`}
     <//>
     <${Section} title="Find Maps" footer="Results come from the Steam Workshop. Maps marked CS:GO were made for the old game and may not load.">
       <div class="hstack ws-search">
@@ -58,7 +60,7 @@ export function WorkshopPage() {
       </div>
       ${results == null ? html`<div class="empty small">${busy ? "Searching…" : ""}</div>`
         : results.length === 0 ? html`<div class="empty small">Nothing found.</div>`
-        : html`<div class="ws-grid">${results.map(i => html`<${MapCard} key=${i.id} item=${i} hosting=${state?.hosting} />`)}</div>`}
+        : html`<div class="ws-grid">${results.map(i => html`<${MapCard} key=${i.id} item=${i} hosting=${state?.hosting} state=${state} />`)}</div>`}
     <//>
     </div>
   <//>`;
