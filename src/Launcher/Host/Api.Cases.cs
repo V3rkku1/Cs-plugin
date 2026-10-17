@@ -15,7 +15,7 @@ namespace LanSkinTester.Launcher.Host;
 public partial class Api
 {
     /// <summary>SHA-256 of "lst-cases-v1:" + the code in capitals. Only the owner knows the code.</summary>
-    private const string UnlockHash = "3a42e485acc4d2705bd2f66f6a7fd3f2694eb41d0b94b1c149d9ed6c0d3b6aef";
+    private const string UnlockHash = "512cc0b3e9337b2a0c02746e42c68c0399fab31d7212b47e485daa2bb4c8851e";
 
     public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare);
     public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
