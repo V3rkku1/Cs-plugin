@@ -286,6 +286,38 @@ public partial class Api
         return true;
     }
 
+    /// <summary>
+    /// Setup › Reset Launcher (the page asks first): deletes everything the launcher keeps (settings, inventory,
+    /// wallet, item data, pictures, theme, backups) and the loadout in the CS2 folder, then starts again fresh.
+    /// The mods in the CS2 folder stay: Uninstall Everything removes those.
+    /// </summary>
+    [Call("app.resetAll")]
+    private async Task ResetLauncher()
+    {
+        if (App.TestModeOn) throw new ApiException("Press Stop first: the test server is running.");
+        if (App.Game?.LoadoutFile is { } loadout) DeleteQuietly(loadout);
+        foreach (var dir in new[] { Path.GetDirectoryName(LauncherSettings.FilePath)!, AppState.LauncherDataDir })
+            if (Directory.Exists(dir))
+                foreach (var file in Directory.EnumerateFiles(dir, "*", SearchOption.AllDirectories)) DeleteQuietly(file);
+        _inventory = null;
+        Process.Start(new ProcessStartInfo(Updater.CurrentExe) { UseShellExecute = true });
+        await OnUi(() =>
+        {
+            // No window position is saved on the way out: launcher.json is gone and stays gone.
+            (Window as ShellForm)?.CloseForUpdate(saveWindow: false);
+            var exit = new System.Windows.Forms.Timer { Interval = 4000 };
+            exit.Tick += (_, _) => Environment.Exit(0);
+            exit.Start();
+        });
+    }
+
+    /// <summary>Files in use (the window's own browser cache) stay; the rest goes.</summary>
+    private static void DeleteQuietly(string file)
+    {
+        try { File.Delete(file); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* in use */ }
+    }
+
     /// <summary>Copies inventory.json and loadouts.json to a dated folder before an update; keeps the last 5.</summary>
     private void BackupUserData()
     {

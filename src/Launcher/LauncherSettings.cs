@@ -58,7 +58,7 @@ public class LauncherSettings
     public double Wallet { get; set; } = 100;
     public bool UseWallet { get; set; } = true;
 
-    private static string FilePath => Path.Combine(
+    public static string FilePath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
 
     public static LauncherSettings Load()

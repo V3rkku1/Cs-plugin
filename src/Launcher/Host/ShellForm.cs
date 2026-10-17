@@ -131,9 +131,9 @@ public sealed class ShellForm : Form
     }
 
     /// <summary>Closes for a self-update: no "test mode is on" question, the test was already stopped.</summary>
-    public void CloseForUpdate()
+    public void CloseForUpdate(bool saveWindow = true)
     {
-        SaveWindow();
+        if (saveWindow) SaveWindow();
         _closing = true;
         _ = _host?.DisposeAsync();
         Close();

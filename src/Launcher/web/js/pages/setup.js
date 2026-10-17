@@ -14,6 +14,16 @@ function LauncherSection() {
     const newer = await tryCall("app.checkUpdate");
     if (newer === false) setChecked(true);
   };
+  const resetAll = async () => {
+    if (await confirm({
+      title: "Reset the launcher?",
+      message: "Are you sure you want to do this? It deletes everything the launcher keeps:\n" +
+        "• your inventory, wallet and case history\n• your equipped loadout\n• saved setups, friends and recent servers\n" +
+        "• all settings, the theme and the backups\n\nThis can't be undone. The launcher restarts like a fresh install. " +
+        "The mods in your CS2 folder stay (Uninstall Everything removes those).",
+      ok: "Delete Everything", danger: true,
+    })) tryCall("app.resetAll");
+  };
   const subtitle = app.updateProgress ?? (app.updateAvailable ? `Build ${app.updateCommit} is out - you have ${app.version}`
     : checked ? `You have the newest (${app.version})` : `You have ${app.version}`);
   return html`<${Section} title="Launcher" footer="New versions show up here and as a popup while the launcher is open. With automatic updates on, a new version installs by itself when you open the launcher.">
@@ -24,6 +34,9 @@ function LauncherSection() {
     <//>
     <${Row} icon=${{ name: "refresh", color: "green" }} title="Update Automatically" subtitle="Install new versions when the launcher opens">
       <${Toggle} value=${app.autoUpdate} onChange=${v => tryCall("app.autoUpdate", v)} />
+    <//>
+    <${Row} icon=${{ name: "trash", color: "red" }} title="Reset Launcher" subtitle="Delete all launcher data and start fresh">
+      <${Button} size="sm" kind="destructive" disabled=${app.testMode} onClick=${resetAll}>Reset<//>
     <//>
   <//>`;
 }
