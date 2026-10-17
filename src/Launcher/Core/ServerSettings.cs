@@ -391,36 +391,6 @@ public class ServerSettings
 
     public static readonly ServerPreset[] Presets =
     [
-        new("DM vs Expert bots", "Deathmatch · 12 expert bots · max money", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 12;
-            s.Difficulty = 3;
-        }),
-        new("Free-for-all", "Everyone vs everyone · 10 hard bots", s =>
-        {
-            s.Reset("Deathmatch", "de_mirage");
-            s.Bots = 10;
-            s.Difficulty = 2;
-            s.FreeForAll = true;
-        }),
-        new("Skin showcase", "Peaceful bots · third person allowed", s =>
-        {
-            s.Reset("Casual", "de_inferno");
-            s.Bots = 4;
-            s.Difficulty = 0;
-            s.BotsDontShoot = true;
-            s.InfiniteAmmo = true;
-            s.NoRoundEnd = true;
-        }),
-        new("Aim practice", "Pistol bots · infinite ammo · respawn", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 16;
-            s.Difficulty = 1;
-            s.BotWeapons = 1;
-            s.InfiniteAmmo = true;
-        }),
         new("Competitive 5v5", "9 hard bots · normal rules", s =>
         {
             s.Reset("Competitive", "de_mirage");
@@ -428,24 +398,14 @@ public class ServerSettings
             s.Difficulty = 2;
             s.MaxMoney = false;
         }),
-        new("Arms Race", "Gun game · 9 bots", s =>
+        new("Free-for-all Deathmatch", "Everyone vs everyone · 10 hard bots", s =>
         {
-            s.Reset("Arms Race", "ar_shoots");
-            s.Bots = 9;
+            s.Reset("Deathmatch", "de_mirage");
+            s.Bots = 10;
             s.Difficulty = 2;
-            s.MaxMoney = false;
+            s.FreeForAll = true;
         }),
-        new("Hacker vs bots", "Walls, aimbot, bhop · 16 expert bots", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 16;
-            s.Difficulty = 3;
-            s.HackerMode = 1;
-            s.HackSpeed = s.HackBhop = s.HackEspInfo = s.HackNoFlash = s.HackRadar = s.HackNoRecoil = true;
-            s.HackBoxEsp = s.HackTags = s.HackTrigger = true;
-            s.HackAggression = 7;
-        }),
-        new("Retakes", "Valve retakes · 3v4 · loadout cards", s =>
+        new("Valve Retakes", "Valve's retakes · 3v4 · loadout cards", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 6; // you + 6 bots fills the 3 T vs 4 CT match
@@ -453,17 +413,7 @@ public class ServerSettings
             s.MaxMoney = false;
             s.RetakeStyle = 0;
         }),
-        new("Plugin retakes", "Allocator · instadefuse · 8 bots", s =>
-        {
-            s.Reset(RetakesMode, "de_mirage");
-            s.Bots = 8;
-            s.Difficulty = 2;
-            s.MaxMoney = false;
-            s.RetakeStyle = 1;
-            s.RetakeWeapons = 1;
-            s.RetakeInstadefuse = true;
-        }),
-        new("Retake buy", "Plugin retakes · you buy the guns", s =>
+        new("Plugin Retakes", "Retakes plugin · you buy the guns · 8 bots", s =>
         {
             s.Reset(RetakesMode, "de_mirage");
             s.Bots = 8;
@@ -473,94 +423,6 @@ public class ServerSettings
             s.RetakeWeapons = 0;
             s.RetakeBuySeconds = 12;
             s.RetakeInstadefuse = true;
-        }),
-        new("Demolition", "Gun game with a bomb · 9 bots", s =>
-        {
-            s.Reset("Demolition", "de_safehouse");
-            s.Bots = 9;
-            s.Difficulty = 2;
-            s.MaxMoney = false;
-        }),
-        new("Weapons Expert", "Each gun once · 9 hard bots", s =>
-        {
-            s.Reset("Weapons Expert", "de_mirage");
-            s.Bots = 9;
-            s.Difficulty = 2;
-            s.MaxMoney = false;
-        }),
-        new("Pistol HS Deathmatch", "Headshots only · pistols only · infinite ammo, reload on kill · 10 hard bots", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 10;
-            s.Difficulty = 2;
-            s.HeadshotOnly = true;
-            s.PistolsOnly = true;
-            s.ReloadOnKill = true;
-        }),
-        new("Rush 3v3", "Valve's tower mode · you + 2 bots vs 3", s =>
-        {
-            var rush = Modes.FirstOrDefault(m => m.Name == RushMode);
-            s.Reset(RushMode, rush?.Maps[0] ?? "de_dust2");
-            s.Bots = 5;
-            s.Difficulty = 2;
-            s.MaxMoney = false;
-        }),
-        new("AWP Deathmatch", "AWP only · 12 hard bots with AWPs", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 12;
-            s.Difficulty = 2;
-            s.OnlyWeapon = "weapon_awp";
-            s.BotWeapons = 2;
-        }),
-        new("Flying Scoutsman", "Scouts · low gravity · 10 bots", s =>
-        {
-            s.Reset("Deathmatch", "de_vertigo");
-            s.Bots = 10;
-            s.Difficulty = 2;
-            s.OnlyWeapon = "weapon_ssg08";
-            s.BotWeapons = 2;
-            s.LowGravity = true;
-        }),
-        new("Knife Fight", "Knives only · 10 bots", s =>
-        {
-            s.Reset("Deathmatch", "de_inferno");
-            s.Bots = 10;
-            s.Difficulty = 2;
-            s.OnlyWeapon = "knife";
-            s.BotWeapons = 3;
-        }),
-        new("Deagle Headshots", "Deagle only · headshots only · reload on kill", s =>
-        {
-            s.Reset("Deathmatch", "de_mirage");
-            s.Bots = 10;
-            s.Difficulty = 3;
-            s.OnlyWeapon = "weapon_deagle";
-            s.BotWeapons = 1;
-            s.HeadshotOnly = true;
-            s.ReloadOnKill = true;
-        }),
-        new("1v1 Aim Duel", "Free-for-all vs one expert bot · reload on kill", s =>
-        {
-            s.Reset("Deathmatch", "de_dust2");
-            s.Bots = 1;
-            s.Difficulty = 3;
-            s.FreeForAll = true;
-            s.ReloadOnKill = true;
-        }),
-        new("Wingman 2v2", "You + a bot vs 2 bots", s =>
-        {
-            s.Reset("Wingman", "de_inferno");
-            s.Bots = 3;
-            s.Difficulty = 2;
-            s.MaxMoney = false;
-        }),
-        new("Catch the hacker", "Friends: one random hacker per round", s =>
-        {
-            s.Reset("Casual", "de_mirage");
-            s.Bots = 0;
-            s.HackerMode = 2;
-            s.FriendlyFire = false;
         }),
     ];
 
@@ -603,16 +465,23 @@ public class ServerSettings
     /// </summary>
     public static ServerSettings ForWorkshop(ServerSettings old, string id)
     {
-        var s = new ServerSettings
-        {
-            Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins, GameArgs = old.GameArgs,
-            AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey, MapModes = old.MapModes, MapTeamSizes = old.MapTeamSizes,
-            Mode = "Casual", WorkshopMap = id, Bots = 0, BotImprover = false, CalmBots = false, MaxMoney = false, AllowCheats = false,
-            SpawnProtection = false, GunMenu = false, MapVote = false, RoundSummary = false, WelcomeMessage = false, CleanupGuns = false,
-        };
+        var s = Stock(old);
+        s.WorkshopMap = id;
         s.RecallMapMode();
         return s;
     }
+
+    /// <summary>
+    /// A plain CS2 server: Casual on Dust II, no bots, stock money and rules, no cheats and no add-on plugins
+    /// except the skins plugin. Friends, password, launch options and the remembered per-map settings carry over.
+    /// </summary>
+    public static ServerSettings Stock(ServerSettings old) => new()
+    {
+        Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins, GameArgs = old.GameArgs,
+        AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey, MapModes = old.MapModes, MapTeamSizes = old.MapTeamSizes,
+        Mode = "Casual", Bots = 0, BotImprover = false, CalmBots = false, MaxMoney = false, AllowCheats = false,
+        SpawnProtection = false, GunMenu = false, MapVote = false, RoundSummary = false, WelcomeMessage = false, CleanupGuns = false,
+    };
 
     public GameMode GetMode()
     {

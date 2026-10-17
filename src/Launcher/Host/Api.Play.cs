@@ -778,8 +778,6 @@ public partial class Api
         else
         {
             var preset = ServerSettings.Presets.FirstOrDefault(p => p.Title == a.Title) ?? throw new ApiException("Unknown quick start.");
-            if (preset.Title.StartsWith(ServerSettings.RushMode) && ServerSettings.Modes.All(m => m.Name != ServerSettings.RushMode))
-                throw new ApiException("Rush wasn't found in your CS2 files. Update CS2 in Steam (Rush came with the Rush Hour update), then restart the launcher.");
             preset.Apply(s);
         }
         App.SaveSettings();
@@ -900,18 +898,13 @@ public partial class Api
         App.NotifyChanged();
     }
 
-    /// <summary>The page asks first. Keeps friends, password, shared skins, launch options and the aim key.</summary>
+    /// <summary>The page asks first. A plain CS2 server; keeps friends, password, shared skins, launch options and the aim key.</summary>
     [Call("live.reset")]
     private void ResetServer()
     {
-        var old = App.Settings.Server;
-        App.Settings.Server = new ServerSettings
-        {
-            Friends = old.Friends, Password = old.Password, SharedSkins = old.SharedSkins,
-            GameArgs = old.GameArgs, AutoStartGame = old.AutoStartGame, AimBindKey = old.AimBindKey,
-        };
+        App.Settings.Server = ServerSettings.Stock(App.Settings.Server);
         App.SaveSettings();
-        Toast("Settings reset.");
+        Toast("Back to a plain CS2 server.");
         App.NotifyChanged();
     }
 

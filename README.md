@@ -60,10 +60,10 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
 **PLAY page**
 
 1. **Quick start:** one click sets everything up and starts (or switches the running server):
-   *DM vs Expert bots*, *Free-for-all*, *Skin showcase* (peaceful bots, third person),
-   *Aim practice*, *Competitive 5v5*, *Arms Race*, *Demolition*, *Weapons Expert*,
-   *Retakes* (Valve's 3v4 loadout-card mode), *Plugin retakes* (allocator and instadefuse),
-   *Retake buy*, *Rush 3v3* when your CS2 has it, plus any setup you saved.
+   *Competitive 5v5*, *Free-for-all Deathmatch*, *Valve Retakes* (Valve's 3v4 loadout-card mode) and
+   *Plugin Retakes* (the retakes plugin, you buy the guns), plus any setup you saved. Every other mode
+   and rule is on Live Server. **Reset to Default** there turns it into a plain CS2 server (Casual,
+   no bots, normal money and rules, no cheats or extra plugins); friends, password and launch options stay.
 2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings are grouped: Game, Bots, Rules, Retakes (only in Retakes mode), Launch, and the live controls. Or pick everything yourself:
    - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom, Retakes) and map
    - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
@@ -98,8 +98,8 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
 
 **Retakes** has two styles, chosen in the Retakes group (shown only while the game mode is Retakes).
 
-- **Valve** (the *Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
-- **Plugin** (the *Plugin retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
+- **Valve** (the *Valve Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
+- **Plugin** (the *Plugin Retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
 
 **Seats for everyone.** Retakes has a fixed number of places (Valve: 3 + 4, Plugin: max players). Bots
 fill the places nobody uses and give one up for every person who connects (`lst_retake_seats`), so a
@@ -109,9 +109,9 @@ round. The team menu never greys out a side (`mp_limitteams 0`): retakes sorts t
 
 In the Retakes group, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
 
-**Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Retake buy* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
+**Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Plugin Retakes* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
 
-**Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse)) finishes a defuse the moment it starts when no terrorist, molotov, or grenade can stop it. It is on for both plugin quick starts. Turning it off restarts the server so the plugin unloads.
+**Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse)) finishes a defuse the moment it starts when no terrorist, molotov, or grenade can stop it. It is on in the *Plugin Retakes* quick start. Turning it off restarts the server so the plugin unloads.
 
 **Demolition** is gun-game with a bomb (`game_type 1`, `game_mode 1`) on de_lake, de_safehouse and de_shortdust. **Weapons Expert** is competitive where each gun can be bought once per match. CS2 no longer has its own mode for it, so the server runs competitive and the plugin takes back (and refunds) a gun you already bought (`lst_weapons_expert 1`). **Custom** is an open sandbox (`game_type 3`, `game_mode 0`). Arms Race, Demolition and both retake styles keep their own guns, money and round length.
 
@@ -131,7 +131,7 @@ The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!
 
 **Rush** (Valve's 3v3 tower mode): Valve doesn't publish its game type numbers, so the launcher
 reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
-CS2 has Rush, it appears in the mode list and the *Rush 3v3* quick start works.
+CS2 has Rush, it appears in the mode list.
 
 **Appearance:** Setup → *Theme* and *Appearance*: ready-made themes (Midnight, OLED Black, Slate, CS2
 Orange, Green Ops, Violet, Crimson, Ocean), your own accent, background and panel colours, panel opacity,
@@ -145,18 +145,17 @@ and reloads when you click back into the launcher.
 collectible pin on the scoreboard and a music kit (round music and your MVP anthem, from the next round).
 The data comes from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them.
 
-**Headshot only and pistols only** (Live Server › Rules, or the *Pistol HS Deathmatch* quick start):
+**Headshot only and pistols only** (Live Server › Rules):
 only headshots (and knives) hurt players, and only pistols (Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250,
 CZ75, Dualies, R8, P2000) can be bought; other guns are greyed out in the buy menu, refunded if bought
 and taken away if picked up. Bots get pistols too.
 
-**Reload on kill** (Live Server › Rules, on in the *Pistol HS Deathmatch* quick start): a kill refills
+**Reload on kill** (Live Server › Rules): a kill refills
 your magazine at once, and spare ammo never runs out.
 
 **One weapon and low gravity** (Live Server › Rules): AWP, Scout, Deagle or knives only, for everyone
 including bots (other guns are taken away and greyed out in the buy menu), and Flying-Scoutsman-style
-low gravity. Quick starts: *AWP Deathmatch*, *Flying Scoutsman*, *Knife Fight*, *Deagle Headshots*,
-*1v1 Aim Duel* and *Wingman 2v2*. Every quick start uses Bot Improver's smarter bots.
+low gravity. Every quick start uses Bot Improver's smarter bots.
 
 **Calm Bots** (Live Server › Bots, on by default): a bot jumps at most once every 3 seconds, so bots stop
 hopping around.
@@ -178,9 +177,10 @@ came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Sti
 from your inventory (applying uses the sticker up, like in the game), drag them anywhere on the gun, turn,
 resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
 within a second (the launcher's preview is a guide). **Trade Up** (Inventory) works like CS2's Trade Up Contract: 10 guns of one grade
-(all StatTrak™ or none, no souvenirs) for one gun of the next grade from the inputs' collections, each
-input adding an equal share to its collection's chances; or 5 Covert guns for a knife or gloves from their
-cases. The float follows CS2's current formula (each input's place in its own float range, averaged, put
+(all StatTrak™ or none, no souvenirs) for one gun of the next grade from the inputs' collections, with
+CS2's ticket odds (each input adds one ticket for every next-grade item of its collection, one ticket wins);
+or 5 Covert guns for a knife or gloves from their cases. Pick from your filtered items (search and sort by
+float or price), press *Submit Contract*, then sign the contract with the mouse, like in CS2. The float follows CS2's current formula (each input's place in its own float range, averaged, put
 on the new skin's range). Before signing you see every possible result with its chance, float and price. With the admin code, **Add Item**
 puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
 pattern, StatTrak or Souvenir you pick.
@@ -234,8 +234,7 @@ float, pattern and a 10% StatTrak chance. Only on your server: your Steam invent
   mode only): `!gun` weapon menu, custom modes (only AWP, pistols, ...), kill sounds and a spawn editor. It
   replaces the built-in spawn protection and `!guns`. Downloaded on first use like Bot Hider.
 
-**Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts (or use the quick starts *Hacker vs bots* and
-*Catch the hacker*). Changes there apply to the running server right away, no Apply needed.
+**Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts. Changes there apply to the running server right away, no Apply needed.
 *Quick profiles* (Legit, Closet, Rage, Movement, All off) set every cheat in one click:
 
 - **Who hacks:** *Everyone* (great against expert bots) or *One random*. With *One random*, a new

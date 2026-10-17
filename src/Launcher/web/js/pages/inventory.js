@@ -159,27 +159,73 @@ function StickerSheet({ uid, close }) {
   </div>`;
 }
 
-/** CS2's Trade Up Contract: pick 10 same-grade guns (or 5 Coverts), see the odds, sign. */
+/** The contract paper's signature line: draw with the mouse, like CS2. onChange(true) once something is drawn. */
+function Signature({ onChange }) {
+  const ref = useRef();
+  const drawing = useRef(false);
+  const point = e => { const r = ref.current.getBoundingClientRect(); return [e.clientX - r.left, e.clientY - r.top]; };
+  const down = e => {
+    drawing.current = true;
+    ref.current.setPointerCapture(e.pointerId);
+    const g = ref.current.getContext("2d");
+    g.lineWidth = 2.4; g.lineCap = g.lineJoin = "round"; g.strokeStyle = "#1d2a5a";
+    g.beginPath(); g.moveTo(...point(e));
+  };
+  const move = e => {
+    if (!drawing.current) return;
+    const g = ref.current.getContext("2d");
+    g.lineTo(...point(e)); g.stroke();
+    onChange(true);
+  };
+  const clear = () => { ref.current.getContext("2d").clearRect(0, 0, 420, 90); onChange(false); };
+  return html`<div class="signature">
+    <canvas ref=${ref} width="420" height="90" onPointerDown=${down} onPointerMove=${move} onPointerUp=${() => { drawing.current = false; }}></canvas>
+    <div class="sign-line"><span>Sign here</span><button class="link" onClick=${clear}>Clear</button></div>
+  </div>`;
+}
+
+const TU_SORTS = [{ value: "new", label: "Newest" }, { value: "float", label: "Lowest float" }, { value: "floatDesc", label: "Highest float" },
+  { value: "price", label: "Cheapest" }, { value: "name", label: "Name" }];
+
+/** CS2's Trade Up Contract: pick 10 guns of one grade (or 5 Coverts), submit, sign the contract, get the result. */
 function TradeUpSheet({ close }) {
   const [inv] = useApi("cases.inventory");
   const [picked, setPicked] = useState([]);
   const [check, setCheck] = useState(null);
-  const [phase, setPhase] = useState("pick"); // pick | signing | done
+  const [phase, setPhase] = useState("pick"); // pick | paper | signing | done
+  const [signed, setSigned] = useState(false);
   const [result, setResult] = useState(null);
+  const [q, setQ] = useState("");
+  const [sort, setSort] = useState("new");
   useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
   if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
   const cur = inv.currency;
-  const first = inv.items.find(v => v.item.uid === picked[0]);
+  const byUid = uid => inv.items.find(v => v.item.uid === uid);
+  const first = byUid(picked[0]);
   const needed = first?.item.grade === "Covert" ? 5 : 10;
+  // Like CS2: once the first item is in, only items of the same grade and StatTrak™ kind can follow.
+  const words = q.toLowerCase().split(/\s+/).filter(Boolean);
   const eligible = inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && v.item.grade !== "Contraband"
-    && (!first || (v.item.grade === first.item.grade && v.item.statTrak === first.item.statTrak)));
-  const toggle = uid => setPicked(p => p.includes(uid) ? p.filter(x => x !== uid) : p.length < needed ? [...p, uid] : p);
+      && !picked.includes(v.item.uid)
+      && (!first || (v.item.grade === first.item.grade && v.item.statTrak === first.item.statTrak))
+      && words.every(w => v.item.name.toLowerCase().includes(w)))
+    .sort({
+      float: (a, b) => a.item.wear - b.item.wear, floatDesc: (a, b) => b.item.wear - a.item.wear,
+      price: (a, b) => (a.price ?? 1e9) - (b.price ?? 1e9), name: (a, b) => a.item.name.localeCompare(b.item.name), new: () => 0,
+    }[sort]);
+  const add = uid => setPicked(p => p.length < needed ? [...p, uid] : p);
+  const remove = uid => setPicked(p => p.filter(x => x !== uid));
   const sign = async () => {
     setPhase("signing");
     const [r] = await Promise.all([call("tradeup.sign", { uids: picked }).catch(() => null), new Promise(ok => setTimeout(ok, 1600))]);
     if (!r) { setPhase("pick"); return; }
-    setResult(r); setPicked([]); setPhase("done");
+    setResult(r); setPicked([]); setSigned(false); setPhase("done");
   };
+  const Card = (v, onClick, title) => html`<button key=${v.item.uid} class="cs-item" style=${`--c:${v.item.color}`} onClick=${onClick} title=${title}>
+    <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
+    ${v.item.statTrak && html`<span class="tu-st">ST™</span>`}
+    <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
+    <div class="price">${v.item.wear.toFixed(4)}</div></button>`;
 
   if (phase === "signing") return html`<div class="picker tradeup"><div class="tradeup-signing"><div class="pen">✍</div><h2>Signing the contract…</h2></div></div>`;
   if (phase === "done") {
@@ -198,34 +244,46 @@ function TradeUpSheet({ close }) {
       </div>
     </div></div>`;
   }
+  if (phase === "paper") {
+    const items = picked.map(byUid).filter(Boolean);
+    return html`<div class="picker tradeup"><div class="contract-paper">
+      <h2>Trade Up Contract</h2>
+      <p>I, the undersigned, hereby exchange the ${items.length} ${first?.item.grade ?? ""}${first?.item.statTrak ? " StatTrak™" : ""} items below for one item
+        of the next grade from their collections. This contract cannot be undone: the items listed are gone once it is signed.</p>
+      <ol class="contract-items">${items.map(v => html`<li>${v.item.statTrak ? "StatTrak™ " : ""}${v.item.name}<span>${wearName(v.item.wear)} · ${v.item.wear.toFixed(6)}</span></li>`)}</ol>
+      <${Signature} onChange=${setSigned} />
+      <div class="hstack contract-buttons">
+        <${Button} onClick=${() => { setSigned(false); setPhase("pick"); }}>Back<//>
+        <div class="grow"></div>
+        <${Button} kind="prominent" size="lg" icon="check" disabled=${!signed} onClick=${sign}>Sign Contract<//>
+      </div>
+    </div></div>`;
+  }
   return html`<div class="picker tradeup">
     <div class="picker-head"><h2>Trade Up Contract</h2>
-      <span class="faint small">10 guns of one grade for one of the next grade (or 5 Covert for a knife or gloves). All StatTrak™ or none, no souvenirs. The items you put in are gone.</span></div>
+      <span class="faint small">Exchange 10 items of the same grade for one item of the next grade (5 Covert items for a knife or gloves).
+        All StatTrak™ or none, no souvenirs. The result comes from the collections of the items you put in.</span></div>
     <div class="tradeup-layout">
       <div class="tradeup-left">
-        <div class="field-label">Contract (${picked.length}/${needed})</div>
-        <div class="tradeup-slots">
-          ${Array.from({ length: needed }, (_, n) => {
-            const v = inv.items.find(x => x.item.uid === picked[n]);
-            return v ? html`<button class="cs-item" style=${`--c:${v.item.color}`} onClick=${() => toggle(v.item.uid)} title="Take out">
-                <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
-                <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
-                <div class="price">${v.item.wear.toFixed(4)}</div></button>`
-              : html`<div class="tradeup-empty">${n + 1}</div>`;
-          })}
+        <div class="hstack tradeup-tools">
+          <div class="grow"><${TextField} icon="search" placeholder="Search your items" value=${q} onInput=${setQ} /></div>
+          <${Select} width=${150} value=${sort} onChange=${setSort} options=${TU_SORTS} />
         </div>
-        <div class="field-label">Your eligible items ${first ? `· ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : ""}</div>
+        <div class="field-label">Your items ${first ? `· ${first.item.grade}${first.item.statTrak ? " · StatTrak™" : ""}` : "· click to add"}</div>
         <div class="tradeup-pool scroll">
-          ${eligible.length === 0 ? html`<div class="faint small">No items that can go in. Open cases for more.</div>`
-            : eligible.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (picked.includes(v.item.uid) ? " selected" : "")} style=${`--c:${v.item.color}`}
-                onClick=${() => toggle(v.item.uid)}>
-                <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
-                <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
-                <div class="price">${v.item.wear.toFixed(4)}</div></button>`)}
+          ${eligible.length === 0 ? html`<div class="faint small">No items that can go in${q ? " with that search" : ""}. Open cases for more.</div>`
+            : eligible.map(v => Card(v, () => add(v.item.uid), "Add to the contract"))}
         </div>
       </div>
       <div class="tradeup-right">
-        <div class="field-label">Possible results</div>
+        <div class="field-label">Contract · ${picked.length}/${needed}</div>
+        <div class="tradeup-slots">
+          ${Array.from({ length: needed }, (_, n) => {
+            const v = byUid(picked[n]);
+            return v ? Card(v, () => remove(v.item.uid), "Take out") : html`<div class="tradeup-empty">${n + 1}</div>`;
+          })}
+        </div>
+        <div class="field-label">Possible outcomes</div>
         <div class="tradeup-outcomes scroll">
           ${(check?.outcomes ?? []).length === 0 ? html`<div class="faint small">${check?.message ?? ""}</div>`
             : check.outcomes.map(o => html`<div class="outcome" style=${`--c:${o.color}`}>
@@ -239,11 +297,15 @@ function TradeUpSheet({ close }) {
           <div class="inspect-row"><span>Put in</span><b>${money(check?.inputValue, cur)}</b></div>
           <div class="inspect-row"><span>Average result</span><b>${money(check?.expectedValue, cur)}</b></div>
           ${check && !check.ok && picked.length > 0 && html`<div class="small note-warn">${check.message}</div>`}
-          <${Button} kind="prominent" size="lg" block icon="check" disabled=${!check?.ok} onClick=${sign}>Sign Contract<//>
+          <div class="hstack">
+            <${Button} kind="plain" disabled=${!picked.length} onClick=${() => setPicked([])}>Clear<//>
+            <div class="grow"></div>
+            <${Button} kind="prominent" size="lg" icon="check" disabled=${!check?.ok} onClick=${() => setPhase("paper")}>Submit Contract<//>
+          </div>
         </div>
       </div>
     </div>
-    <div class="picker-foot"><${Button} kind="plain" onClick=${() => setPicked([])}>Clear<//><div class="grow"></div><${Button} onClick=${() => close(undefined)}>Close<//></div>
+    <div class="picker-foot"><div class="grow"></div><${Button} onClick=${() => close(undefined)}>Close<//></div>
   </div>`;
 }
 

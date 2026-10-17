@@ -42,26 +42,10 @@ export function CopyButtons({ address, size = "sm", message = false }) {
 }
 
 const tileLooks = {
-  "DM vs Expert bots": ["crosshair", "blue"],
-  "Free-for-all": ["shuffle", "purple"],
-  "Skin showcase": ["sparkles", "pink"],
-  "Aim practice": ["target", "orange"],
   "Competitive 5v5": ["shield", "green"],
-  "Arms Race": ["bolt", "teal"],
-  "Hacker vs bots": ["hacker", "green"],
-  "Retakes": ["clock", "red"],
-  "Plugin retakes": ["layers", "indigo"],
-  "Retake buy": ["tag", "yellow"],
-  "Demolition": ["map", "orange"],
-  "Weapons Expert": ["star", "yellow"],
-  "AWP Deathmatch": ["crosshair", "green"],
-  "Flying Scoutsman": ["sparkles", "teal"],
-  "Knife Fight": ["skins", "red"],
-  "Deagle Headshots": ["target", "red"],
-  "1v1 Aim Duel": ["person", "indigo"],
-  "Wingman 2v2": ["friends", "blue"],
-  "Rush 3v3": ["run", "pink"],
-  "Catch the hacker": ["eye", "purple"],
+  "Free-for-all Deathmatch": ["shuffle", "purple"],
+  "Valve Retakes": ["clock", "red"],
+  "Plugin Retakes": ["tag", "yellow"],
 };
 
 function Stat({ icon, label, value, color = "blue" }) {
