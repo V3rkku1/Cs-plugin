@@ -219,8 +219,6 @@ export function LivePage() {
             <${Toggle} value=${s.welcomeMessage} onChange=${v => set("welcomeMessage", v)} /><//>
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bot Improver" subtitle="Human-like bots: better aim, grenades, movement, strategy and buying, pro names · includes BotAI, Bot Controller and Bot Hider">
             <${Toggle} value=${s.botImprover} onChange=${v => set("botImprover", v)} /><//>
-          <${Row} icon=${{ name: "bot", color: "teal" }} title="BotAI" subtitle=${s.botImprover ? "Included in Bot Improver" : "Lighter: bots stop knife-running, peek and dodge better, play the bomb smarter"}>
-            <${Toggle} value=${s.botAi || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botAi", v)} /><//>
           <${Row} icon=${{ name: "bot", color: "orange" }} title="Bot Controller" subtitle=${s.botImprover ? "Included in Bot Improver" : "!record your movement, then !replay <bot slot> so a bot copies it"}>
             <${Toggle} value=${s.botController || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botController", v)} /><//>
           <${Row} icon=${{ name: "bot", color: "indigo" }} title="Bot Hider" subtitle=${s.botImprover ? "Included in Bot Improver" : "Bots look like real players: no BOT tag, names, avatars, ping · downloads from GitHub on first Start"}>

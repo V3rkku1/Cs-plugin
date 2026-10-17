@@ -62,16 +62,16 @@ public class Installer
     // ---------------------------------------------------------------------------------------------
     // Plugin retakes and the plugins that ride with it. Each one is parked outside the plugins
     // folder when it should not load, so it never fights Valve's own retakes mode.
-    // Instadefuse: B3none, GPL-3.0. Allocator: the maintained fork of Yoni Lerner's allocator.
+    // Instadefuse: B3none, GPL-3.0. Allocator: Yoni Lerner's cs2-retakes-allocator.
     // ---------------------------------------------------------------------------------------------
 
     public const string RetakesPage = "https://github.com/B3none/cs2-retakes";
     public const string InstadefusePage = "https://github.com/B3none/cs2-instadefuse";
-    public const string AllocatorPage = "https://github.com/Micka2302/cs2-retakes-allocator-2.0";
+    public const string AllocatorPage = "https://github.com/yonilerner/cs2-retakes-allocator";
 
     private const string RetakesApi = "https://api.github.com/repos/B3none/cs2-retakes/releases/latest";
     private const string InstadefuseApi = "https://api.github.com/repos/B3none/cs2-instadefuse/releases/latest";
-    private const string AllocatorApi = "https://api.github.com/repos/Micka2302/cs2-retakes-allocator-2.0/releases/latest";
+    private const string AllocatorApi = "https://api.github.com/repos/yonilerner/cs2-retakes-allocator/releases/latest";
 
     private static readonly string[] AllocatorTrees =
     [
@@ -134,10 +134,8 @@ public class Installer
     private const string DeathmatchApi = "https://api.github.com/repos/NockyCZ/CS2-Deathmatch/releases/latest";
 
     public const string BotImproverPage = "https://github.com/ed0ard/CS2-Bot-Improver";
-    public const string BotAiPage = "https://github.com/ed0ard/CS2-BotAI";
     public const string BotControllerPage = "https://github.com/XBribo/CS2-Bot-Controller";
     private const string BotImproverApi = "https://api.github.com/repos/ed0ard/CS2-Bot-Improver/releases/latest";
-    private const string BotAiApi = "https://api.github.com/repos/ed0ard/CS2-BotAI/releases/latest";
     private const string BotControllerApi = "https://api.github.com/repos/XBribo/CS2-Bot-Controller/releases/latest";
 
     /// <summary>The CounterStrikeSharp plugins inside Bot Improver (BotAI is also its own download).</summary>
@@ -156,8 +154,6 @@ public class Installer
 
     public static bool BotImproverInstalled(GameFolder game) => TreeExists(game, "plugins/BotState");
 
-    public static bool BotAiInstalled(GameFolder game) => TreeExists(game, "plugins/BotAI");
-
     public static bool BotControllerInstalled(GameFolder game) => NativeInstalled(game, "BotController");
 
     private static bool TreeExists(GameFolder game, string relative) =>
@@ -166,7 +162,7 @@ public class Installer
     // What each downloaded plugin should be: Bot Improver brings BotAI, Bot Controller and Bot Hider along.
     private static bool WantHider(ServerSettings s) => s.BotHider || s.BotImprover;
     private static bool WantController(ServerSettings s) => s.BotController || s.BotImprover;
-    private static bool WantBotAi(ServerSettings s) => s.BotAi || s.BotImprover;
+    private static bool WantBotAi(ServerSettings s) => s.BotImprover;
 
     /// <summary>BotRandomizer gives bots random skins, knives, gloves, agents and music kits: only when Bot Skins is on.</summary>
     private static bool WantImproverPlugin(ServerSettings s, string plugin) =>
@@ -275,12 +271,6 @@ public class Installer
 
     public async Task InstallDeathmatchAsync() =>
         await InstallReleaseAsync(DeathmatchApi, "Deathmatch plugin", name => name.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
-
-    public async Task InstallBotAiAsync()
-    {
-        await InstallCssBundleAsync(await ReleaseAssetAsync(BotAiApi, "BotAI", n => n.Equals("BotAI.zip", StringComparison.OrdinalIgnoreCase)));
-        _log("BotAI installed.");
-    }
 
     public async Task InstallBotControllerAsync()
     {
