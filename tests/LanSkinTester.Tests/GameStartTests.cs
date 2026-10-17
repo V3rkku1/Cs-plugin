@@ -77,6 +77,26 @@ public sealed class GameStartTests : IDisposable
     }
 
     [Fact]
+    public void OnlyAPluginLoadByTheNewServerStartsTheGameEarly()
+    {
+        var started = new DateTime(2026, 10, 17, 12, 0, 0, 500, DateTimeKind.Utc);
+        var startedUnix = new DateTimeOffset(started).ToUnixTimeSeconds();
+        Assert.False(TestSession.LoadedByThisServer(startedUnix - 30, started));
+        Assert.True(TestSession.LoadedByThisServer(startedUnix, started));
+        Assert.True(TestSession.LoadedByThisServer(startedUnix + 4, started));
+    }
+
+    [Fact]
+    public void ClientIsNotIsolatedEarlyWithoutOurServer()
+    {
+        GameInfoPatcher.Enable(_game.GameInfo);
+        Directory.CreateDirectory(_game.PluginDir);
+        File.WriteAllText(Path.Combine(_game.PluginDir, ServerStatus.LoadedFileName), DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString());
+        Assert.False(new TestSession(_game).IsolateClientEarly()); // no server process: nothing has read gameinfo.gi
+        Assert.True(GameInfoPatcher.IsEnabled(_game.GameInfo));
+    }
+
+    [Fact]
     public void ClientIsNotIsolatedWithoutOurServer()
     {
         GameInfoPatcher.Enable(_game.GameInfo);

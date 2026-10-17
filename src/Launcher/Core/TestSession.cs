@@ -57,6 +57,31 @@ public class TestSession
         GameInfoPatcher.Disable(_game.GameInfo);
     }
 
+    /// <summary>
+    /// Takes the Metamod line out as soon as the plugin reports that Metamod loaded it (the server has
+    /// read gameinfo.gi by then), so CS2 can start while the server is still loading the map.
+    /// Returns whether gameinfo.gi is clean for the game.
+    /// </summary>
+    public bool IsolateClientEarly()
+    {
+        if (FindServer() is not { } server) return false;
+        try
+        {
+            var text = File.ReadAllText(Path.Combine(_game.PluginDir, ServerStatus.LoadedFileName));
+            if (!long.TryParse(text.Trim(), out var loaded) || !LoadedByThisServer(loaded, server.StartTime.ToUniversalTime())) return false;
+        }
+        catch (Exception)
+        {
+            return false; // not loaded yet, or no access to the process
+        }
+        GameInfoPatcher.Disable(_game.GameInfo);
+        return true;
+    }
+
+    /// <summary>The plugin was loaded (unix seconds) by the server process that started at this time (UTC).</summary>
+    public static bool LoadedByThisServer(long loadedTime, DateTime serverStartUtc) =>
+        loadedTime >= new DateTimeOffset(DateTime.SpecifyKind(serverStartUtc, DateTimeKind.Utc)).ToUnixTimeSeconds();
+
     /// <summary>The plugin wrote this status (unix seconds) after the server process started (UTC).</summary>
     public static bool StatusFromThisServer(long statusTime, DateTime serverStartUtc) =>
         statusTime > new DateTimeOffset(DateTime.SpecifyKind(serverStartUtc, DateTimeKind.Utc)).ToUnixTimeSeconds() + 2;
@@ -135,6 +160,9 @@ public class TestSession
         settings.WriteCfg(_game);
         MarkSession();
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
+        // The last server's: CS2 must wait until this server's plugin writes a new one.
+        try { File.Delete(Path.Combine(_game.PluginDir, ServerStatus.LoadedFileName)); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* its time is older than this start */ }
         Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {
             Arguments = settings.StartArguments(),

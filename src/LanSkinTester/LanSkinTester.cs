@@ -57,6 +57,10 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
 
     public override void Load(bool hotReload)
     {
+        // The launcher starts CS2 as soon as this is here, while the server is still loading the map.
+        try { File.WriteAllText(Path.Combine(ModuleDirectory, ServerStatus.LoadedFileName), DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString()); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { /* CS2 then starts once the server is up */ }
+
         _store = new LoadoutStore(Path.Combine(ModuleDirectory, "loadouts.json"));
         _catalog = new SkinCatalog(Path.Combine(ModuleDirectory, "skins"));
         _setAttribute = LoadSetAttributeFunction();

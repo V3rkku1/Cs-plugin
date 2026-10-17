@@ -221,8 +221,8 @@ float, pattern and a 10% StatTrak chance. Only on your server: your Steam invent
   package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
   restores it for online play). Includes BotAI, Bot Controller and Bot Hider. In Plugin retakes, Bot Hider
   keeps Valve's bot flag (`identity_mode bot`) so the retakes plugin still sees the bots as bots.
-  Only the server loads these plugins: once it is up, the launcher takes the Metamod line back out of
-  `gameinfo.gi` before CS2 starts (every server start puts it back first), so your game never loads them. While it's on, Live Server
+  Only the server loads these plugins: as soon as Metamod has loaded them, the launcher takes the Metamod line back out of
+  `gameinfo.gi` and starts CS2 while the server is still loading the map (every server start puts it back first), so your game never loads them. While it's on, Live Server
   gets a *Bot Improver* section: bot aim (mixed / head / body), how many grenades bots throw, a weapon
   every bot buys, *Bot Skins* (random skins, knives, gloves and agents on bots; off by default, so
   bots look like normal CS2 bots), *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.
