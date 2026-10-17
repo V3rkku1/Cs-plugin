@@ -188,8 +188,9 @@ public partial class Api
         }
         if (!Updater.CanSelfUpdate())
         {
-            App.Log("This folder isn't writable, so the launcher can't update itself - opening the download page.");
-            OpenUrl(UpdateCheck.ReleaseUrl);
+            App.Log($"The launcher's folder ({Path.GetDirectoryName(Updater.CurrentExe)}) isn't writable, so it can't update itself. " +
+                    "Move LanSkinTesterLauncher.exe to a folder of your own (e.g. Documents) or install it with LanSkinTesterSetup.exe.");
+            if (!automatic) Toast("Can't update: the launcher's folder isn't writable - see the log on Setup.", "bad");
             return;
         }
 
@@ -206,6 +207,12 @@ public partial class Api
                 if (percent == shown) return;
                 shown = percent;
                 _updateProgress = $"Downloading {percent}%";
+                App.NotifyChanged();
+            }, why =>
+            {
+                // A new build is being published (its files are replaced for a minute) or the connection dropped.
+                App.Log($"Update download failed ({why}) - trying again shortly.");
+                _updateProgress = "Waiting for the download…";
                 App.NotifyChanged();
             });
             _updateProgress = "Restarting";
@@ -226,17 +233,9 @@ public partial class Api
         {
             _updateProgress = null;
             App.NotifyChanged();
-            if (automatic)
-            {
-                // Don't throw a browser at someone who just opened the launcher: the sidebar card stays.
-                App.Log("Automatic update failed: " + ex.Message + " - click \"Update available\" to try again.");
-                Toast("Update failed - click the card in the sidebar to try again.", "bad");
-            }
-            else
-            {
-                App.Log("Update failed: " + ex.Message + " - opening the download page instead.");
-                OpenUrl(UpdateCheck.ReleaseUrl);
-            }
+            // No browser: the sidebar card stays, so trying again is one click.
+            App.Log("Update failed: " + ex.Message + " - click \"Update available\" to try again.");
+            Toast("Update failed - click the card in the sidebar to try again (details in Setup › Log).", "bad");
         }
         finally
         {

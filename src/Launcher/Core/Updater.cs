@@ -33,17 +33,29 @@ public static class Updater
         }
     }
 
-    /// <summary>Downloads the new exe and returns its path. Throws with a readable message on failure.</summary>
-    public static async Task<string> DownloadAsync(HttpClient http, Action<double>? progress = null)
-    {
-        using var response = await UpdateCheck.GitHubGetAsync(http, ReleaseApi);
-        response.EnsureSuccessStatusCode();
-        using var doc = JsonDocument.Parse(await response.Content.ReadAsStringAsync());
-        var url = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Where(a => a.GetProperty("name").GetString() == AssetName)
-            .Select(a => a.GetProperty("browser_download_url").GetString())
-            .FirstOrDefault() ?? throw new InvalidOperationException("The latest release has no " + AssetName + ".");
+    /// <summary>
+    /// The exe straight from the release's download link: no GitHub API (60 requests an hour), and it keeps
+    /// working while a new build replaces the release's files (the link answers 404 for that minute).
+    /// </summary>
+    private const string DownloadUrl = "https://github.com/V3rkku1/Cs-plugin/releases/download/latest/" + AssetName;
 
+    /// <summary>Downloads the new exe and returns its path. Tries 4 times over about a minute; throws with a readable message.</summary>
+    public static async Task<string> DownloadAsync(HttpClient http, Action<double>? progress = null, Action<string>? retrying = null)
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            try { return await DownloadOnceAsync(http, progress); }
+            catch (Exception ex) when (attempt < 4 && ex is HttpRequestException or IOException or InvalidDataException or TaskCanceledException)
+            {
+                retrying?.Invoke(ex.Message);
+                await Task.Delay(TimeSpan.FromSeconds(15 * attempt));
+            }
+        }
+    }
+
+    private static async Task<string> DownloadOnceAsync(HttpClient http, Action<double>? progress)
+    {
+        var url = DownloadUrl;
         var dir = Path.Combine(Path.GetTempPath(), "LanSkinTester-update");
         Directory.CreateDirectory(dir);
         // A fresh name each time: an old download may still be open (virus scan) and can't be overwritten.
