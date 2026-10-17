@@ -178,6 +178,7 @@ public class Installer
         bool Native(string name, bool want) => NativeInstalled(game, name) && File.Exists(Vdf(game, name)) != want;
         bool Tree(string relative, bool want) => TreeExists(game, relative) && TreeLoaded(game, relative) != want;
         return Native("BotHider", WantHider(server)) || Native("BotController", WantController(server))
+            || Tree("plugins/BotHiderImpl", WantHider(server)) || Tree("plugins/BotControllerImpl", WantController(server))
             || Native("BotVision", server.BotImprover) || Tree("plugins/BotAI", WantBotAi(server))
             || Tree("plugins/Deathmatch", server.UsesDeathmatchPlugin)
             || ImproverPlugins.Any(p => Tree("plugins/" + p, WantImproverPlugin(server, p)));
@@ -190,6 +191,8 @@ public class Installer
         SetTreeActive(game, "plugins/BotHiderImpl", WantHider(server));
         if (WantHider(server)) SetBotHiderIdentity(game, server.IsPluginRetakes ? "bot" : "player");
         SetNativeActive(game, "BotController", WantController(server));
+        // Bot Controller's CounterStrikeSharp half calls into the Metamod half: they load and park together.
+        SetTreeActive(game, "plugins/BotControllerImpl", WantController(server));
         SetNativeActive(game, "BotVision", server.BotImprover);
         SetTreeActive(game, "plugins/BotAI", WantBotAi(server));
         foreach (var plugin in ImproverPlugins) SetTreeActive(game, "plugins/" + plugin, WantImproverPlugin(server, plugin));
@@ -229,17 +232,39 @@ public class Installer
         else if (!on && File.Exists(vdf)) File.Move(vdf, parked, overwrite: true);
     }
 
-    private async Task<string> ReleaseAssetAsync(string api, string label, Func<string, bool> pick)
+    /// <summary>Downloads the first release asset that matches; with several picks, the earliest pick that matches wins.</summary>
+    private async Task<string> ReleaseAssetAsync(string api, string label, params Func<string, bool>[] picks)
     {
         _log($"Looking up the latest {label} release...");
         using var doc = JsonDocument.Parse(await _http.GetStringAsync(api));
-        var url = doc.RootElement.GetProperty("assets").EnumerateArray()
-            .Where(a => pick(a.GetProperty("name").GetString() ?? ""))
-            .Select(a => a.GetProperty("browser_download_url").GetString()).FirstOrDefault(u => !string.IsNullOrEmpty(u))
-            ?? throw new InvalidOperationException($"No matching zip in the latest {label} release.");
+        var assets = doc.RootElement.GetProperty("assets").EnumerateArray()
+            .Select(a => (Name: a.GetProperty("name").GetString() ?? "", Url: a.GetProperty("browser_download_url").GetString() ?? ""))
+            .Where(a => a.Url != "")
+            .ToList();
+        var url = PickAsset(assets.Select(a => a.Name), picks) is { } name ? assets.First(a => a.Name == name).Url
+            : throw new InvalidOperationException($"No matching zip in the latest {label} release.");
         _log($"Downloading {label}...");
         return await DownloadAsync(url);
     }
+
+    /// <summary>The asset name the earliest matching pick chooses, or null.</summary>
+    public static string? PickAsset(IEnumerable<string> names, params Func<string, bool>[] picks)
+    {
+        var list = names.ToList();
+        return picks.Select(pick => list.FirstOrDefault(pick)).FirstOrDefault(n => n != null);
+    }
+
+    /// <summary>
+    /// Bot Improver's Windows packages: "_rules_unchanged" keeps the game rules (not every release has it;
+    /// v1.4.6 only has CS2BotImprover.zip). Only the plugins are taken from either, so both work.
+    /// </summary>
+    public static readonly Func<string, bool>[] BotImproverAssets =
+    [
+        n => n.Contains("rules_unchanged", StringComparison.OrdinalIgnoreCase) && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+             && !n.Contains("linux", StringComparison.OrdinalIgnoreCase),
+        n => n.Contains("BotImprover", StringComparison.OrdinalIgnoreCase) && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase)
+             && !n.Contains("linux", StringComparison.OrdinalIgnoreCase),
+    ];
 
     public async Task InstallBotHiderAsync()
     {
@@ -272,8 +297,7 @@ public class Installer
     /// </summary>
     public async Task InstallBotImproverAsync()
     {
-        var zipPath = await ReleaseAssetAsync(BotImproverApi, "Bot Improver",
-            n => n.Contains("rules_unchanged", StringComparison.OrdinalIgnoreCase) && n.EndsWith(".zip", StringComparison.OrdinalIgnoreCase));
+        var zipPath = await ReleaseAssetAsync(BotImproverApi, "Bot Improver", BotImproverAssets);
         await Task.Run(() =>
         {
             using var zip = ZipFile.OpenRead(zipPath);
@@ -383,6 +407,12 @@ public class Installer
     {
         var active = TreePath(game, relative, parked: false);
         var parked = TreePath(game, relative, parked: true);
+        // A fresh download lands in the plugins folder: it wins over an older parked copy.
+        if (on && Directory.Exists(active))
+        {
+            if (Directory.Exists(parked)) Directory.Delete(parked, recursive: true);
+            return;
+        }
         var (from, to) = on ? (parked, active) : (active, parked);
         if (!Directory.Exists(from)) return;
         if (Directory.Exists(to)) Directory.Delete(to, recursive: true);

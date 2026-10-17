@@ -80,12 +80,21 @@ public partial class LanSkinTester
         return HookResult.Continue;
     }
 
+    /// <summary>B3none's retakes plugin runs this match (plugin retakes; Valve retakes changes bots live).</summary>
+    private bool RetakesPluginRunning => _seats > 0 && !_seatsLive;
+
+    /// <summary>Bots that fit next to these people: the seats nobody uses, at most the bots wanted.</summary>
+    internal static int SeatQuota(int seats, int botsWanted, int humans) => Math.Clamp(Math.Min(botsWanted, seats - humans), 0, 31);
+
+    /// <summary>Plugin retakes changes bots only in warmup or between rounds.</summary>
+    internal static bool SeatChangeWaits(bool live, bool roundRunning, bool warmup) => !live && roundRunning && !warmup;
+
     private void UpdateSeats(bool force = false)
     {
         if (_seats <= 0) return;
         try
         {
-            if (!force && !_seatsLive && _roundRunning && !InWarmup())
+            if (!force && SeatChangeWaits(_seatsLive, _roundRunning, IsWarmup()))
             {
                 _seatsPending = true;
                 return;
@@ -93,7 +102,7 @@ public partial class LanSkinTester
             _seatsPending = false;
             var humans = Utilities.GetPlayers().Count(p => p.IsValid && !p.IsHLTV && !IsBotPlayer(p)
                                                           && p.Connected == PlayerConnectedState.Connected);
-            var quota = Math.Clamp(Math.Min(_seatBots, _seats - humans), 0, 31);
+            var quota = SeatQuota(_seats, _seatBots, humans);
             var current = ConVar.Find("bot_quota")?.GetPrimitiveValue<int>();
             if (current == quota) return;
             Logger.LogInformation("Retake seats: {Humans} people, {Seats} seats, bot_quota {Quota}", humans, _seats, quota);
@@ -102,18 +111,6 @@ public partial class LanSkinTester
         catch (Exception ex)
         {
             Logger.LogWarning(ex, "Could not update the retake bots");
-        }
-    }
-
-    private static bool InWarmup()
-    {
-        try
-        {
-            return Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules?.WarmupPeriod ?? false;
-        }
-        catch (Exception)
-        {
-            return false;
         }
     }
 }

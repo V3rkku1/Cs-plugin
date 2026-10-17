@@ -895,6 +895,74 @@ public partial class Api
         }
     }
 
+    /// <summary>Bot Improver's "Bots Buy": saved, and on a running server every bot gets it from the next round.</summary>
+    [Call("live.botweapon")]
+    private void SetBotWeapon(string weapon)
+    {
+        var s = App.Settings.Server;
+        s.BotForceWeapon = ServerSettings.BotForcedWeapons.Contains(weapon ?? "") ? weapon! : "";
+        SavePlaySettings();
+        App.NotifyChanged();
+        if (App.Game == null || App.ReadServerStatus() == null) return;
+        try
+        {
+            s.WriteCfg(App.Game);
+            ServerSettings.SendCommands(App.Game, s.BotWeaponCommands());
+            App.Log(s.ForcesBotWeapon ? $"Bots get the {s.BotForceWeapon} from the next round." : "Bots buy normally again from the next round.");
+        }
+        catch (IOException ex)
+        {
+            App.Log("Could not send: " + ex.Message);
+            throw new ApiException("Could not send: " + ex.Message);
+        }
+    }
+
+    /// <summary>
+    /// Flying Scoutsman on or off. Off resets what the mode's own config doesn't set and reloads the map, so
+    /// the mode's config and the launcher's put back money, round time and the rest.
+    /// </summary>
+    [Call("live.scouts")]
+    private void SetScouts(bool on)
+    {
+        var game = App.Game ?? throw new ApiException("Pick your CS2 folder first.");
+        if (App.ReadServerStatus() == null) throw new ApiException("The server isn't running yet.");
+        var s = App.Settings.Server;
+        try
+        {
+            s.WriteCfg(game);
+            if (on)
+            {
+                ServerSettings.SendCommands(game, $"exec {ServerSettings.ScoutsOnCfg}");
+                App.Log("Flying Scoutsman on: scouts, low gravity, no spread. The match restarts.");
+                Toast("Flying Scoutsman on.", "good");
+                return;
+            }
+            ServerSettings.SendCommands(game, $"exec {ServerSettings.ScoutsOffCfg}");
+            if (RetakesNeedRestart(game, s))
+            {
+                App.Log("Flying Scoutsman off. Press Apply Changes: the server restarts for your other changes.");
+                Toast("Flying Scoutsman off.");
+                return;
+            }
+            var warning = s.ApplyToRunningServer(game, mapOrModeChanged: true, _runningOnline, _runningForFriends);
+            if (warning != null)
+            {
+                App.Log(warning);
+                return;
+            }
+            _runningMode = s.Mode;
+            _runningMap = s.WorkshopMapId ?? s.Map;
+            _runningRetakeKey = s.PluginRetakeKey();
+            App.Log($"Flying Scoutsman off: reloading {_runningMap} with your settings.");
+            Toast("Flying Scoutsman off - reloading the map…", "good");
+        }
+        catch (IOException ex)
+        {
+            App.Log("Could not send: " + ex.Message);
+            throw new ApiException("Could not send: " + ex.Message);
+        }
+    }
+
     [Call("live.give")]
     private void GiveWeapon(string classname)
     {

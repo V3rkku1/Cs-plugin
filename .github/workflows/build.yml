@@ -28,6 +28,9 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
+      - name: Run tests
+        run: dotnet test tests/LanSkinTester.Tests -c Release
+
       - name: Install NSIS (for the installer)
         run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
 

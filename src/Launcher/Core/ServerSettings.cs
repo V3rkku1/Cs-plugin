@@ -166,8 +166,60 @@ public class ServerSettings
         if (!BotImprover) yield break;
         yield return $"bot_aim {BotAimModes[Math.Clamp(BotAim, 0, BotAimModes.Length - 1)]}";
         yield return $"bot_nades {BotNadeModes[Math.Clamp(BotNades, 0, BotNadeModes.Length - 1)]}";
-        yield return BotForcedWeapons.Contains(BotForceWeapon) ? BotForceWeapon : "bot_buy";
     }
+
+    /// <summary>
+    /// What Bot Improver's weapon "commands" (ak47, awp, bot_buy...) do. They are aliases from one of its
+    /// cfg files, which the launcher doesn't install, and each one only sets the engine's bot_loadout:
+    /// the items every bot gets at round start. Null for an unknown weapon.
+    /// </summary>
+    public static string? BotLoadoutFor(string weapon) => weapon switch
+    {
+        "elite" or "p250" or "fn57" or "deagle" or "cz75a" => $"{weapon} vesthelm defuser",
+        "r8" => "revolver vesthelm defuser",
+        "m4a1s" => "m4a1_silencer tec9 vesthelm defuser",
+        _ when BotForcedWeapons.Contains(weapon) => $"{weapon} tec9 vesthelm defuser",
+        _ => null,
+    };
+
+    /// <summary>Every bot gets one weapon (Bot Improver's "Bots Buy").</summary>
+    [System.Text.Json.Serialization.JsonIgnore]
+    public bool ForcesBotWeapon => BotImprover && BotLoadoutFor(BotForceWeapon) != null;
+
+    private bool ForcesBotSniper => ForcesBotWeapon && BotForceWeapon is "awp" or "ssg08" or "scar20" or "g3sg1";
+
+    /// <summary>bot_loadout is cheat-protected: it goes inside the cfg's sv_cheats block, and keeps sv_cheats on.</summary>
+    public string BotLoadoutCommand() => $"bot_loadout \"{(ForcesBotWeapon ? BotLoadoutFor(BotForceWeapon) : "")}\"";
+
+    /// <summary>Changes the forced weapon on a running server, leaving sv_cheats as the cfg does.</summary>
+    public string[] BotWeaponCommands() => ["sv_cheats 1", BotLoadoutCommand(), $"sv_cheats {B(NeedsCheats)}"];
+
+    /// <summary>
+    /// Flying Scoutsman (Bot Improver's scouts_on / scouts_off, also cfg aliases): scouts and knives, low
+    /// gravity, no spread. The Live Server buttons exec these files.
+    /// </summary>
+    public const string ScoutsOnCfg = "lanskintester_scouts_on.cfg";
+    public const string ScoutsOffCfg = "lanskintester_scouts_off.cfg";
+
+    public static readonly string[] ScoutsOnCommands =
+    [
+        "sv_cheats 1", // weapon_accuracy_nospread is cheat-protected
+        "mp_ct_default_primary weapon_ssg08", "mp_t_default_primary weapon_ssg08",
+        "mp_ct_default_secondary \"\"", "mp_t_default_secondary \"\"",
+        "weapon_accuracy_nospread 1", "sv_enablebunnyhopping 1", "sv_gravity 230", "sv_airaccelerate 20000",
+        "sv_maxspeed 420", "sv_friction 4", "mp_maxmoney 0", "mp_free_armor 2", "mp_roundtime 3",
+        "mp_give_player_c4 0", "mp_freezetime 3", "mp_default_team_winner_no_objective 0",
+        "bot_defense_rush_chance 100", "nav_path_fixup_gap_segments 1", "mp_restartgame 1",
+    ];
+
+    /// <summary>Back to the engine defaults for what the mode's config doesn't set; reloading the map does the rest.</summary>
+    public static readonly string[] ScoutsOffCommands =
+    [
+        "mp_ct_default_primary \"\"", "mp_t_default_primary \"\"",
+        "mp_ct_default_secondary weapon_hkp2000", "mp_t_default_secondary weapon_glock",
+        "weapon_accuracy_nospread 0", "sv_maxspeed 320", "sv_friction 5.2", "mp_free_armor 0", "mp_give_player_c4 1",
+        "mp_default_team_winner_no_objective -1", "bot_defense_rush_chance 0", "nav_path_fixup_gap_segments 0",
+    ];
 
     /// <summary>Rules (reset by quick starts): only headshots hurt, and only pistols can be bought or picked up.</summary>
     public bool HeadshotOnly { get; set; }
@@ -538,7 +590,8 @@ public class ServerSettings
 
     private bool HackRecoilOrSpread => HackerMode != 0 && (HackNoRecoil || HackNoSpread);
 
-    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || LowGravity || AutoBhop || BotsDontShoot || HackRecoilOrSpread;
+    private bool NeedsCheats => AllowCheats || InfiniteAmmo || ReloadOnKill || LowGravity || AutoBhop || BotsDontShoot || HackRecoilOrSpread
+                                || ForcesBotWeapon;
 
     public string StartArguments()
     {
@@ -653,6 +706,7 @@ public class ServerSettings
         sb.AppendLine($"sv_autobunnyhopping {B(AutoBhop)}");
         sb.AppendLine($"sv_enablebunnyhopping {B(AutoBhop)}");
         foreach (var line in RecoilCvars()) sb.AppendLine(line);
+        sb.AppendLine(BotLoadoutCommand());
         sb.AppendLine($"sv_cheats {(cheats ? 1 : 0)}");
 
         // Bots: difficulty only applies to newly added bots, so kick and re-add them.
@@ -660,8 +714,8 @@ public class ServerSettings
         sb.AppendLine("bot_quota_mode normal");
         sb.AppendLine("bot_join_after_player 0");
         sb.AppendLine($"bot_join_team {(IsRetakes ? "any" : BotTeam switch { 1 => "T", 2 => "CT", _ => "any" })}");
-        // Retakes, Arms Race and Demolition hand out their own guns.
-        var rifles = !OwnsLoadout && BotWeapons == 0;
+        // Retakes, Arms Race and Demolition hand out their own guns. A forced sniper (Bot Improver) wins over Rifles.
+        var rifles = !OwnsLoadout && BotWeapons == 0 && !ForcesBotSniper;
         sb.AppendLine($"bot_knives_only {(BotWeapons == 3 && !OwnsLoadout ? 1 : 0)}");
         sb.AppendLine($"bot_pistols_only {((BotWeapons == 1 || PistolsOnly) && !OwnsLoadout ? 1 : 0)}");
         sb.AppendLine($"bot_snipers_only {(BotWeapons == 2 && !OwnsLoadout ? 1 : 0)}");
@@ -744,7 +798,7 @@ public class ServerSettings
         var prohibited = OnlyWeapon != "" ? ItemData.Weapons.Where(w => w.Value != OnlyWeapon && w.Key != 31).Select(w => w.Key)
             : PistolsOnly ? ItemData.Weapons.Keys.Where(d => !ItemData.Pistols.Contains(d) && d != 31) : Enumerable.Empty<ushort>();
         sb.AppendLine($"mp_items_prohibited \"{string.Join(",", prohibited)}\"");
-        sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin)} ready={B(ReadyUp)} vote={B(MapVote)} " +
+        sb.AppendLine($"lst_qol spawn={B(SpawnProtection && !UsesDeathmatchPlugin)} guns={B(GunMenu && !UsesDeathmatchPlugin && !IsPluginRetakes)} ready={B(ReadyUp)} vote={B(MapVote)} " +
                       $"summary={B(RoundSummary)} welcome={B(WelcomeMessage)} maps={string.Join(',', mode.Maps)}");
         sb.AppendLine($"lst_retake_buy {(UsesRetakeBuy ? 1 : 0)} {Math.Clamp(RetakeBuySeconds, 4, 20)}");
         sb.AppendLine($"lst_weapons_expert {(Mode == WeaponsExpertMode ? 1 : 0)}");
@@ -930,6 +984,8 @@ public class ServerSettings
         var cfgDir = Path.Combine(game.Csgo, "cfg");
         Directory.CreateDirectory(cfgDir);
         File.WriteAllText(Path.Combine(cfgDir, "lanskintester_server.cfg"), ToCfg());
+        File.WriteAllLines(Path.Combine(cfgDir, ScoutsOnCfg), ScoutsOnCommands);
+        File.WriteAllLines(Path.Combine(cfgDir, ScoutsOffCfg), ScoutsOffCommands);
     }
 
     /// <summary>

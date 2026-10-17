@@ -25,7 +25,7 @@ public partial class LanSkinTester
     {
         var bot = @event.Userid;
         var item = (@event.Item ?? "").Replace("weapon_", "");
-        if (!_botNoSnipers || bot == null || !bot.IsValid || !bot.IsBot || !SniperRifles.Contains(item)) return HookResult.Continue;
+        if (!_botNoSnipers || bot == null || !bot.IsValid || !SniperRifles.Contains(item) || !IsBotPlayer(bot)) return HookResult.Continue;
 
         Server.NextFrame(() =>
         {

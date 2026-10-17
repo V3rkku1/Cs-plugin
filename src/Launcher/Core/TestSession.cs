@@ -20,7 +20,20 @@ public class TestSession
     /// so without it a server that closed (or crashed) would skip Stop's clean-up: the router port and
     /// Workshop map copies.
     /// </summary>
-    private static string SessionFile => Path.Combine(AppState.LauncherDataDir, "test-session.on");
+    internal static string SessionFile => Path.Combine(AppState.LauncherDataDir, "test-session.on");
+
+    internal static void MarkSession()
+    {
+        try
+        {
+            Directory.CreateDirectory(AppState.LauncherDataDir);
+            File.WriteAllText(SessionFile, "");
+        }
+        catch (Exception)
+        {
+            // Test mode still shows while the server runs.
+        }
+    }
 
     /// <summary>
     /// The game reads the same gameinfo.gi as the server. With the Metamod line in it, CS2 itself loads
@@ -35,8 +48,7 @@ public class TestSession
         if (status == null || FindServer() is not { } server || !GameInfoPatcher.IsEnabled(_game.GameInfo)) return;
         try
         {
-            var started = new DateTimeOffset(server.StartTime.ToUniversalTime()).ToUnixTimeSeconds();
-            if (status.Time <= started + 2) return;
+            if (!StatusFromThisServer(status.Time, server.StartTime.ToUniversalTime())) return;
         }
         catch (Exception)
         {
@@ -44,6 +56,10 @@ public class TestSession
         }
         GameInfoPatcher.Disable(_game.GameInfo);
     }
+
+    /// <summary>The plugin wrote this status (unix seconds) after the server process started (UTC).</summary>
+    public static bool StatusFromThisServer(long statusTime, DateTime serverStartUtc) =>
+        statusTime > new DateTimeOffset(DateTime.SpecifyKind(serverStartUtc, DateTimeKind.Utc)).ToUnixTimeSeconds() + 2;
 
     public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
 
@@ -117,7 +133,7 @@ public class TestSession
     private void LaunchServer(ServerSettings settings)
     {
         settings.WriteCfg(_game);
-        try { File.WriteAllText(SessionFile, ""); } catch (Exception) { /* test mode still shows while the server runs */ }
+        MarkSession();
         try { File.Delete(ConsoleLog); } catch (IOException) { /* still open */ }
         Server = Process.Start(new ProcessStartInfo(_game.Exe)
         {

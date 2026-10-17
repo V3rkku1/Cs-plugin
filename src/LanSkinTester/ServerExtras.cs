@@ -94,7 +94,9 @@ public partial class LanSkinTester
         var player = @event.Userid;
         if (player == null || !player.IsValid || player.IsHLTV) return HookResult.Continue;
 
-        if (_qolSpawn && !IsWarmup()) Protect(player);
+        // Only where players respawn (Deathmatch, Arms Race, respawn on death): a round start in
+        // competitive or retakes doesn't need it.
+        if (_qolSpawn && !IsWarmup() && IsRespawnMode()) Protect(player);
         if (_qolGuns && !player.IsBot && IsDeathmatch() && _gunPicks.TryGetValue(player.SteamID, out var picks))
             AddTimer(0.2f, () => GiveGunPicks(player, picks), TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
@@ -141,6 +143,8 @@ public partial class LanSkinTester
 
     private static bool IsDeathmatch() => CvarInt("game_type") == 1 && CvarInt("game_mode") == 2;
 
+    private static bool IsRespawnMode() => IsDeathmatch() || CvarInt("mp_respawn_on_death_t") != 0 || CvarInt("mp_respawn_on_death_ct") != 0;
+
     private static bool IsWarmup()
     {
         var rules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
@@ -166,7 +170,8 @@ public partial class LanSkinTester
         if (player == null || !player.IsValid) return;
         if (!_qolGuns)
         {
-            Reply(player, "!guns is off on this server.");
+            // Plugin retakes: !guns belongs to the retakes allocator's menu.
+            if (!RetakesPluginRunning) Reply(player, "!guns is off on this server.");
             return;
         }
         if (cmd.ArgCount < 2)
@@ -416,7 +421,7 @@ public partial class LanSkinTester
         var player = @event.Userid;
         if (!_qolWelcome || player == null || !player.IsValid || player.IsBot) return HookResult.Continue;
         var extras = new List<string> { "!skinhelp skins" };
-        if (_qolGuns) extras.Add("!guns");
+        if (_qolGuns && IsDeathmatch()) extras.Add("!guns");
         if (_qolVote && _voteMaps.Length > 1) extras.Add("!rtv new map");
         if (_qolSummary) extras.Add("!stats");
         if (_qolReady) extras.Add("!ready");

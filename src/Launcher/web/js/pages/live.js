@@ -7,7 +7,8 @@ import { usePlay, go } from "./play.js";
 const set = (key, value) => tryCall("live.set", { [key]: value });
 const send = command => tryCall("live.command", command);
 
-// Bot Improver's own console commands (its plugins must be loaded for them to exist).
+// Bot Improver's own console commands (its plugins must be loaded for them to exist). Its weapon and
+// Flying Scoutsman "commands" are cfg aliases, so the launcher sends what they do instead (live.botweapon, live.scouts).
 const BOT_AIM = [{ value: 0, label: "Mixed" }, { value: 1, label: "Head" }, { value: 2, label: "Body" }];
 const BOT_AIM_CMD = ["mixed", "head", "body"];
 const BOT_NADES = ["Off", "Less", "Normal", "More", "Max"];
@@ -239,12 +240,13 @@ export function LivePage() {
               onChange=${v => { set("botNades", v); if (up) send("bot_nades " + BOT_NADES[v].toLowerCase()); }} /><//>
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bots Buy" subtitle="Every bot gets this weapon, or buys like normal">
             <${Select} width=${190} value=${s.botForceWeapon} options=${BOT_GUNS}
-              onChange=${v => { set("botForceWeapon", v); if (up) send(v || "bot_buy"); }} /><//>
+              onChange=${v => tryCall("live.botweapon", v)} /><//>
           <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins" subtitle=${s.botSkins ? "Random skins, knives, gloves and agents on every bot" : "Off: bots use default skins and agents"}>
             <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} /><//>
           <${ActionGrid} disabled=${!up} actions=${[
             ...(s.botSkins ? [["Reroll Bot Skins", "br_reroll", "shuffle"]] : []),
-            ["Flying Scoutsman On", "scouts_on", "sparkles"], ["Flying Scoutsman Off", "scouts_off", "stop"]]} />
+            ["Flying Scoutsman On", () => tryCall("live.scouts", true), "sparkles"],
+            ["Flying Scoutsman Off", () => tryCall("live.scouts", false), "stop"]]} />
         <//>`}
 
         <${Section} title="Hacker Mode">

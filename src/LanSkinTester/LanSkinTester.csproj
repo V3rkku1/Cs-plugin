@@ -16,4 +16,8 @@
     <None Include="gamedata\**" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
+  <ItemGroup>
+    <InternalsVisibleTo Include="LanSkinTester.Tests" />
+  </ItemGroup>
+
 </Project>
