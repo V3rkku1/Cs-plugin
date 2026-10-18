@@ -1,6 +1,6 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
 import { html, useState, useEffect, useRef, useMemo } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, navigate } from "../api.js";
+import { call, tryCall, useApi, navigate, img } from "../api.js";
 import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
 
 export const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
@@ -75,6 +75,7 @@ function StickerSheet({ uid, close }) {
   const [drag, setDrag] = useState(null); // { slot, x, y } while dragging
   const [local, setLocal] = useState({}); // slot -> edits not saved yet
   const [zoom, setZoom] = useState(1);
+  const [crop, setCrop] = useState(null); // the gun's visible part of its picture, as fractions
   const box = useRef(), stage = useRef(), live = useRef();
   const v = inv?.items.find(x => x.item.uid === uid);
   const gun = v?.item;
@@ -115,6 +116,19 @@ function StickerSheet({ uid, close }) {
   }, [zoom]);
   if (!v) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
 
+  // Steam pictures have empty space around the gun: find the non-transparent box so the gun fills the stage.
+  const fit = e => {
+    const im = e.target, w = im.naturalWidth, h = im.naturalHeight, c = document.createElement("canvas");
+    c.width = w; c.height = h;
+    const g = c.getContext("2d");
+    g.drawImage(im, 0, 0);
+    const a = g.getImageData(0, 0, w, h).data;
+    let x0 = w, y0 = h, x1 = -1, y1 = -1;
+    for (let y = 0; y < h; y++) for (let x = 0; x < w; x++) if (a[(y * w + x) * 4 + 3] > 16) {
+      if (x < x0) x0 = x; if (x > x1) x1 = x; if (y < y0) y0 = y; if (y > y1) y1 = y;
+    }
+    if (x1 > x0 && y1 > y0) setCrop({ x: x0 / w, y: y0 / h, w: (x1 - x0 + 1) / w, h: (y1 - y0 + 1) / h, ratio: (x1 - x0 + 1) / (y1 - y0 + 1) });
+  };
   const freeSlot = [0, 1, 2, 3, 4].find(n => stickers.every(st => st.slot !== n));
   const toOffset = (e, slot) => {
     const r = box.current.getBoundingClientRect();
@@ -157,13 +171,10 @@ function StickerSheet({ uid, close }) {
     <div class="sticker-layout">
       <div class="sticker-left">
         <div class="sticker-view">
-        <div class=${"sticker-stage" + (current ? " placing" : "")} ref=${stage}>
-          <div class="sticker-canvas" ref=${box} style=${`width:${zoom * 100}%`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up} onClick=${moveHere}>
-            <${ItemPic} src=${gun.image} size=${1024} />
-            ${[0, 1, 2, 3, 4].map(n => {
-              const at = spot(gun.def, n, 0, 0);
-              return html`<div key=${"m" + n} class=${"slot-mark" + (n === freeSlot ? " next" : "")} style=${`left:${at.left}%;top:${at.top}%`}>${n + 1}</div>`;
-            })}
+        <div class=${"sticker-stage" + (current ? " placing" : "") + (zoom > 1 ? " zoomed" : "")} ref=${stage}>
+          <div class="sticker-canvas" ref=${box} style=${`width:${zoom * Math.min(100, (crop?.ratio ?? 2.6) * 41)}%;aspect-ratio:${crop?.ratio ?? 2.6}`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up} onClick=${moveHere}>
+            <img src=${img(gun.image, 1024)} alt="" onLoad=${fit}
+              style=${crop ? `width:${100 / crop.w}%;left:${-crop.x / crop.w * 100}%;top:${-crop.y / crop.h * 100}%` : "width:100%;top:50%;transform:translateY(-50%)"} />
             ${stickers.map(st => {
               const x = drag?.slot === st.slot ? drag.x : st.offsetX, y = drag?.slot === st.slot ? drag.y : st.offsetY;
               const at = spot(gun.def, st.slot, x, y);
