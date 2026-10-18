@@ -2,7 +2,7 @@ name: Build
 
 # Builds the plugin and the Windows launcher on every push. Pushes to main also
 # update the "latest" release, so the newest files are always at Releases → "Latest build".
-# Tags like v2.1.0 get their own release.
+# Tags like v2.1.0 get their own release. Other branches only upload workflow artifacts (no release).
 
 on:
   push:
@@ -66,23 +66,6 @@ jobs:
             - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install (about 50 MB).
             - **LanSkinTesterLauncher-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
             - **LanSkinTester.zip**: only the plugin, for installing by hand (extract into `game/csgo/`).
-          files: |
-            build/LanSkinTesterSetup.exe
-            build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
-            build/LanSkinTester.zip
-
-      - name: Publish test release for this branch
-        if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/') && github.ref != 'refs/heads/main'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: test-${{ github.sha }}
-          target_commitish: ${{ github.sha }}
-          name: "Test build: ${{ github.ref_name }}"
-          prerelease: true
-          body: |
-            Test build of branch `${{ github.ref_name }}` (commit ${{ github.sha }}). Not the main release.
-            It shows "dev build" and doesn't update itself, so it stays this version while you test.
           files: |
             build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
