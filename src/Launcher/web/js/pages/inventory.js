@@ -152,10 +152,11 @@ function StickerSheet({ uid, close }) {
   const nudge = (dx, dy) => save(current.slot, { offsetX: clamp(current.offsetX + dx), offsetY: clamp(current.offsetY + dy) });
 
   return html`<div class="picker sticker-editor">
-    <div class="picker-head"><h2>Stickers · ${v.weapon} | ${v.finish}</h2>
+    <div class="picker-head"><h2><span class="faint">${v.weapon} |</span> ${v.finish}</h2>
       <span class="faint small">Click a sticker below to put it on. Then drag it, or click on the gun to move the selected one there; arrow keys nudge. Check it in game with F (inspect): equipped guns change within a second.</span></div>
     <div class="sticker-layout">
       <div class="sticker-left">
+        <div class="sticker-view">
         <div class=${"sticker-stage" + (current ? " placing" : "")} ref=${stage}>
           <div class="sticker-canvas" ref=${box} style=${`width:${zoom * 100}%`} onPointerMove=${move} onPointerUp=${up} onPointerLeave=${up} onClick=${moveHere}>
             <${ItemPic} src=${gun.image} size=${1024} />
@@ -172,19 +173,20 @@ function StickerSheet({ uid, close }) {
             })}
           </div>
         </div>
-        <div class="hstack sticker-zoom">
-          <span class="faint small">Zoom</span>
-          <${Segmented} options=${[{ value: 1, label: "1×" }, { value: 1.6, label: "1.6×" }, { value: 2.4, label: "2.4×" }]} value=${zoom} onChange=${setZoom} />
-          <div class="grow"></div>
+        <div class="sticker-zoom">
+          ${[1, 1.6, 2.4].map(z => html`<button key=${z} class=${zoom === z ? "on" : ""} onClick=${() => setZoom(z)} title="Zoom">${z}×</button>`)}
+        </div>
+        <div class="sticker-rail">
+          ${[0, 1, 2, 3, 4].map(n => {
+            const st = stickers.find(x => x.slot === n);
+            return html`<button key=${n} class=${"slot" + (st ? "" : " empty") + (st && sel === n ? " selected" : "")} disabled=${!st} onClick=${() => setSel(n)} title=${st?.name ?? `Slot ${n + 1}`}>
+              ${st ? html`<${ItemPic} src=${st.image} size=${128} />` : html`<span class="slot-no">${n + 1}</span>`}</button>`;
+          })}
+        </div>
         </div>
       </div>
       <div class="sticker-side">
-        <div class="field-label">On this gun (${stickers.length}/5)</div>
-        <div class="sticker-slots">
-          ${stickers.map(st => html`<button key=${st.slot} class=${"slot" + (sel === st.slot ? " selected" : "")} onClick=${() => setSel(st.slot)} title=${st.name}>
-            <${ItemPic} src=${st.image} size=${128} /><span class="slot-no">${st.slot + 1}</span></button>`)}
-          ${stickers.length === 0 && html`<div class="faint small">No stickers yet. Pick one below.</div>`}
-        </div>
+        ${!current && html`<div class="faint small">${stickers.length ? "Pick a sticker on the right of the gun to edit it." : "No stickers yet. Pick one below."}</div>`}
         ${current && html`<div class="sticker-controls">
           <div class="inspect-row"><span>${current.name}</span><b class="mono">x ${current.offsetX.toFixed(2)} · y ${current.offsetY.toFixed(2)}</b></div>
           <div class="hstack nudge">

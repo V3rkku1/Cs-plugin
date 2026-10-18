@@ -880,17 +880,24 @@ kbd { font-family: var(--font); }
 .slot-mark { position: absolute; width: 18px; height: 18px; margin: -9px 0 0 -9px; border-radius: 50%; display: grid; place-items: center; font-size: 10px; font-weight: 700; pointer-events: none;
   color: rgba(255, 255, 255, 0.75); border: 1px dashed rgba(255, 255, 255, 0.45); background: rgba(0, 0, 0, 0.35); }
 .slot-mark.next { color: #000; background: var(--yellow); border-style: solid; }
-.sticker-zoom .segmented { flex: none; }
-.sticker-slots .slot { position: relative; }
+.sticker-view { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) 64px; gap: 10px; padding: 10px; border-radius: var(--r-md); border: 1px solid rgba(255, 255, 255, 0.08); background: rgba(0, 0, 0, 0.2); }
+.sticker-zoom { position: absolute; left: 20px; bottom: 20px; display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: rgba(0, 0, 0, 0.45); border: 1px solid rgba(255, 255, 255, 0.08); }
+.sticker-zoom button { padding: 4px 8px; border: 0; border-radius: 6px; background: none; color: var(--text-2); font-size: 11px; cursor: pointer; }
+.sticker-zoom button.on { background: rgba(255, 255, 255, 0.1); color: var(--text); }
+.sticker-rail { display: flex; flex-direction: column; gap: 8px; }
+.sticker-rail .slot { position: relative; width: 64px; height: 50px; padding: 4px; border: 1px solid rgba(255, 255, 255, 0.1); border-radius: 8px; background: rgba(255, 255, 255, 0.04); cursor: pointer; }
+.sticker-rail .slot.selected { border-color: var(--yellow); box-shadow: 0 0 0 1px var(--yellow); }
+.sticker-rail .slot.empty { border-style: dashed; cursor: default; display: grid; place-items: center; }
+.sticker-rail .slot.empty .slot-no { position: static; }
 .slot-no { position: absolute; top: 2px; left: 4px; font-size: 10px; font-weight: 700; color: var(--text-2); }
 .nudge .btn { min-width: 36px; }
 .note-place { color: var(--yellow); }
 .sticker-stage .placed img { width: 100%; pointer-events: none; }
 .sticker-stage .placed.selected { outline: 2px dashed var(--blue); outline-offset: 2px; border-radius: 6px; }
 .sticker-side { display: flex; flex-direction: column; gap: 8px; min-height: 0; }
-.sticker-slots, .sticker-choices { display: flex; flex-wrap: wrap; gap: 6px; }
+.sticker-choices { display: flex; flex-wrap: wrap; gap: 6px; }
 .sticker-choices { overflow-y: auto; min-height: 0; flex: 1; align-content: flex-start; }
-.sticker-slots .slot, .sticker-choices .slot { width: 58px; height: 58px; padding: 4px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 -2px 0 var(--c, transparent); }
+.sticker-choices .slot { width: 58px; height: 58px; padding: 4px; border: 0; border-radius: 8px; background: rgba(255, 255, 255, 0.06); box-shadow: inset 0 -2px 0 var(--c, transparent); }
 .slot img { width: 100%; height: 100%; object-fit: contain; }
 .slot.selected { box-shadow: 0 0 0 2px var(--blue); }
 .sticker-controls { display: flex; flex-direction: column; gap: 4px; padding: 10px; border-radius: var(--r-sm); background: rgba(255, 255, 255, 0.04); }
