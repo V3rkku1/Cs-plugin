@@ -24,7 +24,7 @@ public partial class Installer
             _ => throw new ArgumentException("Unknown step: " + id),
         };
         await Task.Run(() => ExtractAddons(zip, game.Csgo));
-        if (id == "sourcemod") game.AllowSkins();
+        if (id == "sourcemod") { game.AllowSkins(); game.RemoveUpdater(); }
     }
 
     private async Task<string> LatestDropAsync(string drop, string prefix, string label)

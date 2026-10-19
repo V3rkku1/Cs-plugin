@@ -50,6 +50,12 @@ public class LegacyGame(string root)
         if (File.Exists(CoreCfg)) File.WriteAllText(CoreCfg, AllowSkins(File.ReadAllText(CoreCfg)));
     }
 
+    /// <summary>
+    /// SourceMod's updater.ext.dll is unsigned, so Smart App Control blocks it ("Bad Image" 0xc0e90002) when the game
+    /// loads it. It only fetches gamedata updates, which a LAN game doesn't need.
+    /// </summary>
+    public void RemoveUpdater() => File.Delete(Path.Combine(SourceMod, "extensions", "updater.ext.dll"));
+
     /// <summary>Name, game_type and game_mode of the modes the launcher offers.</summary>
     public static readonly (string Id, string Name, int Type, int Mode)[] Modes =
     [

@@ -113,6 +113,7 @@ public partial class Api
         if (LegacyGame.Running()) throw new ApiException("CS:GO is already running. Close it to start a new game.");
         if (!g.SourceModInstalled) throw new ApiException("Install SourceMod and the skin plugins first.");
         if (g.BlocksSkins) g.AllowSkins();
+        g.RemoveUpdater();
         try { g.Start(start.Mode, start.Map.Trim(), start.Bots); }
         catch (ArgumentException ex) { throw new ApiException(ex.Message); }
 
