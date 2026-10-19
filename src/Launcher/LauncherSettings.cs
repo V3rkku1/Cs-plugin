@@ -7,11 +7,6 @@ namespace LanSkinTester.Launcher;
 public class LauncherSettings
 {
     public string? GamePath { get; set; }
-    /// <summary>The CS:GO legacy folder (Setup › CS:GO Legacy), and its last quick-start choices.</summary>
-    public string? LegacyPath { get; set; }
-    public string LegacyMode { get; set; } = "deathmatch";
-    public string LegacyMap { get; set; } = "de_dust2";
-    public int LegacyBots { get; set; }
     public ServerSettings Server { get; set; } = new();
 
     /// <summary>Window position/size and the page that was open, restored on the next start.</summary>

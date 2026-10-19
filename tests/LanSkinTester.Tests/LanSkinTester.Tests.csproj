@@ -40,8 +40,6 @@
     <Compile Include="..\..\src\Launcher\Core\Upnp.cs" Link="Launcher\Upnp.cs" />
     <Compile Include="..\..\src\Launcher\Core\Network.cs" Link="Launcher\Network.cs" />
     <Compile Include="..\..\src\Launcher\Core\Installer.cs" Link="Launcher\Installer.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Installer.Legacy.cs" Link="Launcher\Installer.Legacy.cs" />
-    <Compile Include="..\..\src\Launcher\Core\LegacyGame.cs" Link="Launcher\LegacyGame.cs" />
     <Compile Include="..\..\src\Launcher\Core\ClientConsole.cs" Link="Launcher\ClientConsole.cs" />
   </ItemGroup>
 

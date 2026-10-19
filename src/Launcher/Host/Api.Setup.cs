@@ -64,7 +64,7 @@ public partial class Api
 
         if (SmartAppControlOn())
             Add("sac", "Windows Smart App Control", "warning",
-                "On - it blocks Metamod's and SourceMod's unsigned files (\"Bad Image\", 0xc0e90002), for CS2 and CS:GO. " +
+                "On - it can block Metamod's unsigned files (\"Bad Image\", 0xc0e90002) when it doesn't know them. " +
                 "Turn it off in Windows Security › App & browser control › Smart App Control (Windows can't turn it back on without a reset).",
                 "Open", true);
 

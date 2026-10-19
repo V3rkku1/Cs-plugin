@@ -58,42 +58,6 @@ function StepRow({ step, p, call }) {
   </div>`;
 }
 
-/** CS:GO legacy (Source 1): SourceMod + kgns' skin plugins, and a LAN game started from here. */
-function LegacySection({ progress }) {
-  const [state] = useApi("legacy.state");
-  const [pick, setPick] = useState(null);
-  if (!state) return null;
-  const v = pick ?? { mode: state.mode, map: state.map, bots: state.bots };
-  const set = change => setPick({ ...v, ...change });
-  const ready = state.steps.every(s => s.state === "ok");
-  return html`<${Section} title="CS:GO Legacy" note=${ready ? "ready" : ""}
-      footer="Skins work only on this LAN game (sv_lan 1, started with -insecure). In game: !ws for skins, !knife, !gloves.">
-    <${Row} icon=${{ name: "game", color: "yellow" }} title="CS:GO Folder"
-        subtitle=${state.folder ?? "Not found - install CS:GO legacy in Steam, then press Find"} subtitleClass=${state.folder ? "" : "warn"}>
-      <${Button} size="sm" onClick=${() => tryCall("legacy.browse")}>Browse…<//>
-      <${Button} size="sm" onClick=${() => tryCall("legacy.find")}>Find<//>
-    <//>
-    ${state.steps.map(step => html`<${StepRow} key=${step.id} step=${step} p=${progress[step.id]} call="legacy.step" />`)}
-    <div class="row block">
-      <${Button} block icon="download" disabled=${!state.folder || state.busy} busy=${state.busy}
-        onClick=${() => tryCall("legacy.step", "legacy.all")}>${ready ? "Reinstall CS:GO Mods" : "Install CS:GO Mods"}<//>
-    </div>
-    <${Row} icon=${{ name: "play", color: "green" }} title="Mode">
-      <${Segmented} cols=${3} options=${state.modes} value=${v.mode} onChange=${mode => set({ mode })} />
-    <//>
-    <${Row} icon=${{ name: "map", color: "blue" }} title="Map">
-      <${TextField} width=${160} value=${v.map} onInput=${map => set({ map })} placeholder="de_dust2" />
-    <//>
-    <${Row} icon=${{ name: "bot", color: "orange" }} title="Bots">
-      <${Stepper} value=${v.bots} min=${0} max=${20} onChange=${bots => set({ bots })} />
-    <//>
-    <div class="row block">
-      <${Button} kind="prominent" size="lg" block icon="play" disabled=${!state.folder || state.busy || state.running}
-        onClick=${() => tryCall("legacy.start", v)}>${state.running ? "CS:GO Is Running" : "Start CS:GO"}<//>
-    </div>
-  <//>`;
-}
-
 const setTheme = changes => tryCall("setup.theme", changes);
 
 /** Colour swatch that opens the system colour picker; saves when the picker closes. */
@@ -211,8 +175,6 @@ export function SetupPage() {
               onClick=${() => tryCall("setup.all")}>${busy ? "Working…" : allOk ? "Reinstall Everything" : "Install Everything"}<//>
           </div>
         <//>
-
-        <${LegacySection} progress=${progress} />
 
         <${LauncherSection} />
 

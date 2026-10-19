@@ -455,7 +455,7 @@ public partial class Installer
     /// </summary>
     public Task InstallZipAsync(string zipPath) => Task.Run(() => ExtractAddons(zipPath, _game.Csgo));
 
-    /// <summary>Extracts the zip's addons/ tree into gameDir (game\csgo for CS2, csgo for CS:GO legacy).</summary>
+    /// <summary>Extracts the zip's addons/ tree into gameDir (game\csgo).</summary>
     private void ExtractAddons(string zipPath, string gameDir)
     {
         using var zip = ZipFile.OpenRead(zipPath);

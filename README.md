@@ -56,12 +56,6 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
 - **Uninstall everything** removes Metamod, CounterStrikeSharp, the plugin and the server config from
   your CS2 folder and restores `gameinfo.gi`. Your loadout is backed up first.
 - **Open folder** buttons for the CS2 folder, the plugin folder, the server configs and the launcher's data.
-- **CS:GO Legacy:** for old CS:GO (the standalone *csgo legacy* app, or CS2 switched to the `csgo_legacy`
-  beta). It finds the folder with `csgo.exe`, installs Metamod 1.12, SourceMod 1.12, the PTaH extension and
-  kgns' [weapons](https://github.com/kgns/weapons) and [gloves](https://github.com/kgns/gloves) plugins, and turns off
-  SourceMod's `FollowCSGOServerGuidelines`. **Start CS:GO** hosts a LAN game (`sv_lan 1`, `-insecure`) with the mode,
-  map and bots you pick. In game: `!ws` for skins (wear, pattern, StatTrak, name tag), `!knife`, `!gloves`. The CS2
-  features (inventory, cases, live server, hacker mode) are CS2 only.
 
 **PLAY page**
 
