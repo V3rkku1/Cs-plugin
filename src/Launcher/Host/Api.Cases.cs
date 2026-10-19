@@ -288,6 +288,11 @@ public partial class Api
     // Guns only one side can buy: their skin is the same for both sides (like Inventory › Equip).
     private static readonly HashSet<ushort> OneSideGuns = [4, 30, 17, 29, 7, 13, 39, 11, 61, 32, 3, 34, 27, 16, 60, 10, 8, 38];
 
+    /// <summary>Loadout tab: the default look of each weapon (definition index -> picture), for slots with no skin on.</summary>
+    [Call("inventory.weaponPics")]
+    private Dictionary<string, string> WeaponPics() =>
+        App.Db.Weapons.GroupBy(w => w.DefIndex).ToDictionary(g => g.Key.ToString(), g => g.First().Image);
+
     public record SideArgs(string Uid, int Team);
 
     /// <summary>Puts a gun skin on one side only (2 = T, 3 = CT); the other side keeps what it had.</summary>

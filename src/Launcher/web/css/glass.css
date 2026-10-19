@@ -1078,3 +1078,32 @@ kbd { font-family: var(--font); }
 .tu-chip b { color: var(--text-3); font-weight: 700; }
 .tu-chip.on:disabled { opacity: 1; }
 .show-more { grid-column: 1 / -1; display: flex; justify-content: center; padding: 14px 0; }
+
+/* Inventory › Loadout: CS2's loadout screen. */
+.lo { display: flex; flex-direction: column; gap: 14px; --side: #5d9cec; }
+.lo.lo-t { --side: #e0a03a; }
+.lo-top { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.lo-side { height: 40px; padding: 0 18px; border: 0; border-radius: 6px; cursor: pointer; font: inherit; font-weight: 800; font-style: italic; letter-spacing: 0.04em;
+  color: var(--text-2); background: rgba(255, 255, 255, 0.06); }
+.lo-side.active.ct { color: #0b1a2e; background: #8ec3ff; }
+.lo-side.active.t { color: #2b1a05; background: #f0c060; }
+.lo-board { display: grid; grid-template-columns: 120px repeat(3, minmax(0, 1fr)); gap: 12px; padding: 14px; border-radius: var(--r-lg);
+  background: linear-gradient(180deg, color-mix(in srgb, var(--side) 22%, transparent), color-mix(in srgb, var(--side) 6%, transparent)); }
+.lo-gear, .lo-col { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.lo-head { font-size: 0.78em; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-2); padding: 0 2px; }
+.lo-slot { position: relative; display: grid; grid-template-columns: 96px minmax(0, 1fr); grid-template-rows: auto auto; align-items: center; column-gap: 8px;
+  padding: 3px 10px 3px 4px; border: 0; border-radius: 6px; cursor: pointer; text-align: left; color: var(--text); font: inherit;
+  background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 -2px 0 var(--c); transition: background 0.15s; }
+.lo-gear .lo-slot { grid-template-columns: 1fr; text-align: center; justify-items: center; padding: 8px 6px; }
+.lo-slot:hover { background: rgba(255, 255, 255, 0.08); }
+.lo-slot.active { background: color-mix(in srgb, var(--side) 30%, rgba(0, 0, 0, 0.2)); outline: 2px solid var(--side); outline-offset: -2px; }
+.lo-slot .pic { grid-row: span 2; height: 40px; display: grid; place-items: center; color: var(--text-3); }
+.lo-slot .pic img { max-height: 38px; max-width: 96px; }
+.lo-slot .pic .default img { opacity: 0.5; filter: grayscale(1); }
+.lo-gear .lo-slot .pic { grid-row: auto; height: 52px; }
+.lo-name { font-size: 0.78em; color: var(--text-2); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lo-fin { font-size: 0.86em; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lo-slot:not(.worn) .lo-fin { font-weight: 500; color: var(--text-3); }
+.lo-pick { display: flex; flex-direction: column; gap: 10px; }
+.lo-pick-head h3 { margin: 0; font-size: 1em; }
+@media (max-width: 900px) { .lo-board { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

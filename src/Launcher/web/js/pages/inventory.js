@@ -497,46 +497,83 @@ const LOADOUT = [
 ];
 const isGlove = v => /gloves|wraps/i.test(v.weapon);
 
+// CS2's loadout screen: pick the side, then a slot (character column on the left, weapons in the middle), then one
+// of your items below for it. Guns, knife and gloves can differ per side; agent, music kit and pin are per item.
+const COLUMNS = [
+  { name: "Pistols", groups: ["Pistols"] },
+  { name: "Mid-Tier", groups: ["SMGs", "Heavy"] },
+  { name: "Rifles", groups: ["Rifles"] },
+];
+const GEAR = [
+  { key: "agent", name: "Agent", icon: "person" }, { key: "gloves", name: "Gloves", icon: "skins" }, { key: "knife", name: "Knife", icon: "crosshair" },
+  { key: "music", name: "Music Kit", icon: "sparkles" }, { key: "pin", name: "Pin", icon: "shield" },
+];
+
 function LoadoutView({ items, cur }) {
-  const [team, setTeam] = useState(2);
-  const onSide = v => team === 2 ? v.equippedT : v.equippedCT;
-  const pick = async (title, mine) => {
-    const choice = await sheet(close => html`<div class="picker">
-      <div class="picker-head"><h2>${title}</h2><span class="faint small">Your skins for this slot. Pick one to put it on.</span></div>
-      <div class="picker-grid scroll">
-        ${mine.length === 0 ? html`<div class="empty small">None in your inventory. Open cases to get some.</div>`
-          : mine.map(v => html`<button key=${v.item.uid} class=${"cs-item" + (onSide(v) ? " selected" : "")} style=${`--c:${v.item.color}`} onClick=${() => close(v)}>
-              <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
-              <div class="text"><div class="fin">${v.finish}</div><div class="weapon">${v.item.statTrak ? "StatTrak™ · " : ""}${wearName(v.item.wear)}</div></div>
-              <div class="price">${money(v.price, cur)}</div></button>`)}
-      </div>
-      <div class="picker-foot">${mine.some(onSide) && html`<${Button} onClick=${() => close("default")}>Use Default<//>`}<div class="grow"></div>
-        <${Button} onClick=${() => close(undefined)}>Cancel<//></div></div>`, { wide: true });
-    if (choice === "default") tryCall("cases.unequipSide", { uid: mine.find(onSide).item.uid, team });
-    else if (choice && !onSide(choice)) tryCall("cases.equipSide", { uid: choice.item.uid, team });
-  };
-  const slot = (key, name, mine) => {
-    const on = mine.find(onSide);
-    return html`<button key=${key} class=${"cs-item loadout-slot" + (on ? " selected" : "")} style=${`--c:${on?.item.color ?? "transparent"}`}
-        onClick=${() => pick(name, mine)}>
-      <div class="pic">${on ? html`<${ItemPic} src=${on.item.image} size=${256} />` : html`<${Icon} name="crosshair" size=${30} />`}</div>
-      <div class="text"><div class="weapon">${name}</div><div class="fin">${on ? on.finish : "Default"}</div></div>
-      <div class="price">${mine.length ? `${mine.length} owned` : ""}</div>
+  const [team, setTeam] = useState(3);
+  const [sel, setSel] = useState("knife");
+  const [pics] = useApi("inventory.weaponPics");
+  const side = team === 2 ? "T" : "CT";
+  const skins = items.filter(v => v.item.kind === "skin");
+  const special = skins.filter(v => v.category === "special");
+  // Every slot: what goes in it and what this side wears now.
+  const mineFor = key => key === "knife" ? special.filter(v => !isGlove(v)) : key === "gloves" ? special.filter(isGlove)
+    : key === "agent" ? items.filter(v => v.item.kind === "agent" && v.item.team === side)
+    : key === "music" || key === "pin" ? items.filter(v => v.item.kind === key)
+    : skins.filter(v => v.item.def === key);
+  const perSide = key => typeof key === "number" || key === "knife" || key === "gloves";
+  const worn = (key, v) => perSide(key) ? (team === 2 ? v.equippedT : v.equippedCT) : v.equipped;
+  const onNow = key => mineFor(key).find(v => worn(key, v));
+  const equip = v => perSide(sel) ? tryCall("cases.equipSide", { uid: v.item.uid, team }) : tryCall("cases.equip", v.item.uid);
+  const useDefault = on => perSide(sel) ? tryCall("cases.unequipSide", { uid: on.item.uid, team }) : tryCall("cases.unequip", on.item.uid);
+
+  const slotTile = (key, name, defaultPic, icon) => {
+    const on = onNow(key);
+    return html`<button key=${key} class=${"lo-slot" + (sel === key ? " active" : "") + (on ? " worn" : "")} style=${`--c:${on?.item.color ?? "transparent"}`}
+        onClick=${() => { setSel(key); setTimeout(() => document.querySelector(".lo-pick")?.scrollIntoView({ behavior: "smooth", block: "nearest" }), 50); }} title=${on ? `${name} | ${on.finish}` : name}>
+      <div class="pic">${on ? html`<${ItemPic} src=${on.item.image} size=${256} />` : defaultPic ? html`<span class="default"><${ItemPic} src=${defaultPic} size=${256} /></span>` : html`<${Icon} name=${icon ?? "crosshair"} size=${26} />`}</div>
+      <div class="lo-name">${name}</div>
+      <div class="lo-fin">${on ? on.finish : "Default"}</div>
     </button>`;
   };
-  const skins = items.filter(v => v.item.kind === "skin");
-  const of = def => skins.filter(v => v.item.def === def);
-  const special = skins.filter(v => v.category === "special");
-  const knives = special.filter(v => !isGlove(v)), gloves = special.filter(isGlove);
-  return html`<div class="loadout">
-    <${Segmented} options=${[{ value: 2, label: "Terrorists" }, { value: 3, label: "Counter-Terrorists" }]} value=${team} onChange=${setTeam} />
-    <div class="loadout-group"><h3>Melee</h3><div class="cs-grid">
-      ${slot("knife", "Knife", knives)}
-    </div></div>
-    ${LOADOUT.map(g => html`<div class="loadout-group" key=${g.name}><h3>${g.name}</h3><div class="cs-grid">
-      ${g.guns.filter(([, , t]) => t === 0 || t === team).map(([def, name]) => slot(def, name, of(def)))}
-    </div></div>`)}
-    <div class="loadout-group"><h3>Gloves</h3><div class="cs-grid">${slot("gloves", "Gloves", gloves)}</div></div>
+  // A gun the other side can't buy (AK on CT...) isn't a slot there: back to the knife.
+  const switchTo = t => {
+    const gun = typeof sel === "number" && LOADOUT.flatMap(g => g.guns).find(([d]) => d === sel);
+    if (gun && gun[2] !== 0 && gun[2] !== t) setSel("knife");
+    setTeam(t);
+  };
+  const guns = g => LOADOUT.find(x => x.name === g).guns.filter(([, , t]) => t === 0 || t === team);
+  const mine = mineFor(sel);
+  const on = onNow(sel);
+  const selName = typeof sel === "number" ? LOADOUT.flatMap(g => g.guns).find(([d]) => d === sel)?.[1] : GEAR.find(g => g.key === sel)?.name;
+  const sorted = [...mine].sort((a, b) => worn(sel, b) - worn(sel, a) || GRADE_RANK.indexOf(b.item.grade) - GRADE_RANK.indexOf(a.item.grade) || a.item.wear - b.item.wear);
+
+  return html`<div class=${"lo " + (team === 2 ? "lo-t" : "lo-ct")}>
+    <div class="lo-top">
+      <button class=${"lo-side" + (team === 3 ? " active ct" : "")} onClick=${() => switchTo(3)}>EQUIP CT</button>
+      <button class=${"lo-side" + (team === 2 ? " active t" : "")} onClick=${() => switchTo(2)}>EQUIP T</button>
+      <span class="faint small">Pick a slot, then one of your items below. Guns, knife and gloves can differ between the sides.</span>
+    </div>
+    <div class="lo-board">
+      <div class="lo-gear">${GEAR.map(g => slotTile(g.key, g.name, null, g.icon))}</div>
+      ${COLUMNS.map(c => html`<div class="lo-col" key=${c.name}>
+        <div class="lo-head">${c.name}</div>
+        ${c.groups.flatMap(guns).map(([def, name]) => slotTile(def, name, pics?.[def]))}
+      </div>`)}
+    </div>
+    <div class="lo-pick">
+      <div class="hstack lo-pick-head"><h3 class="grow">${selName ?? ""} · ${side}</h3>
+        ${on && html`<${Button} size="sm" onClick=${() => useDefault(on)}>Use Default<//>`}</div>
+      ${sorted.length === 0 ? html`<div class="empty small">None in your inventory${typeof sel === "number" ? ". Open cases to get some." : "."}</div>`
+        : html`<div class="cs-grid">${sorted.slice(0, 240).map(v => html`<button key=${v.item.uid} class=${"cs-item" + (worn(sel, v) ? " selected" : "")}
+            style=${`--c:${v.item.color}`} onClick=${() => !worn(sel, v) && equip(v)} title=${worn(sel, v) ? "Equipped" : `Equip for ${side}`}>
+            <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
+            ${worn(sel, v) && html`<span class="equipped"><${Icon} name="check" size=${12} stroke=${3} /></span>`}
+            ${v.item.statTrak && v.item.kind === "skin" && html`<span class="st">ST™</span>`}
+            <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
+            <div class="price">${v.item.kind === "skin" && v.item.paint > 0 ? wearName(v.item.wear) : money(v.price, cur)}</div>
+          </button>`)}</div>`}
+    </div>
   </div>`;
 }
 
