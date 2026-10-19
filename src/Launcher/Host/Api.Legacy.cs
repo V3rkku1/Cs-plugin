@@ -112,6 +112,10 @@ public partial class Api
         var g = Legacy ?? throw new ApiException("Pick your CS:GO folder first.");
         if (LegacyGame.Running()) throw new ApiException("CS:GO is already running. Close it to start a new game.");
         if (!g.SourceModInstalled) throw new ApiException("Install SourceMod and the skin plugins first.");
+        // SourceMod and Metamod ship unsigned DLLs: Smart App Control refuses every one ("Bad Image", 0xc0e90002).
+        if (SmartAppControlOn())
+            throw new ApiException("Windows Smart App Control is on and blocks SourceMod's files (\"Bad Image\" 0xc0e90002). " +
+                                   "Turn it off in Windows Security › App & browser control › Smart App Control, then start again.");
         if (g.BlocksSkins) g.AllowSkins();
         g.RemoveUpdater();
         try { g.Start(start.Mode, start.Map.Trim(), start.Bots); }

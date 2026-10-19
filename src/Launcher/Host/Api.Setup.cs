@@ -64,8 +64,8 @@ public partial class Api
 
         if (SmartAppControlOn())
             Add("sac", "Windows Smart App Control", "warning",
-                "On - Windows can block Metamod's unsigned files (\"Bad Image\" when CS2 starts). If that happens, reinstall the plugins first; " +
-                "if it keeps happening, turn it off in Windows Security › App & browser control (Windows can't turn it back on later).",
+                "On - it blocks Metamod's and SourceMod's unsigned files (\"Bad Image\", 0xc0e90002), for CS2 and CS:GO. " +
+                "Turn it off in Windows Security › App & browser control › Smart App Control (Windows can't turn it back on without a reset).",
                 "Open", true);
 
         Add("data", "Skin, sticker and charm lists", App.Db.IsEmpty ? "missing" : "ok",
