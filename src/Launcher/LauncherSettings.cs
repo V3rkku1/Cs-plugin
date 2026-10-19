@@ -59,7 +59,7 @@ public class LauncherSettings
     public string Currency { get; set; } = "USD";
 
     public static string FilePath => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "LanSkinTester", "launcher.json");
+        Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "SkinTesterCSGO", "launcher.json");
 
     public static LauncherSettings Load()
     {

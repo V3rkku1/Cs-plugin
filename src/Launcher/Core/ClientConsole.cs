@@ -21,7 +21,7 @@ public static class ClientConsole
 
     private static string LoadPassword()
     {
-        var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanSkinTester", "netcon.key");
+        var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkinTesterCSGO", "netcon.key");
         try
         {
             if (File.Exists(file) && File.ReadAllText(file).Trim() is { Length: >= 16 } saved) return saved;

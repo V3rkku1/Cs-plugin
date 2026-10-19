@@ -32,7 +32,7 @@ public sealed class ShellForm : Form
         _port = port;
         _token = token;
         _serveOnly = serveOnly;
-        Text = "LAN Skin Tester";
+        Text = "Skin Tester CS:GO";
         // Sizes are in pixels: scale them for the screen's DPI (150% on many laptops), but keep the window on the screen.
         var scale = DeviceDpi / 96.0;
         var area = Screen.PrimaryScreen?.WorkingArea.Size ?? new Size(1920, 1040);
@@ -286,5 +286,5 @@ public sealed class ShellForm : Form
 
     /// <summary>"Skins · LAN Skin Tester" in the title bar and the taskbar.</summary>
     public void ShowPage(string page) =>
-        Text = PageTitles.TryGetValue(page, out var title) ? $"{title} · LAN Skin Tester" : "LAN Skin Tester";
+        Text = PageTitles.TryGetValue(page, out var title) ? $"{title} · Skin Tester CS:GO" : "Skin Tester CS:GO";
 }

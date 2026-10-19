@@ -31,7 +31,7 @@ public sealed class LegacyGameTests : IDisposable
     [Fact]
     public void LaunchArgumentsAreLanAndInsecure()
     {
-        Assert.Equal("-insecure -novid -console +sv_lan 1 +game_type 1 +game_mode 2 +bot_quota 20 +map de_dust2",
+        Assert.Equal($"-insecure -novid -console -netconport {ClientConsole.Port} -netconpassword {ClientConsole.Password} +sv_lan 1 +game_type 1 +game_mode 2 +bot_quota 20 +map de_dust2",
             LegacyGame.LaunchArguments("deathmatch", "de_dust2", 99));
         Assert.Throws<ArgumentException>(() => LegacyGame.LaunchArguments("deathmatch", "de_dust2; quit", 0));
         Assert.Throws<ArgumentException>(() => LegacyGame.LaunchArguments("nope", "de_dust2", 0));

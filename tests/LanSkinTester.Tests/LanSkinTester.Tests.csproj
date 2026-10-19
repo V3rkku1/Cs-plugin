@@ -16,6 +16,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
     <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <!-- The plugin leaves CounterStrikeSharp out of its output; the tests load the plugin's types, so they need it. -->
     <PackageReference Include="CounterStrikeSharp.API" Version="1.0.376" />
@@ -43,6 +44,7 @@
     <Compile Include="..\..\src\Launcher\Core\Installer.Legacy.cs" Link="Launcher\Installer.Legacy.cs" />
     <Compile Include="..\..\src\Launcher\Core\LegacyGame.cs" Link="Launcher\LegacyGame.cs" />
     <Compile Include="..\..\src\Launcher\Core\ClientConsole.cs" Link="Launcher\ClientConsole.cs" />
+    <Compile Include="..\..\src\Launcher\Core\KgnsSync.cs" Link="Launcher\KgnsSync.cs" />
   </ItemGroup>
 
 </Project>

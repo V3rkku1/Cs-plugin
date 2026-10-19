@@ -76,7 +76,12 @@ public partial class Api
         if (!_calls.TryGetValue(name, out var call)) throw new ApiException($"Unknown call: {name}");
         if (!name.StartsWith("cases.") && !name.StartsWith("inventory.") && !name.StartsWith("tradeup.")) return await call(args);
         await InventoryGate.WaitAsync();
-        try { return await call(args); }
+        try
+        {
+            var result = await call(args);
+            SyncKgns();
+            return result;
+        }
         finally { InventoryGate.Release(); }
     }
 

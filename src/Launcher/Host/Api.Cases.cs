@@ -206,7 +206,7 @@ public partial class Api
     private void UnequipUnboxed(string uid)
     {
         var item = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That item isn't in your inventory any more.");
-        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var store = new LoadoutStore(LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         switch (item.Kind)
         {
@@ -285,8 +285,6 @@ public partial class Api
 
     private static bool Matches(Dictionary<ushort, SkinSettings> skins, InventoryItem i) => Matches(skins.GetValueOrDefault(i.Def), i);
 
-    // Guns only one side can buy: their skin is the same for both sides (like Inventory › Equip).
-    private static readonly HashSet<ushort> OneSideGuns = [4, 30, 17, 29, 7, 13, 39, 11, 61, 32, 3, 34, 27, 16, 60, 10, 8, 38];
 
     /// <summary>Loadout tab: the default look of each weapon (definition index -> picture), for slots with no skin on.</summary>
     [Call("inventory.weaponPics")]
@@ -300,8 +298,9 @@ public partial class Api
     private void EquipSide(SideArgs a)
     {
         var item = Inventory().FirstOrDefault(i => i.Uid == a.Uid && i.Kind == "skin" && i.Def != 0) ?? throw new ApiException("That skin isn't in your inventory any more.");
-        if (a.Team is not (2 or 3) || OneSideGuns.Contains(item.Def)) { EquipUnboxed(a.Uid); return; }
-        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        // kgns' weapons plugin keeps one skin per gun and one knife for both sides; only gloves are per side.
+        if (a.Team is not (2 or 3) || !IsGloveType(item.Def)) { EquipUnboxed(a.Uid); return; }
+        var store = new LoadoutStore(LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         // Knife / gloves per side: the other side keeps the shared one it had.
         if (IsKnifeType(item.Def))
@@ -319,7 +318,7 @@ public partial class Api
             foreach (var side in new[] { loadout.SkinsT, loadout.SkinsCT }) side.TryAdd(item.Def, shared);
         (a.Team == 2 ? loadout.SkinsT : loadout.SkinsCT)[item.Def] = SkinOf(item);
         store.Save();
-        Toast(a.Team == 2 ? "Equipped for Terrorists." : "Equipped for Counter-Terrorists.", "good");
+        Toast(a.Team == 2 ? "Gloves for Terrorists." : "Gloves for Counter-Terrorists.", "good");
         App.NotifyChanged();
     }
 
@@ -328,8 +327,8 @@ public partial class Api
     private void UnequipSide(SideArgs a)
     {
         var item = Inventory().FirstOrDefault(i => i.Uid == a.Uid && i.Kind == "skin" && i.Def != 0) ?? throw new ApiException("That skin isn't in your inventory any more.");
-        if (a.Team is not (2 or 3) || OneSideGuns.Contains(item.Def)) { UnequipUnboxed(a.Uid); return; }
-        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        if (a.Team is not (2 or 3) || !IsGloveType(item.Def)) { UnequipUnboxed(a.Uid); return; }
+        var store = new LoadoutStore(LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         var (side, other) = a.Team == 2 ? (loadout.SkinsT, loadout.SkinsCT) : (loadout.SkinsCT, loadout.SkinsT);
         if (IsKnifeType(item.Def) || IsGloveType(item.Def))
@@ -372,7 +371,7 @@ public partial class Api
     private void EquipUnboxed(string uid)
     {
         var item = Inventory().FirstOrDefault(i => i.Uid == uid) ?? throw new ApiException("That item isn't in your inventory any more.");
-        var store = new LoadoutStore(RequirePlugin().LoadoutFile);
+        var store = new LoadoutStore(LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         switch (item.Kind)
         {
@@ -384,23 +383,14 @@ public partial class Api
                 loadout.SkinsT.Remove(item.Def);
                 loadout.SkinsCT.Remove(item.Def);
                 break;
-            case "pin" when item.CollectibleId > 0:
-                loadout.Pin = (ushort)item.CollectibleId;
-                break;
-            case "music" when item.CollectibleId > 0:
-                loadout.MusicKit = (ushort)item.CollectibleId;
-                break;
-            case "agent" when item.ItemId != null:
-                if (item.Team == "CT") loadout.AgentCT = item.ItemId;
-                else loadout.AgentT = item.ItemId;
-                break;
             default:
-                throw new ApiException(item.Kind == "sticker" || item.Kind == "patch"
-                    ? "Stickers go on a gun: click the gun in your Inventory and press Stickers."
+                // CS:GO's skin plugins (kgns) do guns, knives and gloves only.
+                throw new ApiException(item.Kind is "pin" or "music" or "agent" or "sticker" or "patch"
+                    ? "CS:GO's skin plugins put on guns, knives and gloves only - this one stays in your inventory."
                     : "This item can't be equipped.");
         }
         store.Save();
-        Toast(TestSession.Cs2Running() ? "Equipped. It changes in game in about a second." : "Equipped. You'll have it next time you play.", "good");
+        Toast(LegacyGame.Running() ? "Equipped. In CS:GO it shows on your next spawn or weapon." : "Equipped. You'll have it next time you play.", "good");
         App.NotifyChanged();
     }
 
@@ -682,9 +672,8 @@ public partial class Api
         var index = Inventory().FindIndex(i => i.Uid == old.Uid);
         if (index >= 0) Inventory()[index] = updated;
         SaveInventory();
-        if (App.Game is { PluginInstalled: true } game)
         {
-            var store = new LoadoutStore(game.LoadoutFile);
+            var store = new LoadoutStore(LoadoutFile);
             var loadout = store.Get(LoadoutStore.LocalKey);
             // The gun may be on the shared slot and/or one side: update each place it is worn.
             var worn = false;

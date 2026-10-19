@@ -1,4 +1,4 @@
-// Setup: CS2 folder, the install checklist, maintenance, folders and the activity log.
+// Setup: CS:GO folder and mods, item lists, the launcher, folders, appearance and the activity log.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall, useApi, useEvent } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Toggle, Slider, Stepper, TextField, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
@@ -20,7 +20,7 @@ function LauncherSection() {
       message: "Are you sure you want to do this? It deletes everything the launcher keeps:\n" +
         "• your inventory and case history\n• your equipped loadout\n• saved setups, friends and recent servers\n" +
         "• all settings, the theme and the backups\n\nThis can't be undone. The launcher restarts like a fresh install. " +
-        "The mods in your CS2 folder stay (Uninstall Everything removes those).",
+        "The mods in your CS:GO folder stay.",
       ok: "Delete Everything", danger: true,
     })) tryCall("app.resetAll");
   };
@@ -61,13 +61,10 @@ function StepRow({ step, p, call }) {
 /** CS:GO legacy (Source 1): SourceMod + kgns' skin plugins, and a LAN game started from here. */
 function LegacySection({ progress }) {
   const [state] = useApi("legacy.state");
-  const [pick, setPick] = useState(null);
   if (!state) return null;
-  const v = pick ?? { mode: state.mode, map: state.map, bots: state.bots };
-  const set = change => setPick({ ...v, ...change });
   const ready = state.steps.every(s => s.state === "ok");
-  return html`<${Section} title="CS:GO Legacy" note=${ready ? "ready" : ""}
-      footer="Skins work only on this LAN game (sv_lan 1, started with -insecure). In game: !ws for skins, !knife, !gloves.">
+  return html`<${Section} title="CS:GO" note=${ready ? "ready" : ""}
+      footer="Skins work only on your LAN game (sv_lan 1, started with -insecure). The launcher puts what you equip into the skin plugins.">
     <${Row} icon=${{ name: "game", color: "yellow" }} title="CS:GO Folder"
         subtitle=${state.folder ?? "Not found - install CS:GO legacy in Steam, then press Find"} subtitleClass=${state.folder ? "" : "warn"}>
       <${Button} size="sm" onClick=${() => tryCall("legacy.browse")}>Browse…<//>
@@ -77,19 +74,6 @@ function LegacySection({ progress }) {
     <div class="row block">
       <${Button} block icon="download" disabled=${!state.folder || state.busy} busy=${state.busy}
         onClick=${() => tryCall("legacy.step", "legacy.all")}>${ready ? "Reinstall CS:GO Mods" : "Install CS:GO Mods"}<//>
-    </div>
-    <${Row} icon=${{ name: "play", color: "green" }} title="Mode">
-      <${Segmented} cols=${3} options=${state.modes} value=${v.mode} onChange=${mode => set({ mode })} />
-    <//>
-    <${Row} icon=${{ name: "map", color: "blue" }} title="Map">
-      <${TextField} width=${160} value=${v.map} onInput=${map => set({ map })} placeholder="de_dust2" />
-    <//>
-    <${Row} icon=${{ name: "bot", color: "orange" }} title="Bots">
-      <${Stepper} value=${v.bots} min=${0} max=${20} onChange=${bots => set({ bots })} />
-    <//>
-    <div class="row block">
-      <${Button} kind="prominent" size="lg" block icon="play" disabled=${!state.folder || state.busy || state.running}
-        onClick=${() => tryCall("legacy.start", v)}>${state.running ? "CS:GO Is Running" : "Start CS:GO"}<//>
     </div>
   <//>`;
 }
@@ -183,61 +167,21 @@ export function SetupPage() {
   useEvent("setup.progress", ({ id, p }) => setProgress(old => ({ ...old, [id]: p })));
   if (!state) return html`<${Page} title="Setup" />`;
 
-  const busy = state.busy;
-  const allOk = state.steps.every(s => s.state === "ok");
-  const uninstall = async () => {
-    if (await confirm({
-      title: "Uninstall everything?",
-      message: "This removes Metamod, CounterStrikeSharp and the LAN Skin Tester plugin from your CS2 folder and puts gameinfo.gi back to normal.\n\nYour saved loadout is backed up to the launcher data folder.",
-      ok: "Uninstall", danger: true,
-    })) tryCall("setup.uninstall");
-  };
-
-  return html`<${Page} title="Setup" subtitle="Install, update or remove everything the skin test needs.">
+  return html`<${Page} title="Setup" subtitle="Install everything CS:GO needs for your skins.">
     <div class="cols wrap" style="--n:2; grid-template-columns: minmax(0,1.25fr) minmax(0,1fr)">
       <div class="stack">
-        <${Section} title="Game">
-          <${Row} icon=${{ name: "game", color: "orange" }} title="Counter-Strike 2"
-              subtitle=${state.folder ?? "Not found - press Browse or Find"} subtitleClass=${state.folder ? "" : "warn"}>
-            <${Button} size="sm" onClick=${() => tryCall("setup.browse")}>Browse…<//>
-            <${Button} size="sm" onClick=${() => tryCall("setup.find")}>Find<//>
-          <//>
-        <//>
-
-        <${Section} title="Components" note=${allOk ? "everything is installed" : ""}>
-          ${state.steps.map(step => html`<${StepRow} key=${step.id} step=${step} p=${progress[step.id]} call="setup.step" />`)}
-          <div class="row block">
-            <${Button} kind="prominent" size="lg" block icon="download" disabled=${!state.hasGame || busy} busy=${busy}
-              onClick=${() => tryCall("setup.all")}>${busy ? "Working…" : allOk ? "Reinstall Everything" : "Install Everything"}<//>
-          </div>
-        <//>
-
         <${LegacySection} progress=${progress} />
+
+        <${Section} title="Item Lists">
+          ${state.steps.filter(step => step.id === "data" || step.id === "sac").map(step => html`<${StepRow} key=${step.id} step=${step} p=${progress[step.id]} call="setup.step" />`)}
+        <//>
+
 
         <${LauncherSection} />
 
-        <${Section} title="Maintenance">
-          <${Row} icon=${{ name: "refresh", color: "blue" }} title="Check Mod Updates" subtitle="Compare with the newest Metamod and CounterStrikeSharp">
-            <${Button} size="sm" disabled=${busy} onClick=${() => tryCall("setup.checkUpdates")}>Check<//>
-          <//>
-          <${Row} icon=${{ name: "zip", color: "indigo" }} title="Install from Zip" subtitle="If a download fails: get the zip from the links below">
-            <${Button} size="sm" disabled=${!state.hasGame || busy} onClick=${() => tryCall("setup.zip")}>Choose Zip…<//>
-          <//>
-          <${Row} icon=${{ name: "wrench", color: "teal" }} title="Repair" subtitle="Reinstall the plugin and fix leftovers after a crash">
-            <${Button} size="sm" disabled=${!state.hasGame || busy} onClick=${() => tryCall("setup.repair")}>Repair<//>
-          <//>
-          <${Row} icon=${{ name: "trash", color: "red" }} title="Uninstall Everything" subtitle="Remove all mods from your CS2 folder (loadout is backed up)">
-            <${Button} size="sm" kind="destructive" disabled=${!state.hasGame || busy} onClick=${uninstall}>Uninstall<//>
-          <//>
-        <//>
-
         <${Section} title="Folders and Links">
-          <${Row} icon=${{ name: "folder", color: "blue" }} title="CS2 Folder" onClick=${() => tryCall("app.openFolder", "game")} />
-          <${Row} icon=${{ name: "folder", color: "purple" }} title="Plugin Folder" onClick=${() => tryCall("app.openFolder", "plugin")} />
-          <${Row} icon=${{ name: "folder", color: "orange" }} title="Server Configs" onClick=${() => tryCall("app.openFolder", "cfg")} />
+          <${Row} icon=${{ name: "folder", color: "blue" }} title="CS:GO Folder" onClick=${() => tryCall("app.openFolder", "csgo")} />
           <${Row} icon=${{ name: "folder", color: "green" }} title="Launcher Data" onClick=${() => tryCall("app.openFolder", "data")} />
-          <${Row} icon=${{ name: "link", color: "teal" }} title="Metamod Downloads" subtitle="Opens in your browser" onClick=${() => tryCall("app.openUrl", state.metamodPage)} />
-          <${Row} icon=${{ name: "link", color: "teal" }} title="CounterStrikeSharp Downloads" subtitle="Opens in your browser" onClick=${() => tryCall("app.openUrl", state.cssPage)} />
         <//>
       </div>
 

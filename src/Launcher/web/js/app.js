@@ -5,23 +5,15 @@ import { Icon, Toasts, sheen } from "./ui.js";
 import { openPalette } from "./palette.js";
 import { UpdatePopup, openUpdate } from "./update.js";
 import { applyTheme, watchCustomCss } from "./theme.js";
-import { PlayPage } from "./pages/play.js";
-import { LivePage } from "./pages/live.js";
-import { HackerPage } from "./pages/hacker.js";
-import { FriendsPage } from "./pages/friends.js";
-import { WorkshopPage } from "./pages/workshop.js";
+import { CsgoPlayPage } from "./pages/csgo.js";
 import { CasesPage } from "./pages/cases.js";
 import { InventoryPage } from "./pages/inventory.js";
 import { SetupPage } from "./pages/setup.js";
 
 const pages = [
-  { id: "play", label: "Play", icon: "play", component: PlayPage },
-  { id: "live", label: "Live Server", icon: "server", component: LivePage },
+  { id: "play", label: "Play", icon: "play", component: CsgoPlayPage },
   { id: "inventory", label: "Inventory", icon: "skins", component: InventoryPage },
   { id: "cases", label: "Cases", icon: "key", component: CasesPage },
-  { id: "hacker", label: "Hacker Mode", icon: "hacker", component: HackerPage },
-  { id: "workshop", label: "Workshop", icon: "map", component: WorkshopPage },
-  { id: "friends", label: "Friends", icon: "friends", component: FriendsPage },
   { id: "setup", label: "Setup", icon: "setup", component: SetupPage },
 ];
 
@@ -39,7 +31,7 @@ function Sidebar({ page, setPage, state }) {
       <img src="app.png" alt="" />
       <div>
         <div class="name">Skin Tester</div>
-        <div class="version">CS2 · ${state?.version ?? ""}</div>
+        <div class="version">CS:GO · ${state?.version ?? ""}</div>
         ${state && !state.updateAvailable && html`<button class=${"check-update" + (state.checkingUpdate ? " busy" : "")}
             disabled=${state.checkingUpdate} onClick=${() => tryCall("app.checkUpdate")}
             title=${state.lastUpdateCheck ? `Last checked ${state.lastUpdateCheck}` : "Look for a newer launcher"}>
@@ -77,7 +69,7 @@ function App() {
   useEffect(() => { if (page == null && state) setPageState(state.page); }, [state]);
 
   // Every page's data is ready before you click it: no empty page while it loads.
-  useEffect(() => prefetch(["play.state", "cases.inventory", "hacker.state", "friends.state"]), []);
+  useEffect(() => prefetch(["legacy.state", "cases.inventory"]), []);
 
   const setPage = id => {
     setPageState(id);
@@ -89,11 +81,9 @@ function App() {
     window.addEventListener("navigate", go);
     const keys = e => {
       if (e.ctrlKey && e.key.toLowerCase() === "k") { openPalette(setPage); e.preventDefault(); }
-      else if (e.ctrlKey && e.key >= "1" && e.key <= "8") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
+      else if (e.ctrlKey && e.key >= "1" && e.key <= String(pages.length)) { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
       else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("inventory"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
       else if (e.key === "F11") { tryCall("app.fullscreen"); e.preventDefault(); }
-      else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
-      else if (e.key === "F5" && e.shiftKey) { tryCall("play.stop"); e.preventDefault(); }
     };
     window.addEventListener("keydown", keys);
     return () => { window.removeEventListener("navigate", go); window.removeEventListener("keydown", keys); };

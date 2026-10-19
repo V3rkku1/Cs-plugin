@@ -7,11 +7,11 @@
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <AssemblyName>LanSkinTesterLauncher</AssemblyName>
+    <AssemblyName>SkinTesterCSGO</AssemblyName>
     <RootNamespace>LanSkinTester.Launcher</RootNamespace>
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <ApplicationIcon>app.ico</ApplicationIcon>
-    <Product>LAN Skin Tester</Product>
+    <Product>Skin Tester CS:GO</Product>
     <!-- No designer files: controls are built in code. -->
     <NoWarn>$(NoWarn);WFO1000</NoWarn>
   </PropertyGroup>
@@ -20,6 +20,7 @@
   <ItemGroup>
     <FrameworkReference Include="Microsoft.AspNetCore.App" />
     <PackageReference Include="Microsoft.Web.WebView2" Version="1.0.3179.45" />
+    <PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <EmbeddedResource Include="web\**\*" LogicalName="web/%(RecursiveDir)%(Filename)%(Extension)" />
   </ItemGroup>
 

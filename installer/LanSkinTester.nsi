@@ -1,5 +1,5 @@
 ; LAN Skin Tester installer (NSIS). build.sh runs:
-;   makensis -DVERSION=x.y.z -DEXE=<path to LanSkinTesterLauncher.exe> -DOUT=<setup.exe> installer/LanSkinTester.nsi
+;   makensis -DVERSION=x.y.z -DEXE=<path to SkinTesterCSGO.exe> -DOUT=<setup.exe> installer/LanSkinTester.nsi
 ; Per-user install (no admin prompt) into %LocalAppData%\Programs, so the launcher can update itself.
 
 Unicode true
@@ -9,14 +9,14 @@ Unicode true
   !define VERSION "0.0.0"
 !endif
 !ifndef EXE
-  !define EXE "..\build\LanSkinTesterLauncher.exe"
+  !define EXE "..\build\SkinTesterCSGO.exe"
 !endif
 !ifndef OUT
-  !define OUT "..\build\LanSkinTesterSetup.exe"
+  !define OUT "..\build\SkinTesterCSGOSetup.exe"
 !endif
 
-!define APPNAME "LAN Skin Tester"
-!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\LanSkinTester"
+!define APPNAME "Skin Tester CS:GO"
+!define UNINSTKEY "Software\Microsoft\Windows\CurrentVersion\Uninstall\SkinTesterCSGO"
 
 Name "${APPNAME}"
 OutFile "${OUT}"
@@ -40,7 +40,7 @@ VIAddVersionKey "LegalCopyright" "Cs-plugin"
 !define MUI_ABORTWARNING
 !define MUI_WELCOMEPAGE_TITLE "Install ${APPNAME}"
 !define MUI_WELCOMEPAGE_TEXT "Preview CS2 skins, play with bots and friends on your own local server.$\r$\n$\r$\nInstalls for your Windows user only (no admin needed). The launcher keeps itself up to date."
-!define MUI_FINISHPAGE_RUN "$INSTDIR\LanSkinTesterLauncher.exe"
+!define MUI_FINISHPAGE_RUN "$INSTDIR\SkinTesterCSGO.exe"
 !define MUI_FINISHPAGE_RUN_TEXT "Start ${APPNAME}"
 
 !insertmacro MUI_PAGE_WELCOME
@@ -55,15 +55,15 @@ VIAddVersionKey "LegalCopyright" "Cs-plugin"
 Section "${APPNAME}" SecMain
   SectionIn RO
   SetOutPath "$INSTDIR"
-  File "/oname=LanSkinTesterLauncher.exe" "${EXE}"
+  File "/oname=SkinTesterCSGO.exe" "${EXE}"
   WriteUninstaller "$INSTDIR\Uninstall.exe"
 
-  CreateShortcut "$SMPROGRAMS\${APPNAME}.lnk" "$INSTDIR\LanSkinTesterLauncher.exe"
+  CreateShortcut "$SMPROGRAMS\${APPNAME}.lnk" "$INSTDIR\SkinTesterCSGO.exe"
 
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayName" "${APPNAME}"
   WriteRegStr HKCU "${UNINSTKEY}" "DisplayVersion" "${VERSION}"
   WriteRegStr HKCU "${UNINSTKEY}" "Publisher" "Cs-plugin"
-  WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\LanSkinTesterLauncher.exe"
+  WriteRegStr HKCU "${UNINSTKEY}" "DisplayIcon" "$INSTDIR\SkinTesterCSGO.exe"
   WriteRegStr HKCU "${UNINSTKEY}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKCU "${UNINSTKEY}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegStr HKCU "${UNINSTKEY}" "URLInfoAbout" "https://github.com/V3rkku1/Cs-plugin"
@@ -72,7 +72,7 @@ Section "${APPNAME}" SecMain
 SectionEnd
 
 Section "Desktop shortcut" SecDesktop
-  CreateShortcut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\LanSkinTesterLauncher.exe"
+  CreateShortcut "$DESKTOP\${APPNAME}.lnk" "$INSTDIR\SkinTesterCSGO.exe"
 SectionEnd
 
 !insertmacro MUI_FUNCTION_DESCRIPTION_BEGIN
@@ -83,7 +83,7 @@ SectionEnd
 Section "Uninstall"
   ; Your skins, loadouts and settings (%LocalAppData%\LanSkinTester, %AppData%\LanSkinTester) are kept.
   ; Mods in the CS2 folder are removed with the launcher's Setup page > Uninstall Everything.
-  Delete "$INSTDIR\LanSkinTesterLauncher.exe"
+  Delete "$INSTDIR\SkinTesterCSGO.exe"
   Delete "$INSTDIR\Uninstall.exe"
   RMDir "$INSTDIR"
   Delete "$SMPROGRAMS\${APPNAME}.lnk"

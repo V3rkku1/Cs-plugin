@@ -10,8 +10,8 @@ namespace LanSkinTester.Launcher.Core;
 /// </summary>
 public static class UpdateCheck
 {
-    public const string ReleaseUrl = "https://github.com/V3rkku1/Cs-plugin/releases/tag/latest";
-    private const string TagApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/git/ref/tags/latest";
+    public const string ReleaseUrl = "https://github.com/V3rkku1/Cs-plugin/releases/tag/latest-csgo";
+    private const string TagApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/git/ref/tags/latest-csgo";
     private const string CompareApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/compare";
 
     /// <summary>Full commit hash of this build, or null for local builds without one.</summary>

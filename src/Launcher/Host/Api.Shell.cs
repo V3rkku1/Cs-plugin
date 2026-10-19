@@ -33,12 +33,14 @@ public partial class Api
     [Call("app.state")]
     private ShellState State()
     {
-        var (kind, title, detail) = App.TestModeOn ? ("warning", "Test mode on", "VAC off · press Stop when done")
-            : App.Ready ? ("good", "Ready", "CS2 is normal")
+        var g = Legacy;
+        var ready = g is { SourceModInstalled: true, PtahInstalled: true } && g.PluginInstalled("weapons") && g.PluginInstalled("gloves");
+        var (kind, title, detail) = LegacyGame.Running() ? ("warning", "CS:GO running", "LAN game · VAC off")
+            : ready ? ("good", "Ready", "Press Start on Play")
             : ("bad", "Setup needed", "Open Setup to install");
         // First run (or something missing): start on Setup; otherwise where you left off.
-        var page = Program.StartPage ?? (!App.Ready || App.Db.IsEmpty ? "setup" : App.Settings.LastPage ?? "play");
-        return new ShellState(UpdateCheck.ShortVersion, page, App.Ready, App.TestModeOn, kind, title, detail, _updateAvailable, _updateProgress,
+        var page = Program.StartPage ?? (!ready || App.Db.IsEmpty ? "setup" : App.Settings.LastPage ?? "play");
+        return new ShellState(UpdateCheck.ShortVersion, page, ready, LegacyGame.Running(), kind, title, detail, _updateAvailable, _updateProgress,
             _update?.Commit[..7], _update?.Notes ?? new List<string>(), App.Settings.AutoUpdate, _checkingUpdate,
             _lastUpdateCheck?.ToString("HH:mm"));
     }
@@ -71,6 +73,7 @@ public partial class Api
             "plugin" => App.Game?.PluginDir,
             "cfg" => App.Game == null ? null : Path.Combine(App.Game.Csgo, "cfg"),
             "data" => AppState.LauncherDataDir,
+            "csgo" => App.Settings.LegacyPath,
             _ => null,
         } ?? throw new ApiException("Pick your CS2 folder first.");
         Directory.CreateDirectory(path);
@@ -202,7 +205,7 @@ public partial class Api
         if (!Updater.CanSelfUpdate())
         {
             App.Log($"The launcher's folder ({Path.GetDirectoryName(Updater.CurrentExe)}) isn't writable, so it can't update itself. " +
-                    "Move LanSkinTesterLauncher.exe to a folder of your own (e.g. Documents) or install it with LanSkinTesterSetup.exe.");
+                    "Move SkinTesterCSGO.exe to a folder of your own (e.g. Documents) or install it with SkinTesterCSGOSetup.exe.");
             if (!automatic) Toast("Can't update: the launcher's folder isn't writable - see the log on Setup.", "bad");
             return;
         }
@@ -259,6 +262,13 @@ public partial class Api
 
     public void WatchGame()
     {
+        // CS:GO: kgns' plugins make their tables on the first start; put the loadout in as soon as they're there.
+        if (LegacyGame.Running() && InventoryGate.Wait(0))
+        {
+            try { SyncKgns(); }
+            finally { InventoryGate.Release(); }
+        }
+
         // No server for 10 seconds but the Metamod line is still in gameinfo.gi (a server that never started, a
         // crash): take it out, so CS2 started from Steam doesn't try to load Metamod.
         if (App.Game is { } g && TestSession.FindServer() == null && GameInfoPatcher.IsEnabled(g.GameInfo))

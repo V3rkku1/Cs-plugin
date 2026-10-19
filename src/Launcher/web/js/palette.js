@@ -4,32 +4,14 @@ import { call, tryCall } from "./api.js";
 import { Icon, sheet } from "./ui.js";
 
 const pageItems = [
-  ["play", "Play", "play"], ["live", "Live Server", "server"], ["inventory", "Inventory", "skins"], ["cases", "Cases", "key"],
-  ["hacker", "Hacker Mode", "hacker"], ["workshop", "Workshop", "map"], ["friends", "Friends", "friends"], ["setup", "Setup", "setup"],
+  ["play", "Play", "play"], ["inventory", "Inventory", "skins"], ["cases", "Cases", "key"], ["setup", "Setup", "setup"],
 ];
 
 async function actions(navigate) {
-  const play = await call("play.state").catch(() => null);
   const list = pageItems.map(([id, label, icon]) => ({ label: `Go to ${label}`, icon, group: "Pages", run: () => navigate(id) }));
-  if (play) {
-    if (play.testMode) {
-      list.push({ label: "Apply changes to the server", icon: "refresh", group: "Server", run: () => tryCall("play.apply") });
-      list.push({ label: "Open CS2", icon: "game", group: "Server", run: () => tryCall("play.openGame") });
-      list.push({ label: "Stop the server", icon: "stop", group: "Server", run: () => tryCall("play.stop") });
-    } else {
-      list.push({ label: "Start the server", icon: "play", group: "Server", run: () => tryCall("play.start") });
-    }
-    if (play.invite?.address) {
-      list.push({ label: "Copy invite code", icon: "copy", group: "Friends", run: () => tryCall("friends.copy", { what: "code", address: play.invite.address }) });
-      list.push({ label: "Copy IP address", icon: "copy", group: "Friends", run: () => tryCall("friends.copy", { what: "address", address: play.invite.address }) });
-    }
-    for (const p of play.presets)
-      list.push({ label: p.title, note: p.subtitle, icon: "bolt", group: "Quick starts", run: () => tryCall("play.preset", { title: p.title, saved: p.saved }) });
-  }
-  list.push({ label: "Copy logs (to ask for help)", icon: "copy", group: "Server", run: () => tryCall("live.copyLogs") });
+  list.push({ label: "Start CS:GO", icon: "play", group: "Game", run: () => navigate("play") });
   list.push({ label: "Full screen on / off (F11)", icon: "sparkles", group: "Window", run: () => tryCall("app.fullscreen") });
   list.push({ label: "Check for launcher updates", icon: "download", group: "Setup", run: () => tryCall("app.checkUpdate") });
-  list.push({ label: "Check for component updates", icon: "refresh", group: "Setup", run: () => tryCall("setup.checkUpdates") });
   return list;
 }
 

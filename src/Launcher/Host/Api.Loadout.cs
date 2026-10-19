@@ -7,8 +7,7 @@ public partial class Api
 {
     private PlayerLoadout ReadLoadout()
     {
-        if (App.Game is not { } g || !Directory.Exists(g.PluginDir)) return new PlayerLoadout();
-        var store = new LoadoutStore(g.LoadoutFile);
+        var store = new LoadoutStore(LoadoutFile);
         var loadout = store.Get(LoadoutStore.LocalKey);
         // Without the admin code, drop anything not in the inventory (e.g. left over from the old launcher).
         if (UnboxOnly && PruneUnowned(loadout)) store.Save();
@@ -45,8 +44,36 @@ public partial class Api
         return changed;
     }
 
-    private GameFolder RequirePlugin() =>
-        App.Game is { PluginInstalled: true } g ? g : throw new ApiException("Install the plugin first (Setup page).");
+    /// <summary>CS:GO edition: the launcher keeps the loadout itself and copies it into kgns' plugins (<see cref="SyncKgns"/>).</summary>
+    private static string LoadoutFile => Path.Combine(AppState.LauncherDataDir, "loadout.json");
+
+    private string? _kgnsSynced;
+
+    /// <summary>
+    /// After every inventory / loadout call: when the loadout changed, write it into kgns' tables and reload their
+    /// plugins in a running CS:GO (they read the tables when a player joins or the plugin loads).
+    /// </summary>
+    private void SyncKgns()
+    {
+        if (Legacy is not { } g) return;
+        string text;
+        try { text = File.Exists(LoadoutFile) ? File.ReadAllText(LoadoutFile) : ""; }
+        catch (IOException) { return; }
+        if (text == _kgnsSynced) return;
+        var account = ServerSettings.ActiveSteamAccount();
+        if (account == 0) return; // Steam not running: next time
+        try
+        {
+            var (weapons, gloves) = KgnsSync.Write(KgnsSync.DatabaseFile(g), KgnsSync.Steam2(account), new LoadoutStore(LoadoutFile).Get(LoadoutStore.LocalKey));
+            if (!weapons && !gloves) return; // the plugins haven't made their tables yet: after the first start
+            _kgnsSynced = text;
+            if (LegacyGame.Running()) _ = ClientConsole.SendAsync("sm plugins reload weapons; sm plugins reload gloves");
+        }
+        catch (Exception ex) when (ex is Microsoft.Data.Sqlite.SqliteException or IOException or UnauthorizedAccessException)
+        {
+            App.Log("Could not put your skins into CS:GO yet: " + ex.Message);
+        }
+    }
 
     private static bool IsKnifeType(ushort def) => ItemData.Knives.ContainsValue(def);
     private static bool IsGloveType(ushort def) => ItemData.Gloves.ContainsValue(def);

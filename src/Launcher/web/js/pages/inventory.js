@@ -43,10 +43,6 @@ function Inspect({ v, cur, close }) {
       <${WearBar} wear=${i.wear} />
       <div class="inspect-row"><span>Pattern</span><b class="mono">${i.seed}</b></div>`}
     ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">0</b></div>`}
-    ${i.kind === "skin" && v.category === "weapons" && html`
-      <div class="inspect-row"><span>Stickers</span><b>${(i.stickers ?? []).length}/5</b></div>
-      ${(i.stickers ?? []).length > 0 && html`<div class="inspect-stickers">${i.stickers.map(st => html`<span title=${st.name}><${ItemPic} src=${st.image} size=${128} /></span>`)}</div>`}
-      <${Button} block icon="layers" onClick=${() => sheet(close => html`<${StickerSheet} uid=${i.uid} close=${close} />`, { wide: true })}>Stickers…<//>`}
     <div class="inspect-row"><span>Market price</span><b>${money(v.price, cur)}</b></div>
     <div class="inspect-row"><span>Unboxed from</span><b>${i.caseName}</b></div>
     <div class="inspect-row"><span>Unboxed</span><b>${new Date(i.opened).toLocaleString()}</b></div>
@@ -504,10 +500,8 @@ const COLUMNS = [
   { name: "Mid-Tier", groups: ["SMGs", "Heavy"] },
   { name: "Rifles", groups: ["Rifles"] },
 ];
-const GEAR = [
-  { key: "agent", name: "Agent", icon: "person" }, { key: "gloves", name: "Gloves", icon: "skins" }, { key: "knife", name: "Knife", icon: "crosshair" },
-  { key: "music", name: "Music Kit", icon: "sparkles" }, { key: "pin", name: "Pin", icon: "shield" },
-];
+// CS:GO's skin plugins (kgns) do knives and gloves; no agents, music kits or pins.
+const GEAR = [{ key: "gloves", name: "Gloves", icon: "skins" }, { key: "knife", name: "Knife", icon: "crosshair" }];
 
 function LoadoutView({ items, cur }) {
   const [team, setTeam] = useState(3);
@@ -521,7 +515,8 @@ function LoadoutView({ items, cur }) {
     : key === "agent" ? items.filter(v => v.item.kind === "agent" && v.item.team === side)
     : key === "music" || key === "pin" ? items.filter(v => v.item.kind === key)
     : skins.filter(v => v.item.def === key);
-  const perSide = key => typeof key === "number" || key === "knife" || key === "gloves";
+  // kgns: one skin per gun and one knife for both sides; gloves per side.
+  const perSide = key => key === "gloves";
   const worn = (key, v) => perSide(key) ? (team === 2 ? v.equippedT : v.equippedCT) : v.equipped;
   const onNow = key => mineFor(key).find(v => worn(key, v));
   const equip = v => perSide(sel) ? tryCall("cases.equipSide", { uid: v.item.uid, team }) : tryCall("cases.equip", v.item.uid);
@@ -552,7 +547,7 @@ function LoadoutView({ items, cur }) {
     <div class="lo-top">
       <button class=${"lo-side" + (team === 3 ? " active ct" : "")} onClick=${() => switchTo(3)}>EQUIP CT</button>
       <button class=${"lo-side" + (team === 2 ? " active t" : "")} onClick=${() => switchTo(2)}>EQUIP T</button>
-      <span class="faint small">Pick a slot, then one of your items below. Guns, knife and gloves can differ between the sides.</span>
+      <span class="faint small">Pick a slot, then one of your items below. In CS:GO guns and knife are the same on both sides; gloves can differ.</span>
     </div>
     <div class="lo-board">
       <div class="lo-gear">${GEAR.map(g => slotTile(g.key, g.name, null, g.icon))}</div>

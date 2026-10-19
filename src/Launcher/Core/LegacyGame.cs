@@ -72,7 +72,8 @@ public class LegacyGame(string root)
         var m = Modes.FirstOrDefault(x => x.Id == mode);
         if (m.Id == null) throw new ArgumentException("Unknown mode: " + mode);
         if (!Regex.IsMatch(map, "^[A-Za-z0-9_]+$")) throw new ArgumentException("Map names are letters, digits and _ (like de_dust2).");
-        return $"-insecure -novid -console +sv_lan 1 +game_type {m.Type} +game_mode {m.Mode} +bot_quota {Math.Clamp(bots, 0, 20)} +map {map}";
+        // -netconport: the launcher reloads the skin plugins after an equip (see Api.SyncKgns).
+        return $"-insecure -novid -console -netconport {ClientConsole.Port} -netconpassword {ClientConsole.Password} +sv_lan 1 +game_type {m.Type} +game_mode {m.Mode} +bot_quota {Math.Clamp(bots, 0, 20)} +map {map}";
     }
 
     public static bool Running() => Process.GetProcessesByName("csgo").Length > 0;

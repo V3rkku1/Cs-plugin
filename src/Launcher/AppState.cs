@@ -19,7 +19,7 @@ public class AppState
     public event Action<string>? Logged;
 
     public static string LauncherDataDir => Path.Combine(
-        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanSkinTester");
+        Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "SkinTesterCSGO");
 
     public AppState()
     {

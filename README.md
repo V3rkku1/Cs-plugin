@@ -1,3 +1,21 @@
+# Skin Tester CS:GO (this branch)
+
+This `csgo` branch builds **Skin Tester CS:GO** (`SkinTesterCSGO.exe`), a separate launcher for **CS:GO legacy**.
+It has its own data folder and settings (`%LocalAppData%\SkinTesterCSGO`, `%AppData%\SkinTesterCSGO`) and its own
+update channel (the `latest-csgo` release), so it never touches the CS2 launcher.
+
+- **Setup:** finds the CS:GO legacy folder and installs Metamod 1.12, SourceMod 1.12, PTaH and kgns'
+  [weapons](https://github.com/kgns/weapons) and [gloves](https://github.com/kgns/gloves) plugins.
+- **Play:** starts `csgo.exe` as a LAN listen server (`sv_lan 1`, `-insecure`) with your mode, map and bots.
+- **Cases, Inventory, Trade Up:** as in the CS2 launcher (free cases, filters, contracts, Remove Duplicates).
+- **Loadout:** what you equip is written into the plugins' tables (SourceMod's `sourcemod-local.sq3`, your
+  Steam2 id) and the plugins are reloaded in a running game, so it shows on your next spawn or weapon.
+  kgns' weapons plugin keeps one skin per gun and one knife for both sides; gloves can differ per side.
+  Stickers, agents, pins and music kits stay in the inventory (the plugins don't put them on).
+- Windows **Smart App Control** must be off: SourceMod and Metamod ship unsigned DLLs ("Bad Image" 0xc0e90002).
+
+The CS2 launcher lives on `main`; the rest of this README describes it.
+
 # LAN Skin Tester (CS2)
 
 A [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) plugin for previewing

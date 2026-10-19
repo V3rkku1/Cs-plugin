@@ -38,52 +38,52 @@ jobs:
         run: ./build.sh
         env:
           # Builds of other branches are for testing: they must not update themselves to the main release.
-          TEST_BUILD: ${{ github.ref != 'refs/heads/main' && !startsWith(github.ref, 'refs/tags/v') && '1' || '' }}
+          TEST_BUILD: ${{ github.ref != 'refs/heads/csgo' && '1' || '' }}
 
       - name: Upload build files
         uses: actions/upload-artifact@v4
         with:
           name: LanSkinTester-${{ github.sha }}
           path: |
-            build/LanSkinTesterSetup.exe
-            build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
+            build/SkinTesterCSGOSetup.exe
+            build/SkinTesterCSGO.exe
+            build/SkinTesterCSGO-small.zip
             build/LanSkinTester.zip
           if-no-files-found: error
 
       - name: Publish "Latest build" release
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/csgo'
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: latest
+          tag_name: latest-csgo
           target_commitish: ${{ github.sha }}
-          name: Latest build
+          name: Latest CS:GO build
           prerelease: true
           body: |
-            Newest build of `${{ github.ref_name }}` (commit ${{ github.sha }}).
+            Newest build of the CS:GO launcher (`${{ github.ref_name }}`, commit ${{ github.sha }}).
 
-            - **LanSkinTesterSetup.exe**: the installer (Start menu / desktop shortcut, uninstaller, updates itself). Easiest.
-            - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install (about 50 MB).
-            - **LanSkinTesterLauncher-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
-            - **LanSkinTester.zip**: only the plugin, for installing by hand (extract into `game/csgo/`).
+            - **SkinTesterCSGOSetup.exe**: the installer (Start menu / desktop shortcut, uninstaller, updates itself). Easiest.
+            - **SkinTesterCSGO.exe**: the launcher, one file, nothing else to install.
+            - **SkinTesterCSGO-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
+
+            Needs CS:GO legacy (Steam: "Counter-Strike: Global Offensive" legacy app) and Windows Smart App Control off (SourceMod's DLLs are unsigned).
           files: |
-            build/LanSkinTesterSetup.exe
-            build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
-            build/LanSkinTester.zip
+            build/SkinTesterCSGOSetup.exe
+            build/SkinTesterCSGO.exe
+            build/SkinTesterCSGO-small.zip
 
       - name: Move the "latest" tag to this commit (after the files are up, so launchers never see a new tag with old files)
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        if: github.event_name == 'push' && github.ref == 'refs/heads/csgo'
         run: |
-          git tag -f latest
-          git push -f origin latest
+          git tag -f latest-csgo
+          git push -f origin latest-csgo
 
       - name: Publish versioned release
         if: startsWith(github.ref, 'refs/tags/v')
         uses: softprops/action-gh-release@v2
         with:
           files: |
-            build/LanSkinTesterSetup.exe
-            build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
+            build/SkinTesterCSGOSetup.exe
+            build/SkinTesterCSGO.exe
+            build/SkinTesterCSGO-small.zip
             build/LanSkinTester.zip

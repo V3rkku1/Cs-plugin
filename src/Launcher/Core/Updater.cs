@@ -5,14 +5,14 @@ using System.Text.Json;
 namespace LanSkinTester.Launcher.Core;
 
 /// <summary>
-/// Self-update: downloads the newest LanSkinTesterLauncher.exe from the "latest" GitHub release and
+/// Self-update: downloads the newest SkinTesterCSGO.exe from the "latest" GitHub release and
 /// swaps it in after this launcher exits (a small hidden script waits for the exit, replaces the exe
 /// and starts it again). Works for the installed launcher (per-user folder) and the portable exe.
 /// </summary>
 public static class Updater
 {
-    private const string ReleaseApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/releases/tags/latest";
-    private const string AssetName = "LanSkinTesterLauncher.exe";
+    private const string ReleaseApi = "https://api.github.com/repos/V3rkku1/Cs-plugin/releases/tags/latest-csgo";
+    private const string AssetName = "SkinTesterCSGO.exe";
 
     public static string CurrentExe => Environment.ProcessPath ?? Application.ExecutablePath;
 
@@ -37,7 +37,7 @@ public static class Updater
     /// The exe straight from the release's download link: no GitHub API (60 requests an hour), and it keeps
     /// working while a new build replaces the release's files (the link answers 404 for that minute).
     /// </summary>
-    private const string DownloadUrl = "https://github.com/V3rkku1/Cs-plugin/releases/download/latest/" + AssetName;
+    private const string DownloadUrl = "https://github.com/V3rkku1/Cs-plugin/releases/download/latest-csgo/" + AssetName;
 
     /// <summary>Downloads the new exe and returns its path. Tries 4 times over about a minute; throws with a readable message.</summary>
     public static async Task<string> DownloadAsync(HttpClient http, Action<double>? progress = null, Action<string>? retrying = null)
@@ -59,11 +59,11 @@ public static class Updater
         var dir = Path.Combine(Path.GetTempPath(), "LanSkinTester-update");
         Directory.CreateDirectory(dir);
         // A fresh name each time: an old download may still be open (virus scan) and can't be overwritten.
-        foreach (var old in Directory.GetFiles(dir, "LanSkinTesterLauncher-*.exe"))
+        foreach (var old in Directory.GetFiles(dir, "SkinTesterCSGO-*.exe"))
         {
             try { File.Delete(old); } catch (Exception) { /* still in use: removed next time */ }
         }
-        var target = Path.Combine(dir, $"LanSkinTesterLauncher-{DateTime.UtcNow:yyyyMMddHHmmss}.exe");
+        var target = Path.Combine(dir, $"SkinTesterCSGO-{DateTime.UtcNow:yyyyMMddHHmmss}.exe");
 
         await Installer.DownloadToFileAsync(http, url, target, p => { if (p >= 0) progress?.Invoke(p); });
 
