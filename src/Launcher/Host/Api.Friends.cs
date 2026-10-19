@@ -234,7 +234,7 @@ public partial class Api
         {
             var l = ReadLoadout();
             var cfg = Path.Combine(game.Csgo, "cfg", ClientConsole.SkinsCfg + ".cfg");
-            var empty = l.Skins.Count + l.SkinsT.Count + l.SkinsCT.Count == 0 && l.Knife == 0 && l.Gloves == 0
+            var empty = l.Skins.Count + l.SkinsT.Count + l.SkinsCT.Count == 0 && l.Knife + l.KnifeT + l.KnifeCT + l.Gloves + l.GlovesT + l.GlovesCT == 0
                         && l.AgentT == null && l.AgentCT == null && l.Pin == 0 && l.MusicKit == 0;
             if (empty || !ClientConsole.WriteSkinsCfg(game, l)) File.Delete(cfg);
         }

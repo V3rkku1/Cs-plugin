@@ -434,12 +434,13 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         var item = weapon.AttributeManager.Item;
         var isKnife = ItemData.IsKnifeClassname(weapon.DesignerName);
 
-        if (isKnife && loadout.Knife != 0)
+        var knife = loadout.KnifeFor(player.TeamNum);
+        if (isKnife && knife != 0)
         {
-            if (item.ItemDefinitionIndex != loadout.Knife)
-                weapon.AcceptInput("ChangeSubclass", value: loadout.Knife.ToString());
+            if (item.ItemDefinitionIndex != knife)
+                weapon.AcceptInput("ChangeSubclass", value: knife.ToString());
 
-            item.ItemDefinitionIndex = loadout.Knife;
+            item.ItemDefinitionIndex = knife;
             item.EntityQuality = 3; // "★" unusual quality
         }
 
@@ -447,7 +448,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         var skin = loadout.SkinFor(defIndex, player.TeamNum);
         if (skin == null || !skin.HasCustomization)
         {
-            if (isKnife && loadout.Knife != 0)
+            if (isKnife && knife != 0)
             {
                 // A vanilla custom knife still needs its own item ID or the client keeps the default model.
                 item.AttributeList.Attributes.RemoveAll();
@@ -495,7 +496,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         if (!SkinsAllowed() || !player.IsValid || !player.PawnIsAlive) return;
 
         var loadout = GetLoadout(player);
-        if (loadout.Gloves == 0 || !loadout.Skins.TryGetValue(loadout.Gloves, out var skin) || skin.Paint == 0)
+        var gloves = loadout.GlovesFor(player.TeamNum);
+        if (gloves == 0 || loadout.SkinFor(gloves, player.TeamNum) is not { Paint: not 0 } skin)
             return;
 
         var pawn = player.PlayerPawn.Value;
@@ -512,7 +514,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         {
             if (!player.IsValid || !player.PawnIsAlive || !pawn.IsValid) return;
 
-            item.ItemDefinitionIndex = loadout.Gloves;
+            item.ItemDefinitionIndex = gloves;
             AssignNewItemId(item, player);
             SetPaintAttributes(item, skin);
             item.Initialized = true;
@@ -780,8 +782,8 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         }
 
         var loadout = GetLoadout(player);
-        if (isKnife) loadout.Knife = def;
-        if (isGloves) loadout.Gloves = def;
+        if (isKnife) { loadout.Knife = def; loadout.KnifeT = loadout.KnifeCT = 0; }
+        if (isGloves) { loadout.Gloves = def; loadout.GlovesT = loadout.GlovesCT = 0; }
         loadout.Skins[def] = imported.Skin;
         _store.Save();
 
@@ -837,6 +839,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             return;
         }
 
+        loadout.KnifeT = loadout.KnifeCT = 0; // !knife is for both sides
         if (name.Equals("default", StringComparison.OrdinalIgnoreCase)) loadout.Knife = 0;
         else if (ItemData.Knives.TryGetValue(name, out var defIndex)) loadout.Knife = defIndex;
         else
@@ -867,7 +870,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         }
         if (args[0].Equals("off", StringComparison.OrdinalIgnoreCase))
         {
-            loadout.Gloves = 0;
+            loadout.Gloves = loadout.GlovesT = loadout.GlovesCT = 0;
             _store.Save();
             Reply(player!, "Gloves reset - takes effect on your next respawn.");
             return;
@@ -905,6 +908,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         }
 
         loadout.Gloves = defIndex;
+        loadout.GlovesT = loadout.GlovesCT = 0; // !gloves is for both sides
         var skin = loadout.GetOrCreate(defIndex);
         skin.Paint = paint;
         if (args.Length > next && TryParseWear(args[next], out var wear)) skin.Wear = wear;

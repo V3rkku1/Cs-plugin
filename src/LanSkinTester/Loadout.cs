@@ -72,6 +72,15 @@ public class PlayerLoadout
     /// <summary>Selected gloves definition index (0 = default gloves).</summary>
     public ushort Gloves { get; set; }
 
+    /// <summary>Per-side knife / gloves (0 = the shared <see cref="Knife"/> / <see cref="Gloves"/>); their skins are in SkinsT / SkinsCT or Skins.</summary>
+    public ushort KnifeT { get; set; }
+    public ushort KnifeCT { get; set; }
+    public ushort GlovesT { get; set; }
+    public ushort GlovesCT { get; set; }
+
+    public ushort KnifeFor(int team) => (team == 2 ? KnifeT : team == 3 ? KnifeCT : (ushort)0) is var k && k != 0 ? k : Knife;
+    public ushort GlovesFor(int team) => (team == 2 ? GlovesT : team == 3 ? GlovesCT : (ushort)0) is var g && g != 0 ? g : Gloves;
+
     /// <summary>Agent model per side ("agents/models/....vmdl"), or null for the default agent.</summary>
     public string? AgentT { get; set; }
     public string? AgentCT { get; set; }

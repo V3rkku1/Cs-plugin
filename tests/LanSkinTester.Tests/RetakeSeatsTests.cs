@@ -294,3 +294,17 @@ public class OwnSkinsTests
         Assert.Null(LoadoutCodec.Decode([text]));
     }
 }
+
+public class SideLoadoutTests
+{
+    [Fact]
+    public void EachSideCanHaveItsOwnKnifeAndGloves()
+    {
+        var l = new PlayerLoadout { Knife = 507, Gloves = 5030, KnifeCT = 515, GlovesT = 5027 };
+        Assert.Equal(507, l.KnifeFor(2));   // T: the shared knife
+        Assert.Equal(515, l.KnifeFor(3));   // CT: its own
+        Assert.Equal(5027, l.GlovesFor(2)); // T: its own gloves
+        Assert.Equal(5030, l.GlovesFor(3)); // CT: the shared ones
+        Assert.Equal(507, l.KnifeFor(1));   // spectators / unknown: shared
+    }
+}

@@ -36,6 +36,9 @@ public partial class Api
         }
         if (l.Knife != 0 && !skins.Any(o => o.Def == l.Knife)) { l.Knife = 0; changed = true; }
         if (l.Gloves != 0 && !skins.Any(o => o.Def == l.Gloves)) { l.Gloves = 0; changed = true; }
+        foreach (var (get, set) in new (Func<ushort>, Action)[] { (() => l.KnifeT, () => l.KnifeT = 0), (() => l.KnifeCT, () => l.KnifeCT = 0),
+                     (() => l.GlovesT, () => l.GlovesT = 0), (() => l.GlovesCT, () => l.GlovesCT = 0) })
+            if (get() != 0 && !skins.Any(o => o.Def == get())) { set(); changed = true; }
         if (l.Pin != 0 && !pins.Contains(l.Pin)) { l.Pin = 0; changed = true; }
         if (l.MusicKit != 0 && !kits.Contains(l.MusicKit)) { l.MusicKit = 0; changed = true; }
         if (l.AgentT != null || l.AgentCT != null) { l.AgentT = l.AgentCT = null; changed = true; } // agents need the admin code
