@@ -302,7 +302,7 @@ public partial class Installer
                 var relative = full[at..];
                 if (!ImproverFile(relative)) continue;
                 var target = Path.GetFullPath(Path.Combine(_game.Csgo, relative));
-                if (!target.StartsWith(Path.GetFullPath(_game.Addons), StringComparison.OrdinalIgnoreCase)) continue;
+                if (!target.StartsWith(Path.GetFullPath(_game.Addons) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase)) continue;
                 if (relative.StartsWith("addons/counterstrikesharp/configs/") && File.Exists(target)) continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
                 entry.ExtractToFile(target, overwrite: true);
@@ -474,7 +474,7 @@ public partial class Installer
 
             var relative = full[at..];
             var target = Path.GetFullPath(Path.Combine(gameDir, relative));
-            if (!target.StartsWith(Path.GetFullPath(Path.Combine(gameDir, "addons")), StringComparison.OrdinalIgnoreCase))
+            if (!target.StartsWith(Path.GetFullPath(Path.Combine(gameDir, "addons")) + Path.DirectorySeparatorChar, StringComparison.OrdinalIgnoreCase))
                 continue; // never write outside the addons folder
 
             if (relative.EndsWith('/'))

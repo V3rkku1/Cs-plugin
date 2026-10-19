@@ -46,7 +46,8 @@ function Logs() {
   const [files, setFiles] = useState(null);
   useEffect(() => {
     if (tab === "activity") return;
-    const load = () => call("live.logs").then(setFiles, () => {});
+    // Only a changed log re-renders (it polls every 2 seconds).
+    const load = () => call("live.logs").then(f => setFiles(old => JSON.stringify(old) === JSON.stringify(f) ? old : f), () => {});
     load();
     const t = setInterval(load, 2000);
     return () => clearInterval(t);

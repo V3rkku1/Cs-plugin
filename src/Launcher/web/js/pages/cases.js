@@ -239,7 +239,7 @@ function CaseSheet({ id, close }) {
   // Space opens (Shift+Space: quick open); during the spin it skips to the drop. Focused buttons keep their own Space.
   useEffect(() => {
     const key = e => {
-      if (e.code !== "Space" || e.target.closest?.("input, textarea, button")) return;
+      if (e.code !== "Space" || e.repeat || e.target.closest?.("input, textarea, button")) return; // held Space: one open
       e.preventDefault();
       if (phase === "spin") skip.current = true;
       else if (phase === "view" || phase === "reveal") open(e.shiftKey);
@@ -292,7 +292,7 @@ function CaseSheet({ id, close }) {
       <div class="stage-case"><${ItemPic} src=${contents.image} size=${256} /></div>
       <${Reel} result=${result} onDone=${landed} skip=${skip} />
       <div class="stage-caption">Unlocking ${contents.name}… <span class="faint">click or Space to skip</span></div></div>`}
-    ${phase === "reveal" && html`<div class="case-stage"><${Reveal} view=${result.item} cur=${cur} onAgain=${() => open()} onQuick=${() => open(true)} onBack=${() => setPhase("view")}
+    ${phase === "reveal" && html`<div class="case-stage"><${Reveal} key=${result.item.item.uid} view=${result.item} cur=${cur} onAgain=${() => open()} onQuick=${() => open(true)} onBack=${() => setPhase("view")}
       onInventory=${toInventory} /></div>`}
     ${phase === "multi" && html`<div class="case-stage"><${MultiReveal} drops=${drops} cur=${cur} onAgain=${() => openMany(drops.length)} onBack=${() => setPhase("view")}
       onInventory=${toInventory} /></div>`}

@@ -186,8 +186,25 @@ public static class LoadoutCodec
         try
         {
             var bytes = Convert.FromBase64String(string.Concat(chunks).Replace('-', '+').Replace('_', '/'));
-            return JsonSerializer.Deserialize<PlayerLoadout>(bytes);
+            var loadout = JsonSerializer.Deserialize<PlayerLoadout>(bytes);
+            return loadout != null && Valid(loadout) ? loadout : null;
         }
         catch (Exception e) when (e is FormatException or JsonException) { return null; }
+    }
+
+    /// <summary>
+    /// It came from another PC: JSON nulls (System.Text.Json lets them through) would crash every weapon give for
+    /// that player, so anything missing or out of range is refused.
+    /// </summary>
+    internal static bool Valid(PlayerLoadout l)
+    {
+        if (l.Skins == null || l.SkinsT == null || l.SkinsCT == null) return false;
+        foreach (var skin in l.Skins.Values.Concat(l.SkinsT.Values).Concat(l.SkinsCT.Values))
+        {
+            if (skin == null || skin.Stickers == null || skin.Nametag == null || skin.Nametag.Length > 64) return false;
+            if (skin.Stickers.Count > 5 || skin.Stickers.Any(st => st == null)) return false;
+            if (!(skin.Wear >= 0f && skin.Wear <= 1f)) return false; // also refuses NaN
+        }
+        return true;
     }
 }

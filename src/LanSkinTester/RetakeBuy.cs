@@ -108,9 +108,9 @@ public partial class LanSkinTester
                 Utilities.SetStateChanged(player, "CCSPlayerController", "m_pInGameMoneyServices");
             }
 
-            if (round == BuyRound.Eco && !_retakeKeepGuns)
-                player.GiveNamedItem(DefaultPistol(player));
-            if (!_retakeKeepGuns && EquipRemembered(player))
+            var given = round == BuyRound.Eco && !_retakeKeepGuns ? DefaultPistol(player) : null;
+            if (given != null) player.GiveNamedItem(given);
+            if (!_retakeKeepGuns && EquipRemembered(player, given))
                 Reply(player, "Your guns are back. Buy if you want to change them.");
             else
                 Reply(player, $"{round} buy round: ${BuyMoney[(int)round]}. {_retakeBuySeconds} seconds.");
@@ -155,15 +155,15 @@ public partial class LanSkinTester
         }
     }
 
-    private bool EquipRemembered(CCSPlayerController player)
+    private bool EquipRemembered(CCSPlayerController player, string? alreadyGiven)
     {
         if (player.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return false;
         if (!_retakeLoadouts.TryGetValue((RetakePlayerId(player), player.Team, _currentRound), out var loadout)) return false;
         if (loadout.Weapons.Count == 0) return false;
 
-        // Never a second copy of a gun already in hand (it would drop on the floor).
-        var held = player.PlayerPawn.Value?.WeaponServices?.MyWeapons.Select(h => h.Value?.DesignerName).ToHashSet() ?? new();
-        foreach (var name in loadout.Weapons.Where(n => !held.Contains(n)))
+        // Not a second eco pistol (it would drop on the floor). Guns just stripped may still be listed as held
+        // this frame, so only the pistol given a moment ago counts.
+        foreach (var name in loadout.Weapons.Where(n => n != alreadyGiven))
             player.GiveNamedItem(name);
         if (loadout.Helmet) player.GiveNamedItem("item_assaultsuit");
         else if (loadout.Kevlar) player.GiveNamedItem("item_kevlar");

@@ -34,7 +34,14 @@ public class LegacyGame(string root)
     // SourceMod's "FollowCSGOServerGuidelines" (on by default) blocks the item fields skin plugins write.
     private static readonly Regex Guidelines = new("(\"FollowCSGOServerGuidelines\"\\s+)\"yes\"", RegexOptions.IgnoreCase);
 
-    public bool BlocksSkins => !File.Exists(CoreCfg) || Guidelines.IsMatch(File.ReadAllText(CoreCfg));
+    public bool BlocksSkins
+    {
+        get
+        {
+            try { return !File.Exists(CoreCfg) || Guidelines.IsMatch(File.ReadAllText(CoreCfg)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return true; } // locked: ask again next time
+        }
+    }
 
     public static string AllowSkins(string coreCfg) => Guidelines.Replace(coreCfg, "$1\"no\"");
 

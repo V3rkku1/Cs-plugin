@@ -282,4 +282,15 @@ public class OwnSkinsTests
         Assert.Equal(System.Text.Json.JsonSerializer.Serialize(loadout), System.Text.Json.JsonSerializer.Serialize(back));
         Assert.Null(LoadoutCodec.Decode(["not a loadout!"]));
     }
+
+    [Theory]
+    [InlineData("{\"Skins\":null}")]
+    [InlineData("{\"Skins\":{\"7\":null}}")]
+    [InlineData("{\"Skins\":{\"7\":{\"Paint\":12,\"Stickers\":[null]}}}")]
+    [InlineData("{\"SkinsT\":{\"7\":{\"Paint\":12,\"Wear\":5}}}")]
+    public void BrokenLoadoutsFromAnotherPcAreRefused(string json)
+    {
+        var text = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(json)).Replace('+', '-').Replace('/', '_');
+        Assert.Null(LoadoutCodec.Decode([text]));
+    }
 }

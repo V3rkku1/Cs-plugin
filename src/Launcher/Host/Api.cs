@@ -65,8 +65,20 @@ public partial class Api
     /// <summary>Each partial file can hook up its own events here.</summary>
     partial void Init();
 
-    public Task<object?> CallAsync(string name, JsonElement args) =>
-        _calls.TryGetValue(name, out var call) ? call(args) : throw new ApiException($"Unknown call: {name}");
+    /// <summary>
+    /// Inventory and loadout calls one at a time: they share one in-memory list and loadouts.json, and pages call
+    /// them in parallel (a save while another call enumerates threw, and two saves lost an equip).
+    /// </summary>
+    internal readonly SemaphoreSlim InventoryGate = new(1, 1);
+
+    public async Task<object?> CallAsync(string name, JsonElement args)
+    {
+        if (!_calls.TryGetValue(name, out var call)) throw new ApiException($"Unknown call: {name}");
+        if (!name.StartsWith("cases.") && !name.StartsWith("inventory.") && !name.StartsWith("tradeup.")) return await call(args);
+        await InventoryGate.WaitAsync();
+        try { return await call(args); }
+        finally { InventoryGate.Release(); }
+    }
 
     /// <summary>Shows a toast in the window: kind is "info", "good", "warning" or "bad".</summary>
     public void Toast(string text, string kind = "info") => Push("toast", new { text, kind });

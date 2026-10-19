@@ -52,12 +52,14 @@ public partial class Api
         return _inventory;
     }
 
-    /// <summary>Most items kept: past this the oldest go (the inventory file and pages get slow beyond it).</summary>
+    /// <summary>Most items kept: past this opening stops (the inventory file and pages get slow beyond it).</summary>
     private const int MaxInventory = 50_000;
 
-    private void TrimInventory()
+    /// <summary>Refuses an opening that would go past the cap: dropping the oldest could take equipped or stickered guns.</summary>
+    private void EnsureRoom(int adding)
     {
-        if (Inventory().Count > MaxInventory) Inventory().RemoveRange(MaxInventory, Inventory().Count - MaxInventory);
+        if (Inventory().Count + adding > MaxInventory)
+            throw new ApiException($"Your inventory is full ({MaxInventory:N0} items). Remove Duplicates or delete items to open more.");
     }
 
     private static string NewUid() => Guid.NewGuid().ToString("N")[..12];
@@ -110,6 +112,7 @@ public partial class Api
     private OpenResult OpenCase(string id)
     {
         var box = FindCase(id);
+        EnsureRoom(1);
         var random = Random.Shared;
         var (drop, rare) = CaseRoller.Roll(box, random);
 
@@ -128,7 +131,6 @@ public partial class Api
 
         var item = MakeItem(box, drop, random);
         Inventory().Insert(0, item);
-        TrimInventory();
         SaveInventory();
         App.Settings.CasesOpened++;
         App.SaveSettings();
@@ -142,10 +144,10 @@ public partial class Api
     private List<InventoryView> OpenMany(OpenManyArgs a)
     {
         var box = FindCase(a.Id);
+        EnsureRoom(Math.Clamp(a.Count, 1, 50));
         var items = Enumerable.Range(0, Math.Clamp(a.Count, 1, 50))
             .Select(_ => MakeItem(box, CaseRoller.Roll(box, Random.Shared).Item, Random.Shared)).ToList();
         Inventory().InsertRange(0, items);
-        TrimInventory();
         SaveInventory();
         App.Settings.CasesOpened += items.Count;
         App.SaveSettings();
@@ -387,6 +389,7 @@ public partial class Api
     {
         var gone = uids.ToHashSet();
         var batch = Inventory().Where(i => gone.Contains(i.Uid)).ToList();
+        if (batch.Count == 0) return 0; // keep the last Undo Remove
         // Kept for Undo Remove (the last batch only).
         File.WriteAllText(RemovedFile, JsonSerializer.Serialize(batch));
         var removed = Inventory().RemoveAll(i => gone.Contains(i.Uid));

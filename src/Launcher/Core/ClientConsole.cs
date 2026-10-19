@@ -13,8 +13,28 @@ public static class ClientConsole
 {
     public const int Port = 29015;
 
-    /// <summary>-netconpassword for this run: the console port shouldn't take commands from anyone else on the network.</summary>
-    public static readonly string Password = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
+    /// <summary>
+    /// -netconpassword: the console port shouldn't take commands from anyone else on the network. Kept in a file so a
+    /// restarted launcher still matches the CS2 it started earlier.
+    /// </summary>
+    public static readonly string Password = LoadPassword();
+
+    private static string LoadPassword()
+    {
+        var file = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "LanSkinTester", "netcon.key");
+        try
+        {
+            if (File.Exists(file) && File.ReadAllText(file).Trim() is { Length: >= 16 } saved) return saved;
+            var fresh = Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
+            Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+            File.WriteAllText(file, fresh);
+            return fresh;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(12));
+        }
+    }
     public const string SkinsCfg = "lst_myskins";
     private static CancellationTokenSource? _sending;
 
@@ -47,19 +67,32 @@ public static class ClientConsole
 
     /// <summary>
     /// After joining a friend: every 10 seconds while CS2 runs, refresh the cfg (what you equip in the
-    /// launcher meanwhile goes along) and run it. Stops when CS2 closes or you start your own server.
+    /// launcher meanwhile goes along). It runs in CS2 for the first 2 minutes (while you connect and load)
+    /// and after that only when the cfg changed. Stops when CS2 closes or you start your own server.
     /// </summary>
-    public static void StartSendingSkins(Func<bool> stillJoined, Action refreshCfg)
+    public static void StartSendingSkins(Func<bool> stillJoined, Func<string?> refreshCfg, Action<string> log)
     {
         _sending?.Cancel();
         var cts = _sending = new CancellationTokenSource();
         _ = Task.Run(async () =>
         {
             await Task.Delay(TimeSpan.FromSeconds(15), cts.Token).ConfigureAwait(false); // CS2 starting and connecting
+            var until = DateTime.UtcNow.AddMinutes(2);
+            string? sent = null;
+            var warned = false;
             while (!cts.IsCancellationRequested && stillJoined())
             {
-                try { refreshCfg(); } catch (Exception) { /* next round */ }
-                await SendAsync("exec " + SkinsCfg);
+                string? cfg = null;
+                try { cfg = refreshCfg(); } catch (Exception) { /* next round */ }
+                if (cfg != null && (DateTime.UtcNow < until || cfg != sent))
+                {
+                    if (await SendAsync("exec " + SkinsCfg)) sent = cfg;
+                    else if (!warned)
+                    {
+                        warned = true;
+                        log($"Couldn't reach CS2's console to send your skins. In CS2: console (~) → exec {SkinsCfg}");
+                    }
+                }
                 await Task.Delay(TimeSpan.FromSeconds(10), cts.Token).ConfigureAwait(false);
             }
         }, cts.Token).ContinueWith(_ => { }, TaskScheduler.Default);

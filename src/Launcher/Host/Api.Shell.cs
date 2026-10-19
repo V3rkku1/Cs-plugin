@@ -179,6 +179,19 @@ public partial class Api
     private async Task InstallUpdateAsync(bool automatic)
     {
         if (_updating) return;
+        _updating = true; // before the test is stopped: a second click mustn't start a second update meanwhile
+        try
+        {
+            await InstallUpdateCoreAsync(automatic);
+        }
+        finally
+        {
+            _updating = false;
+        }
+    }
+
+    private async Task InstallUpdateCoreAsync(bool automatic)
+    {
         if (App.TestModeOn)
         {
             if (automatic) return;
@@ -194,7 +207,6 @@ public partial class Api
             return;
         }
 
-        _updating = true;
         try
         {
             _updateProgress = "Downloading 0%";
@@ -236,10 +248,6 @@ public partial class Api
             // No browser: the sidebar card stays, so trying again is one click.
             App.Log("Update failed: " + ex.Message + " - click \"Update available\" to try again.");
             Toast("Update failed - click the card in the sidebar to try again (details in Setup › Log).", "bad");
-        }
-        finally
-        {
-            _updating = false;
         }
     }
 

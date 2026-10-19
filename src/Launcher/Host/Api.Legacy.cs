@@ -93,6 +93,7 @@ public partial class Api
         if (LegacyGame.Running()) throw new ApiException("Close CS:GO first (files are in use while it runs).");
         if (id == "legacy.smConfig") return Task.Run(() => { g.AllowSkins(); App.NotifyChanged(); });
 
+        if (!id.StartsWith("legacy.")) throw new ApiException("Unknown step");
         var ids = id == "legacy.all" ? LegacySteps.Select(x => x.Id).ToList() : [id["legacy.".Length..]];
         return RunSetup(async i =>
         {

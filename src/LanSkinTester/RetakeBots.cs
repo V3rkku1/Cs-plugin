@@ -34,7 +34,9 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnRetakeBotsFreezeEnd(EventRoundFreezeEnd @event, GameEventInfo info)
     {
-        if (RetakesPluginRunning) AddTimer(0.3f, AnnounceAutoPlant, TimerFlags.STOP_ON_MAPCHANGE);
+        // Twice: the retakes plugin may put the bomb down a moment after the freeze ends.
+        if (RetakesPluginRunning)
+            foreach (var delay in new[] { 0.3f, 2f }) AddTimer(delay, AnnounceAutoPlant, TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
     }
 

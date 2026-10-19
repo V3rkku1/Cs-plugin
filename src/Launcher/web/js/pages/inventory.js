@@ -280,7 +280,11 @@ function TradeUpSheet({ close }) {
   const [tradeable, index] = useMemo(() => !inv ? [[], new Map()] : [
     inv.items.filter(v => v.category === "weapons" && v.item.paint > 0 && !v.item.souvenir && TU_GRADES.includes(v.item.grade)),
     new Map(inv.items.map(v => [v.item.uid, v]))], [inv]);
-  useEffect(() => { call("tradeup.check", { uids: picked }).then(setCheck, () => {}); }, [picked.join()]);
+  useEffect(() => {
+    let live = true; // an older, slower answer mustn't replace the newer one
+    call("tradeup.check", { uids: picked }).then(c => live && setCheck(c), () => {});
+    return () => { live = false; };
+  }, [picked.join()]);
   if (!inv) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
   const cur = inv.currency;
   const byUid = uid => index.get(uid);
@@ -314,7 +318,7 @@ function TradeUpSheet({ close }) {
   const sign = async () => {
     setPhase("signing");
     const [r] = await Promise.all([call("tradeup.sign", { uids: picked }).catch(() => null), new Promise(ok => setTimeout(ok, 1600))]);
-    if (!r) { setPhase("pick"); return; }
+    if (!r) { setSigned(false); setPhase("pick"); return; }
     setResult(r); setPicked([]); setSigned(false); setPhase("done");
   };
   const Card = (v, onClick, title) => html`<button key=${v.item.uid} class="cs-item" style=${`--c:${v.item.color}`} onClick=${onClick} title=${title}>
@@ -435,12 +439,17 @@ function AddItemSheet({ close }) {
   const [st, setSt] = useState(false);
   const [sv, setSv] = useState(false);
   useEffect(() => {
-    const t = setTimeout(() => call("inventory.catalog", { kind, search: q }).then(setList, () => setList([])), 180);
-    return () => clearTimeout(t);
+    let live = true; // an older search answering late mustn't replace the list
+    const t = setTimeout(() => call("inventory.catalog", { kind, search: q }).then(l => live && setList(l), () => live && setList([])), 180);
+    return () => { live = false; clearTimeout(t); };
   }, [kind, q]);
   const choose = c => { setPick(c); setWear(c.paint ? Math.max(c.min, Math.min(c.max, 0.01)) : 0); setSeed(0); setSt(false); setSv(false); };
+  const [adding, setAdding] = useState(false);
   const add = async () => {
+    if (adding) return; // a double click adds once
+    setAdding(true);
     const v = await call("inventory.add", { kind: pick.kind, key: pick.key, wear, seed, statTrak: st, souvenir: sv }).catch(() => null);
+    setAdding(false);
     if (v) close(v.item.uid);
   };
   return html`<div class="picker add-item">
@@ -464,7 +473,7 @@ function AddItemSheet({ close }) {
             ${!pick.name.startsWith("★") && html`<div class="inspect-row"><span>Souvenir</span><${Toggle} value=${sv} onChange=${v => { setSv(v); if (v) setSt(false); }} /></div>`}`}
           <div class="hstack" style="margin-top:12px">
             <${Button} onClick=${() => setPick(null)}>Back<//>
-            <${Button} kind="prominent" icon="plus" onClick=${add}>Add to Inventory<//>
+            <${Button} kind="prominent" icon="plus" busy=${adding} onClick=${add}>Add to Inventory<//>
           </div>
         </div>
       </div>`
@@ -554,7 +563,7 @@ export function InventoryPage() {
   // equipped, favorite or with stickers. Other exteriors are different items, so they all stay.
   const duplicates = useMemo(() => !state ? [] : Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"),
       v => `${v.item.name}|${v.item.statTrak}|${v.item.souvenir}|${v.item.paint > 0 ? wearName(v.item.wear) : ""}|${v.item.phase ?? ""}`))
-    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => b.equipped - a.equipped || a.item.wear - b.item.wear).slice(1))
+    .flatMap(g => g.length < 2 ? [] : [...g].sort((a, b) => a.item.wear - b.item.wear).slice(1))
     .filter(v => !v.equipped && !favs.has(v.item.uid) && !(v.item.stickers ?? []).length), [state, favs]);
   if (!state) return html`<${Page} title="Inventory" />`;
 

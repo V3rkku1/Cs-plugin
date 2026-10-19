@@ -220,7 +220,17 @@ public partial class Api
     private void SendMySkins(GameFolder game)
     {
         var started = DateTime.UtcNow;
-        void Refresh()
+        // The cfg's text (null: nothing to send). Same gate as the inventory calls: it reads (and may prune) the
+        // loadout an equip is writing.
+        string? Refresh()
+        {
+            InventoryGate.Wait();
+            try { RefreshNow(); }
+            finally { InventoryGate.Release(); }
+            var file = Path.Combine(game.Csgo, "cfg", ClientConsole.SkinsCfg + ".cfg");
+            return File.Exists(file) ? File.ReadAllText(file) : null;
+        }
+        void RefreshNow()
         {
             var l = ReadLoadout();
             var cfg = Path.Combine(game.Csgo, "cfg", ClientConsole.SkinsCfg + ".cfg");
@@ -231,7 +241,7 @@ public partial class Api
         try { Refresh(); }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not write your skins for the friend's server: " + ex.Message); return; }
         // Until CS2 closes (it may take a while to start), and not while you host your own server.
-        ClientConsole.StartSendingSkins(() => (TestSession.Cs2Running() || DateTime.UtcNow - started < TimeSpan.FromSeconds(90)) && TestSession.FindServer() == null, Refresh);
+        ClientConsole.StartSendingSkins(() => (TestSession.Cs2Running() || DateTime.UtcNow - started < TimeSpan.FromSeconds(90)) && TestSession.FindServer() == null, Refresh, App.Log);
         App.Log($"Your skins go along to the friend's server (their launcher must be up to date). If they don't show: console (~) → exec {ClientConsole.SkinsCfg}");
     }
 
