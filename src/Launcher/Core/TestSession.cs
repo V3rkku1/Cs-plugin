@@ -45,10 +45,13 @@ public class TestSession
     /// started counts: a restart leaves the old server's file behind for a few seconds.</param>
     public void IsolateClient(ServerStatus? status)
     {
-        if (status == null || FindServer() is not { } server || !GameInfoPatcher.IsEnabled(_game.GameInfo)) return;
+        if (FindServer() is not { } server || !GameInfoPatcher.IsEnabled(_game.GameInfo)) return;
         try
         {
-            if (!StatusFromThisServer(status.Time, server.StartTime.ToUniversalTime())) return;
+            // A server up for a minute has read gameinfo.gi even if its plugin never reported (it failed to
+            // load): the line must still come out, or CS2 started from Steam loads Metamod.
+            var started = server.StartTime.ToUniversalTime();
+            if (DateTime.UtcNow - started < TimeSpan.FromSeconds(60) && (status == null || !StatusFromThisServer(status.Time, started))) return;
         }
         catch (Exception)
         {

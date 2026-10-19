@@ -62,6 +62,12 @@ public partial class Api
                 "Fix", blocks);
         }
 
+        if (SmartAppControlOn())
+            Add("sac", "Windows Smart App Control", "warning",
+                "On - Windows can block Metamod's unsigned files (\"Bad Image\" when CS2 starts). If that happens, reinstall the plugins first; " +
+                "if it keeps happening, turn it off in Windows Security › App & browser control (Windows can't turn it back on later).",
+                "Open", true);
+
         Add("data", "Skin, sticker and charm lists", App.Db.IsEmpty ? "missing" : "ok",
             App.Db.IsEmpty ? "Not downloaded - needed for skin pictures, names, stickers and charms"
             : $"{App.Db.Skins.Count:N0} skins · {App.Db.Stickers.Count:N0} stickers · {App.Db.Charms.Count} charms",
@@ -70,6 +76,20 @@ public partial class Api
         var s = App.Settings;
         return new SetupState(g?.Root, _setupBusy, steps, g != null, s.TextSize, s.ReduceGlass, s.ReduceMotion,
             Installer.MetamodPage, Installer.CounterStrikeSharpPage, s.Theme);
+    }
+
+    /// <summary>
+    /// Windows 11 Smart App Control enforcing: it blocks unsigned DLLs like Metamod's server.dll ("Bad Image", 0xc0e90002).
+    /// HKLM\...\CI\Policy VerifiedAndReputablePolicyState: 0 off, 1 on, 2 evaluation.
+    /// </summary>
+    internal static bool SmartAppControlOn()
+    {
+        try
+        {
+            return Microsoft.Win32.Registry.GetValue(@"HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Control\CI\Policy",
+                "VerifiedAndReputablePolicyState", 0) is int state && state == 1;
+        }
+        catch (Exception) { return false; }
     }
 
     private static string V(Version? v) => v == null ? "?" : $"{v.Major}.{v.Minor}.{v.Build}";
@@ -116,6 +136,7 @@ public partial class Api
     private Task RunOneStep(string id) => id switch
     {
         "cssConfig" => Task.Run(() => { App.AllowSkinsInCss(); App.NotifyChanged(); }),
+        "sac" => Task.Run(() => System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("windowsdefender:") { UseShellExecute = true })),
         "data" => RunSetup(_ => Step("data", DownloadData), needsGame: false),
         _ => RunSetup(i => Step(id, () => StepWork(i, id))),
     };

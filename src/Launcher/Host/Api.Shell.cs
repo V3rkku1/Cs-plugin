@@ -255,8 +255,23 @@ public partial class Api
     /// Every 5 seconds: when CS2 and the test server are both closed but test mode is still on (game
     /// closed with the X, a crash, or a previous launcher session), put CS2 back to normal.
     /// </summary>
+    private int _lineNoServerTicks;
+
     public void WatchGame()
     {
+        // No server for 10 seconds but the Metamod line is still in gameinfo.gi (a server that never started, a
+        // crash): take it out, so CS2 started from Steam doesn't try to load Metamod.
+        if (App.Game is { } g && TestSession.FindServer() == null && GameInfoPatcher.IsEnabled(g.GameInfo))
+        {
+            if (++_lineNoServerTicks >= 2)
+            {
+                _lineNoServerTicks = 0;
+                try { GameInfoPatcher.Disable(g.GameInfo); }
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not update gameinfo.gi: " + ex.Message); }
+            }
+        }
+        else _lineNoServerTicks = 0;
+
         if (!App.TestModeOn || TestSession.Cs2Running())
         {
             _cs2GoneTicks = 0;
@@ -282,13 +297,19 @@ public partial class Api
         if (!App.TestModeOn) return true;
         var answer = MessageBox.Show(Window,
             "Skin test mode is still ON.\n\nYes = close CS2 + server and restore CS2 now (recommended)\n" +
-            "No = leave it on (only start CS2 from this launcher until you press Stop)",
+            "No = leave the server and game running (CS2 from Steam works normally meanwhile)",
             "Restore CS2?", MessageBoxButtons.YesNoCancel, MessageBoxIcon.Warning);
         if (answer == DialogResult.Cancel) return false;
         if (answer == DialogResult.Yes)
         {
             try { StopFromClose(); }
             catch (Exception ex) { MessageBox.Show(Window, "Could not restore gameinfo.gi: " + ex.Message); }
+        }
+        else
+        {
+            // The running server read gameinfo.gi long ago; without the launcher nothing would take the line out.
+            try { if (App.Game is { } g) GameInfoPatcher.Disable(g.GameInfo); }
+            catch (Exception) { /* next launcher start takes it out */ }
         }
         return true;
     }

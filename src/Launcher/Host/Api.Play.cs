@@ -300,6 +300,11 @@ public partial class Api
         var game = App.Game!;
         var server = App.Settings.Server;
         _startError = null;
+        if (SmartAppControlOn())
+        {
+            App.Log("Windows Smart App Control is on: it can block Metamod (\"Bad Image\"). If the server fails to load plugins, see Setup.");
+            Toast("Windows Smart App Control is on - if CS2 shows \"Bad Image\", see Setup.", "warning");
+        }
         try
         {
             App.AllowSkinsInCss();
