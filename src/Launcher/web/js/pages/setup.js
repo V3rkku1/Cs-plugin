@@ -1,7 +1,7 @@
 // Setup: CS2 folder, the install checklist, maintenance, folders and the activity log.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
 import { tryCall, useApi, useEvent } from "../api.js";
-import { Page, Section, Row, Button, Segmented, Toggle, Slider, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
+import { Page, Section, Row, Button, Segmented, Toggle, Slider, Stepper, TextField, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
 import { PRESETS, DEFAULTS } from "../theme.js";
 import { openUpdate } from "../update.js";
 
@@ -38,6 +38,59 @@ function LauncherSection() {
     <${Row} icon=${{ name: "trash", color: "red" }} title="Reset Launcher" subtitle="Delete all launcher data and start fresh">
       <${Button} size="sm" kind="destructive" disabled=${app.testMode} onClick=${resetAll}>Reset<//>
     <//>
+  <//>`;
+}
+
+/** One install checklist row: state, progress bar while it runs, and its button. */
+function StepRow({ step, p, call }) {
+  const running = p !== undefined && p !== null;
+  return html`<div class="row">
+    <${StateIcon} state=${running ? "busy" : step.state} />
+    <div class="text">
+      <div class="title">${step.title}</div>
+      <div class="subtitle">${step.detail}</div>
+      ${running && html`<${Progress} value=${p} />`}
+    </div>
+    <div class="accessory">
+      <${Button} size="sm" kind=${step.state === "ok" ? "default" : "prominent"} disabled=${!step.enabled}
+        onClick=${() => tryCall(call, step.id)}>${step.action}<//>
+    </div>
+  </div>`;
+}
+
+/** CS:GO legacy (Source 1): SourceMod + kgns' skin plugins, and a LAN game started from here. */
+function LegacySection({ progress }) {
+  const [state] = useApi("legacy.state");
+  const [pick, setPick] = useState(null);
+  if (!state) return null;
+  const v = pick ?? { mode: state.mode, map: state.map, bots: state.bots };
+  const set = change => setPick({ ...v, ...change });
+  const ready = state.steps.every(s => s.state === "ok");
+  return html`<${Section} title="CS:GO Legacy" note=${ready ? "ready" : ""}
+      footer="Skins work only on this LAN game (sv_lan 1, started with -insecure). In game: !ws for skins, !knife, !gloves.">
+    <${Row} icon=${{ name: "game", color: "yellow" }} title="CS:GO Folder"
+        subtitle=${state.folder ?? "Not found - install CS:GO legacy in Steam, then press Find"} subtitleClass=${state.folder ? "" : "warn"}>
+      <${Button} size="sm" onClick=${() => tryCall("legacy.browse")}>Browse…<//>
+      <${Button} size="sm" onClick=${() => tryCall("legacy.find")}>Find<//>
+    <//>
+    ${state.steps.map(step => html`<${StepRow} key=${step.id} step=${step} p=${progress[step.id]} call="legacy.step" />`)}
+    <div class="row block">
+      <${Button} block icon="download" disabled=${!state.folder || state.busy} busy=${state.busy}
+        onClick=${() => tryCall("legacy.step", "legacy.all")}>${ready ? "Reinstall CS:GO Mods" : "Install CS:GO Mods"}<//>
+    </div>
+    <${Row} icon=${{ name: "play", color: "green" }} title="Mode">
+      <${Segmented} cols=${3} options=${state.modes} value=${v.mode} onChange=${mode => set({ mode })} />
+    <//>
+    <${Row} icon=${{ name: "map", color: "blue" }} title="Map">
+      <${TextField} width=${160} value=${v.map} onInput=${map => set({ map })} placeholder="de_dust2" />
+    <//>
+    <${Row} icon=${{ name: "bot", color: "orange" }} title="Bots">
+      <${Stepper} value=${v.bots} min=${0} max=${20} onChange=${bots => set({ bots })} />
+    <//>
+    <div class="row block">
+      <${Button} kind="prominent" size="lg" block icon="play" disabled=${!state.folder || state.busy || state.running}
+        onClick=${() => tryCall("legacy.start", v)}>${state.running ? "CS:GO Is Running" : "Start CS:GO"}<//>
+    </div>
   <//>`;
 }
 
@@ -152,27 +205,14 @@ export function SetupPage() {
         <//>
 
         <${Section} title="Components" note=${allOk ? "everything is installed" : ""}>
-          ${state.steps.map(step => {
-            const p = progress[step.id];
-            const running = p !== undefined && p !== null;
-            return html`<div class="row" key=${step.id}>
-              <${StateIcon} state=${running ? "busy" : step.state} />
-              <div class="text">
-                <div class="title">${step.title}</div>
-                <div class="subtitle">${step.detail}</div>
-                ${running && html`<${Progress} value=${p} />`}
-              </div>
-              <div class="accessory">
-                <${Button} size="sm" kind=${step.state === "ok" ? "default" : "prominent"} disabled=${!step.enabled}
-                  onClick=${() => tryCall("setup.step", step.id)}>${step.action}<//>
-              </div>
-            </div>`;
-          })}
+          ${state.steps.map(step => html`<${StepRow} key=${step.id} step=${step} p=${progress[step.id]} call="setup.step" />`)}
           <div class="row block">
             <${Button} kind="prominent" size="lg" block icon="download" disabled=${!state.hasGame || busy} busy=${busy}
               onClick=${() => tryCall("setup.all")}>${busy ? "Working…" : allOk ? "Reinstall Everything" : "Install Everything"}<//>
           </div>
         <//>
+
+        <${LegacySection} progress=${progress} />
 
         <${LauncherSection} />
 

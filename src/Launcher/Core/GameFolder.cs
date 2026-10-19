@@ -23,7 +23,11 @@ public class GameFolder(string root)
     public static bool IsValid(string? root) => root != null && File.Exists(Path.Combine(root, "game", "csgo", "gameinfo.gi"));
 
     /// <summary>Looks through every Steam library for CS2.</summary>
-    public static string? Find(string? steamPath)
+    public static string? Find(string? steamPath) =>
+        SteamLibraries(steamPath).Select(lib => Path.Combine(lib, "steamapps", "common", "Counter-Strike Global Offensive")).FirstOrDefault(IsValid);
+
+    /// <summary>Every Steam library folder (libraryfolders.vdf), plus the default Steam folder.</summary>
+    public static List<string> SteamLibraries(string? steamPath)
     {
         var libraries = new List<string>();
         if (steamPath != null)
@@ -34,6 +38,6 @@ public class GameFolder(string root)
                 libraries.AddRange(Regex.Matches(File.ReadAllText(vdf), "\"path\"\\s+\"([^\"]+)\"").Select(m => m.Groups[1].Value.Replace(@"\\", @"\")));
         }
         libraries.Add(@"C:\Program Files (x86)\Steam");
-        return libraries.Select(lib => Path.Combine(lib, "steamapps", "common", "Counter-Strike Global Offensive")).FirstOrDefault(IsValid);
+        return libraries;
     }
 }

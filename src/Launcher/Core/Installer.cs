@@ -10,7 +10,7 @@ using System.Text.RegularExpressions;
 namespace LanSkinTester.Launcher.Core;
 
 /// <summary>Downloads and installs Metamod, CounterStrikeSharp, the plugin and the skin names.</summary>
-public class Installer
+public partial class Installer
 {
     public const string MetamodPage = "https://www.sourcemm.net/downloads.php?branch=dev";
     public const string CounterStrikeSharpPage = "https://github.com/roflmuffin/CounterStrikeSharp/releases/latest";
@@ -451,9 +451,12 @@ public class Installer
 
     /// <summary>
     /// Extracts a Metamod or CounterStrikeSharp zip into game\csgo. Works whether the zip has "addons/" at
-    /// its root or inside a folder. Existing CounterStrikeSharp config files are kept.
+    /// its root or inside a folder. Existing CounterStrikeSharp and SourceMod config files are kept.
     /// </summary>
-    public Task InstallZipAsync(string zipPath) => Task.Run(() =>
+    public Task InstallZipAsync(string zipPath) => Task.Run(() => ExtractAddons(zipPath, _game.Csgo));
+
+    /// <summary>Extracts the zip's addons/ tree into gameDir (game\csgo for CS2, csgo for CS:GO legacy).</summary>
+    private void ExtractAddons(string zipPath, string gameDir)
     {
         using var zip = ZipFile.OpenRead(zipPath);
         var count = 0;
@@ -470,9 +473,9 @@ public class Installer
             }
 
             var relative = full[at..];
-            var target = Path.GetFullPath(Path.Combine(_game.Csgo, relative));
-            if (!target.StartsWith(Path.GetFullPath(_game.Addons), StringComparison.OrdinalIgnoreCase))
-                continue; // never write outside game\csgo\addons
+            var target = Path.GetFullPath(Path.Combine(gameDir, relative));
+            if (!target.StartsWith(Path.GetFullPath(Path.Combine(gameDir, "addons")), StringComparison.OrdinalIgnoreCase))
+                continue; // never write outside the addons folder
 
             if (relative.EndsWith('/'))
             {
@@ -480,6 +483,9 @@ public class Installer
                 continue;
             }
             if (relative.StartsWith("addons/counterstrikesharp/configs/") && File.Exists(target))
+                continue;
+            // SourceMod's own settings (core.cfg, admins): keep. Plugin configs in subfolders (skin lists) update.
+            if (relative.StartsWith("addons/sourcemod/configs/") && relative.IndexOf('/', "addons/sourcemod/configs/".Length) < 0 && File.Exists(target))
                 continue;
 
             Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -490,7 +496,7 @@ public class Installer
         if (count == 0)
             throw new InvalidDataException($"{Path.GetFileName(zipPath)} has no addons folder - is it the right zip?");
         _log($"Extracted {count} files from {Path.GetFileName(zipPath)}.");
-    });
+    }
 
     private async Task<string> DownloadAsync(string url)
     {

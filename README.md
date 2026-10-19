@@ -56,6 +56,12 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
 - **Uninstall everything** removes Metamod, CounterStrikeSharp, the plugin and the server config from
   your CS2 folder and restores `gameinfo.gi`. Your loadout is backed up first.
 - **Open folder** buttons for the CS2 folder, the plugin folder, the server configs and the launcher's data.
+- **CS:GO Legacy:** for old CS:GO (the standalone *csgo legacy* app, or CS2 switched to the `csgo_legacy`
+  beta). It finds the folder with `csgo.exe`, installs Metamod 1.12, SourceMod 1.12, the PTaH extension and
+  kgns' [weapons](https://github.com/kgns/weapons) and [gloves](https://github.com/kgns/gloves) plugins, and turns off
+  SourceMod's `FollowCSGOServerGuidelines`. **Start CS:GO** hosts a LAN game (`sv_lan 1`, `-insecure`) with the mode,
+  map and bots you pick. In game: `!ws` for skins (wear, pattern, StatTrak, name tag), `!knife`, `!gloves`. The CS2
+  features (inventory, cases, live server, hacker mode) are CS2 only.
 
 **PLAY page**
 
@@ -689,4 +695,6 @@ browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
 - The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms, agents, pins)
   and the function signature come from [cs2-WeaponPaints](https://github.com/Nereziel/cs2-WeaponPaints) by Nereziel.
+- CS:GO legacy skins: [weapons](https://github.com/kgns/weapons) and [gloves](https://github.com/kgns/gloves) by kgns,
+  [PTaH](https://github.com/komashchenko/PTaH) by komashchenko, [SourceMod and Metamod:Source](https://www.sourcemod.net) (downloaded, not bundled).
 - Launcher font: [Inter](https://github.com/rsms/inter) by Rasmus Andersson (SIL Open Font License, `src/Launcher/web/fonts/Inter-LICENSE.txt`).
