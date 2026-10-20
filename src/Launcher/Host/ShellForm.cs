@@ -56,6 +56,14 @@ public sealed class ShellForm : Form
         HandleCreated += (_, _) => ApplyTitleBar();
         Resize += (_, _) => FitZoom();
         DpiChanged += (_, _) => FitZoom();
+        // An error on a timer tick (a file Steam is updating) is logged instead of a crash dialog every second.
+        string? lastError = null;
+        Application.ThreadException += (_, e) =>
+        {
+            if (_api is null) MessageBox.Show(e.Exception.Message, "LAN Skin Tester"); // failed before the page could show the log
+            else if (e.Exception.Message != lastError) _app.Log("Error: " + e.Exception.Message);
+            lastError = e.Exception.Message;
+        };
         Load += async (_, _) => await StartAsync();
         FormClosing += OnClosing;
     }

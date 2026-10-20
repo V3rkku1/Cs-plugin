@@ -385,13 +385,16 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     {
         if (!File.Exists(CommandsFile)) return;
 
+        // Taken with a move first: a delete after reading lost commands the launcher added in between.
         string[] lines;
+        var taken = CommandsFile + ".run";
         try
         {
-            lines = File.ReadAllLines(CommandsFile);
-            File.Delete(CommandsFile);
+            File.Move(CommandsFile, taken, overwrite: true);
+            lines = File.ReadAllLines(taken);
+            File.Delete(taken);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
             return; // launcher is still writing it; try again next second
         }

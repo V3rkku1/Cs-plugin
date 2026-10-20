@@ -43,9 +43,16 @@ public static class WorkshopMaps
         var dir = ContentDir(game, id);
         if (!Directory.Exists(dir)) return null;
         // The map is the biggest .vpk (some items also ship small extra ones).
-        return Directory.GetFiles(dir, "*.vpk", SearchOption.AllDirectories)
-            .OrderByDescending(f => new FileInfo(f).Length)
-            .FirstOrDefault();
+        try
+        {
+            return Directory.GetFiles(dir, "*.vpk", SearchOption.AllDirectories)
+                .OrderByDescending(f => new FileInfo(f).Length)
+                .FirstOrDefault();
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            return null; // Steam is updating it right now
+        }
     }
 
     /// <summary>Deletes the map copies older launchers made (after CS2 has closed).</summary>

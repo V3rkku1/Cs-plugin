@@ -82,6 +82,8 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
      the launcher switches it to the Workshop map. Asking for a Workshop map at startup happens before
      Steam is ready, and the server then just sits idle. CS2 waits until the Workshop map has loaded,
      then starts and joins by itself.
+     A new Workshop map starts in **Custom** mode (what most Workshop maps are tagged for: movement
+     hubs only spawn you there). Pick another mode and the launcher remembers it for that map.
    - **If the server crashes or closes by itself**, the Activity log shows its last console lines
      (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
      you report a problem.

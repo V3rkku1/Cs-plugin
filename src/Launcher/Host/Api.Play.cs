@@ -716,14 +716,14 @@ public partial class Api
                 _workshopSentAt = now;
                 App.Log($"Server is up - loading Workshop map {id} (it downloads first, this can take a while)...");
             }
-            catch (IOException ex)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 App.Log("Could not send the Workshop map command: " + ex.Message);
             }
             return;
         }
 
-        if (status != null && !string.Equals(status.Map, _bootstrapMap, StringComparison.OrdinalIgnoreCase))
+        if (status is { Map: not "" } && !string.Equals(status.Map, _bootstrapMap, StringComparison.OrdinalIgnoreCase))
         {
             App.Log($"Workshop map loaded: {status.Map}.");
             Toast($"{status.Map} loaded" + (_startGameAfterWorkshop ? " - starting CS2…" : "."));
