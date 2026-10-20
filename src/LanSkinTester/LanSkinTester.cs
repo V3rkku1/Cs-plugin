@@ -193,9 +193,9 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             File.WriteAllText(path + ".tmp", JsonSerializer.Serialize(status));
             File.Move(path + ".tmp", path, overwrite: true);
         }
-        catch (IOException)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            // The launcher is reading it; next write in 2 seconds.
+            // The launcher is reading it (Windows refuses the replace with access denied); next write in 2 seconds.
         }
     }
 

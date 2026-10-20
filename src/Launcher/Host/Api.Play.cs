@@ -259,7 +259,10 @@ public partial class Api
     {
         if (App.Game == null) throw new ApiException("Pick your CS2 folder first (Setup page).");
         if (_playBusy) return;
-        ReadLoadout(); // prunes skins you don't own before the plugin reads them
+        // Prunes skins you don't own before the plugin reads them; gated like the inventory calls (an equip may be saving).
+        await InventoryGate.WaitAsync();
+        try { ReadLoadout(); }
+        finally { InventoryGate.Release(); }
         if (App.TestModeOn) throw new ApiException("The server is already running - press Apply Changes, or Stop first.");
         if (!App.Ready) throw new ApiException("Install first (Setup page).");
         var server = App.Settings.Server;

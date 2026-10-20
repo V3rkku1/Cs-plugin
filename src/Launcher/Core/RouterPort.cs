@@ -22,9 +22,13 @@ public static class RouterPort
     /// <summary>Look for the router again next time (e.g. the user switched to Internet mode).</summary>
     public static void ForgetSearch() => Checked = false;
 
-    public static async Task FindAsync(Action<string> log)
+    private static Task? _search;
+
+    /// <summary>Looks for the router; while a search runs, callers wait for that one instead of seeing no router yet.</summary>
+    public static Task FindAsync(Action<string> log) => Searching && _search != null ? _search : _search = SearchAsync(log);
+
+    private static async Task SearchAsync(Action<string> log)
     {
-        if (Searching) return;
         Searching = true;
         Changed?.Invoke();
         try

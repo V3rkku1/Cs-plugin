@@ -228,7 +228,7 @@ public partial class Api
         }
         App.AllowSkinsInCss();
         if (!App.Db.IsEmpty) App.Db.WritePluginSkinNames(App.Game!.SkinNamesDir);
-        foreach (var leftover in new[] { "server_commands.txt", "server_commands.txt.tmp", "loadouts.json.tmp" })
+        foreach (var leftover in new[] { "server_commands.txt", "server_commands.txt.tmp", "server_commands.txt.run", "loadouts.json.tmp" })
             File.Delete(Path.Combine(App.Game!.PluginDir, leftover));
         App.Log("Repair finished.");
     });
