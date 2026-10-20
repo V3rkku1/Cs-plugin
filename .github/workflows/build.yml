@@ -20,7 +20,11 @@ concurrency:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # The launcher is a Windows app (Tauri + WebView2): it builds on Windows. Every step runs in Git Bash.
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -28,11 +32,25 @@ jobs:
         with:
           dotnet-version: "10.0.x"
 
-      - name: Run tests
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src/Launcher
+
+      - name: Run plugin tests
         run: dotnet test tests/LanSkinTester.Tests -c Release
 
+      - name: Run launcher tests
+        run: cargo test --manifest-path src/Launcher/Cargo.toml
+
       - name: Install NSIS (for the installer)
-        run: sudo apt-get update -qq && sudo apt-get install -y -qq nsis
+        run: |
+          # Chocolatey's package source fails now and then: try a few times.
+          for i in 1 2 3; do
+            [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
+            choco install nsis -y --no-progress && break
+            sleep 20
+          done
+          echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
 
       - name: Build plugin, launcher and installer
         run: ./build.sh
@@ -47,7 +65,6 @@ jobs:
           path: |
             build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip
           if-no-files-found: error
 
@@ -63,13 +80,11 @@ jobs:
             Newest build of `${{ github.ref_name }}` (commit ${{ github.sha }}).
 
             - **LanSkinTesterSetup.exe**: the installer (Start menu / desktop shortcut, uninstaller, updates itself). Easiest.
-            - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install (about 50 MB).
-            - **LanSkinTesterLauncher-small.zip**: the same launcher, small, needs the .NET 10 Desktop Runtime.
+            - **LanSkinTesterLauncher.exe**: the launcher, one file, nothing else to install.
             - **LanSkinTester.zip**: only the plugin, for installing by hand (extract into `game/csgo/`).
           files: |
             build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip
 
       - name: Move the "latest" tag to this commit (after the files are up, so launchers never see a new tag with old files)
@@ -85,5 +100,4 @@ jobs:
           files: |
             build/LanSkinTesterSetup.exe
             build/LanSkinTesterLauncher.exe
-            build/LanSkinTesterLauncher-small.zip
             build/LanSkinTester.zip

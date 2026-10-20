@@ -94,6 +94,8 @@ function App() {
       else if (e.key === "F11") { tryCall("app.fullscreen"); e.preventDefault(); }
       else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
       else if (e.key === "F5" && e.shiftKey) { tryCall("play.stop"); e.preventDefault(); }
+      // The browser's own shortcuts (reload, print, find) don't belong in the launcher.
+      else if (e.ctrlKey && "rpgu".includes(e.key.toLowerCase())) e.preventDefault();
     };
     window.addEventListener("keydown", keys);
     return () => { window.removeEventListener("navigate", go); window.removeEventListener("keydown", keys); };
@@ -129,4 +131,5 @@ function App() {
   </div>`;
 }
 
+window.addEventListener("contextmenu", e => e.preventDefault());
 render(html`<${App} />`, document.getElementById("app"));

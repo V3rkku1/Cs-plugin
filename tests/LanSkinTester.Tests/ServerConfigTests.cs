@@ -2,9 +2,31 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
-using LanSkinTester.Launcher.Core;
 
 namespace LanSkinTester.Tests;
+
+/// <summary>
+/// What the launcher writes for the server (every quick start, with and without Bot Improver, hacker mode, Flying
+/// Scoutsman, a Workshop map), from launcher-commands.json. The launcher's own tests (cargo test in src/Launcher)
+/// keep that file current.
+/// </summary>
+public sealed class LauncherCommands
+{
+    public List<string> Commands { get; set; } = [];
+    public string AllPowers { get; set; } = "";
+    public List<string> AimKeys { get; set; } = [];
+    public List<string> AimStyles { get; set; } = [];
+    public List<string> AimBones { get; set; } = [];
+    public List<string> AimTargets { get; set; } = [];
+    /// <summary>Plugin retakes: [max players, bots, the cfg's bot_quota].</summary>
+    public List<int[]> RetakeQuotas { get; set; } = [];
+
+    private static LauncherCommands? _loaded;
+
+    public static LauncherCommands Load() => _loaded ??= System.Text.Json.JsonSerializer.Deserialize<LauncherCommands>(
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "launcher-commands.json")),
+        new System.Text.Json.JsonSerializerOptions(System.Text.Json.JsonSerializerDefaults.Web))!;
+}
 
 /// <summary>
 /// Every line the launcher writes for the server must reach something that exists there: our plugin, a
@@ -49,21 +71,9 @@ public class ServerConfigTests
         "nav_path_fixup_gap_segments", "game_type", "game_mode", "map", "changelevel", "host_workshop_map", "exec",
     ];
 
-    public static IEnumerable<object[]> Presets() => ServerSettings.Presets.Select(p => new object[] { p.Title });
-
-    private static ServerSettings Preset(string title)
-    {
-        var s = new ServerSettings();
-        ServerSettings.Presets.Single(p => p.Title == title).Apply(s);
-        return s;
-    }
-
     /// <summary>Splits a console line like the engine: spaces separate, quotes group.</summary>
     internal static List<string> Tokens(string line) =>
         Regex.Matches(line, "\"([^\"]*)\"|(\\S+)").Select(m => m.Groups[1].Success ? m.Groups[1].Value : m.Groups[2].Value).ToList();
-
-    private static IEnumerable<string> Lines(string cfg) =>
-        cfg.Split('\n').Select(l => l.Trim()).Where(l => l != "" && !l.StartsWith("//"));
 
     private static void AssertKnown(string line)
     {
@@ -77,34 +87,17 @@ public class ServerConfigTests
         Assert.True(ThirdParty.Contains(name) || Engine.Contains(name), $"\"{line}\": {name} doesn't exist on the server");
     }
 
-    [Theory]
-    [MemberData(nameof(Presets))]
-    public void EveryQuickStartWritesOnlyRealCommands(string title)
+    [Fact]
+    public void EveryLauncherCommandIsReal()
     {
-        foreach (var line in Lines(Preset(title).ToCfg())) AssertKnown(line);
-    }
-
-    [Theory]
-    [MemberData(nameof(Presets))]
-    public void QuickStartsWithBotImproverStillWriteOnlyRealCommands(string title)
-    {
-        var s = Preset(title);
-        s.BotImprover = true;
-        s.BotHider = true;
-        foreach (var weapon in new[] { "", "ak47", "awp", "deagle", "r8", "m4a1s" })
-        {
-            s.BotForceWeapon = weapon;
-            foreach (var line in Lines(s.ToCfg())) AssertKnown(line);
-            foreach (var line in s.BotWeaponCommands()) AssertKnown(line);
-        }
+        var commands = LauncherCommands.Load().Commands;
+        Assert.True(commands.Count > 50, "launcher-commands.json is missing or empty");
+        foreach (var line in commands) AssertKnown(line);
     }
 
     [Fact]
     public void LiveCommandsAreReal()
     {
-        var s = new ServerSettings { HackerMode = 1 };
-        foreach (var line in s.HackerCommands()) AssertKnown(line);
-        foreach (var line in ServerSettings.ScoutsOnCommands.Concat(ServerSettings.ScoutsOffCommands)) AssertKnown(line);
         // Live Server buttons (live.js).
         foreach (var line in new[]
                  {
@@ -123,208 +116,5 @@ public class ServerConfigTests
         // Players must not be able to run what the launcher drives (lst_*), except the aimbot key binds.
         foreach (var (name, command) in Plugin.Where(c => c.Key.StartsWith("lst_")))
             Assert.True(command.ServerOnly, $"{name} can be run by players");
-    }
-
-    [Fact]
-    public void PluginRetakesLeaveSeatsForFriends()
-    {
-        var cfg = Preset("Plugin Retakes").ToCfg();
-        // 9 seats: 8 bots next to you, and the plugin lets one go for every friend who connects.
-        Assert.Contains("bot_quota 8", cfg);
-        Assert.Contains("lst_retake_seats 9 8 0", cfg);
-        Assert.Contains("mp_limitteams 0", cfg);
-        Assert.Contains("retakes_enabled 1", cfg);
-        Assert.Contains("lst_qol spawn=1 guns=0", cfg); // !guns is the allocator's menu here
-    }
-
-    [Fact]
-    public void ValveRetakesChangeBotsLive()
-    {
-        var cfg = Preset("Valve Retakes").ToCfg();
-        Assert.Contains("bot_quota 6", cfg);
-        Assert.Contains("lst_retake_seats 7 6 1", cfg);
-        Assert.Contains("mp_limitteams 0", cfg);
-        Assert.Contains("sv_skirmish_id 12", cfg);
-    }
-
-    [Fact]
-    public void OtherModesHaveNoSeatLimit()
-    {
-        var cfg = Preset("Free-for-all Deathmatch").ToCfg();
-        Assert.Contains("lst_retake_seats 0 10 0", cfg);
-        Assert.Contains("mp_limitteams 2", cfg);
-        Assert.Contains("retakes_enabled 0", cfg);
-    }
-
-    [Fact]
-    public void TooManyBotsForRetakesStillLeaveYouASeat()
-    {
-        var s = Preset("Plugin Retakes");
-        s.Bots = 20;
-        s.RetakeMaxPlayers = 5;
-        var cfg = s.ToCfg();
-        Assert.Contains("bot_quota 4", cfg);
-        Assert.Contains("lst_retake_seats 5 20 0", cfg);
-    }
-
-    [Fact]
-    public void EveryForcedWeaponHasALoadout()
-    {
-        foreach (var weapon in ServerSettings.BotForcedWeapons)
-            Assert.False(string.IsNullOrEmpty(ServerSettings.BotLoadoutFor(weapon)), weapon);
-        Assert.Null(ServerSettings.BotLoadoutFor(""));
-        Assert.Null(ServerSettings.BotLoadoutFor("bot_buy"));
-        Assert.Equal("m4a1_silencer tec9 vesthelm defuser", ServerSettings.BotLoadoutFor("m4a1s"));
-        Assert.Equal("revolver vesthelm defuser", ServerSettings.BotLoadoutFor("r8"));
-    }
-
-    [Fact]
-    public void ForcedWeaponIsSetWhileCheatsAreOn()
-    {
-        var s = Preset("Competitive 5v5");
-        s.AllowCheats = false;
-        s.BotImprover = true;
-        s.BotForceWeapon = "ak47";
-        var lines = Lines(s.ToCfg()).ToList();
-        var loadout = lines.IndexOf("bot_loadout \"ak47 tec9 vesthelm defuser\"");
-        Assert.True(loadout > 0, "bot_loadout missing");
-        // bot_loadout is cheat-protected: sv_cheats 1 before it, and it must stay on (sv_cheats 0 resets it).
-        Assert.Equal("sv_cheats 1", lines.Take(loadout).Last(l => l.StartsWith("sv_cheats")));
-        Assert.Equal("sv_cheats 1", lines.Skip(loadout).First(l => l.StartsWith("sv_cheats")));
-        Assert.DoesNotContain(lines, l => l is "ak47" or "bot_buy");
-    }
-
-    [Fact]
-    public void NoForcedWeaponClearsTheLoadout()
-    {
-        var s = Preset("Competitive 5v5");
-        s.BotImprover = true;
-        Assert.Contains("bot_loadout \"\"", s.ToCfg());
-        s.BotImprover = false;
-        s.BotForceWeapon = "awp"; // left over from when Bot Improver was on
-        Assert.Contains("bot_loadout \"\"", s.ToCfg());
-        Assert.False(s.ForcesBotWeapon);
-    }
-
-    [Fact]
-    public void ForcedSniperIsNotSwappedForARifle()
-    {
-        var s = Preset("Free-for-all Deathmatch");
-        Assert.Equal(0, s.BotWeapons); // Rifles
-        Assert.Contains("lst_bot_no_snipers 1", s.ToCfg());
-        s.BotImprover = true;
-        s.BotForceWeapon = "awp";
-        var cfg = s.ToCfg();
-        Assert.Contains("lst_bot_no_snipers 0", cfg);
-        Assert.Contains("bot_allow_snipers 1", cfg);
-    }
-
-    [Fact]
-    public void BotImproverCommandsAreOnlyItsRealCommands()
-    {
-        var s = new ServerSettings { BotImprover = true, BotForceWeapon = "ak47" };
-        Assert.Equal(["bot_aim mixed", "bot_nades normal"], s.BotImproverCommands().ToList());
-        s.BotImprover = false;
-        Assert.Empty(s.BotImproverCommands());
-    }
-
-    [Fact]
-    public void WeaponChangeOnARunningServerLeavesCheatsLikeTheCfg()
-    {
-        var s = new ServerSettings { AllowCheats = false, BotImprover = true, BotForceWeapon = "awp" };
-        Assert.Equal(["sv_cheats 1", "bot_loadout \"awp tec9 vesthelm defuser\"", "sv_cheats 1"], s.BotWeaponCommands());
-        s.BotForceWeapon = "";
-        Assert.Equal(["sv_cheats 1", "bot_loadout \"\"", "sv_cheats 0"], s.BotWeaponCommands());
-    }
-
-    [Fact]
-    public void FlyingScoutsmanOffUndoesWhatOnChanged()
-    {
-        string Name(string line) => Tokens(line)[0];
-        var on = ServerSettings.ScoutsOnCommands.Select(Name).ToHashSet();
-        var off = ServerSettings.ScoutsOffCommands.Select(Name).ToHashSet();
-        // Money, round time and freeze time come back from the mode's own config when the map reloads;
-        // gravity, air acceleration and bunnyhopping from the launcher's cfg.
-        var restoredByReload = new HashSet<string>
-        {
-            "sv_cheats", "mp_maxmoney", "mp_roundtime", "mp_freezetime", "mp_restartgame", "sv_gravity", "sv_airaccelerate",
-            "sv_enablebunnyhopping",
-        };
-        foreach (var name in on.Where(n => !restoredByReload.Contains(n)))
-            Assert.True(off.Contains(name), $"Flying Scoutsman off doesn't reset {name}");
-    }
-
-    [Fact]
-    public void GameJoinsTheLocalServerWithVacOff()
-    {
-        var root = Directory.CreateTempSubdirectory("lst-game").FullName;
-        try
-        {
-            var game = new GameFolder(root);
-            var args = new ServerSettings { GameArgs = "-windowed +connect 1.2.3.4", Password = "abc" }.GameArguments(game);
-            Assert.StartsWith("-insecure ", args);
-            Assert.EndsWith("+connect 127.0.0.1:27015", args);
-            Assert.Contains("+password \"abc\"", args);
-            Assert.Single(Regex.Matches(args, @"\+connect"));
-        }
-        finally
-        {
-            Directory.Delete(root, recursive: true);
-        }
-    }
-
-    [Theory]
-    [MemberData(nameof(Presets))]
-    public void ServerStartsWithAMapAndTheRightMode(string title)
-    {
-        var s = Preset(title);
-        var args = s.StartArguments();
-        var mode = s.GetMode();
-        Assert.Contains("-dedicated", args);
-        Assert.Contains("-insecure", args);
-        Assert.Contains($"+game_type {mode.GameType} +game_mode {mode.Mode}", args);
-        Assert.Matches(@"\+map \S+", args);
-        Assert.Contains($"+sv_skirmish_id {(s.IsValveRetakes ? 12 : 0)}", args);
-        Assert.Equal(mode.GameType == 3, args.Contains("-maxplayers 64"));
-    }
-
-    [Fact]
-    public void CustomModeStartsWithPlayerSlots()
-    {
-        var s = ServerSettings.ForWorkshop(new ServerSettings(), "3355497176");
-        Assert.Contains("-maxplayers 64", s.StartArguments());
-        s.Mode = "Casual";
-        Assert.DoesNotContain("-maxplayers", s.StartArguments());
-    }
-
-    [Fact]
-    public void ResetGivesAPlainServerAndKeepsFriendsSettings()
-    {
-        var old = Preset("Plugin Retakes");
-        old.Password = "pw";
-        old.Friends = ServerSettings.FriendsNetwork.Vpn;
-        old.GameArgs = "-novid -w 1920";
-        var s = ServerSettings.Stock(old);
-        Assert.Equal(("Casual", 0, "pw", ServerSettings.FriendsNetwork.Vpn, "-novid -w 1920"), (s.Mode, s.Bots, s.Password, s.Friends, s.GameArgs));
-        var cfg = s.ToCfg();
-        Assert.Contains("lst_qol spawn=0 guns=0 ready=0 vote=0 summary=0 welcome=0", cfg);
-        Assert.Contains("retakes_enabled 0", cfg);
-        Assert.DoesNotContain("mp_maxmoney 65535", cfg);
-    }
-
-    [Fact]
-    public void WorkshopMapKeepsItsOwnRules()
-    {
-        var s = ServerSettings.ForWorkshop(new ServerSettings { Password = "pw" }, "3070244462");
-        Assert.Equal("Custom", s.Mode); // nothing remembered for this map
-        var cfg = s.ToCfg();
-        // aim_botz-style maps add their own bots and set buying; none of this may override them.
-        foreach (var line in new[] { "bot_kick", "bot_quota", "mp_limitteams", "mp_warmup_end", "sv_cheats", "mp_items_prohibited", "mp_maxmoney" })
-            Assert.DoesNotContain(line, cfg);
-        Assert.Contains("sv_password \"pw\"", cfg);
-        Assert.Contains("lst_only_weapon off", cfg);
-        Assert.Contains("lst_retake_seats 0", cfg);
-        s.KeepMapRules = false;
-        Assert.Contains("mp_warmup_end", s.ToCfg());
     }
 }

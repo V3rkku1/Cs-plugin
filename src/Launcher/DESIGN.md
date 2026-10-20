@@ -1,7 +1,8 @@
 # Launcher UI: how it is built
 
-The launcher window is a WebView2 showing `src/Launcher/web/` (HTML, CSS, JS). The C# side runs a
-small ASP.NET server on 127.0.0.1 (random token) that serves these files and the API.
+The launcher is a Tauri app (Rust): one window (WebView2 on Windows) showing `src/Launcher/web/` (HTML, CSS,
+JS), embedded in the exe. The page calls Rust with `invoke("call", { name, args })`, gets events as "lst", and
+loads pictures, the theme background and custom.css through the `lst://` protocol.
 
 ```
 web/index.html          backdrop, SVG refraction filter, loads js/app.js
@@ -12,31 +13,51 @@ web/js/ui.js            shared components (see below)
 web/js/icons.js         <Icon name=...> line icons
 web/js/app.js           sidebar, page switching, keyboard shortcuts, toasts
 web/js/pages/*.js       one file per page, exporting <XxxPage>
-Host/Api.cs             [Call] dispatcher, OnUi() for dialogs, Push() events, Toast()
-Host/Api.<Page>.cs      the page's calls: partial class Api, [Call("page.name")]
+src/main.rs             window, lst:// protocol, the 1-second poll
+src/api/mod.rs          App (state, log, push(), toast(), changed(), pick() for dialogs), the call dispatcher
+src/api/<page>.rs       the page's calls: match name { "page.name" => ... }
+src/*.rs                the rest: server settings, installer, game folder, item data, prices, network...
 ```
 
-## C# calls
+Run it: `cargo run --manifest-path src/Launcher/Cargo.toml` (Windows; on Linux it needs webkit2gtk). Tests:
+`cargo test`. The plugin goes inside the exe when `LST_PLUGIN_DIR` points at its build (build.sh does this).
 
-```csharp
-public partial class Api
-{
-    public record ThingState(string Name, bool On);          // returned as JSON (camelCase)
+## Rust calls
 
-    [Call("page.state")] private ThingState Get() => ...;    // no argument
-    [Call("page.rename")] private void Rename(string name) => ...;          // one argument (JSON body)
-    public record SetArgs(int Bots, string? Map);
-    [Call("page.set")] private async Task Set(SetArgs a) { ... App.NotifyChanged(); }
+```rust
+// src/api/thing.rs
+#[derive(Deserialize, Default)]
+#[serde(rename_all = "camelCase", default)]
+struct SetArgs { bots: i32, map: Option<String> }       // the page sends camelCase JSON
+
+pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
+    match name {
+        "thing.state" => ok(json!({ "name": "x", "on": true })),       // returned as JSON
+        "thing.set" => {
+            let a: SetArgs = arg(a)?;                                   // null/missing = Default
+            let mut st = app.state();
+            st.settings.server.bots = a.bots;
+            app.save(&st);
+            drop(st);                                                   // never hold state across I/O
+            app.changed();                                              // every page reloads its data
+            ok(())
+        }
+        _ => Err(unknown(name)),
+    }
 }
 ```
 
-* `App` is the shared `AppState` (settings, game folder, item db, log). After changing anything a
-  page shows, call `App.NotifyChanged()`: every page reloads its `useApi` data.
-* `throw new ApiException("message")` shows the message as a red toast (not logged).
-  Other exceptions are logged as FAILED and also shown.
-* `Toast(text, kind)` shows a toast; `Push("event.name", data)` sends a live event (progress etc.).
-* Native dialogs (file / folder pickers) must run on the window thread: `await OnUi(() => ...)`.
-  Ask "are you sure" in the page (`confirm()`), not with MessageBox.
+* `app.state()` is the shared `State` (settings, game folder, item data, each page's state) behind one mutex.
+  Don't hold it across a download or a dialog. Inventory calls (`cases.`, `inventory.`, `tradeup.`) also hold
+  the inventory gate (`app.inv()`), always taken before `state`.
+* `Err(bad("message"))` shows the message as a red toast (not logged). Other errors (`?` on io errors) are
+  logged as FAILED and also shown.
+* `app.toast(text, kind)` shows a toast; `app.push("event.name", data)` sends a live event (progress etc.).
+* File and folder pickers: `app.pick(|d| d.pick_folder())` (runs on the window's thread). Ask "are you sure"
+  in the page (`confirm()`), not with a message box.
+* Files the plugin or older launchers read (launcher.json, loadouts.json, inventory.json, item data) keep
+  their PascalCase names: those structs use `#[serde(rename_all = "PascalCase")]` and go to the page through
+  `util::web()`, which renames them to camelCase like the page expects.
 
 ## Page JS
 
@@ -83,5 +104,6 @@ iOS colours for meaning (green ok / running, orange warning, red danger). No har
 
 ## Run it
 
-`LanSkinTesterLauncher.exe --serve 5099 --token dev --web-dir <path to web>` serves the UI without a
-window at http://127.0.0.1:5099/?t=dev ; with `--web-dir`, edits to web/ show on reload (no rebuild).
+`cargo run` in src/Launcher (web/ is built into the exe: run it again after editing). Debug builds have the
+developer tools (right-click is off: open them with Ctrl+Shift+I); `--devtools` allows them in a release build,
+`--page live` opens one page.

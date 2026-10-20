@@ -1,423 +1,179 @@
 # LAN Skin Tester (CS2)
 
-A [CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp) plugin for previewing
-CS2 weapon skins, knives and gloves on **your own local / LAN server**: try a skin, its wear
-and its pattern seed before you buy it.
+Preview CS2 skins, knives, gloves, stickers and charms on **your own local server** before you buy them,
+and play with bots and friends. Two parts:
 
-- `!skin` any paint kit on the gun or knife in your hands, by ID or by name
-- Change wear (`!wear 0.15`) and pattern seed (`!seed 661`) live
-- Any knife (`!knife karambit`) and gloves (`!gloves sport 10037`)
-- StatTrak counter, name tags, **stickers (5 slots) and charms**
-- **Import real items** with their exact float, pattern and stickers from a `!gen` code or an inspect link
-- Your loadout is saved and comes back after map changes and restarts
-- Windows launcher: one-click install, game mode + bot settings, and an inventory-style skin picker
+- **The plugin** ([CounterStrikeSharp](https://github.com/roflmuffin/CounterStrikeSharp)): `!skin`, `!knife`,
+  `!gloves`, wear, pattern seed, StatTrak, name tags, 5 stickers and a charm, real items from a `!gen` code or
+  inspect link. Your loadout survives map changes and restarts.
+- **The launcher** (Windows): installs everything in one click, starts the server and CS2, and has an
+  inventory, case opening, trade ups, game modes, bots, Workshop maps and friends.
 
-> **Only for your own local server.** Skins are visible only on this server and nobody else sees
-> them. The plugin is off unless the server runs with `sv_lan 1`. Don't install it on a public
-> community server: Valve's server rules don't allow fake inventory items there, and the server's
+> **Only for your own local server.** Skins exist only on this server and nobody else sees them. The plugin
+> is off unless the server runs with `sv_lan 1` (or as the launcher's private friends server). Don't install
+> it on a public community server: Valve's rules don't allow fake inventory items there, and the server's
 > login token (GSLT) can be banned.
 
 ---
 
-## Easiest: the launcher (Windows)
+## The launcher (Windows)
 
-**Download:** on GitHub, open **Releases → Latest build**. Every push builds the launcher and plugin
-automatically (see `.github/workflows/build.yml`).
+**Download:** GitHub → **Releases → Latest build** (built from every push to `main`).
 
-Pick one:
-- **`LanSkinTesterSetup.exe` (recommended):** the installer. It installs for your Windows user only
-  (no admin prompt) into `%LocalAppData%\Programs\LAN Skin Tester`, adds a Start menu shortcut and an
-  optional desktop shortcut, and appears in Windows' *Installed apps*, so it can be uninstalled
-  there. Uninstalling keeps your loadouts and settings.
-- `LanSkinTesterLauncher.exe` (about 65 MB): the same launcher as one portable file.
-- `LanSkinTesterLauncher-small.zip` (about 1 MB): extract it and run `LanSkinTesterLauncher.exe`.
-  It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-  If you don't have it, Windows offers a download link the first time you open it.
+- **`LanSkinTesterSetup.exe` (recommended):** installs for your Windows user only (no admin prompt) into
+  `%LocalAppData%\Programs\LAN Skin Tester`, with a Start menu shortcut, an optional desktop shortcut and an
+  entry in *Installed apps*. Uninstalling keeps your loadouts and settings.
+- **`LanSkinTesterLauncher.exe`:** the same launcher as one portable file (about 8 MB).
 
-The launcher has eight pages in its sidebar: Play, Live Server, Inventory, Cases, Hacker Mode, Workshop,
-Friends and Setup (Ctrl+1 to Ctrl+8). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
-type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
-whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
-leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
-Windows 10 and 11 already have; without it the launcher opens in your web browser instead.
+It needs Microsoft's WebView2, which Windows 10 and 11 already have. If it's missing, the launcher says so;
+install the *Evergreen Runtime* from microsoft.com/edge/webview2.
 
-**SETUP page**
+On first start it opens on **Setup**. Press **Install Everything**, then go to **Play** and pick a quick start.
 
-- **CS2 folder:** found automatically (or press *Browse* / *Find automatically*).
-- **What's installed:** a checklist of Metamod, CounterStrikeSharp, the plugin, the CounterStrikeSharp
-  skin setting and the skin/sticker/charm lists. Each row shows its state and version, has its own
-  Install/Update button, and shows a progress bar while downloading.
-- **INSTALL / UPDATE EVERYTHING** does all of it in one go.
-- **Check for updates** shows the latest Metamod and CounterStrikeSharp versions next to yours. The
-  plugin row says when this launcher has a newer plugin.
-- **Install from zip...** is for when an automatic download fails. Get the zip from the *Metamod
-  downloads* / *CounterStrikeSharp downloads* links.
-- **Repair** reinstalls the plugin and fixes settings and leftovers after a crash.
-- **Uninstall everything** removes Metamod, CounterStrikeSharp, the plugin and the server config from
-  your CS2 folder and restores `gameinfo.gi`. Your loadout is backed up first.
-- **Open folder** buttons for the CS2 folder, the plugin folder, the server configs and the launcher's data.
+### Pages
 
-**PLAY page**
+The sidebar has eight pages (**Ctrl+1** to **Ctrl+8**). **Ctrl+K** finds any page, quick start or action
+(type "dm", Enter starts Deathmatch). **F5** starts or applies changes, **Shift+F5** stops, **F11** is full
+screen, **Ctrl+F** searches the inventory. On a big screen the page zooms to fill the window.
 
-1. **Quick start:** one click sets everything up and starts (or switches the running server):
-   *Competitive 5v5*, *Free-for-all Deathmatch*, *Valve Retakes* (Valve's 3v4 loadout-card mode) and
-   *Plugin Retakes* (the retakes plugin, you buy the guns), plus any setup you saved. Every other mode
-   and rule is on Live Server. **Reset to Default** there turns it into a plain CS2 server (Casual,
-   no bots, normal money and rules, no cheats or extra plugins); friends, password and launch options stay.
-2. **Live Server** (its own page in the sidebar) is where the match is set up and driven. **Play** only has the quick starts and Start. On Live Server, settings are grouped: Game, Bots, Rules, Retakes (only in Retakes mode), Launch, and the live controls. Or pick everything yourself:
-   - game mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom, Retakes) and map
-   - number of bots (0–20) and their skill (Easy, Normal, Hard, Expert)
-   - which team the bots join, and their weapons: **Rifles** (the default: no AWPs, shotguns, SMGs or
-     machine guns, and any sniper a bot still gets is swapped for an AK-47 / M4A4), pistols only,
-     snipers only, knives only, or any weapons
-   - options: free-for-all, max money with buy anywhere, infinite ammo, rounds that never end with
-     respawn, bots that don't shoot, and cheats
-   - **Show more options:** round time, friendly fire, a **Workshop map**, your own **CS2 launch
-     options** (e.g. `-windowed -w 1920 -h 1080`), and whether CS2 starts and joins automatically.
-   - **Workshop map:** paste the map's ID or its Workshop link. The server goes online (unlisted, no
-     game server token) and loads it from the Workshop with `host_workshop_map`, so you need internet
-     and the first start takes longer while it downloads. Players' games fetch the map automatically
-     when they join. **Subscribe** opens the map in Steam, so your own game already has it.
-     The server first starts on the normal map you picked, and once it's up (and logged on to Steam)
-     the launcher switches it to the Workshop map. Asking for a Workshop map at startup happens before
-     Steam is ready, and the server then just sits idle. CS2 waits until the Workshop map has loaded,
-     then starts and joins by itself.
-     A new Workshop map starts in **Custom** mode (what most Workshop maps are tagged for: movement
-     hubs only spawn you there). Hosted from the Workshop page, a map whose name says what it is starts
-     in a fitting mode instead (`aim_`/`awp_`/`dm_` Deathmatch, `ar_` or "arms race" Arms Race, `de_`/`cs_`
-     Casual). Pick another mode and the launcher remembers it for that map.
-   - **Offline-only Workshop maps** (e.g. Movement Hub) change maps with their own script (`map_workshop`),
-     which only works when your game is its own server. On the dedicated server they stay on an empty
-     loader map and you're stuck at team select, so Host / Start opens them in CS2 as an offline game
-     instead (`+map_workshop <id> <map>`, no server, no plugins). Friends can't join those.
-   - **If the server crashes or closes by itself**, the Activity log shows its last console lines
-     (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
-     you report a problem.
-3. **START** opens a server window and CS2 (VAC off), which joins it. **Apply changes** sends new bot
-   and option settings to the running server; changing the mode or map switches the map. **Open CS2**
-   starts the game again if you closed it.
-4. **Live Server** shows the map, mode, players and bots, and whether skins are working, updated
-   every 2 seconds. The same page holds the server controls: round (restart, end warmup, pause, resume,
-   swap, CT/T win), players (add CT, add T, kick, respawn, god), and practice (third person, noclip,
-   armor, nades, clear, save/load spot, rethrow, damage report, refresh skins, give weapon).
-   **Command** sends anything else to the server console. The buttons light up when the server is up.
-5. **Stop & restore** closes the game and the server and puts CS2 back to normal for matchmaking.
-   If you close the launcher while test mode is on, it asks you first.
+**Play.** Quick starts: *Competitive 5v5*, *Free-for-all Deathmatch*, *Valve Retakes*, *Plugin Retakes*, plus
+your own (*Save Current Setup* stores the mode, map, bots and rules under a name; **×** deletes it). **Start** opens the server window and CS2 with VAC off, and CS2 joins when the server is up.
+**Open CS2** starts the game again if you closed it. **Stop** closes both and puts CS2 back to normal.
 
-**Retakes** has two styles, chosen in the Retakes group (shown only while the game mode is Retakes).
+**Live Server.** Everything about the match, applied with **Apply Changes** (a mode or map change reloads
+the map; a few settings restart the server and ask first):
 
-- **Valve** (the *Valve Retakes* quick start) is the built-in mode: `game_type 0`, `game_mode 5`, and `sv_skirmish_id 12`. The bomb is already planted, it's 3 terrorists against 4 counter-terrorists, and each round starts with Valve's loadout cards. The first team to 8 wins. Bots fill the empty seats (the quick start adds 6, so you plus the bots is a full match). `sv_skirmish_id` stays set across map changes, so every other mode sets it back to `0`.
-- **Plugin** (the *Plugin Retakes* quick start) uses [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0). The first Start downloads it. It runs as competitive (`game_type 0`, `game_mode 1`) with `sv_skirmish_id 0`, and the launcher parks every retakes plugin outside the plugins folder whenever another mode or Valve retakes is running. Switching a plugin on or off, or changing a setting the plugin only reads at load, restarts the server.
+- **Game:** mode (Deathmatch, Competitive, Casual, Wingman, Arms Race, Demolition, Weapons Expert, Custom,
+  Retakes, and Rush when your CS2 has it), map, a **Workshop map** (ID or link), team sizes
+  (*Save for this map*).
+- **Bots:** 0–20, skill, team, weapons (**Rifles** by default: no AWPs, shotguns, SMGs or machine guns, and
+  any sniper a bot gets is swapped for an AK-47 / M4A4), *Calm Bots* (no bunny-hopping).
+- **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
+  friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
+  low gravity.
+- **Server Plugins:** clean up dropped guns, no fall damage, auto bunnyhop, spawn protection, `!guns`,
+  `!ready`, `!rtv` map vote, round MVP and `!stats`, welcome message, and downloaded ones: Bot Improver,
+  Bot Hider, Bot Controller and the Deathmatch plugin (see [Server plugins](#server-plugins)).
+- **Launch:** your own CS2 launch options, and whether CS2 starts automatically.
+- **Live controls** (when the server is up): restart, end warmup, pause, resume, swap, CT/T win; add CT,
+  add T, kick bots, respawn, god; third person, noclip, armor, nades, clear, save/load spot, rethrow,
+  damage report, refresh skins, give weapon; **Command** runs any server console command.
+- **Logs:** the launcher's activity, the server console and the CounterStrikeSharp log, with *Errors only*.
+  **Copy Logs** copies all of it as one report, errors first, to paste when asking for help.
+- **Reset to Default** makes it a plain CS2 server (Casual, no bots, normal rules, no extra plugins); friends,
+  password and launch options stay.
 
-**Seats for everyone.** Retakes has a fixed number of places (Valve: 3 + 4, Plugin: max players). Bots
-fill the places nobody uses and give one up for every person who connects (`lst_retake_seats`), so a
-second or third friend always gets a team instead of waiting in the queue. In Plugin style the bot
-leaves in warmup or at the end of the round, never mid-round; the new player is in from the next
-round. The team menu never greys out a side (`mp_limitteams 0`): retakes sorts the sides itself.
+**Inventory.** What you unboxed, like CS2's inventory: All Items, Loadout, Weapons, Knives & Gloves,
+Stickers & Graffiti, Collectibles; search, filter and sort by newest, rarity, price or name. Click an item
+to inspect it (exterior, exact float, pattern, price, case) and **Equip** it, for both sides or **EQUIP T** /
+**EQUIP CT**. The **Loadout** tab shows what each side wears; *Use Default* takes it off. An equipped item
+changes in game within a second.
+- **Stickers…** on a gun: apply up to 5 stickers from your inventory (applying uses the sticker up), place,
+  turn, resize and scrape them; scraped all the way, a sticker comes off.
+- **Trade Up:** 10 guns of one grade (all StatTrak™ or none, no souvenirs) for one of the next grade, or 5
+  Covert guns for a knife or gloves, with CS2's ticket odds and float formula. You see every possible result
+  with its chance, float and price before you sign.
+- **Export** / **Import** save the inventory to a file and add one back (import needs the admin code).
 
-In the Retakes group, Plugin style can set max players (2–10), the terrorist percent, team scramble and how many rounds trigger it, team balance, auto plant, bombsite announcement, and whether players skip the team menu.
+**Cases.** Open any CS2 container for free: weapon cases, capsules, souvenir packages, pins, patches,
+music kits, graffiti. Valve's odds (Mil-Spec 79.92%, Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife
+or gloves 0.26%), real float ranges, pattern 0–1000, StatTrak 10% in weapon cases. *Open ×5* / *×10*, Space
+opens, a click skips the reel. Prices are real market prices for information (Skinport, then the Steam
+Market; USD, EUR or GBP), and the page shows what your openings would have cost.
 
-**Guns** is either **Allocator** or **Buy**. Allocator is the maintained fork of [Yoni Lerner's retakes allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0). Rounds rotate through pistol, half-buy, and rifle, and `!guns` saves what you want. **Buy** (*Plugin Retakes* quick start) turns the freeze into a buy: humans are stripped (knife and bomb stay) and get $16000. Bots keep the rifles. The guns, grenades, armor and kit you finish the buy with are remembered separately for T and CT. Buy time (4–20 seconds) and the bomb timer apply on the next round. Switching between Buy and Allocator restarts the server, because the allocator replaces the plugin's own gun hand-out.
+**Unbox only and the admin code:** by default you can equip only what you unboxed (plus vanilla guns), and
+`!skin`, `!gen`, `!knife` and `!gloves` are off on your server. The owner's admin code (Cases › *Admin code*)
+unlocks every item on that PC and Inventory › **Add Item** (any skin, knife, glove, sticker, agent, pin or
+music kit with the float and pattern you pick).
 
-**Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse)) finishes a defuse the moment it starts when no terrorist, molotov, or grenade can stop it. It is on in the *Plugin Retakes* quick start. Turning it off restarts the server so the plugin unloads.
+**Hacker Mode** (fun, on your own server against bots or friends who agreed). Always off when the launcher
+starts; changes reach the running server at once. Profiles (Legit, Closet, Rage, Movement, All Off), who hacks
+(*Everyone*, or *One random* per round who glows for the others), and each power: chams, box and skeleton
+ESP, name tags, aimbot (legit / silent / rage, body part, target, key, aggression 1–10, through walls),
+triggerbot, recoil control, zero spread, radar, bunnyhop, no flash, enemy info, infinite ammo, speed, damage
+boost. In game, `!cheats` opens a menu where each player sets their own. The triggerbot clicks your mouse
+through the launcher (localhost port 27099), only while the test session runs and CS2 is in front.
 
-**Demolition** is gun-game with a bomb (`game_type 1`, `game_mode 1`) on de_lake, de_safehouse and de_shortdust. **Weapons Expert** is competitive where each gun can be bought once per match. CS2 no longer has its own mode for it, so the server runs competitive and the plugin takes back (and refunds) a gun you already bought (`lst_weapons_expert 1`). **Custom** is an open sandbox (`game_type 3`, `game_mode 0`). Arms Race, Demolition and both retake styles keep their own guns, money and round length.
+**Workshop.** The maps Steam has downloaded for CS2, a search of the Workshop, **Host** (starts or switches
+the server on that map) and *Subscribe* (opens it in Steam). A Workshop map loads the official way: the
+server goes online (unlisted, no token), boots on a normal map, then switches with `host_workshop_map`; CS2
+joins once the map is loaded. A new map starts in Custom, or a fitting mode from its name (`aim_`, `ar_`,
+`de_`…); the mode you pick is remembered per map. Maps that change maps with their own script (Movement
+Hub) start as an offline game instead. Custom weapon and player models aren't supported.
 
-**Your own quick starts.** *Save setup* stores the mode, map, bots and rules under a name. The new tile sits with the built-in ones and starts the same way: one click. Click the **×** on a saved tile to delete it. Friends, the server password and whose skins are used stay whatever the Friends page says.
+**Friends.**
+- *Friends List:* friends hosting on your Wi-Fi or Radmin network show up by themselves (UDP port 27098),
+  saved friends show whether they're hosting, and **Join** joins them.
+- *Host:* pick how they reach you: **Same Wi-Fi**, **Radmin / Hamachi** (free
+  [Radmin VPN](https://www.radmin-vpn.com/), same network), or **Internet (UPnP)** (the launcher opens UDP
+  port 27015 on your router while you host, and always uses a password). **Copy Code** copies an invite code
+  (`LST-…`: address, port and password in one line). Choose whose skins are used (*everyone uses mine* or
+  *each picks own* with `!skin` in chat), an optional password, and press **Allow** for Windows Firewall once.
+  **Start Hosting** uses the Live Server settings.
+- *Join a Friend:* paste their code (or an address, `connect …` or `steam://connect/…`). CS2 starts with VAC
+  off for that game, or an open CS2 connects through Steam. Your own skins go along to their server.
 
-**Live Server** controls, besides restart, respawn, third person and giving a weapon:
+*Why this won't get you banned:* `-insecure` is Valve's own switch (VAC doesn't run for that game), your
+Steam inventory is never touched, a friend's game files never change, yours only while test mode is on (Stop
+puts them back), and the server has no token and isn't listed. If UPnP doesn't work: turn UPnP on in the
+router; on CGNAT (common on mobile internet) use Radmin; or forward UDP 27015 by hand and press *Start anyway*.
 
-- *Pause* / *Resume*, *Swap* teams, *CT Win* / *T Win*, *End Warmup*
-- *Add CT*, *Add T*, *Kick Bots*
-- *God*, *Noclip*, *Armor* (helmet, and a kit for CTs), *Nades*
-- *Clear* removes smokes, molotovs and grenades in the world
-- *Save Spot* / *Load Spot* and *Rethrow* (back to where you last threw, with that grenade)
-- *Damage* toggles a chat line for the damage you deal
-- *Command* runs any server console command (Enter sends it)
+**Setup.** The CS2 folder (found automatically, or *Browse*), and a checklist of Metamod, CounterStrikeSharp,
+the plugin, the CounterStrikeSharp skin setting and the item lists, each with its own Install/Update button.
+*Check for updates*, *Install from zip* (when a download fails), *Repair*, *Uninstall everything* (restores
+`gameinfo.gi`; the loadout is backed up), *Open folder* buttons, and *Reset Launcher*. **Appearance:** themes,
+accent / background / panel colours, opacity, title bar colour, corners, font, text size, a background picture,
+*Reduce Transparency* and *Reduce Motion*; *Theme Code* shares your look as `LST1-…`; *Open custom.css* edits
+`%LocalAppData%\LanSkinTester\custom.css`, loaded after the built-in styles.
 
-The same practice tools work in chat: `!god`, `!save [name]`, `!load [name]`, `!spots`, `!rethrow`, `!damage`, `!armor`, `!nades`, `!clear`, `!swap`.
+### Good to know
 
-**Rush** (Valve's 3v3 tower mode): Valve doesn't publish its game type numbers, so the launcher
-reads them and the map list from your CS2's own `gamemodes.txt` (inside `pak01_dir.vpk`). If your
-CS2 has Rush, it appears in the mode list.
+- **Restores CS2 by itself:** when CS2 and the server are closed (X, crash, or with the launcher closed in
+  between), test mode switches off a few seconds later. Closing the launcher during a test asks first.
+- **While test mode is on, start CS2 only from the launcher.** Started from Steam without `-insecure` it
+  could get you VAC-kicked. The sidebar shows *Test mode on* in orange.
+- **Updates itself:** a newer build shows an *Update available* card (checked at start and every 15 minutes);
+  at start-up it installs by itself when *Update Automatically* is on. Your inventory and loadout are backed
+  up first (`%LocalAppData%\LanSkinTester\backups`, the last 5).
+- **The plugin updates itself:** each launcher carries its plugin and puts it in when you press Start.
+- **Your data:** settings in `%AppData%\LanSkinTester\launcher.json`; inventory, item data, pictures and
+  theme in `%LocalAppData%\LanSkinTester`; the loadout in the plugin folder (`loadouts.json`).
 
-**Appearance:** Setup → *Theme* and *Appearance*: ready-made themes (Midnight, OLED Black, Slate, CS2
-Orange, Green Ops, Violet, Crimson, Ocean), your own accent, background and panel colours, panel opacity,
-title bar colour (match theme, accent or Windows), corners, font, text size, a background picture (with a darken slider), *Reduce Transparency* and *Reduce
-Motion*. Everything applies right away. *Theme Code › Copy* puts your look on the clipboard as a short
-`LST1-…` code; a friend presses *Paste…* to use it. For full control, *Open custom.css* creates
-`%LocalAppData%\LanSkinTester\custom.css` (with notes and examples); it loads after the built-in styles
-and reloads when you click back into the launcher.
+### Retakes
 
-**Agents, pins and music kits:** Skins › *Agents, Pins & Music* sets your agent for each side, a
-collectible pin on the scoreboard and a music kit (round music and your MVP anthem, from the next round).
-The data comes from ByMykel's CSGO-API; press *Update* on Setup's item lists once to get them.
+- **Valve** (*Valve Retakes*): Valve's built-in mode (`game_type 0`, `game_mode 5`, `sv_skirmish_id 12`):
+  bomb planted, 3 T vs 4 CT, loadout cards, first to 8. Bots fill empty seats.
+- **Plugin** (*Plugin Retakes*): [B3none's cs2-retakes](https://github.com/B3none/cs2-retakes) (GPL-3.0),
+  downloaded on first use, run as competitive. Settings: max players (2–10), terrorist percent, scramble,
+  balance, auto plant, site announcement, join straight in, bomb timer. **Guns:** *Buy* (freeze-time buy with
+  $16000, remembered per side; bots keep rifles) or *Allocator*
+  ([cs2-retakes-allocator](https://github.com/Micka2302/cs2-retakes-allocator-2.0): pistol, half-buy and
+  rifle rounds, `!guns`). **Instadefuse** ([B3none's cs2-instadefuse](https://github.com/B3none/cs2-instadefuse))
+  finishes a defuse that nothing can stop.
+- **Seats for everyone:** bots fill the places nobody uses and give one up for every person who joins
+  (`lst_retake_seats`), so every friend gets a team. The team menu never greys out a side.
 
-**Headshot only and pistols only** (Live Server › Rules):
-only headshots (and knives) hurt players, and only pistols (Deagle, Tec-9, Five-SeveN, USP-S, Glock, P250,
-CZ75, Dualies, R8, P2000) can be bought; other guns are greyed out in the buy menu, refunded if bought
-and taken away if picked up. Bots get pistols too.
+Retakes plugins are parked outside the plugins folder whenever they shouldn't load. Switching a plugin on or
+off, or a setting it only reads at load, restarts the server.
 
-**Reload on kill** (Live Server › Rules): a kill refills
-your magazine at once, and spare ammo never runs out.
+### Server plugins
 
-**One weapon and low gravity** (Live Server › Rules): AWP, Scout, Deagle or knives only, for everyone
-including bots (other guns are taken away and greyed out in the buy menu), and Flying-Scoutsman-style
-low gravity. Every quick start uses Bot Improver's smarter bots.
+Downloaded from their GitHub releases on first use and parked while switched off. Only the server loads them:
+the launcher takes the Metamod line out of `gameinfo.gi` as soon as the server has read it, so your game never
+loads them.
 
-**Calm Bots** (Live Server › Bots, on by default): a bot jumps at most once every 3 seconds, so bots stop
-hopping around.
+- **Bot Improver** ([ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver), AGPL-3.0, on in every
+  quick start): more human bots (aim, grenades, movement, buying, pro names). Includes BotAI, Bot Controller and
+  Bot Hider. Its section on Live Server sets bot aim, grenades, a weapon every bot buys, *Bot Skins* and
+  Flying Scoutsman. Only its plugins are installed; the launcher manages `gameinfo.gi` itself.
+- **Bot Hider** ([XBribo/CS2-Bot-Hider](https://github.com/XBribo/CS2-Bot-Hider), AGPL-3.0): bots look like
+  players (no BOT tag, names, avatars, ping).
+- **Bot Controller** ([XBribo/CS2-Bot-Controller](https://github.com/XBribo/CS2-Bot-Controller), AGPL-3.0):
+  `!record` your movement, `!replay <bot slot>`.
+- **Deathmatch plugin** ([NockyCZ/CS2-Deathmatch](https://github.com/NockyCZ/CS2-Deathmatch), MIT, Deathmatch
+  only): `!gun` menu, custom modes, kill sounds, spawn editor.
 
-**CASES page**: open CS2 containers like in the game. Pick a case, see what it holds and the odds, press
-*Unlock Container*: the reel spins and stops on what you got. Odds are Valve's (Mil-Spec 79.92%,
-Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife or gloves 0.26%); knife finishes are equally
-likely, Doppler phases follow the community-measured split; the float is made the way CS2 does it (a wear
-band first: FN 3%, MW 24%, FT 33%, WW 24%, BS 16%, then squeezed into the skin's own range), pattern
-0-1000, StatTrak 10% in weapon cases. Everything you unbox goes to the page's *Inventory*, where
-**Equip** puts a gun skin, knife, gloves, pin or music kit on in game. Every container can be opened:
-weapon cases, sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and
-graffiti. Nothing touches a Steam inventory. The page's title line also shows what the openings would
-have cost for real: the keys for weapon cases and the containers at today's market prices.
-
-**INVENTORY page** (the old Skins tab): what you unboxed, laid out like CS2's inventory: All Items,
-Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
-an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
-came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Export** saves the inventory to a
-file (a backup, or to move it to another PC); **Import** (with the admin code) adds the items of such a file that aren't there yet. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
-from your inventory (applying uses the sticker up, like in the game): pick one, then click on the gun where it goes
-(numbered marks show the five slots, zoom up to 2.4×, arrow keys nudge the selected sticker), drag them anywhere, turn,
-resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
-within a second (the launcher's preview is a guide). **Trade Up** (Inventory) works like CS2's Trade Up Contract: 10 guns of one grade
-(all StatTrak™ or none, no souvenirs) for one gun of the next grade from the inputs' collections, with
-CS2's ticket odds (each input adds one ticket for every next-grade item of its collection, one ticket wins);
-or 5 Covert guns for a knife or gloves from their cases. Pick from your filtered items (search, grade, exterior and StatTrak™
-filters, sort by float or price; *Auto-fill* fills the free slots), press *Submit Contract*, then sign the contract with the mouse, like in CS2. The float follows CS2's current formula (each input's place in its own float range, averaged, put
-on the new skin's range). Before signing you see every possible result with its chance, float and price. With the admin code, **Add Item**
-puts any skin, knife, glove, sticker, agent, pin or music kit straight into the inventory, with the float,
-pattern, StatTrak or Souvenir you pick.
-
-**Opening is free:** every case, capsule and package opens without money or keys, as often as you like.
-*Open ×5* / *Open ×10* open several at once, Space opens, and a click (or Space) on the reel skips the spin.
-
-**Prices** are real market prices, shown for information: Skinport's public price list (refreshed every 12 hours,
-cached), with the Steam Community Market for anything it lacks. USD, EUR or GBP (Cases page).
-
-**Unbox only and the admin code:** by default you can only equip what you unboxed on the Cases page
-(plus vanilla guns), agents are off, and the chat commands `!skin`, `!gen`, `!knife` and `!gloves` are off on
-your server. The owner's admin code (Cases page › *Admin code*) turns on Inventory ›
-*Add Item* (any skin, knife, glove, sticker, agent, pin or music kit) on that PC; *back to unbox only* locks it again.
-
-**Your skins on a friend's server:** when you join with *Join a Friend*, your launcher writes your loadout to
-`cfg/lst_myskins.cfg` and runs it in your CS2 (through its local console port) while you play, so the friend's
-plugin gives you your own skins, even when they share theirs with everyone. Both launchers need this version.
-If they don't show, open the console (~) and type `exec lst_myskins`.
-
-**Logs** (Live Server › *Logs*): the launcher's activity, the server console (`console.log`) and the
-CounterStrikeSharp log, with search and *Errors only*. **Copy Logs** (also in Ctrl+K) copies all of them as one
-block, errors first, ready to paste when asking for help.
-
-**Server plugins** (Live Server › *Server Plugins*, built into the plugin, each can be switched off):
-
-- *Clean up dropped guns* (on by default): guns lying on the ground for 15 seconds disappear.
-- *No fall damage* and *Auto bunnyhop* (everyone hops by holding jump).
-- *Spawn protection:* 2.5 seconds without damage after spawning (you look see-through); shooting ends it.
-- *!guns:* `!guns ak47 deagle` gives you those weapons on every Deathmatch respawn. `!guns off` stops it.
-- *!ready:* the warmup waits until every player typed `!ready` (off by default). `!unready` takes it back.
-- *!rtv map vote:* when half the players type `!rtv`, everyone votes the next map from the mode's list
-  with `!vote 1`-`!vote 6` (20 seconds, or as soon as everyone voted).
-- *Round MVP and !stats:* the round's best player in chat after each round; `!stats` shows your kills,
-  deaths, headshot % and damage on this map, `!top` the best three.
-- *Welcome message:* new players get one line with the commands they can use.
-- *Bot Hider* ([XBribo/CS2-Bot-Hider](https://github.com/XBribo/CS2-Bot-Hider), AGPL-3.0): bots look like
-  real players (no BOT tag, names, avatars, ping). Downloaded from its GitHub release on the first Start,
-  and parked (not loaded) while switched off.
-- *Bot Improver* ([ed0ard/CS2-Bot-Improver](https://github.com/ed0ard/CS2-Bot-Improver), AGPL-3.0): more
-  human bots: aim, grenades, movement, strategy, buying, pro names. Only its plugins are installed (its
-  package's gameinfo.gi, mode configs and bot profiles are left out: the launcher manages gameinfo.gi and
-  restores it for online play). Includes BotAI, Bot Controller and Bot Hider. In Plugin retakes, Bot Hider
-  keeps Valve's bot flag (`identity_mode bot`) so the retakes plugin still sees the bots as bots.
-  Only the server loads these plugins: as soon as Metamod has loaded them, the launcher takes the Metamod line back out of
-  `gameinfo.gi` and starts CS2 while the server is still loading the map (every server start puts it back first), so your game never loads them. While it's on, Live Server
-  gets a *Bot Improver* section: bot aim (mixed / head / body), how many grenades bots throw, a weapon
-  every bot buys, *Bot Skins* (random skins, knives, gloves and agents on bots; off by default, so
-  bots look like normal CS2 bots), *Reroll Bot Skins* and Flying Scoutsman on/off. Changes reach a running server right away.
-- *BotAI* ([ed0ard/CS2-BotAI](https://github.com/ed0ard/CS2-BotAI), the maintained fork of
-  [Austinbots/CS2-BotAI](https://github.com/Austinbots/CS2-BotAI)): just the smarter bot decisions.
-- *Bot Controller* ([XBribo/CS2-Bot-Controller](https://github.com/XBribo/CS2-Bot-Controller), AGPL-3.0):
-  `!record` your movement, `!replay <bot slot>` to have a bot copy it.
-- *Deathmatch plugin* ([NockyCZ/CS2-Deathmatch](https://github.com/NockyCZ/CS2-Deathmatch), MIT, Deathmatch
-  mode only): `!gun` weapon menu, custom modes (only AWP, pistols, ...), kill sounds and a spawn editor. It
-  replaces the built-in spawn protection and `!guns`. Downloaded on first use like Bot Hider.
-
-**Hacker mode (fun)** has its own page in the sidebar and is always Off when the launcher starts. Changes there apply to the running server right away, no Apply needed.
-*Quick profiles* (Legit, Closet, Rage, Movement, All off) set every cheat in one click:
-
-- **Who hacks:** *Everyone* (great against expert bots) or *One random*. With *One random*, a new
-  random player gets the hacks each round and glows green for everyone else, so the rest hunt them.
-- **Powers** (each can be turned off):
-  - *Chams:* a solid colored copy of each player, visible through walls. Enemies and teammates use
-    different colors, and only hackers see them.
-  - *Box ESP:* a 3D wire box around every player, through walls. The same beams follow the player, so
-    turning the profile on does not spawn a new box every step.
-  - *Skeleton ESP:* a stick figure on the body (crouch and facing). The server has no client bone
-    overlay, so this is drawn in the world and only sent to hackers.
-  - *Name tags:* name, HP, armor, gun and grenades (including the bomb) floating above each player.
-  - *Aimbot style:* **Legit** pulls the crosshair smoothly after a short reaction. **Silent** never moves
-    your view: when a shot of yours would miss, the enemy nearest your crosshair (inside the aim area)
-    takes the hit. **Rage** snaps onto the target and shoots.
-    The triggerbot presses attack when an enemy is under the crosshair, after a short random delay.
-  - *Body:* head, neck or chest. Legit and silent still miss by a little at low aggression.
-  - *Aim at:* **closest enemy**, **nearest crosshair**, **lowest HP**, or **highest threat** (the enemy
-    whose aim is closest to you).
-  - *Aim key:* hold fire (default), always on, hold right click, hold Shift, hold E or hold F.
-    **Own aim key:** type any key (`mouse4`, `mouse5`, `x`, `alt`…) and the launcher binds it in CS2
-    on this PC (`bind mouse4 +lst_aim`, from `cfg/lanskintester_client.cfg`). The key's old binding
-    is replaced. In game: `!aimkey mouse2` picks your own, `!aimtoggle` (or `bind x css_aimtoggle`)
-    turns the aimbot always-on.
-  - *Aim through walls:* the aimbot and the triggerbot also lock through walls (off by default).
-    Otherwise a line-of-sight trace from your eyes to their head or chest has to be clear (walls,
-    floors, props and glass block it; smokes don't).
-  - *Triggerbot:* fires the moment an enemy model sits on your crosshair, after a small random delay
-    so it is less instant. Higher aggression shortens that delay. It really shoots: CS2 doesn't let a
-    server press fire for a player, so the plugin tells the launcher on your PC (localhost, port 27099)
-    and the launcher clicks your left mouse button, once per shot at the gun's fire rate. It only clicks
-    while the launcher's VAC-off session runs and the CS2 window is in front. Friends on their own PCs
-    don't have that, so for them the server can only hold fire (CS2 may ignore it).
-  - *Damage boost:* 2× damage (off by default).
-  - *Recoil control:* sprays stay on the crosshair. The plugin clears each hacker's recoil kick every
-    tick, and the server-wide recoil cvars are set too.
-  - *Zero spread:* every bullet goes exactly where you aim. CS2 only has this server-wide
-    (`weapon_accuracy_nospread`), so it applies to everyone, bots included.
-  - *Radar hack:* every enemy shows on your radar, even when they make no noise.
-  - *Bunnyhop:* hold jump to bhop perfectly.
-  - *No flash:* flashbangs don't blind you, and smoke entities are not sent to you.
-  - *Enemy info:* the three nearest enemies in the middle of the screen: name, HP, armor, gun,
-    grenades, distance, direction, and whether you can see them.
-  - *Infinite ammo.*
-  - *Speedhack:* 35% faster.
-- **In-game cheat menu:** type `!cheats` (or bind a key once in the CS2 console: `bind F3 css_cheats`).
-  It appears as a board of world text in front of you, only visible to you (it doesn't use the
-  flickery center-screen panel):
-  - **W / S** move, **D** or **E** switches / turns a slider up, **A** turns it down, **R** closes.
-    You stand still while it's open.
-  - Each player switches their own cheats: chams, box ESP, skeleton, name tags, aimbot, **style**
-    (legit / silent / rage), body part, **aggression** (a 1-10 slider), aim key, aim target, triggerbot,
-    recoil control, enemy info, radar, speedhack, bunnyhop, infinite ammo, no flash, damage boost,
-    third person, or everything off.
-- **Aim aggression** (1-10, the slider on the Hacker page is the default): 1 is gentle and loose
-  (small 9° lock-on area, slow pull, ~230 ms reaction, a little off the body part you picked, and the
-  trigger waits longer); 10 is a hard lock (36° area, fast pull, ~50 ms reaction, dead-centre on that
-  body part, trigger almost immediate). Rage style snaps instead of easing in.
-  - It only works in hacker mode. With **One random**, only that round's hacker gets it.
-- Hacker kills get silly chat lines ("{victim} has been diagnosed with a skill issue"). `!hacks` in
-  chat shows who is hacking.
-- It all runs on your server: glowing copies of the player models that only some players receive,
-  view angles set by the server, and extra damage. Nobody's game is modified, so it's as safe as the
-  rest of this tool.
-
-**SKINS page**
-
-- On the left, pick a category (Knives, Gloves, Pistols, Rifles, SMGs, Heavy) and a weapon. Your
-  equipped knife and gloves are marked **EQUIPPED**.
-- In the middle, skin cards with pictures and rarity colours. Search by name or rarity.
-- On the right, the preview and settings:
-  - **Wear:** a slider plus FN / MW / FT / WW / BS buttons. Only conditions the skin really exists in
-    can be picked; a Karambit Fade only goes up to 0.08.
-  - **Pattern seed:** with a *Random* button.
-  - **StatTrak™** with a kill count, and a **name tag**.
-  - **5 sticker slots and a charm:** click a slot to search 11,000+ stickers (filter Holo, Foil,
-    Gold…, with a scrape amount); right-click a slot to remove it.
-- **EQUIP** (or double-click a card) saves it, and your weapon changes in game about a second later.
-- **Copy !gen** / **Copy inspect link** copy your creation so you can share it.
-- **Import real item...** opens the import window (see [Importing real items](#importing-real-items)).
-- **Loadouts...**: save your whole loadout under a name and load it again later, **Randomize
-  everything** (a random skin on every weapon plus a random knife and gloves, with realistic floats),
-  or **Reset everything**.
-
-**WORKSHOP page**: every map Steam has downloaded for CS2 (title, picture, size), a search of the Steam
-Workshop (popular, new, top rated) and **Host**, which starts the server on that map (or switches the
-running one). *Subscribe* opens the map in Steam; it shows under Downloaded once Steam has it. Custom
-weapon and player models aren't supported: CS2 servers can't hand those to players without extra
-add-on plugins and every player installing the same files.
-
-**FRIENDS page**: play together
-
-*Friends List:* friends hosting on your Wi-Fi or Radmin network show up by themselves (the launcher
-announces your server on UDP port 27098 while you host). Add other friends with their invite code; the
-list checks every few seconds whether they're hosting and shows **Join**.
-
-*Host (you):*
-1. **How are you connected?**
-   - *Same Wi-Fi*: your friend is at your place.
-   - *Radmin / Hamachi*: over the internet with the free [Radmin VPN](https://www.radmin-vpn.com/).
-     You both join the same Radmin network first.
-   - *Internet (UPnP)*: over the internet with nothing else to install. The launcher asks your router
-     to open UDP port 27015 (UPnP) when you start hosting, and closes it again when you press Stop.
-     A password is always used in this mode (one is made for you if you leave it empty).
-2. **Your address** is found automatically: your `192.168.x.x` address, your Radmin `26.x.x.x`
-   address, or your internet address from the router. *Copy Code* copies just the **invite code**
-   (`LST-…`), which holds the address, port and password in one piece. The Play page's Server card has
-   the same **Copy IP** and **Copy Code** buttons.
-3. **Options:**
-   - **Skins:** *Everyone uses mine*, or *Each picks own*. With *Each picks own*, friends use `!skin`,
-     `!knife`, `!gloves` and `!gen` in chat, and you keep the launcher's loadout.
-   - **Password** is optional.
-   - **Windows Firewall:** press *Allow* once (it asks for admin).
-4. **Start Hosting** uses the mode, map and bots from the Play page. The list underneath shows who joined.
-
-*Friend:* download the launcher, open **Friends → Join a Friend**, paste the invite code (or the whole
-invite message, an address, `connect …` or a `steam://connect/…` link) and press **Join Game**.
-If CS2 is already open, it connects without restarting (through Steam); otherwise CS2 starts with VAC
-off for that game. The last servers you joined appear as **Recent** buttons for one-click rejoin.
-They don't need to install anything: the launcher only starts CS2 with `-insecure +connect <address>`.
-Next time they start CS2 from Steam it's completely normal.
-
-*Why this won't get you banned:*
-- `-insecure` is Valve's own switch: VAC simply doesn't run for that game. Nothing is hidden or bypassed.
-- Your Steam inventory is never touched. Skins only exist on this server.
-- Your friend's game files are not changed at all. Yours only change while test mode is on, and **Stop**
-  puts them back.
-- The server has no game server token and isn't listed in the server browser. Don't run this plugin on
-  a public server: that's against Valve's server rules.
-
-Radmin, Hamachi and internet players aren't "local" for CS2's `sv_lan 1`, so in those modes the server
-runs with `sv_lan 0` and the launcher tells the plugin it's a private server (`lst_private_server 1`).
-
-*If Internet (UPnP) doesn't work:*
-- "No UPnP router found": turn on UPnP in your router's settings (often under *Advanced* or *NAT*), then press *Retry*.
-- "Your provider shares one address (CGNAT)": your internet provider doesn't give you your own
-  address, so nobody can connect in. This is common on mobile internet and some fiber. Use Radmin instead.
-- "Port 27015 is already forwarded to another PC": remove that rule in your router, or host from that PC.
-- You can also forward UDP port 27015 to your PC in the router by hand and press *Start anyway*.
-
-**Handy extras**
-
-- **Restores CS2 by itself.** When CS2 and the server are closed (with the X, after a crash, or
-  even with the launcher closed in between), the launcher switches test mode off a few seconds
-  later. You don't have to remember Stop before playing online.
-- **Updates itself.** When GitHub has a newer build (checked at start and every few hours), a blue
-  *Update available* card appears in the sidebar. Click it: the launcher downloads the new version,
-  closes, swaps itself and starts again (not while test mode is on). If its folder isn't writable,
-  it opens the download page instead. The sidebar shows which build you have.
-- **Notifications.** Short pop-ups at the bottom confirm actions (equipped, copied, started, applied…).
-- **Remembers** the window size and position and the page you had open.
-- **Keyboard shortcuts:**
-
-  | Keys | Does |
-  | --- | --- |
-  | `Ctrl+1` … `Ctrl+5` | Play, Skins, Hacker Mode, Friends, Setup |
-  | `Ctrl+F` | Search skins |
-  | `F5` | Start, or apply changes to the running server |
-  | `Shift+F5` | Stop |
-
-**The plugin updates itself:** every launcher build carries the matching plugin. When you press
-Start, the launcher compares the installed plugin with its own and replaces it if they differ, so
-new features and fixes work without pressing Update on the Setup page.
-
-While test mode is on, start CS2 **only from the launcher**. Starting it from Steam in that state
-(without `-insecure`) could get you VAC-kicked. The launcher shows an orange warning when test mode is on.
-
-The rest of this README is for doing everything by hand.
+The rest of this README is for doing everything by hand, without the launcher.
 
 ---
 
@@ -611,14 +367,12 @@ The launcher's quick actions use these. You can also type them in the server win
 ## Importing real items
 
 You can copy a real item exactly: the same skin, float, pattern, StatTrak, name tag, stickers and charm.
-Use the launcher's **Import real item...** button or the chat commands `!gen` / `!inspect`. These
-formats work:
+Use the chat commands `!gen` / `!inspect`. These formats work:
 
 | Paste this | Exact float + pattern + stickers? |
 | --- | --- |
 | **Inspect link with item data**: `steam://run/730//+csgo_econ_action_preview%2000180720...` (made by the game for previews, and by CSFloat and similar sites) | Yes |
 | **!gen code**: `!gen 7 282 661 0.15 4787 0 0 0 ...` (CSFloat: open a listing → *Copy !gen*) | Yes |
-| **Steam Market listing name or link**: `StatTrak™ AK-47 \| Redline (Field-Tested)` (launcher only) | No: picks a typical float for the condition |
 | **Old Steam Market "Inspect in Game" link** (`...M625254122282020305A6760596155D7629834065155301373`) | Not possible: see below |
 
 Old market inspect links only point to the item on Valve's servers; the skin data isn't in the link.
@@ -674,27 +428,30 @@ Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 
 ## Building from source
 
-GitHub Actions builds everything on every push and puts the files on the **Latest build** release.
-Builds of other branches are under *Actions → Build → Artifacts*. To build yourself:
+GitHub Actions builds and tests everything on every push (on Windows) and publishes `main` as the **Latest
+build** release. Other branches' builds are under *Actions → Build → Artifacts* (they don't update
+themselves).
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) for the plugin and [Rust](https://rustup.rs)
+for the launcher, a [Tauri](https://tauri.app) app.
 
 ```
 ./build.sh
 ```
 
-This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
-`build/LanSkinTesterLauncher.exe` and `build/LanSkinTesterLauncher-small.zip` (the launcher, with the plugin built in).
-On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
-`LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
+This makes `build/LanSkinTester.zip` (extract into `game/csgo/`), `build/LanSkinTesterLauncher.exe` (plugin
+built in) and, with NSIS installed, `build/LanSkinTesterSetup.exe`. The launcher builds on Windows (Git Bash),
+or on Linux with [cargo-xwin](https://github.com/rust-cross/cargo-xwin). Plugin only, without bash:
+`dotnet publish src/LanSkinTester -c Release -o out`, then copy `LanSkinTester.dll` and `gamedata` to
+`plugins/LanSkinTester/`.
 
-The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/DESIGN.md`). Run
-`LanSkinTesterLauncher.exe --serve 5099 --token dev --web-dir src\Launcher\web` to open it in a normal
-browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
+Tests: `dotnet test tests/LanSkinTester.Tests` (plugin) and `cargo test` in `src/Launcher` (launcher).
+The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` and its logic is Rust in `src/Launcher/src/`; see
+`src/Launcher/DESIGN.md`.
 
 ## Credits
 
-- Launcher UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
+- Launcher: [Tauri](https://tauri.app) (MIT / Apache-2.0); UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
 - Skin, sticker, charm, agent and pin data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
 - The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms, agents, pins)
