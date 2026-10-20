@@ -47,7 +47,7 @@ the map; a few settings restart the server and ask first):
   Retakes, and Rush when your CS2 has it), map, a **Workshop map** (ID or link), team sizes
   (*Save for this map*).
 - **Bots:** 0–20, skill, team, weapons (**Rifles** by default: no AWPs, shotguns, SMGs or machine guns, and
-  any sniper a bot gets is swapped for an AK-47 / M4A4), *Calm Bots* (no bunny-hopping).
+  bots only use AK-47s and M4s: any other rifle is swapped), *Calm Bots* (no bunny-hopping).
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
   low gravity.
@@ -359,7 +359,7 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_aim_bone head\|neck\|chest` | Body part for the aimbot and the triggerbot |
 | `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
 | `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
-| `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
+| `lst_bot_no_snipers 1` / `0` | Bots only keep AK-47s and M4s (snipers, FAMAS, Galil, AUG, SG 553 are swapped) |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |
 | `lst_host_account <id>` | The host's Steam account id: the host always gets the launcher's loadout |

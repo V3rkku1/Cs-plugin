@@ -1109,7 +1109,7 @@ impl ServerSettings {
         }
         o.push("bot_allow_rifles 1".into());
         o.push("bot_allow_pistols 1".into());
-        o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps snipers for AK/M4
+        o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps other rifles for AK/M4
                                                              // Bot Hider's identity gives the scoreboard name too, so it matches the profile (new bots only).
         if self.bot_hider || self.bot_improver {
             o.push("bh_namesource 1".into());

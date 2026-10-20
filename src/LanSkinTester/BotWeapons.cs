@@ -8,15 +8,15 @@ namespace LanSkinTester;
 
 /// <summary>
 /// "Rifles" bots: with max money, bots buy the AWP every round. The launcher turns off bot sniping with
-/// the bot_allow_* cvars, and as a safety net the plugin swaps any sniper rifle a bot still gets for an
-/// AK-47 (T) or M4A4 (CT).  lst_bot_no_snipers 1|0
+/// the bot_allow_* cvars, and the plugin swaps any other rifle a bot still gets (snipers, FAMAS, Galil,
+/// AUG, SG 553) for an AK-47 (T) or M4A4 / M4A1-S (CT).  lst_bot_no_snipers 1|0
 /// </summary>
 public partial class LanSkinTester
 {
-    private static readonly HashSet<string> SniperRifles = ["awp", "ssg08", "scar20", "g3sg1"];
+    private static readonly HashSet<string> SwappedRifles = ["awp", "ssg08", "scar20", "g3sg1", "famas", "galilar", "aug", "sg556"];
     private bool _botNoSnipers;
 
-    [ConsoleCommand("lst_bot_no_snipers", "1 = bots never keep a sniper rifle (it's swapped for an AK-47 / M4A4)")]
+    [ConsoleCommand("lst_bot_no_snipers", "1 = bots only keep AK-47s and M4s (other rifles are swapped)")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnBotNoSnipersCommand(CCSPlayerController? caller, CommandInfo cmd) => _botNoSnipers = cmd.GetArg(1) == "1";
 
@@ -25,13 +25,13 @@ public partial class LanSkinTester
     {
         var bot = @event.Userid;
         var item = (@event.Item ?? "").Replace("weapon_", "");
-        if (!_botNoSnipers || bot == null || !bot.IsValid || !SniperRifles.Contains(item) || !IsBotPlayer(bot)) return HookResult.Continue;
+        if (!_botNoSnipers || bot == null || !bot.IsValid || !SwappedRifles.Contains(item) || !IsBotPlayer(bot)) return HookResult.Continue;
 
         Server.NextFrame(() =>
         {
             if (!bot.IsValid || !bot.PawnIsAlive) return;
             Utilities.RemoveItemByDesignerName(bot, "weapon_" + item);
-            var rifle = bot.Team == CsTeam.Terrorist ? "weapon_ak47" : "weapon_m4a1";
+            var rifle = bot.Team == CsTeam.Terrorist ? "weapon_ak47" : Random.Shared.Next(2) == 0 ? "weapon_m4a1" : "weapon_m4a1_silencer";
             // Don't hand out a second rifle if it already carries one.
             if (FindPlayerWeapon(bot, w => w.DesignerName is "weapon_ak47" or "weapon_m4a1" or "weapon_m4a1_silencer") == null)
                 bot.GiveNamedItem(rifle);
