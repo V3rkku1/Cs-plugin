@@ -46,8 +46,15 @@ struct ShellView {
 }
 
 const PAGE_TITLES: [(&str, &str); 9] = [
-    ("play", "Play"), ("live", "Live Server"), ("skins", "All Skins"), ("inventory", "Inventory"), ("cases", "Cases"),
-    ("hacker", "Hacker Mode"), ("workshop", "Workshop"), ("friends", "Friends"), ("setup", "Setup"),
+    ("play", "Play"),
+    ("live", "Live Server"),
+    ("skins", "All Skins"),
+    ("inventory", "Inventory"),
+    ("cases", "Cases"),
+    ("hacker", "Hacker Mode"),
+    ("workshop", "Workshop"),
+    ("friends", "Friends"),
+    ("setup", "Setup"),
 ];
 
 pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
@@ -63,7 +70,12 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         "app.page" => {
             let page: String = arg(a)?;
             if let Some(w) = app.window() {
-                let title = PAGE_TITLES.iter().find(|t| t.0 == page).map_or("LAN Skin Tester".into(), |t| format!("{} · LAN Skin Tester", t.1));
+                let title = PAGE_TITLES
+                    .iter()
+                    .find(|t| t.0 == page)
+                    .map_or("LAN Skin Tester".into(), |t| {
+                        format!("{} · LAN Skin Tester", t.1)
+                    });
                 let _ = w.set_title(&title);
             }
             let mut st = app.state();
@@ -125,7 +137,14 @@ fn state(app: &App) -> ShellView {
     };
     // First run (or something missing): start on Setup; otherwise where you left off.
     let page = app.start_page.clone().unwrap_or_else(|| {
-        if !ready || st.db.is_empty() { "setup".into() } else { st.settings.last_page.clone().unwrap_or_else(|| "play".into()) }
+        if !ready || st.db.is_empty() {
+            "setup".into()
+        } else {
+            st.settings
+                .last_page
+                .clone()
+                .unwrap_or_else(|| "play".into())
+        }
     });
     ShellView {
         version: update::short_version(),
@@ -137,8 +156,17 @@ fn state(app: &App) -> ShellView {
         status_detail,
         update_available: st.shell.update.is_some(),
         update_progress: st.shell.update_progress.clone(),
-        update_commit: st.shell.update.as_ref().map(|u| u.commit[..7.min(u.commit.len())].to_string()),
-        update_notes: st.shell.update.as_ref().map(|u| u.notes.clone()).unwrap_or_default(),
+        update_commit: st
+            .shell
+            .update
+            .as_ref()
+            .map(|u| u.commit[..7.min(u.commit.len())].to_string()),
+        update_notes: st
+            .shell
+            .update
+            .as_ref()
+            .map(|u| u.notes.clone())
+            .unwrap_or_default(),
         auto_update: st.settings.auto_update,
         checking_update: st.shell.checking_update,
         last_update_check: st.shell.last_update_check.clone(),
@@ -149,7 +177,12 @@ fn state(app: &App) -> ShellView {
 pub fn started(app: &Arc<App>) {
     {
         let mut st = app.state();
-        let path = st.settings.game_path.clone().filter(|p| GameFolder::is_valid(Some(p))).or_else(|| GameFolder::find(game::steam_path()));
+        let path = st
+            .settings
+            .game_path
+            .clone()
+            .filter(|p| GameFolder::is_valid(Some(p)))
+            .or_else(|| GameFolder::find(game::steam_path()));
         app.set_game(&mut st, path);
         if st.game.is_none() {
             app.log("CS2 not found automatically - press Browse on the Setup page.");
@@ -202,14 +235,26 @@ fn check_for_update(app: &Arc<App>, startup: bool) -> Option<String> {
     let is_new = st.shell.update.as_ref().map(|u| &u.commit) != Some(&found.commit);
     let short = found.commit[..7.min(found.commit.len())].to_string();
     st.shell.update = Some(found);
-    let recently = st.settings.last_auto_update.as_deref()
+    let recently = st
+        .settings
+        .last_auto_update
+        .as_deref()
         .and_then(|t| chrono::DateTime::parse_from_rfc3339(t).ok())
-        .is_some_and(|t| chrono::Utc::now().signed_duration_since(t) < chrono::Duration::minutes(30));
-    if startup && st.settings.auto_update && !recently && !st.test_mode_on() && update::can_self_update() {
+        .is_some_and(|t| {
+            chrono::Utc::now().signed_duration_since(t) < chrono::Duration::minutes(30)
+        });
+    if startup
+        && st.settings.auto_update
+        && !recently
+        && !st.test_mode_on()
+        && update::can_self_update()
+    {
         st.settings.last_auto_update = Some(chrono::Utc::now().to_rfc3339());
         app.save(&st);
         drop(st);
-        app.log(format!("Newer launcher build {short} on GitHub - updating automatically."));
+        app.log(format!(
+            "Newer launcher build {short} on GitHub - updating automatically."
+        ));
         app.changed();
         install_update(app, true);
         return None;
@@ -232,7 +277,10 @@ fn report_last_update(app: &App) {
             app.toast(format!("Updated to {}.", update::short_version()), "good");
         }
         Some(result) => {
-            app.log(format!("The update could not replace the launcher file ({result}). Download it from {}", update::RELEASE_URL));
+            app.log(format!(
+                "The update could not replace the launcher file ({result}). Download it from {}",
+                update::RELEASE_URL
+            ));
             app.toast("Update failed - see the log on the Setup page.", "bad");
         }
     }
@@ -247,10 +295,21 @@ fn check_update_now(app: &Arc<App>) -> R<bool> {
         app.log(format!("Could not check for a launcher update: {error}."));
         return Err(bad(format!("Couldn't check for updates: {error}.")));
     }
-    let commit = app.state().shell.update.as_ref().map(|u| u.commit[..7.min(u.commit.len())].to_string());
+    let commit = app
+        .state()
+        .shell
+        .update
+        .as_ref()
+        .map(|u| u.commit[..7.min(u.commit.len())].to_string());
     match &commit {
         Some(c) => app.toast(format!("Build {c} is out - click Update."), "info"),
-        None => app.toast(format!("You have the newest launcher ({}).", update::short_version()), "good"),
+        None => app.toast(
+            format!(
+                "You have the newest launcher ({}).",
+                update::short_version()
+            ),
+            "good",
+        ),
     }
     Ok(commit.is_some())
 }
@@ -290,7 +349,10 @@ fn install_update_core(app: &Arc<App>, automatic: bool) {
             update::current_exe().parent().map(|p| p.display().to_string()).unwrap_or_default()
         ));
         if !automatic {
-            app.toast("Can't update: the launcher's folder isn't writable - see the log on Setup.", "bad");
+            app.toast(
+                "Can't update: the launcher's folder isn't writable - see the log on Setup.",
+                "bad",
+            );
         }
         return;
     }
@@ -306,7 +368,9 @@ fn install_update_core(app: &Arc<App>, automatic: bool) {
             }
         },
         &|why| {
-            app.log(format!("Update download failed ({why}) - trying again shortly."));
+            app.log(format!(
+                "Update download failed ({why}) - trying again shortly."
+            ));
             set_progress(app, Some("Waiting for the download…".into()));
         },
     );
@@ -321,7 +385,9 @@ fn install_update_core(app: &Arc<App>, automatic: bool) {
         Err(e) => {
             set_progress(app, None);
             // No browser: the sidebar card stays, so trying again is one click.
-            app.log(format!("Update failed: {e} - click \"Update available\" to try again."));
+            app.log(format!(
+                "Update failed: {e} - click \"Update available\" to try again."
+            ));
             app.toast("Update failed - click the card in the sidebar to try again (details in Setup › Log).", "bad");
         }
     }
@@ -362,7 +428,10 @@ pub fn watch_game(app: &Arc<App>) {
     let mut st = app.state();
     // No server for 10 seconds but the Metamod line is still in gameinfo.gi: take it out, so CS2 started from
     // Steam doesn't try to load Metamod.
-    let stale_line = st.game.as_ref().is_some_and(|g| session::find_server().is_none() && game::metamod_enabled(&g.game_info()));
+    let stale_line = st
+        .game
+        .as_ref()
+        .is_some_and(|g| session::find_server().is_none() && game::metamod_enabled(&g.game_info()));
     if stale_line {
         st.shell.line_no_server_ticks += 1;
         if st.shell.line_no_server_ticks >= 2 {
@@ -386,7 +455,10 @@ pub fn watch_game(app: &Arc<App>) {
     st.shell.cs2_gone_ticks = 0;
     drop(st);
     match super::play::auto_restore(app) {
-        Ok(()) => app.toast("CS2 closed - restored to normal. You can play online again.", "info"),
+        Ok(()) => app.toast(
+            "CS2 closed - restored to normal. You can play online again.",
+            "info",
+        ),
         Err(e) => app.log(format!("Could not restore gameinfo.gi automatically: {e}")),
     }
 }
@@ -408,7 +480,9 @@ pub fn confirm_close(app: &Arc<App>) -> bool {
     match dialog.show() {
         rfd::MessageDialogResult::Yes => {
             if let Err(e) = super::play::stop_from_close(app) {
-                rfd::MessageDialog::new().set_description(format!("Could not restore gameinfo.gi: {e}")).show();
+                rfd::MessageDialog::new()
+                    .set_description(format!("Could not restore gameinfo.gi: {e}"))
+                    .show();
             }
             true
         }
@@ -435,7 +509,10 @@ fn reset_launcher(app: &Arc<App>) -> R<()> {
         let _ = fs::remove_file(g.loadout_file());
     }
     drop(st);
-    for dir in [util::settings_file().parent().unwrap().to_path_buf(), util::data_dir().to_path_buf()] {
+    for dir in [
+        util::settings_file().parent().unwrap().to_path_buf(),
+        util::data_dir().to_path_buf(),
+    ] {
         delete_quietly(&dir); // files in use (the window's browser cache) stay
     }
     inv.forget();
@@ -463,10 +540,18 @@ fn backup_user_data(app: &App) {
     let loadout = app.state().game.as_ref().map(|g| g.loadout_file());
     let result = (|| -> std::io::Result<()> {
         fs::create_dir_all(&dir)?;
-        for file in [Some(super::cases::inventory_file()), loadout].into_iter().flatten().filter(|f| f.exists()) {
+        for file in [Some(super::cases::inventory_file()), loadout]
+            .into_iter()
+            .flatten()
+            .filter(|f| f.exists())
+        {
             fs::copy(&file, dir.join(file.file_name().unwrap()))?;
         }
-        let mut old: Vec<_> = fs::read_dir(&root)?.flatten().map(|e| e.path()).filter(|p| p.is_dir()).collect();
+        let mut old: Vec<_> = fs::read_dir(&root)?
+            .flatten()
+            .map(|e| e.path())
+            .filter(|p| p.is_dir())
+            .collect();
         old.sort();
         old.reverse();
         for d in old.into_iter().skip(5) {

@@ -46,16 +46,33 @@ pub struct LauncherSettings {
 impl Default for LauncherSettings {
     fn default() -> Self {
         Self {
-            game_path: None, server: ServerSettings::default(), window: None, maximized: false, last_page: None,
-            text_size: "normal".into(), reduce_glass: false, reduce_motion: false, auto_update: true, last_auto_update: None,
-            theme: BTreeMap::new(), saved_setups: vec![], recent_servers: vec![], friends_list: vec![],
-            host_name: user_name(), admin_unlocked: false, cases_opened: 0, case_opens: BTreeMap::new(), currency: "USD".into(),
+            game_path: None,
+            server: ServerSettings::default(),
+            window: None,
+            maximized: false,
+            last_page: None,
+            text_size: "normal".into(),
+            reduce_glass: false,
+            reduce_motion: false,
+            auto_update: true,
+            last_auto_update: None,
+            theme: BTreeMap::new(),
+            saved_setups: vec![],
+            recent_servers: vec![],
+            friends_list: vec![],
+            host_name: user_name(),
+            admin_unlocked: false,
+            cases_opened: 0,
+            case_opens: BTreeMap::new(),
+            currency: "USD".into(),
         }
     }
 }
 
 pub fn user_name() -> String {
-    std::env::var("USERNAME").or_else(|_| std::env::var("USER")).unwrap_or_else(|_| "Player".into())
+    std::env::var("USERNAME")
+        .or_else(|_| std::env::var("USER"))
+        .unwrap_or_else(|_| "Player".into())
 }
 
 /// A named snapshot of the Play page, shown as an extra quick start.
@@ -96,7 +113,10 @@ impl LauncherSettings {
             },
             Err(_) => Self::default(),
         };
-        crate::server::SKIN_COMMANDS.store(settings.admin_unlocked, std::sync::atomic::Ordering::Relaxed);
+        crate::server::SKIN_COMMANDS.store(
+            settings.admin_unlocked,
+            std::sync::atomic::Ordering::Relaxed,
+        );
         settings
     }
 

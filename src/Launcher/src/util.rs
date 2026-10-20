@@ -12,13 +12,18 @@ static DATA_DIR: OnceLock<PathBuf> = OnceLock::new();
 pub fn data_dir() -> &'static Path {
     DATA_DIR.get_or_init(|| match cfg!(test) {
         true => std::env::temp_dir().join(format!("lst-tests-{}", std::process::id())),
-        false => dirs::data_local_dir().unwrap_or_else(std::env::temp_dir).join("LanSkinTester"),
+        false => dirs::data_local_dir()
+            .unwrap_or_else(std::env::temp_dir)
+            .join("LanSkinTester"),
     })
 }
 
 /// %AppData%\LanSkinTester\launcher.json.
 pub fn settings_file() -> PathBuf {
-    dirs::data_dir().unwrap_or_else(std::env::temp_dir).join("LanSkinTester").join("launcher.json")
+    dirs::data_dir()
+        .unwrap_or_else(std::env::temp_dir)
+        .join("LanSkinTester")
+        .join("launcher.json")
 }
 
 /// Writes a temp file and swaps it in, so a crash or power cut mid-write leaves the old file whole.
@@ -32,8 +37,14 @@ pub fn safe_write(path: &Path, text: &str) -> std::io::Result<()> {
 /// overwrite what may still be rescued by hand. Returns the new name, or None when it couldn't be moved.
 pub fn set_aside(path: &Path) -> Option<PathBuf> {
     let stem = path.file_stem()?.to_string_lossy();
-    let ext = path.extension().map(|e| format!(".{}", e.to_string_lossy())).unwrap_or_default();
-    let aside = path.with_file_name(format!("{stem}.broken-{}{ext}", chrono::Local::now().format("%Y%m%d-%H%M%S")));
+    let ext = path
+        .extension()
+        .map(|e| format!(".{}", e.to_string_lossy()))
+        .unwrap_or_default();
+    let aside = path.with_file_name(format!(
+        "{stem}.broken-{}{ext}",
+        chrono::Local::now().format("%Y%m%d-%H%M%S")
+    ));
     fs::rename(path, &aside).ok().map(|_| aside)
 }
 
@@ -58,7 +69,11 @@ pub fn camel_name(name: &str) -> String {
 /// A file-format value (PascalCase, like the plugin and older launchers wrote it) as the page sees it.
 pub fn camel(v: Value) -> Value {
     match v {
-        Value::Object(map) => Value::Object(map.into_iter().map(|(k, v)| (camel_name(&k), camel(v))).collect()),
+        Value::Object(map) => Value::Object(
+            map.into_iter()
+                .map(|(k, v)| (camel_name(&k), camel(v)))
+                .collect(),
+        ),
         Value::Array(a) => Value::Array(a.into_iter().map(camel).collect()),
         v => v,
     }
@@ -123,7 +138,11 @@ pub fn get_text(http: &ureq::Agent, url: &str) -> HttpResult<String> {
     if !r.status().is_success() {
         return Err(format!("HTTP {}", r.status()));
     }
-    r.body_mut().with_config().limit(256 * 1024 * 1024).read_to_string().map_err(|e| e.to_string())
+    r.body_mut()
+        .with_config()
+        .limit(256 * 1024 * 1024)
+        .read_to_string()
+        .map_err(|e| e.to_string())
 }
 
 pub fn get_bytes(http: &ureq::Agent, url: &str) -> HttpResult<Vec<u8>> {
@@ -131,11 +150,20 @@ pub fn get_bytes(http: &ureq::Agent, url: &str) -> HttpResult<Vec<u8>> {
     if !r.status().is_success() {
         return Err(format!("HTTP {}", r.status()));
     }
-    r.body_mut().with_config().limit(256 * 1024 * 1024).read_to_vec().map_err(|e| e.to_string())
+    r.body_mut()
+        .with_config()
+        .limit(256 * 1024 * 1024)
+        .read_to_vec()
+        .map_err(|e| e.to_string())
 }
 
 /// Streams a download to a file, reporting 0..1 (or -1 when the size is unknown).
-pub fn download_to_file(http: &ureq::Agent, url: &str, path: &Path, progress: &dyn Fn(f64)) -> HttpResult<()> {
+pub fn download_to_file(
+    http: &ureq::Agent,
+    url: &str,
+    path: &Path,
+    progress: &dyn Fn(f64),
+) -> HttpResult<()> {
     use std::io::{Read, Write};
     let mut r = http.get(url).call().map_err(|e| e.to_string())?;
     if !r.status().is_success() {
@@ -161,7 +189,9 @@ pub fn download_to_file(http: &ureq::Agent, url: &str, path: &Path, progress: &d
 pub fn escape(text: &str) -> String {
     text.bytes()
         .map(|b| match b {
-            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => (b as char).to_string(),
+            b'A'..=b'Z' | b'a'..=b'z' | b'0'..=b'9' | b'-' | b'_' | b'.' | b'~' => {
+                (b as char).to_string()
+            }
             _ => format!("%{b:02X}"),
         })
         .collect()
@@ -174,7 +204,10 @@ pub fn unescape(text: &str) -> String {
     let mut i = 0;
     while i < bytes.len() {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
-            if let Some(b) = text.get(i + 1..i + 3).and_then(|h| u8::from_str_radix(h, 16).ok()) {
+            if let Some(b) = text
+                .get(i + 1..i + 3)
+                .and_then(|h| u8::from_str_radix(h, 16).ok())
+            {
                 out.push(b);
                 i += 3;
                 continue;
@@ -189,7 +222,9 @@ pub fn unescape(text: &str) -> String {
 /// The last lines of a file another process may still be writing.
 pub fn tail(path: &Path, lines: usize, max_bytes: u64) -> Vec<String> {
     use std::io::{Read, Seek, SeekFrom};
-    let Ok(mut f) = fs::File::open(path) else { return vec![] };
+    let Ok(mut f) = fs::File::open(path) else {
+        return vec![];
+    };
     let len = f.metadata().map(|m| m.len()).unwrap_or(0);
     if len > max_bytes {
         let _ = f.seek(SeekFrom::End(-(max_bytes as i64)));
@@ -239,7 +274,11 @@ mod tests {
         let aside = set_aside(&file).unwrap();
         assert!(!file.exists());
         assert_eq!(fs::read_to_string(&aside).unwrap(), "{broken");
-        assert!(aside.file_name().unwrap().to_string_lossy().starts_with("inventory.broken-"));
+        assert!(aside
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .starts_with("inventory.broken-"));
         fs::remove_dir_all(dir).unwrap();
     }
 

@@ -169,9 +169,15 @@ impl ItemDatabase {
                 ..Default::default()
             })
         })();
-        let Ok(mut db) = loaded else { return ItemDatabase::default() };
+        let Ok(mut db) = loaded else {
+            return ItemDatabase::default();
+        };
         // An older launcher saved cases without their type and pictures: download again to get them.
-        if db.cases.iter().any(|c| c.kind.is_empty() || c.items.iter().any(|i| i.id.is_empty())) {
+        if db
+            .cases
+            .iter()
+            .any(|c| c.kind.is_empty() || c.items.iter().any(|i| i.id.is_empty()))
+        {
             db.cases.clear();
         }
         for (i, s) in db.skins.iter().enumerate() {
@@ -192,7 +198,10 @@ impl ItemDatabase {
             }
             m
         });
-        let name = item_name.replace('★', "").replace("StatTrak™", "").replace("Souvenir", "");
+        let name = item_name
+            .replace('★', "")
+            .replace("StatTrak™", "")
+            .replace("Souvenir", "");
         let name = name.trim();
         let base = name.split('|').next().unwrap_or(name).trim().to_lowercase();
         map.get(&base).copied()
@@ -208,7 +217,10 @@ impl ItemDatabase {
         let list: Vec<Value> = self.skins.iter()
             .map(|s| serde_json::json!({ "weapon_defindex": s.def_index, "paint": s.paint, "paint_name": s.full_name(), "legacy_model": s.legacy }))
             .collect();
-        fs::write(dir.join("skins.json"), serde_json::to_string(&list).unwrap())
+        fs::write(
+            dir.join("skins.json"),
+            serde_json::to_string(&list).unwrap(),
+        )
     }
 
     /// Downloads the full lists and rewrites the cache (~25 MB).
@@ -218,7 +230,9 @@ impl ItemDatabase {
             if let Some(m) = message {
                 log(m.into());
             }
-            match serde_json::from_str(&util::get_text(http, &format!("{API}{file}"))?).map_err(|e| e.to_string())? {
+            match serde_json::from_str(&util::get_text(http, &format!("{API}{file}"))?)
+                .map_err(|e| e.to_string())?
+            {
                 Value::Array(a) => Ok(a),
                 _ => Err(format!("{file} is not a list")),
             }
@@ -226,14 +240,38 @@ impl ItemDatabase {
         fn parse<T>(list: Vec<Value>, f: fn(&Value) -> Option<T>) -> Vec<T> {
             list.iter().filter_map(f).collect()
         }
-        let weapons = parse(get("base_weapons.json", Some("Downloading weapon list..."))?, parse_weapon);
-        let skins = parse(get("skins.json", Some("Downloading skin list..."))?, parse_skin);
-        let stickers = parse(get("stickers.json", Some("Downloading sticker list (big, ~20 MB)..."))?, parse_sticker);
-        let charms = parse(get("keychains.json", Some("Downloading charm list..."))?, parse_sticker);
-        let agents = parse(get("agents.json", Some("Downloading agents and pins..."))?, parse_agent);
+        let weapons = parse(
+            get("base_weapons.json", Some("Downloading weapon list..."))?,
+            parse_weapon,
+        );
+        let skins = parse(
+            get("skins.json", Some("Downloading skin list..."))?,
+            parse_skin,
+        );
+        let stickers = parse(
+            get(
+                "stickers.json",
+                Some("Downloading sticker list (big, ~20 MB)..."),
+            )?,
+            parse_sticker,
+        );
+        let charms = parse(
+            get("keychains.json", Some("Downloading charm list..."))?,
+            parse_sticker,
+        );
+        let agents = parse(
+            get("agents.json", Some("Downloading agents and pins..."))?,
+            parse_agent,
+        );
         let pins = parse(get("collectibles.json", None)?, parse_pin);
-        let music = parse(get("music_kits.json", Some("Downloading music kits..."))?, parse_music_kit);
-        let cases = parse(get("crates.json", Some("Downloading weapon cases..."))?, parse_case);
+        let music = parse(
+            get("music_kits.json", Some("Downloading music kits..."))?,
+            parse_music_kit,
+        );
+        let cases = parse(
+            get("crates.json", Some("Downloading weapon cases..."))?,
+            parse_case,
+        );
         fn write<T: Serialize>(dir: &Path, file: &str, v: &T) -> Result<(), String> {
             fs::write(dir.join(file), serde_json::to_string(v).unwrap()).map_err(|e| e.to_string())
         }
@@ -247,7 +285,12 @@ impl ItemDatabase {
         write(dir, "cases.json", &cases)?;
         log(format!(
             "Item data ready: {} skins, {} stickers, {} charms, {} agents, {} pins, {} music kits.",
-            skins.len(), stickers.len(), charms.len(), agents.len(), pins.len(), music.len()
+            skins.len(),
+            stickers.len(),
+            charms.len(),
+            agents.len(),
+            pins.len(),
+            music.len()
         ));
         Ok(())
     }
@@ -282,13 +325,29 @@ fn rarity(n: &Value) -> (String, String) {
 fn parse_weapon(n: &Value) -> Option<WeaponInfo> {
     let def = int(&n["def_index"]);
     let category = s(&n["category"]["name"]);
-    if def == 0 || !["Pistols", "Rifles", "SMGs", "Heavy", "Knives", "Gloves", "Equipment"].contains(&category.as_str()) {
+    if def == 0
+        || ![
+            "Pistols",
+            "Rifles",
+            "SMGs",
+            "Heavy",
+            "Knives",
+            "Gloves",
+            "Equipment",
+        ]
+        .contains(&category.as_str())
+    {
         return None;
     }
     if [42, 59, 5028, 5029].contains(&def) {
         return None; // default team knives/gloves
     }
-    Some(WeaponInfo { def_index: def as u16, name: s(&n["name"]), category, image: s(&n["image"]) })
+    Some(WeaponInfo {
+        def_index: def as u16,
+        name: s(&n["name"]),
+        category,
+        image: s(&n["image"]),
+    })
 }
 
 fn parse_agent(n: &Value) -> Option<AgentInfo> {
@@ -302,7 +361,14 @@ fn parse_agent(n: &Value) -> Option<AgentInfo> {
         return None;
     }
     let (rarity, rarity_color) = rarity(n);
-    Some(AgentInfo { name: s(&n["name"]), team: team.into(), model, rarity, rarity_color, image: s(&n["image"]) })
+    Some(AgentInfo {
+        name: s(&n["name"]),
+        team: team.into(),
+        model,
+        rarity,
+        rarity_color,
+        image: s(&n["image"]),
+    })
 }
 
 fn parse_pin(n: &Value) -> Option<CollectibleInfo> {
@@ -311,7 +377,13 @@ fn parse_pin(n: &Value) -> Option<CollectibleInfo> {
         return None;
     }
     let (rarity, rarity_color) = rarity(n);
-    Some(CollectibleInfo { id: id as i32, name: s(&n["name"]), rarity, rarity_color, image: s(&n["image"]) })
+    Some(CollectibleInfo {
+        id: id as i32,
+        name: s(&n["name"]),
+        rarity,
+        rarity_color,
+        image: s(&n["image"]),
+    })
 }
 
 /// Each kit is listed twice, plain and StatTrak ("music_kit-3_st"); the plain one is enough.
@@ -321,8 +393,16 @@ fn parse_music_kit(n: &Value) -> Option<CollectibleInfo> {
         return None;
     }
     let (rarity, rarity_color) = rarity(n);
-    let name = s(&n["name"]).replace("StatTrak™ ", "").replace("Music Kit | ", "");
-    Some(CollectibleInfo { id: id as i32, name, rarity, rarity_color, image: s(&n["image"]) })
+    let name = s(&n["name"])
+        .replace("StatTrak™ ", "")
+        .replace("Music Kit | ", "");
+    Some(CollectibleInfo {
+        id: id as i32,
+        name,
+        rarity,
+        rarity_color,
+        image: s(&n["image"]),
+    })
 }
 
 fn parse_case(n: &Value) -> Option<CaseInfo> {
@@ -336,7 +416,15 @@ fn parse_case(n: &Value) -> Option<CaseInfo> {
             a.iter()
                 .map(|x| {
                     let (rarity, color) = rarity(x);
-                    CaseItem { id: s(&x["id"]), name: s(&x["name"]), paint: int(&x["paint_index"]) as i32, rarity, color, image: s(&x["image"]), phase: x["phase"].as_str().map(String::from) }
+                    CaseItem {
+                        id: s(&x["id"]),
+                        name: s(&x["name"]),
+                        paint: int(&x["paint_index"]) as i32,
+                        rarity,
+                        color,
+                        image: s(&x["image"]),
+                        phase: x["phase"].as_str().map(String::from),
+                    }
                 })
                 .filter(|i| !i.name.is_empty())
                 .collect()
@@ -346,7 +434,12 @@ fn parse_case(n: &Value) -> Option<CaseInfo> {
     // The case's own "Rare Special Item" picture (the gold card the game shows in the reel).
     let rare_image = s(&n["loot_list"]["image"]);
     Some(CaseInfo {
-        id: s(&n["id"]), name: s(&n["name"]), image: s(&n["image"]), kind, items: items(Some(contains)), rare: items(n["contains_rare"].as_array()),
+        id: s(&n["id"]),
+        name: s(&n["name"]),
+        image: s(&n["image"]),
+        kind,
+        items: items(Some(contains)),
+        rare: items(n["contains_rare"].as_array()),
         rare_image: (!rare_image.is_empty()).then_some(rare_image),
     })
 }
@@ -362,12 +455,25 @@ fn parse_skin(n: &Value) -> Option<SkinInfo> {
         Some(bar) => name[bar + 1..].trim().to_string(),
         None => s(&n["pattern"]["name"]),
     };
-    let phase = n["phase"].as_str().filter(|p| !p.is_empty()).map(String::from);
+    let phase = n["phase"]
+        .as_str()
+        .filter(|p| !p.is_empty())
+        .map(String::from);
     let (rarity, rarity_color) = rarity(n);
     Some(SkinInfo {
-        def_index: def as u16, paint: paint as i32, weapon: s(&n["weapon"]["name"]), finish, phase, category: s(&n["category"]["name"]),
-        rarity, rarity_color, min_float: float(&n["min_float"], 0.0), max_float: float(&n["max_float"], 1.0), image: s(&n["image"]),
-        legacy: n["legacy_model"].as_bool().unwrap_or(false), can_stat_trak: n["stattrak"].as_bool().unwrap_or(false),
+        def_index: def as u16,
+        paint: paint as i32,
+        weapon: s(&n["weapon"]["name"]),
+        finish,
+        phase,
+        category: s(&n["category"]["name"]),
+        rarity,
+        rarity_color,
+        min_float: float(&n["min_float"], 0.0),
+        max_float: float(&n["max_float"], 1.0),
+        image: s(&n["image"]),
+        legacy: n["legacy_model"].as_bool().unwrap_or(false),
+        can_stat_trak: n["stattrak"].as_bool().unwrap_or(false),
     })
 }
 
@@ -383,7 +489,14 @@ fn parse_sticker(n: &Value) -> Option<StickerInfo> {
         }
     }
     let (rarity, rarity_color) = rarity(n);
-    Some(StickerInfo { id: id as i32, name, rarity, rarity_color, image: s(&n["image"]), effect: s(&n["effect"]) })
+    Some(StickerInfo {
+        id: id as i32,
+        name,
+        rarity,
+        rarity_color,
+        image: s(&n["image"]),
+        effect: s(&n["effect"]),
+    })
 }
 
 #[cfg(test)]
@@ -394,7 +507,11 @@ mod tests {
     fn reads_the_old_launchers_cache() {
         let dir = std::env::temp_dir().join(format!("lst-db-{}", util::random_hex(6)));
         fs::create_dir_all(&dir).unwrap();
-        fs::write(dir.join("weapons.json"), r#"[{"DefIndex":507,"Name":"Karambit","Category":"Knives","Image":"k.png"}]"#).unwrap();
+        fs::write(
+            dir.join("weapons.json"),
+            r#"[{"DefIndex":507,"Name":"Karambit","Category":"Knives","Image":"k.png"}]"#,
+        )
+        .unwrap();
         fs::write(dir.join("skins.json"), r##"[{"DefIndex":7,"Paint":282,"Weapon":"AK-47","Finish":"Redline","Phase":null,"Category":"Rifles","Rarity":"Classified","RarityColor":"#d32ce6","MinFloat":0.1,"MaxFloat":0.7,"Image":"x","Legacy":true,"CanStatTrak":true,"DisplayFinish":"Redline","FullName":"AK-47 | Redline"}]"##).unwrap();
         let db = ItemDatabase::load_cached(&dir);
         assert_eq!(db.find(7, 282).unwrap().full_name(), "AK-47 | Redline");

@@ -84,22 +84,31 @@ pub struct State {
 impl State {
     /// Metamod, CounterStrikeSharp and the plugin are installed.
     pub fn ready(&self) -> bool {
-        self.game.as_ref().is_some_and(|g| g.metamod_installed() && g.css_installed() && g.plugin_installed())
+        self.game
+            .as_ref()
+            .is_some_and(|g| g.metamod_installed() && g.css_installed() && g.plugin_installed())
     }
 
     pub fn test_mode_on(&self) -> bool {
-        self.game.as_ref().is_some_and(|g| Session { game: g }.is_on())
+        self.game
+            .as_ref()
+            .is_some_and(|g| Session { game: g }.is_on())
     }
 
     pub fn game(&self) -> R<&GameFolder> {
-        self.game.as_ref().ok_or_else(|| bad("Pick your CS2 folder first."))
+        self.game
+            .as_ref()
+            .ok_or_else(|| bad("Pick your CS2 folder first."))
     }
 
     /// The plugin's live report, or None if the server isn't running (or the report is stale).
     pub fn server_status(&self) -> Option<ServerStatus> {
-        let text = std::fs::read_to_string(self.game.as_ref()?.plugin_dir().join(STATUS_FILE)).ok()?;
+        let text =
+            std::fs::read_to_string(self.game.as_ref()?.plugin_dir().join(STATUS_FILE)).ok()?;
         let status: ServerStatus = util::read_json(&text).ok()?;
-        (-5..=8).contains(&(util::unix_now() - status.time)).then_some(status)
+        (-5..=8)
+            .contains(&(util::unix_now() - status.time))
+            .then_some(status)
     }
 }
 
@@ -115,8 +124,16 @@ impl App {
                 handle,
                 http: util::http_agent(300),
                 prices: PriceList::new(
-                    Arc::new(move |line| if let Some(a) = log_me.upgrade() { a.log(line) }),
-                    Arc::new(move || if let Some(a) = changed_me.upgrade() { a.changed() }),
+                    Arc::new(move |line| {
+                        if let Some(a) = log_me.upgrade() {
+                            a.log(line)
+                        }
+                    }),
+                    Arc::new(move || {
+                        if let Some(a) = changed_me.upgrade() {
+                            a.changed()
+                        }
+                    }),
                 ),
                 state: Mutex::new(State {
                     settings,
@@ -147,7 +164,9 @@ impl App {
 
     /// Sends an event to the page: { type, data }.
     pub fn push(&self, kind: &str, data: Value) {
-        let _ = self.handle.emit("lst", json!({ "type": kind, "data": data }));
+        let _ = self
+            .handle
+            .emit("lst", json!({ "type": kind, "data": data }));
     }
 
     /// Folder, install state, test mode or item data changed: every page reloads its data.
@@ -187,10 +206,19 @@ impl App {
     }
 
     /// Runs on the window's thread (dialogs) and returns its result.
-    pub fn on_ui<T: Send + 'static>(&self, work: impl FnOnce(Option<tauri::WebviewWindow>) -> T + Send + 'static) -> T {
+    pub fn on_ui<T: Send + 'static>(
+        &self,
+        work: impl FnOnce(Option<tauri::WebviewWindow>) -> T + Send + 'static,
+    ) -> T {
         let (tx, rx) = std::sync::mpsc::channel();
         let window = self.window();
-        if self.handle.run_on_main_thread(move || { let _ = tx.send(work(window)); }).is_err() {
+        if self
+            .handle
+            .run_on_main_thread(move || {
+                let _ = tx.send(work(window));
+            })
+            .is_err()
+        {
             panic!("the window is gone");
         }
         rx.recv().expect("the window thread stopped")
@@ -198,25 +226,37 @@ impl App {
 
     /// Copies text to the clipboard.
     pub fn copy(&self, text: &str) -> bool {
-        arboard::Clipboard::new().and_then(|mut c| c.set_text(text.to_string())).is_ok()
+        arboard::Clipboard::new()
+            .and_then(|mut c| c.set_text(text.to_string()))
+            .is_ok()
     }
 
     /// Picks a file or folder with the system dialog (None when cancelled).
-    pub fn pick(&self, dialog: impl FnOnce(rfd::FileDialog) -> Option<std::path::PathBuf> + Send + 'static) -> Option<std::path::PathBuf> {
+    pub fn pick(
+        &self,
+        dialog: impl FnOnce(rfd::FileDialog) -> Option<std::path::PathBuf> + Send + 'static,
+    ) -> Option<std::path::PathBuf> {
         self.on_ui(move |w| {
             let d = rfd::FileDialog::new();
-            dialog(match &w { Some(w) => d.set_parent(w), None => d })
+            dialog(match &w {
+                Some(w) => d.set_parent(w),
+                None => d,
+            })
         })
     }
 
     /// Uses the CS2 folder (or forgets it when it isn't one).
     pub fn set_game(&self, st: &mut State, path: Option<String>) {
-        st.game = GameFolder::is_valid(path.as_deref()).then(|| GameFolder::new(path.clone().unwrap()));
+        st.game =
+            GameFolder::is_valid(path.as_deref()).then(|| GameFolder::new(path.clone().unwrap()));
         if let Some(g) = st.game.clone() {
             st.settings.game_path = Some(g.root.display().to_string());
             self.save(st);
             // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
-            if !st.db.is_empty() && g.plugin_installed() && !g.skin_names_dir().join("skins.json").exists() {
+            if !st.db.is_empty()
+                && g.plugin_installed()
+                && !g.skin_names_dir().join("skins.json").exists()
+            {
                 let _ = st.db.write_plugin_skin_names(&g.skin_names_dir());
             }
             if crate::server::discover_modes(&g) {
@@ -276,7 +316,8 @@ pub fn call(app: &Arc<App>, name: &str, a: Value) -> Result<Value, String> {
 
 fn dispatch(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
     // Inventory and loadout calls one at a time: they share one in-memory list and loadouts.json.
-    if name.starts_with("cases.") || name.starts_with("inventory.") || name.starts_with("tradeup.") {
+    if name.starts_with("cases.") || name.starts_with("inventory.") || name.starts_with("tradeup.")
+    {
         let mut inv = app.inv();
         return match name.split('.').next() {
             Some("tradeup") => tradeup::call(app, &mut inv, name, a),
@@ -286,7 +327,13 @@ fn dispatch(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
     match name.split('.').next().unwrap_or("") {
         "app" => shell::call(app, name, a),
         "setup" => match name {
-            "setup.theme" | "setup.themeReset" | "setup.themeImage" | "setup.themeImageRemove" | "setup.themeExport" | "setup.themeImport" | "setup.customCss" => theme::call(app, name, a),
+            "setup.theme"
+            | "setup.themeReset"
+            | "setup.themeImage"
+            | "setup.themeImageRemove"
+            | "setup.themeExport"
+            | "setup.themeImport"
+            | "setup.customCss" => theme::call(app, name, a),
             _ => setup::call(app, name, a),
         },
         "play" => play::call(app, name, a),

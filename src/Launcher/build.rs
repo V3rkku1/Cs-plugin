@@ -9,10 +9,17 @@ fn main() {
         for file in ["LanSkinTester.dll", "gamedata/lanskintester.json"] {
             let path = PathBuf::from(&dir).join(file);
             println!("cargo:rerun-if-changed={}", path.display());
-            code += &format!("    ({file:?}, include_bytes!({:?})),\n", path.display().to_string());
+            code += &format!(
+                "    ({file:?}, include_bytes!({:?})),\n",
+                path.display().to_string()
+            );
         }
     }
     code += "];\n";
-    fs::write(PathBuf::from(env::var("OUT_DIR").unwrap()).join("plugin_files.rs"), code).unwrap();
+    fs::write(
+        PathBuf::from(env::var("OUT_DIR").unwrap()).join("plugin_files.rs"),
+        code,
+    )
+    .unwrap();
     tauri_build::build();
 }

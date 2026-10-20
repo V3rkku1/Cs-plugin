@@ -37,18 +37,28 @@ pub fn write_skins_cfg(game: &GameFolder, loadout: &PlayerLoadout) -> std::io::R
     if chunks.len() > items::MAX_CHUNKS {
         return Ok(false);
     }
-    let lines: Vec<String> = chunks.iter().enumerate().map(|(i, c)| format!("css_myskins {} {} \"{c}\"", i + 1, chunks.len())).collect();
+    let lines: Vec<String> = chunks
+        .iter()
+        .enumerate()
+        .map(|(i, c)| format!("css_myskins {} {} \"{c}\"", i + 1, chunks.len()))
+        .collect();
     fs::create_dir_all(game.cfg_dir())?;
-    fs::write(game.cfg_dir().join(format!("{SKINS_CFG}.cfg")), lines.join("\n") + "\n")?;
+    fs::write(
+        game.cfg_dir().join(format!("{SKINS_CFG}.cfg")),
+        lines.join("\n") + "\n",
+    )?;
     Ok(true)
 }
 
 /// Types the command into CS2's console. False when CS2 isn't listening (not started by the launcher).
 pub fn send(command: &str) -> bool {
     let addr: SocketAddr = ([127, 0, 0, 1], PORT).into();
-    let Ok(mut tcp) = TcpStream::connect_timeout(&addr, Duration::from_secs(2)) else { return false };
+    let Ok(mut tcp) = TcpStream::connect_timeout(&addr, Duration::from_secs(2)) else {
+        return false;
+    };
     let _ = tcp.set_write_timeout(Some(Duration::from_secs(2)));
-    tcp.write_all(format!("PASS {}\n{command}\n", password()).as_bytes()).is_ok()
+    tcp.write_all(format!("PASS {}\n{command}\n", password()).as_bytes())
+        .is_ok()
 }
 
 /// Bumped to stop the current sender (a new join, or your own server).

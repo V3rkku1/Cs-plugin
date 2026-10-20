@@ -84,21 +84,31 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                     app.changed();
                 }
                 "sac" => super::open_external("windowsdefender:")?,
-                "data" => run_setup(app, false, |app, _| { step(app, "data", || download_data(app)); })?,
-                _ => run_setup(app, true, |app, i| { step(app, &id, || step_work(app, i, &id)); })?,
+                "data" => run_setup(app, false, |app, _| {
+                    step(app, "data", || download_data(app));
+                })?,
+                _ => run_setup(app, true, |app, i| {
+                    step(app, &id, || step_work(app, i, &id));
+                })?,
             }
             ok(())
         }
         "setup.all" => {
             run_setup(app, true, |app, i| {
                 if !step(app, "metamod", || step_work(app, i, "metamod")) {
-                    app.log(format!("   -> download Metamod from {} and use \"Install from zip...\"", installer::METAMOD_PAGE));
+                    app.log(format!(
+                        "   -> download Metamod from {} and use \"Install from zip...\"",
+                        installer::METAMOD_PAGE
+                    ));
                 }
                 if !step(app, "css", || step_work(app, i, "css")) {
                     app.log(format!("   -> download the \"with-runtime\" Windows zip from {} and use \"Install from zip...\"", installer::CSS_PAGE));
                 }
                 step(app, "plugin", || step_work(app, i, "plugin"));
-                step(app, "cssConfig", || { app.allow_skins_in_css(Some(i.game)); Ok(()) });
+                step(app, "cssConfig", || {
+                    app.allow_skins_in_css(Some(i.game));
+                    Ok(())
+                });
                 step(app, "data", || download_data(app));
                 app.log("All done. Go to PLAY and press START.");
             })?;
@@ -106,10 +116,24 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         }
         "setup.checkUpdates" => {
             app.log("Checking for updates...");
-            let game = app.state().game.clone().unwrap_or_else(|| GameFolder::new(""));
+            let game = app
+                .state()
+                .game
+                .clone()
+                .unwrap_or_else(|| GameFolder::new(""));
             let log = |l: String| app.log(l);
-            let (metamod, css) = Installer { game: &game, http: &app.http, log: &log, progress: &|_| {} }.latest_versions();
-            app.log(format!("Latest Metamod: {} · latest CounterStrikeSharp: {}", metamod.as_deref().unwrap_or("unknown"), css.as_deref().unwrap_or("unknown")));
+            let (metamod, css) = Installer {
+                game: &game,
+                http: &app.http,
+                log: &log,
+                progress: &|_| {},
+            }
+            .latest_versions();
+            app.log(format!(
+                "Latest Metamod: {} · latest CounterStrikeSharp: {}",
+                metamod.as_deref().unwrap_or("unknown"),
+                css.as_deref().unwrap_or("unknown")
+            ));
             let mut st = app.state();
             (st.setup.latest_metamod, st.setup.latest_css) = (metamod, css);
             drop(st);
@@ -117,14 +141,16 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             ok(())
         }
         "setup.zip" => {
-            let Some(file) = app.pick(|d| d.set_title("Pick a Metamod or CounterStrikeSharp zip").add_filter("Zip files", &["zip"]).pick_file()) else {
+            let Some(file) = app.pick(|d| {
+                d.set_title("Pick a Metamod or CounterStrikeSharp zip")
+                    .add_filter("Zip files", &["zip"])
+                    .pick_file()
+            }) else {
                 return ok(());
             };
-            run_setup(app, true, move |app, i| {
-                match i.install_zip(&file) {
-                    Ok(()) => app.allow_skins_in_css(Some(i.game)),
-                    Err(e) => app.log(format!("FAILED: {e}")),
-                }
+            run_setup(app, true, move |app, i| match i.install_zip(&file) {
+                Ok(()) => app.allow_skins_in_css(Some(i.game)),
+                Err(e) => app.log(format!("FAILED: {e}")),
             })?;
             ok(())
         }
@@ -159,7 +185,12 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                 if !db.is_empty() {
                     let _ = db.write_plugin_skin_names(&i.game.skin_names_dir());
                 }
-                for leftover in ["server_commands.txt", "server_commands.txt.tmp", "server_commands.txt.run", "loadouts.json.tmp"] {
+                for leftover in [
+                    "server_commands.txt",
+                    "server_commands.txt.tmp",
+                    "server_commands.txt.run",
+                    "loadouts.json.tmp",
+                ] {
                     let _ = std::fs::remove_file(i.game.plugin_dir().join(leftover));
                 }
                 app.log("Repair finished.");
@@ -177,7 +208,10 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         "setup.appearance" => {
             let a: AppearanceArgs = arg(a)?;
             let mut st = app.state();
-            if let Some(size) = a.text_size.filter(|s| ["small", "normal", "large"].contains(&s.as_str())) {
+            if let Some(size) = a
+                .text_size
+                .filter(|s| ["small", "normal", "large"].contains(&s.as_str()))
+            {
                 st.settings.text_size = size;
             }
             if let Some(glass) = a.reduce_glass {
@@ -209,61 +243,183 @@ pub fn smart_app_control_on() -> bool {
 }
 
 fn versions(installed: &Option<String>, latest: &Option<String>) -> String {
-    let have = installed.as_ref().map_or("Installed".into(), |i| format!("Installed: {i}"));
-    latest.as_ref().map_or(have.clone(), |l| format!("{have}   ·   Latest: {l}"))
+    let have = installed
+        .as_ref()
+        .map_or("Installed".into(), |i| format!("Installed: {i}"));
+    latest
+        .as_ref()
+        .map_or(have.clone(), |l| format!("{have}   ·   Latest: {l}"))
 }
 
 /// Version strings from different sources don't line up exactly: only flag an update when the installed one
 /// clearly doesn't contain the latest build number.
 fn newer(installed: &Option<String>, latest: &Option<String>) -> &'static str {
-    let (Some(i), Some(l)) = (installed, latest) else { return "ok" };
-    let build = Regex::new(r"(\d+)$").unwrap().find(l).map_or("", |m| m.as_str()).to_string();
-    if !build.is_empty() && !i.contains(&build) { "warning" } else { "ok" }
+    let (Some(i), Some(l)) = (installed, latest) else {
+        return "ok";
+    };
+    let build = Regex::new(r"(\d+)$")
+        .unwrap()
+        .find(l)
+        .map_or("", |m| m.as_str())
+        .to_string();
+    if !build.is_empty() && !i.contains(&build) {
+        "warning"
+    } else {
+        "ok"
+    }
 }
 
 fn view(st: &State) -> SetupView {
     let mut steps = vec![];
-    let mut add = |id: &str, title: &str, state: &str, detail: String, action: &str, enabled: bool| {
-        let (state, detail) = st.setup.step_results.get(id).cloned().unwrap_or((state.into(), detail));
-        steps.push(Step { id: id.into(), title: title.into(), state, detail, action: action.into(), enabled: enabled && !st.setup.busy });
-    };
+    let mut add =
+        |id: &str, title: &str, state: &str, detail: String, action: &str, enabled: bool| {
+            let (state, detail) = st
+                .setup
+                .step_results
+                .get(id)
+                .cloned()
+                .unwrap_or((state.into(), detail));
+            steps.push(Step {
+                id: id.into(),
+                title: title.into(),
+                state,
+                detail,
+                action: action.into(),
+                enabled: enabled && !st.setup.busy,
+            });
+        };
     match &st.game {
         None => {
             let first = || "Pick your CS2 folder first".to_string();
-            add("metamod", "Metamod:Source 2.x", "missing", first(), "Install", false);
-            add("css", "CounterStrikeSharp", "missing", first(), "Install", false);
-            add("plugin", "LAN Skin Tester plugin", "missing", first(), "Install", false);
-            add("cssConfig", "Skins allowed in CounterStrikeSharp", "missing", first(), "Fix", false);
+            add(
+                "metamod",
+                "Metamod:Source 2.x",
+                "missing",
+                first(),
+                "Install",
+                false,
+            );
+            add(
+                "css",
+                "CounterStrikeSharp",
+                "missing",
+                first(),
+                "Install",
+                false,
+            );
+            add(
+                "plugin",
+                "LAN Skin Tester plugin",
+                "missing",
+                first(),
+                "Install",
+                false,
+            );
+            add(
+                "cssConfig",
+                "Skins allowed in CounterStrikeSharp",
+                "missing",
+                first(),
+                "Fix",
+                false,
+            );
         }
         Some(g) => {
-            let (mm, latest_mm) = (installer::installed_metamod_version(g), &st.setup.latest_metamod);
+            let (mm, latest_mm) = (
+                installer::installed_metamod_version(g),
+                &st.setup.latest_metamod,
+            );
             let has_mm = g.metamod_installed();
-            add("metamod", "Metamod:Source 2.x", if has_mm { newer(&mm, latest_mm) } else { "missing" },
-                if has_mm { versions(&mm, latest_mm) } else { "Not installed - loads plugins into the server".into() },
-                if has_mm { "Update" } else { "Install" }, true);
+            add(
+                "metamod",
+                "Metamod:Source 2.x",
+                if has_mm {
+                    newer(&mm, latest_mm)
+                } else {
+                    "missing"
+                },
+                if has_mm {
+                    versions(&mm, latest_mm)
+                } else {
+                    "Not installed - loads plugins into the server".into()
+                },
+                if has_mm { "Update" } else { "Install" },
+                true,
+            );
 
             let (css, latest_css) = (installer::installed_css_version(g), &st.setup.latest_css);
             let has_css = g.css_installed();
-            add("css", "CounterStrikeSharp", if has_css { newer(&css, latest_css) } else { "missing" },
-                if has_css { versions(&css, latest_css) } else { "Not installed - runs C# plugins".into() },
-                if has_css { "Update" } else { "Install" }, true);
+            add(
+                "css",
+                "CounterStrikeSharp",
+                if has_css {
+                    newer(&css, latest_css)
+                } else {
+                    "missing"
+                },
+                if has_css {
+                    versions(&css, latest_css)
+                } else {
+                    "Not installed - runs C# plugins".into()
+                },
+                if has_css { "Update" } else { "Install" },
+                true,
+            );
 
             let installed = installer::installed_plugin_version(g);
             let bundled = installer::bundled_plugin_version();
             let old = matches!((&installed, &bundled), (Some(i), Some(b)) if i < b);
             let v = installer::v;
-            add("plugin", "LAN Skin Tester plugin", if installed.is_none() { "missing" } else if old { "warning" } else { "ok" },
-                if installed.is_none() { format!("Not installed (this launcher has v{})", v(&bundled)) }
-                else if old { format!("v{} installed - v{} available, press Update", v(&installed), v(&bundled)) }
-                else { format!("v{} - up to date", v(&installed)) },
-                if installed.is_none() { "Install" } else { "Update" }, true);
+            add(
+                "plugin",
+                "LAN Skin Tester plugin",
+                if installed.is_none() {
+                    "missing"
+                } else if old {
+                    "warning"
+                } else {
+                    "ok"
+                },
+                if installed.is_none() {
+                    format!("Not installed (this launcher has v{})", v(&bundled))
+                } else if old {
+                    format!(
+                        "v{} installed - v{} available, press Update",
+                        v(&installed),
+                        v(&bundled)
+                    )
+                } else {
+                    format!("v{} - up to date", v(&installed))
+                },
+                if installed.is_none() {
+                    "Install"
+                } else {
+                    "Update"
+                },
+                true,
+            );
 
             let blocks = has_css && game::css_blocks_skins(g);
-            add("cssConfig", "Skins allowed in CounterStrikeSharp", if !has_css { "missing" } else if blocks { "warning" } else { "ok" },
-                if !has_css { "Needs CounterStrikeSharp".into() }
-                else if blocks { "FollowCS2ServerGuidelines is on - only the knife model would change. Press Fix.".into() }
-                else { "FollowCS2ServerGuidelines is off".into() },
-                "Fix", blocks);
+            add(
+                "cssConfig",
+                "Skins allowed in CounterStrikeSharp",
+                if !has_css {
+                    "missing"
+                } else if blocks {
+                    "warning"
+                } else {
+                    "ok"
+                },
+                if !has_css {
+                    "Needs CounterStrikeSharp".into()
+                } else if blocks {
+                    "FollowCS2ServerGuidelines is on - only the knife model would change. Press Fix.".into()
+                } else {
+                    "FollowCS2ServerGuidelines is off".into()
+                },
+                "Fix",
+                blocks,
+            );
         }
     }
     if smart_app_control_on() {
@@ -272,11 +428,32 @@ fn view(st: &State) -> SetupView {
             "Open", true);
     }
     let db = &st.db;
-    let n = |x: usize| x.to_string().as_bytes().rchunks(3).rev().map(|c| String::from_utf8_lossy(c).into_owned()).collect::<Vec<_>>().join(",");
-    add("data", "Skin, sticker and charm lists", if db.is_empty() { "missing" } else { "ok" },
-        if db.is_empty() { "Not downloaded - needed for skin pictures, names, stickers and charms".into() }
-        else { format!("{} skins · {} stickers · {} charms", n(db.skins.len()), n(db.stickers.len()), db.charms.len()) },
-        if db.is_empty() { "Download" } else { "Update" }, true);
+    let n = |x: usize| {
+        x.to_string()
+            .as_bytes()
+            .rchunks(3)
+            .rev()
+            .map(|c| String::from_utf8_lossy(c).into_owned())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    add(
+        "data",
+        "Skin, sticker and charm lists",
+        if db.is_empty() { "missing" } else { "ok" },
+        if db.is_empty() {
+            "Not downloaded - needed for skin pictures, names, stickers and charms".into()
+        } else {
+            format!(
+                "{} skins · {} stickers · {} charms",
+                n(db.skins.len()),
+                n(db.stickers.len()),
+                db.charms.len()
+            )
+        },
+        if db.is_empty() { "Download" } else { "Update" },
+        true,
+    );
 
     let s = &st.settings;
     SetupView {
@@ -304,7 +481,9 @@ fn run_setup(app: &Arc<App>, needs_game: bool, work: impl FnOnce(&Arc<App>, &Ins
             return Err(bad("Pick your CS2 folder first."));
         }
         if st.game.is_some() && session::cs2_running() {
-            return Err(bad("Close CS2 and the test server first (files are in use while they run)."));
+            return Err(bad(
+                "Close CS2 and the test server first (files are in use while they run).",
+            ));
         }
         st.setup.busy = true;
         st.setup.step_results.clear();
@@ -313,7 +492,15 @@ fn run_setup(app: &Arc<App>, needs_game: bool, work: impl FnOnce(&Arc<App>, &Ins
     app.changed();
     let log = |l: String| app.log(l);
     let progress = |_p: f64| {};
-    work(app, &Installer { game: &game, http: &app.http, log: &log, progress: &progress });
+    work(
+        app,
+        &Installer {
+            game: &game,
+            http: &app.http,
+            log: &log,
+            progress: &progress,
+        },
+    );
     app.state().setup.busy = false;
     app.changed();
     Ok(())
@@ -329,7 +516,10 @@ fn step(app: &App, id: &str, action: impl FnOnce() -> installer::R<()>) -> bool 
         Ok(()) => true,
         Err(e) => {
             app.log(format!("FAILED: {e}"));
-            app.state().setup.step_results.insert(id.into(), ("failed".into(), format!("Failed: {e}")));
+            app.state()
+                .setup
+                .step_results
+                .insert(id.into(), ("failed".into(), format!("Failed: {e}")));
             false
         }
     }
@@ -337,7 +527,10 @@ fn step(app: &App, id: &str, action: impl FnOnce() -> installer::R<()>) -> bool 
 
 fn step_work(app: &App, i: &Installer, id: &str) -> installer::R<()> {
     let progress = |p: f64| app.push("setup.progress", json!({ "id": id, "p": p }));
-    let i = Installer { progress: &progress, ..*i };
+    let i = Installer {
+        progress: &progress,
+        ..*i
+    };
     match id {
         "metamod" => i.install_metamod(),
         "css" => {

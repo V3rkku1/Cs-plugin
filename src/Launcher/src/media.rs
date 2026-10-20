@@ -16,9 +16,16 @@ pub fn image(http: &ureq::Agent, url: &str, size: u32) -> Option<Vec<u8>> {
         return None;
     }
     // Steam's economy image server resizes on request: .../economy/image/<id>/256fx256f
-    let url = if url.contains("/economy/image/") { format!("{}/{size}fx{size}f", url.trim_end_matches('/')) } else { url.to_string() };
+    let url = if url.contains("/economy/image/") {
+        format!("{}/{size}fx{size}f", url.trim_end_matches('/'))
+    } else {
+        url.to_string()
+    };
     let dir = util::data_dir().join("images");
-    let file = dir.join(format!("{}.png", &util::hex(&Sha1::digest(url.as_bytes()))[..20]));
+    let file = dir.join(format!(
+        "{}.png",
+        &util::hex(&Sha1::digest(url.as_bytes()))[..20]
+    ));
     if let Ok(bytes) = fs::read(&file) {
         return Some(bytes);
     }
@@ -51,7 +58,10 @@ pub fn background_file(ext: &str) -> PathBuf {
 
 /// The background picture on disk, if one was chosen.
 pub fn background_path() -> Option<PathBuf> {
-    IMAGE_EXTENSIONS.iter().map(|e| background_file(e)).find(|p| p.exists())
+    IMAGE_EXTENSIONS
+        .iter()
+        .map(|e| background_file(e))
+        .find(|p| p.exists())
 }
 
 pub fn custom_css_file() -> PathBuf {

@@ -9,25 +9,86 @@ use std::path::{Path, PathBuf};
 
 /// Weapon definition index -> classname, in the plugin's order.
 pub const WEAPONS: &[(u16, &str)] = &[
-    (1, "weapon_deagle"), (2, "weapon_elite"), (3, "weapon_fiveseven"), (4, "weapon_glock"), (7, "weapon_ak47"),
-    (8, "weapon_aug"), (9, "weapon_awp"), (10, "weapon_famas"), (11, "weapon_g3sg1"), (13, "weapon_galilar"),
-    (14, "weapon_m249"), (16, "weapon_m4a1"), (17, "weapon_mac10"), (19, "weapon_p90"), (23, "weapon_mp5sd"),
-    (24, "weapon_ump45"), (25, "weapon_xm1014"), (26, "weapon_bizon"), (27, "weapon_mag7"), (28, "weapon_negev"),
-    (29, "weapon_sawedoff"), (30, "weapon_tec9"), (31, "weapon_taser"), (32, "weapon_hkp2000"), (33, "weapon_mp7"),
-    (34, "weapon_mp9"), (35, "weapon_nova"), (36, "weapon_p250"), (38, "weapon_scar20"), (39, "weapon_sg556"),
-    (40, "weapon_ssg08"), (60, "weapon_m4a1_silencer"), (61, "weapon_usp_silencer"), (63, "weapon_cz75a"), (64, "weapon_revolver"),
+    (1, "weapon_deagle"),
+    (2, "weapon_elite"),
+    (3, "weapon_fiveseven"),
+    (4, "weapon_glock"),
+    (7, "weapon_ak47"),
+    (8, "weapon_aug"),
+    (9, "weapon_awp"),
+    (10, "weapon_famas"),
+    (11, "weapon_g3sg1"),
+    (13, "weapon_galilar"),
+    (14, "weapon_m249"),
+    (16, "weapon_m4a1"),
+    (17, "weapon_mac10"),
+    (19, "weapon_p90"),
+    (23, "weapon_mp5sd"),
+    (24, "weapon_ump45"),
+    (25, "weapon_xm1014"),
+    (26, "weapon_bizon"),
+    (27, "weapon_mag7"),
+    (28, "weapon_negev"),
+    (29, "weapon_sawedoff"),
+    (30, "weapon_tec9"),
+    (31, "weapon_taser"),
+    (32, "weapon_hkp2000"),
+    (33, "weapon_mp7"),
+    (34, "weapon_mp9"),
+    (35, "weapon_nova"),
+    (36, "weapon_p250"),
+    (38, "weapon_scar20"),
+    (39, "weapon_sg556"),
+    (40, "weapon_ssg08"),
+    (60, "weapon_m4a1_silencer"),
+    (61, "weapon_usp_silencer"),
+    (63, "weapon_cz75a"),
+    (64, "weapon_revolver"),
 ];
 
 /// Weapon definition index -> name as shown in game.
 pub const DISPLAY_NAMES: &[(u16, &str)] = &[
-    (1, "Desert Eagle"), (2, "Dual Berettas"), (3, "Five-SeveN"), (4, "Glock-18"), (7, "AK-47"), (8, "AUG"), (9, "AWP"),
-    (10, "FAMAS"), (11, "G3SG1"), (13, "Galil AR"), (14, "M249"), (16, "M4A4"), (17, "MAC-10"), (19, "P90"), (23, "MP5-SD"),
-    (24, "UMP-45"), (25, "XM1014"), (26, "PP-Bizon"), (27, "MAG-7"), (28, "Negev"), (29, "Sawed-Off"), (30, "Tec-9"),
-    (31, "Zeus x27"), (32, "P2000"), (33, "MP7"), (34, "MP9"), (35, "Nova"), (36, "P250"), (38, "SCAR-20"), (39, "SG 553"),
-    (40, "SSG 08"), (60, "M4A1-S"), (61, "USP-S"), (63, "CZ75-Auto"), (64, "R8 Revolver"),
+    (1, "Desert Eagle"),
+    (2, "Dual Berettas"),
+    (3, "Five-SeveN"),
+    (4, "Glock-18"),
+    (7, "AK-47"),
+    (8, "AUG"),
+    (9, "AWP"),
+    (10, "FAMAS"),
+    (11, "G3SG1"),
+    (13, "Galil AR"),
+    (14, "M249"),
+    (16, "M4A4"),
+    (17, "MAC-10"),
+    (19, "P90"),
+    (23, "MP5-SD"),
+    (24, "UMP-45"),
+    (25, "XM1014"),
+    (26, "PP-Bizon"),
+    (27, "MAG-7"),
+    (28, "Negev"),
+    (29, "Sawed-Off"),
+    (30, "Tec-9"),
+    (31, "Zeus x27"),
+    (32, "P2000"),
+    (33, "MP7"),
+    (34, "MP9"),
+    (35, "Nova"),
+    (36, "P250"),
+    (38, "SCAR-20"),
+    (39, "SG 553"),
+    (40, "SSG 08"),
+    (60, "M4A1-S"),
+    (61, "USP-S"),
+    (63, "CZ75-Auto"),
+    (64, "R8 Revolver"),
 ];
 
-const KNIVES: &[u16] = &[500, 503, 505, 506, 507, 508, 509, 512, 514, 515, 516, 517, 518, 519, 520, 521, 522, 523, 525, 526];
+const KNIVES: &[u16] = &[
+    500, 503, 505, 506, 507, 508, 509, 512, 514, 515, 516, 517, 518, 519, 520, 521, 522, 523, 525,
+    526,
+];
 const GLOVES: &[u16] = &[4725, 5027, 5030, 5031, 5032, 5033, 5034, 5035];
 pub const PISTOLS: &[u16] = &[1, 2, 3, 4, 30, 32, 36, 61, 63, 64];
 
@@ -71,14 +132,28 @@ pub struct SkinSettings {
 
 impl Default for SkinSettings {
     fn default() -> Self {
-        Self { paint: 0, wear: 0.01, seed: 0, stat_trak: false, stat_trak_count: 0, nametag: String::new(), legacy: None, stickers: vec![], keychain: None }
+        Self {
+            paint: 0,
+            wear: 0.01,
+            seed: 0,
+            stat_trak: false,
+            stat_trak_count: 0,
+            nametag: String::new(),
+            legacy: None,
+            stickers: vec![],
+            keychain: None,
+        }
     }
 }
 
 impl SkinSettings {
     /// Anything to put on the weapon besides the plain default look.
     pub fn has_customization(&self) -> bool {
-        self.paint != 0 || !self.stickers.is_empty() || self.keychain.is_some() || self.stat_trak || !self.nametag.is_empty()
+        self.paint != 0
+            || !self.stickers.is_empty()
+            || self.keychain.is_some()
+            || self.stat_trak
+            || !self.nametag.is_empty()
     }
 }
 
@@ -144,13 +219,29 @@ impl PlayerLoadout {
     }
 
     pub fn knife_for(&self, team: i32) -> u16 {
-        let k = match team { 2 => self.knife_t, 3 => self.knife_ct, _ => 0 };
-        if k != 0 { k } else { self.knife }
+        let k = match team {
+            2 => self.knife_t,
+            3 => self.knife_ct,
+            _ => 0,
+        };
+        if k != 0 {
+            k
+        } else {
+            self.knife
+        }
     }
 
     pub fn gloves_for(&self, team: i32) -> u16 {
-        let g = match team { 2 => self.gloves_t, 3 => self.gloves_ct, _ => 0 };
-        if g != 0 { g } else { self.gloves }
+        let g = match team {
+            2 => self.gloves_t,
+            3 => self.gloves_ct,
+            _ => 0,
+        };
+        if g != 0 {
+            g
+        } else {
+            self.gloves
+        }
     }
 }
 
@@ -164,9 +255,15 @@ pub const LOCAL_KEY: &str = "local";
 
 impl LoadoutStore {
     pub fn open(path: &Path) -> Self {
-        let mut store = Self { path: path.to_path_buf(), loadouts: BTreeMap::new() };
+        let mut store = Self {
+            path: path.to_path_buf(),
+            loadouts: BTreeMap::new(),
+        };
         if path.exists() {
-            match fs::read_to_string(path).ok().and_then(|t| crate::util::read_json(&t).ok()) {
+            match fs::read_to_string(path)
+                .ok()
+                .and_then(|t| crate::util::read_json(&t).ok())
+            {
                 Some(l) => store.loadouts = l,
                 None => {
                     let _ = fs::rename(path, format!("{}.broken", path.display()));
@@ -183,7 +280,10 @@ impl LoadoutStore {
     /// Temp file and swap, so the plugin never reads a half-written file.
     pub fn save(&self) -> std::io::Result<()> {
         let temp = format!("{}.tmp", self.path.display());
-        fs::write(&temp, serde_json::to_string_pretty(&self.loadouts).unwrap_or_default())?;
+        fs::write(
+            &temp,
+            serde_json::to_string_pretty(&self.loadouts).unwrap_or_default(),
+        )?;
         fs::rename(temp, &self.path)
     }
 }
@@ -197,7 +297,10 @@ pub fn encode_loadout(loadout: &PlayerLoadout) -> Vec<String> {
         .encode(serde_json::to_vec(loadout).unwrap_or_default())
         .replace('+', "-")
         .replace('/', "_");
-    text.as_bytes().chunks(CHUNK_LENGTH).map(|c| String::from_utf8_lossy(c).into_owned()).collect()
+    text.as_bytes()
+        .chunks(CHUNK_LENGTH)
+        .map(|c| String::from_utf8_lossy(c).into_owned())
+        .collect()
 }
 
 /// What the plugin reports every 2 seconds (plugins/LanSkinTester/status.json).
@@ -229,13 +332,32 @@ mod tests {
 
     #[test]
     fn loadout_keeps_the_plugins_names() {
-        let mut l = PlayerLoadout { knife_ct: 507, agent_ct: Some("agents/models/x.vmdl".into()), ..Default::default() };
-        l.skins_ct.insert(7, SkinSettings { paint: 44, ..Default::default() });
+        let mut l = PlayerLoadout {
+            knife_ct: 507,
+            agent_ct: Some("agents/models/x.vmdl".into()),
+            ..Default::default()
+        };
+        l.skins_ct.insert(
+            7,
+            SkinSettings {
+                paint: 44,
+                ..Default::default()
+            },
+        );
         let json = serde_json::to_string(&l).unwrap();
-        for name in ["\"SkinsCT\":{\"7\":", "\"KnifeCT\":507", "\"AgentCT\":", "\"MusicKit\":0", "\"StatTrakCount\":0"] {
+        for name in [
+            "\"SkinsCT\":{\"7\":",
+            "\"KnifeCT\":507",
+            "\"AgentCT\":",
+            "\"MusicKit\":0",
+            "\"StatTrakCount\":0",
+        ] {
             assert!(json.contains(name), "{name} missing in {json}");
         }
-        assert!(!json.contains("AgentT") && !json.contains("Keychain") && !json.contains("Legacy"), "nulls are left out like the plugin writes them");
+        assert!(
+            !json.contains("AgentT") && !json.contains("Keychain") && !json.contains("Legacy"),
+            "nulls are left out like the plugin writes them"
+        );
         let back: PlayerLoadout = crate::util::read_json(&json).unwrap();
         assert_eq!(back.skins_ct[&7].paint, 44);
         assert_eq!(back.skins_ct[&7].wear, 0.01);
@@ -244,6 +366,8 @@ mod tests {
     #[test]
     fn chunks_are_console_safe() {
         let chunks = encode_loadout(&PlayerLoadout::default());
-        assert!(chunks.iter().all(|c| c.len() <= CHUNK_LENGTH && c.chars().all(|ch| ch.is_ascii_alphanumeric() || "-_=".contains(ch))));
+        assert!(chunks.iter().all(|c| c.len() <= CHUNK_LENGTH
+            && c.chars()
+                .all(|ch| ch.is_ascii_alphanumeric() || "-_=".contains(ch))));
     }
 }

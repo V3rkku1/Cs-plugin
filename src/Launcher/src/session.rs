@@ -44,7 +44,12 @@ fn cs2_ids() -> Vec<u32> {
             return ids.clone();
         }
     }
-    let ids: Vec<u32> = system(ProcessesToUpdate::All).processes().iter().filter(|(_, p)| is_cs2(p.name())).map(|(pid, _)| pid.as_u32()).collect();
+    let ids: Vec<u32> = system(ProcessesToUpdate::All)
+        .processes()
+        .iter()
+        .filter(|(_, p)| is_cs2(p.name()))
+        .map(|(pid, _)| pid.as_u32())
+        .collect();
     *cache = Some((Instant::now(), ids.clone()));
     ids
 }
@@ -75,7 +80,10 @@ pub fn mark_session() {
 fn proc_of(pid: u32) -> Option<Proc> {
     let sys = system(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]));
     let p = sys.process(Pid::from_u32(pid))?;
-    is_cs2(p.name()).then(|| Proc { pid, start: p.start_time() })
+    is_cs2(p.name()).then(|| Proc {
+        pid,
+        start: p.start_time(),
+    })
 }
 
 /// The running dedicated server (this launcher's, or the one a previous launcher started).
@@ -89,7 +97,10 @@ pub fn find_server() -> Option<Proc> {
     }
     let text = fs::read_to_string(pid_file()).ok()?;
     let mut parts = text.split_whitespace();
-    let (pid, start) = (parts.next()?.parse().ok()?, parts.next()?.parse::<u64>().ok()?);
+    let (pid, start) = (
+        parts.next()?.parse().ok()?,
+        parts.next()?.parse::<u64>().ok()?,
+    );
     proc_of(pid).filter(|p| p.start == start)
 }
 
@@ -140,8 +151,13 @@ pub fn status_from_this_server(status_time: i64, server_start: i64) -> bool {
 
 /// Makes the open CS2 join the local server again (Steam hands the connect to the running game).
 pub fn reconnect_client(password: &str) -> Result<(), String> {
-    let pass = if password.trim().is_empty() { String::new() } else { format!("/{}", util::escape(password.trim())) };
-    open::that_detached(format!("steam://connect/127.0.0.1:{PORT}{pass}")).map_err(|e| e.to_string())
+    let pass = if password.trim().is_empty() {
+        String::new()
+    } else {
+        format!("/{}", util::escape(password.trim()))
+    };
+    open::that_detached(format!("steam://connect/127.0.0.1:{PORT}{pass}"))
+        .map_err(|e| e.to_string())
 }
 
 pub struct Session<'a> {
@@ -151,14 +167,18 @@ pub struct Session<'a> {
 impl Session<'_> {
     /// Metamod is in gameinfo.gi, a session marker is there, or our server runs.
     pub fn is_on(&self) -> bool {
-        game::metamod_enabled(&self.game.game_info()) || session_file().exists() || find_server().is_some()
+        game::metamod_enabled(&self.game.game_info())
+            || session_file().exists()
+            || find_server().is_some()
     }
 
     /// The game reads the same gameinfo.gi as the server; with the Metamod line CS2 itself loads every server
     /// plugin, which crashed it on joining. The server reads gameinfo.gi only when it starts, so once it is up
     /// the line comes out. Only a status written after this server process started counts.
     pub fn isolate_client(&self, status: Option<&ServerStatus>) -> std::io::Result<()> {
-        let Some(server) = find_server() else { return Ok(()) };
+        let Some(server) = find_server() else {
+            return Ok(());
+        };
         if !game::metamod_enabled(&self.game.game_info()) {
             return Ok(());
         }
@@ -173,8 +193,12 @@ impl Session<'_> {
     /// Takes the Metamod line out as soon as the plugin reports Metamod loaded it, so CS2 can start while the
     /// server is still loading the map. Returns whether gameinfo.gi is clean for the game.
     pub fn isolate_client_early(&self) -> std::io::Result<bool> {
-        let Some(server) = find_server() else { return Ok(false) };
-        let Ok(text) = fs::read_to_string(self.game.plugin_dir().join(LOADED_FILE)) else { return Ok(false) };
+        let Some(server) = find_server() else {
+            return Ok(false);
+        };
+        let Ok(text) = fs::read_to_string(self.game.plugin_dir().join(LOADED_FILE)) else {
+            return Ok(false);
+        };
         match text.trim().parse::<i64>() {
             Ok(loaded) if loaded_by_this_server(loaded, server.start as i64) => {
                 game::disable_metamod(&self.game.game_info())?;
@@ -223,14 +247,26 @@ impl Session<'_> {
     }
 
     /// Starts CS2 (VAC off for this run) joining another server.
-    pub fn join(&self, settings: &ServerSettings, address: &str, password: &str) -> Result<(), String> {
-        self.run_cs2(&settings.join_arguments(self.game, address, password)).map(drop)
+    pub fn join(
+        &self,
+        settings: &ServerSettings,
+        address: &str,
+        password: &str,
+    ) -> Result<(), String> {
+        self.run_cs2(&settings.join_arguments(self.game, address, password))
+            .map(drop)
     }
 
     /// Starts CS2 as an offline game on a Workshop map (no server, gameinfo.gi untouched).
-    pub fn play_offline(&self, settings: &ServerSettings, id: &str, map: &str) -> Result<(), String> {
+    pub fn play_offline(
+        &self,
+        settings: &ServerSettings,
+        id: &str,
+        map: &str,
+    ) -> Result<(), String> {
         let extra = settings.game_args.replace("+connect", "");
-        self.run_cs2(format!("{} +map_workshop {id} {map}", extra.trim()).trim()).map(drop)
+        self.run_cs2(format!("{} +map_workshop {id} {map}", extra.trim()).trim())
+            .map(drop)
     }
 
     fn run_cs2(&self, arguments: &str) -> Result<Child, String> {
@@ -241,7 +277,9 @@ impl Session<'_> {
         std::os::windows::process::CommandExt::raw_arg(&mut cmd, arguments);
         #[cfg(not(windows))]
         cmd.args(arguments.split_whitespace());
-        cmd.current_dir(exe.parent().unwrap()).spawn().map_err(|e| format!("{}: {e}", exe.display()))
+        cmd.current_dir(exe.parent().unwrap())
+            .spawn()
+            .map_err(|e| format!("{}: {e}", exe.display()))
     }
 
     /// The server's console output (it runs with -condebug).
@@ -294,20 +332,36 @@ mod tests {
         game::enable_metamod(&game.game_info()).unwrap();
         // No server process: nothing has read gameinfo.gi, so the client isn't isolated.
         fs::create_dir_all(game.plugin_dir()).unwrap();
-        fs::write(game.plugin_dir().join(LOADED_FILE), util::unix_now().to_string()).unwrap();
+        fs::write(
+            game.plugin_dir().join(LOADED_FILE),
+            util::unix_now().to_string(),
+        )
+        .unwrap();
         assert!(!session.isolate_client_early().unwrap());
-        session.isolate_client(Some(&ServerStatus { time: util::unix_now(), ..Default::default() })).unwrap();
+        session
+            .isolate_client(Some(&ServerStatus {
+                time: util::unix_now(),
+                ..Default::default()
+            }))
+            .unwrap();
         assert!(game::metamod_enabled(&game.game_info()));
         game::disable_metamod(&game.game_info()).unwrap();
 
         mark_session();
         assert!(session_file().exists());
-        assert!(session.is_on(), "a clean gameinfo.gi with the marker is still test mode");
+        assert!(
+            session.is_on(),
+            "a clean gameinfo.gi with the marker is still test mode"
+        );
         game::enable_metamod(&game.game_info()).unwrap();
         // Stop kills every cs2 process; the test machine has none.
         assert!(!cs2_running());
         session.stop().unwrap();
-        assert!(!session_file().exists() && !game::metamod_enabled(&game.game_info()) && !session.is_on());
+        assert!(
+            !session_file().exists()
+                && !game::metamod_enabled(&game.game_info())
+                && !session.is_on()
+        );
         fs::remove_dir_all(root).unwrap();
     }
 }

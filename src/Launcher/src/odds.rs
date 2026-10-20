@@ -10,13 +10,34 @@ use crate::itemdb::{CaseInfo, CaseItem};
 use rand::Rng;
 
 pub const GRADES: [&str; 12] = [
-    "Consumer Grade", "Base Grade", "Industrial Grade", "Mil-Spec Grade", "High Grade", "Restricted", "Remarkable",
-    "Classified", "Exotic", "Covert", "Extraordinary", "Contraband",
+    "Consumer Grade",
+    "Base Grade",
+    "Industrial Grade",
+    "Mil-Spec Grade",
+    "High Grade",
+    "Restricted",
+    "Remarkable",
+    "Classified",
+    "Exotic",
+    "Covert",
+    "Extraordinary",
+    "Contraband",
 ];
 
-const WEAPON_CASE_ODDS: [(&str, f64); 4] = [("Mil-Spec Grade", 0.7992), ("Restricted", 0.1598), ("Classified", 0.0320), ("Covert", 0.0064)];
+const WEAPON_CASE_ODDS: [(&str, f64); 4] = [
+    ("Mil-Spec Grade", 0.7992),
+    ("Restricted", 0.1598),
+    ("Classified", 0.0320),
+    ("Covert", 0.0064),
+];
 pub const RARE_CHANCE: f64 = 0.0026;
-const WEAR_BANDS: [(f64, f64, f64); 5] = [(0.00, 0.07, 0.03), (0.07, 0.15, 0.24), (0.15, 0.38, 0.33), (0.38, 0.45, 0.24), (0.45, 1.00, 0.16)];
+const WEAR_BANDS: [(f64, f64, f64); 5] = [
+    (0.00, 0.07, 0.03),
+    (0.07, 0.15, 0.24),
+    (0.15, 0.38, 0.33),
+    (0.38, 0.45, 0.24),
+    (0.45, 1.00, 0.16),
+];
 const COMMON_PHASE: f64 = 24.25;
 
 fn phase_weight(phase: Option<&str>) -> f64 {
@@ -41,13 +62,28 @@ pub fn odds(case: &CaseInfo) -> Vec<(String, f64)> {
     }
     grades.sort_by_key(|g| rank(g));
     let rare = !case.rare.is_empty();
-    let weapon_case = case.kind == "Case" && grades.iter().all(|g| WEAPON_CASE_ODDS.iter().any(|o| o.0 == g));
+    let weapon_case = case.kind == "Case"
+        && grades
+            .iter()
+            .all(|g| WEAPON_CASE_ODDS.iter().any(|o| o.0 == g));
     let mut list: Vec<(String, f64)> = if weapon_case {
-        grades.iter().map(|g| (g.clone(), WEAPON_CASE_ODDS.iter().find(|o| o.0 == g).unwrap().1)).collect()
+        grades
+            .iter()
+            .map(|g| {
+                (
+                    g.clone(),
+                    WEAPON_CASE_ODDS.iter().find(|o| o.0 == g).unwrap().1,
+                )
+            })
+            .collect()
     } else {
         // Five times rarer per grade up; a rare pool counts as one more grade.
         let steps = grades.len() + rare as usize;
-        grades.iter().enumerate().map(|(i, g)| (g.clone(), 5f64.powi((steps - 1 - i) as i32))).collect()
+        grades
+            .iter()
+            .enumerate()
+            .map(|(i, g)| (g.clone(), 5f64.powi((steps - 1 - i) as i32)))
+            .collect()
     };
     if rare {
         list.push(("Rare".into(), if weapon_case { RARE_CHANCE } else { 1.0 }));
@@ -91,8 +127,16 @@ fn roll_rare(rare: &[CaseItem], rng: &mut impl Rng) -> CaseItem {
     if finish.len() == 1 {
         return finish[0].clone();
     }
-    let total: f64 = finish.iter().map(|i| phase_weight(i.phase.as_deref())).sum();
-    (*pick(&finish, |i| phase_weight(i.phase.as_deref()), rng.gen::<f64>() * total)).clone()
+    let total: f64 = finish
+        .iter()
+        .map(|i| phase_weight(i.phase.as_deref()))
+        .sum();
+    (*pick(
+        &finish,
+        |i| phase_weight(i.phase.as_deref()),
+        rng.gen::<f64>() * total,
+    ))
+    .clone()
 }
 
 /// A float like CS2 makes one: wear band first, then into the skin's range.
@@ -112,7 +156,17 @@ pub fn tickets<T: Clone>(outcomes_per_input: &[Vec<T>]) -> Vec<(T, f64)> {
 
 /// CS2's current float: each input's float put on its own skin's range, averaged, placed on the new range.
 pub fn trade_float(inputs: &[(f32, f32, f32)], min: f32, max: f32) -> f32 {
-    let normalized: f32 = inputs.iter().map(|&(w, lo, hi)| if hi > lo { ((w - lo) / (hi - lo)).clamp(0.0, 1.0) } else { 0.0 }).sum::<f32>() / inputs.len() as f32;
+    let normalized: f32 = inputs
+        .iter()
+        .map(|&(w, lo, hi)| {
+            if hi > lo {
+                ((w - lo) / (hi - lo)).clamp(0.0, 1.0)
+            } else {
+                0.0
+            }
+        })
+        .sum::<f32>()
+        / inputs.len() as f32;
     ((min + normalized * (max - min)) as f64).clamp(0.000001, 0.999999) as f32
 }
 
@@ -122,13 +176,26 @@ mod tests {
     use rand::SeedableRng;
 
     fn item(rarity: &str, name: &str) -> CaseItem {
-        CaseItem { id: format!("skin-{name}"), name: name.into(), paint: 1, rarity: rarity.into(), ..Default::default() }
+        CaseItem {
+            id: format!("skin-{name}"),
+            name: name.into(),
+            paint: 1,
+            rarity: rarity.into(),
+            ..Default::default()
+        }
     }
 
     #[test]
     fn weapon_case_odds_are_valves() {
-        let case = CaseInfo { kind: "Case".into(), items: ["Mil-Spec Grade", "Restricted", "Classified", "Covert"].iter().map(|r| item(r, "x")).collect(),
-            rare: vec![item("Covert", "knife")], ..Default::default() };
+        let case = CaseInfo {
+            kind: "Case".into(),
+            items: ["Mil-Spec Grade", "Restricted", "Classified", "Covert"]
+                .iter()
+                .map(|r| item(r, "x"))
+                .collect(),
+            rare: vec![item("Covert", "knife")],
+            ..Default::default()
+        };
         let o = odds(&case);
         assert!((o.iter().map(|x| x.1).sum::<f64>() - 1.0).abs() < 1e-9);
         assert!((o.iter().find(|x| x.0 == "Rare").unwrap().1 - 0.0026).abs() < 1e-4);
@@ -137,7 +204,11 @@ mod tests {
 
     #[test]
     fn capsule_grades_are_five_times_rarer() {
-        let case = CaseInfo { kind: "Sticker Capsule".into(), items: vec![item("High Grade", "a"), item("Remarkable", "b")], ..Default::default() };
+        let case = CaseInfo {
+            kind: "Sticker Capsule".into(),
+            items: vec![item("High Grade", "a"), item("Remarkable", "b")],
+            ..Default::default()
+        };
         let o = odds(&case);
         assert!((o[0].1 / o[1].1 - 5.0).abs() < 1e-9);
     }
@@ -150,7 +221,10 @@ mod tests {
 
     #[test]
     fn trade_up_tickets_and_float() {
-        let per: Vec<Vec<&str>> = std::iter::repeat(vec!["a1", "a2"]).take(7).chain(std::iter::repeat(vec!["b1", "b2", "b3", "b4"]).take(3)).collect();
+        let per: Vec<Vec<&str>> = std::iter::repeat(vec!["a1", "a2"])
+            .take(7)
+            .chain(std::iter::repeat(vec!["b1", "b2", "b3", "b4"]).take(3))
+            .collect();
         let t = tickets(&per);
         let a: f64 = t.iter().filter(|x| x.0.starts_with('a')).map(|x| x.1).sum();
         assert!((a - 14.0 / 26.0).abs() < 1e-9);

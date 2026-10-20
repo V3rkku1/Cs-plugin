@@ -22,7 +22,9 @@ struct LogsView {
 
 fn plugin_log_file(st: &State) -> Option<PathBuf> {
     let dir = st.game.as_ref()?.css().join("logs");
-    std::fs::read_dir(dir).ok()?.flatten()
+    std::fs::read_dir(dir)
+        .ok()?
+        .flatten()
         .filter(|e| e.path().extension().is_some_and(|x| x == "txt"))
         .max_by_key(|e| e.metadata().and_then(|m| m.modified()).ok())
         .map(|e| e.path())
@@ -34,7 +36,9 @@ fn console_log_file(st: &State) -> Option<PathBuf> {
 
 fn tail(path: &Option<PathBuf>, lines: usize) -> Vec<String> {
     // shortcut: reads at most the last 512 KB, enough for a few thousand lines.
-    path.as_ref().map(|p| util::tail(p, lines, 512 * 1024)).unwrap_or_default()
+    path.as_ref()
+        .map(|p| util::tail(p, lines, 512 * 1024))
+        .unwrap_or_default()
 }
 
 pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
@@ -50,14 +54,23 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         "live.openLog" => {
             let which: String = arg(a)?;
             let path = if which == "plugin" { plugin } else { console }.filter(|p| p.exists());
-            let path = path.ok_or_else(|| bad(if which == "plugin" { "No CounterStrikeSharp log yet." } else { "No console log yet: start the server once." }))?;
+            let path = path.ok_or_else(|| {
+                bad(if which == "plugin" {
+                    "No CounterStrikeSharp log yet."
+                } else {
+                    "No console log yet: start the server once."
+                })
+            })?;
             open_external(path).map(|_| Value::Null)
         }
         "live.copyLogs" => {
             let report = report(app, &st, &console, &plugin);
             drop(st);
             if app.copy(&report) {
-                app.toast("Logs copied. Paste them (Ctrl+V) where you ask for help.", "good");
+                app.toast(
+                    "Logs copied. Paste them (Ctrl+V) where you ask for help.",
+                    "good",
+                );
             } else {
                 app.toast("Could not use the clipboard.", "bad");
             }
@@ -68,7 +81,12 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
 }
 
 /// One report: what is set up, the error lines first, then the end of each log.
-fn report(app: &App, st: &State, console_file: &Option<PathBuf>, plugin_file: &Option<PathBuf>) -> String {
+fn report(
+    app: &App,
+    st: &State,
+    console_file: &Option<PathBuf>,
+    plugin_file: &Option<PathBuf>,
+) -> String {
     static ERROR_LINE: LazyLock<Regex> = LazyLock::new(|| {
         Regex::new(r"(?i)error|eror|\[err|\[wrn|fail|exception|crash|could not|couldn't|unable|missing|not found|denied|warning").unwrap()
     });
@@ -82,9 +100,21 @@ fn report(app: &App, st: &State, console_file: &Option<PathBuf>, plugin_file: &O
             "Launcher {} · {} · CS2 folder {} · plugin {} · server {}",
             update::short_version(),
             std::env::consts::OS,
-            if st.game.is_some() { "found" } else { "not found" },
-            if st.game.as_ref().is_some_and(|g| g.plugin_installed()) { "installed" } else { "not installed" },
-            if st.server_status().is_some() { "running" } else { "not running" }
+            if st.game.is_some() {
+                "found"
+            } else {
+                "not found"
+            },
+            if st.game.as_ref().is_some_and(|g| g.plugin_installed()) {
+                "installed"
+            } else {
+                "not installed"
+            },
+            if st.server_status().is_some() {
+                "running"
+            } else {
+                "not running"
+            }
         ),
         format!("Mode {} · map {}", s.mode, s.map),
     ];
@@ -100,10 +130,25 @@ fn report(app: &App, st: &State, console_file: &Option<PathBuf>, plugin_file: &O
         text.push(format!("--- {title} ---"));
         text.extend(lines);
     };
-    let or = |lines: Vec<String>, empty: &str| if lines.is_empty() { vec![empty.to_string()] } else { lines };
-    block(format!("Errors and warnings ({})", errors.len()), or(errors, "(none found)"));
-    block("Launcher activity".into(), activity[activity.len().saturating_sub(80)..].to_vec());
-    block("Server console (console.log)".into(), or(console, "(no console.log yet - start the server once)"));
+    let or = |lines: Vec<String>, empty: &str| {
+        if lines.is_empty() {
+            vec![empty.to_string()]
+        } else {
+            lines
+        }
+    };
+    block(
+        format!("Errors and warnings ({})", errors.len()),
+        or(errors, "(none found)"),
+    );
+    block(
+        "Launcher activity".into(),
+        activity[activity.len().saturating_sub(80)..].to_vec(),
+    );
+    block(
+        "Server console (console.log)".into(),
+        or(console, "(no console.log yet - start the server once)"),
+    );
     block("CounterStrikeSharp log".into(), or(plugin, "(none)"));
     text.join("\r\n") + "\r\n"
 }

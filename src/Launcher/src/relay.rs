@@ -12,7 +12,11 @@ pub fn start(allowed: impl Fn() -> bool + Send + 'static, log: impl Fn(String) +
     std::thread::spawn(move || {
         let udp = match UdpSocket::bind(("127.0.0.1", PORT)) {
             Ok(u) => u,
-            Err(e) => return log(format!("Triggerbot: port {PORT} is in use, so it can't press fire in CS2 ({e}).")),
+            Err(e) => {
+                return log(format!(
+                    "Triggerbot: port {PORT} is in use, so it can't press fire in CS2 ({e})."
+                ))
+            }
         };
         let mut last = Instant::now() - Duration::from_secs(1);
         let mut buf = [0u8; 64];
@@ -22,7 +26,12 @@ pub fn start(allowed: impl Fn() -> bool + Send + 'static, log: impl Fn(String) +
                 continue;
             };
             // The plugin paces shots by the gun's fire rate; this only stops a flood.
-            if &buf[..n] != b"LST fire" || !from.ip().is_loopback() || last.elapsed() < Duration::from_millis(35) || !allowed() || !game_in_front() {
+            if &buf[..n] != b"LST fire"
+                || !from.ip().is_loopback()
+                || last.elapsed() < Duration::from_millis(35)
+                || !allowed()
+                || !game_in_front()
+            {
                 continue;
             }
             last = Instant::now();
@@ -34,7 +43,9 @@ pub fn start(allowed: impl Fn() -> bool + Send + 'static, log: impl Fn(String) +
 /// The CS2 game window (not the server console) has focus.
 #[cfg(windows)]
 fn game_in_front() -> bool {
-    use windows_sys::Win32::UI::WindowsAndMessaging::{GetForegroundWindow, GetWindowThreadProcessId};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        GetForegroundWindow, GetWindowThreadProcessId,
+    };
     let mut pid = 0u32;
     unsafe {
         let window = GetForegroundWindow();
@@ -45,18 +56,47 @@ fn game_in_front() -> bool {
     }
     let mut sys = sysinfo::System::new();
     let p = sysinfo::Pid::from_u32(pid);
-    sys.refresh_processes_specifics(sysinfo::ProcessesToUpdate::Some(&[p]), true, sysinfo::ProcessRefreshKind::nothing());
-    sys.process(p).is_some_and(|p| p.name().eq_ignore_ascii_case("cs2.exe")) && crate::session::find_server().map(|s| s.pid) != Some(pid)
+    sys.refresh_processes_specifics(
+        sysinfo::ProcessesToUpdate::Some(&[p]),
+        true,
+        sysinfo::ProcessRefreshKind::nothing(),
+    );
+    sys.process(p)
+        .is_some_and(|p| p.name().eq_ignore_ascii_case("cs2.exe"))
+        && crate::session::find_server().map(|s| s.pid) != Some(pid)
 }
 
 #[cfg(windows)]
 fn click() {
-    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP, MOUSEINPUT};
-    let input = |flags| INPUT { r#type: INPUT_MOUSE, Anonymous: INPUT_0 { mi: MOUSEINPUT { dx: 0, dy: 0, mouseData: 0, dwFlags: flags, time: 0, dwExtraInfo: 0 } } };
+    use windows_sys::Win32::UI::Input::KeyboardAndMouse::{
+        SendInput, INPUT, INPUT_0, INPUT_MOUSE, MOUSEEVENTF_LEFTDOWN, MOUSEEVENTF_LEFTUP,
+        MOUSEINPUT,
+    };
+    let input = |flags| INPUT {
+        r#type: INPUT_MOUSE,
+        Anonymous: INPUT_0 {
+            mi: MOUSEINPUT {
+                dx: 0,
+                dy: 0,
+                mouseData: 0,
+                dwFlags: flags,
+                time: 0,
+                dwExtraInfo: 0,
+            },
+        },
+    };
     unsafe {
-        SendInput(1, &input(MOUSEEVENTF_LEFTDOWN), std::mem::size_of::<INPUT>() as i32);
+        SendInput(
+            1,
+            &input(MOUSEEVENTF_LEFTDOWN),
+            std::mem::size_of::<INPUT>() as i32,
+        );
         std::thread::sleep(Duration::from_millis(18)); // long enough for the game to see the press
-        SendInput(1, &input(MOUSEEVENTF_LEFTUP), std::mem::size_of::<INPUT>() as i32);
+        SendInput(
+            1,
+            &input(MOUSEEVENTF_LEFTUP),
+            std::mem::size_of::<INPUT>() as i32,
+        );
     }
 }
 
