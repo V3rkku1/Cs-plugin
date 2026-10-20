@@ -117,6 +117,29 @@ public static class Vpk
         return null;
     }
 
+    /// <summary>Every file in the archive as (folder, name, extension); the root folder is "".</summary>
+    public static List<(string Folder, string Name, string Extension)> Files(string dirFile)
+    {
+        using var reader = new BinaryReader(File.OpenRead(dirFile));
+        var list = new List<(string, string, string)>();
+        if (reader.ReadUInt32() != Signature) return list;
+        var version = reader.ReadUInt32();
+        reader.ReadUInt32(); // tree size
+        if (version == 2) reader.ReadBytes(16);
+        else if (version != 1) return list;
+        for (var ext = ReadString(reader); ext != ""; ext = ReadString(reader))
+        for (var path = ReadString(reader); path != ""; path = ReadString(reader))
+        for (var file = ReadString(reader); file != ""; file = ReadString(reader))
+        {
+            reader.ReadBytes(4); // CRC
+            var preloadBytes = reader.ReadUInt16();
+            reader.ReadBytes(12); // archive index, offset, length, terminator
+            reader.ReadBytes(preloadBytes);
+            list.Add((path == " " ? "" : path, file, ext));
+        }
+        return list;
+    }
+
     private static string ReadString(BinaryReader reader)
     {
         var bytes = new List<byte>();

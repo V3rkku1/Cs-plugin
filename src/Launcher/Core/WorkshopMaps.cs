@@ -77,13 +77,13 @@ public static class WorkshopMaps
             if (!Directory.Exists(dir)) return null;
             var vpk = Directory.GetFiles(dir, "*_dir.vpk").FirstOrDefault() ?? FindDownloaded(game, id);
             if (vpk == null) return null;
-            var files = Vpk.List(vpk);
-            if (!files.Any(f => f.Path.StartsWith("scripts/") && f.Path.EndsWith(".vjs_c")
-                                && Vpk.ReadText(vpk, f).Contains("map_workshop", StringComparison.Ordinal)))
+            string Text(string folder, string name, string ext) =>
+                Vpk.Read(vpk, folder, name, ext) is { } bytes ? System.Text.Encoding.UTF8.GetString(bytes) : "";
+            if (!Vpk.Files(vpk).Any(f => f.Folder == "scripts" && f.Extension == "vjs_c"
+                                         && Text(f.Folder, f.Name, f.Extension).Contains("map_workshop", StringComparison.Ordinal)))
                 return null;
-            var info = files.FirstOrDefault(f => f.Path == "addoninfo.txt");
-            var m = info == null ? null : System.Text.RegularExpressions.Regex.Match(Vpk.ReadText(vpk, info), @"maps\s*=\s*\[\s*""([^""]+)""");
-            return m is { Success: true } ? m.Groups[1].Value : null;
+            var m = System.Text.RegularExpressions.Regex.Match(Text("", "addoninfo", "txt"), @"maps\s*=\s*\[\s*""([^""]+)""");
+            return m.Success ? m.Groups[1].Value : null;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or IndexOutOfRangeException)
         {

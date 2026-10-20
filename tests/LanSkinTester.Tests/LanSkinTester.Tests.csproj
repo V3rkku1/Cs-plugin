@@ -34,7 +34,6 @@
     <Compile Include="..\..\src\Launcher\Core\GameFolder.cs" Link="Launcher\GameFolder.cs" />
     <Compile Include="..\..\src\Launcher\Core\GameModeCatalog.cs" Link="Launcher\GameModeCatalog.cs" />
     <Compile Include="..\..\src\Launcher\Core\WorkshopMaps.cs" Link="Launcher\WorkshopMaps.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Vpk.cs" Link="Launcher\Vpk.cs" />
     <Compile Include="..\..\src\Launcher\Core\FireRelay.cs" Link="Launcher\FireRelay.cs" />
     <Compile Include="..\..\src\Launcher\Core\GameInfoPatcher.cs" Link="Launcher\GameInfoPatcher.cs" />
     <Compile Include="..\..\src\Launcher\Core\TestSession.cs" Link="Launcher\TestSession.cs" />
