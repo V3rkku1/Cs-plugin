@@ -42,7 +42,7 @@ public class AppState
     public void SaveSettings()
     {
         try { Settings.Save(); }
-        catch (IOException ex) { Log("Could not save settings: " + ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { Log("Could not save settings: " + ex.Message); }
     }
 
     /// <summary>Steam's folder from the registry, for finding CS2.</summary>
@@ -55,7 +55,7 @@ public class AppState
         if (Game != null)
         {
             Settings.GamePath = Game.Root;
-            Settings.Save();
+            SaveSettings();
             // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
             if (!Db.IsEmpty && Game.PluginInstalled && !File.Exists(Path.Combine(Game.SkinNamesDir, "skins.json")))
                 Db.WritePluginSkinNames(Game.SkinNamesDir);

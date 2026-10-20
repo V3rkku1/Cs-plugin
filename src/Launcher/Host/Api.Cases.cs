@@ -19,7 +19,7 @@ public partial class Api
 
     public record CaseRow2(string Id, string Name, string Image, string Type, int Count, bool Rare);
     public record CasesState(bool DbEmpty, bool Unlocked, int Opened, List<CaseRow2> Cases, int InventoryCount,
-        string Currency, double InventoryValue);
+        string Currency, double InventoryValue, int KeysUsed, double CasesCost);
 
     public record ContentItem(string Name, string Image, string Color, string? Phase, double? Price);
     public record ContentGroup(string Grade, string Color, double Chance, List<ContentItem> Items, string? Image = null);
@@ -69,9 +69,9 @@ public partial class Api
         try
         {
             Directory.CreateDirectory(AppState.LauncherDataDir);
-            File.WriteAllText(InventoryFile, JsonSerializer.Serialize(Inventory()));
+            SafeFile.WriteAllText(InventoryFile, JsonSerializer.Serialize(Inventory()));
         }
-        catch (IOException ex) { App.Log("Could not save the inventory: " + ex.Message); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { App.Log("Could not save the inventory: " + ex.Message); }
     }
 
     [Call("cases.state")]
@@ -85,8 +85,13 @@ public partial class Api
             .Select(x => new CaseRow2(x.c.Id, x.c.Name, x.c.Image, x.c.Type, x.c.Items.Count + x.c.Rare.Count, x.c.Rare.Count > 0))
             .ToList();
         var value = Inventory().Sum(i => PriceOf(i) ?? 0);
+        // What the openings would have cost for real: a key per weapon case (capsules and packages need none), and the containers.
+        var opens = (App.Settings.CaseOpens ??= []).Select(o => (Box: App.Db.Cases.FirstOrDefault(c => c.Id == o.Key), Count: o.Value))
+            .Where(o => o.Box != null).ToList();
+        var keys = opens.Where(o => o.Box!.Type == "Case").Sum(o => o.Count);
+        var cost = opens.Sum(o => o.Count * (PricesNow().Price(o.Box!.Name) ?? 0));
         return new CasesState(App.Db.Cases.Count == 0, unlocked, App.Settings.CasesOpened, rows, Inventory().Count,
-            App.Settings.Currency, Math.Round(value, 2));
+            App.Settings.Currency, Math.Round(value, 2), keys, Math.Round(cost, 2));
     }
 
     private CaseInfo FindCase(string id) =>
@@ -133,6 +138,7 @@ public partial class Api
         Inventory().Insert(0, item);
         SaveInventory();
         App.Settings.CasesOpened++;
+        CountOpens(box, 1);
         App.SaveSettings();
         return new OpenResult(reel, win, View(item, ReadLoadout()));
     }
@@ -150,9 +156,16 @@ public partial class Api
         Inventory().InsertRange(0, items);
         SaveInventory();
         App.Settings.CasesOpened += items.Count;
+        CountOpens(box, items.Count);
         App.SaveSettings();
         var loadout = ReadLoadout();
         return items.Select(i => View(i, loadout)).ToList();
+    }
+
+    private void CountOpens(CaseInfo box, int count)
+    {
+        var opens = App.Settings.CaseOpens ??= [];
+        opens[box.Id] = opens.GetValueOrDefault(box.Id) + count;
     }
 
     private InventoryItem MakeItem(CaseInfo box, CaseItem drop, Random random)
@@ -412,6 +425,50 @@ public partial class Api
         App.NotifyChanged();
     }
 
+    // Named "backup." (not "cases."): the file dialog must not hold the inventory gate, so it is taken after.
+    [Call("backup.exportInventory")]
+    private async Task ExportInventory()
+    {
+        var file = await OnUi(() =>
+        {
+            using var dialog = new SaveFileDialog { Title = "Save your inventory", Filter = "Inventory (*.json)|*.json", FileName = $"inventory-{DateTime.Now:yyyy-MM-dd}.json" };
+            return dialog.ShowDialog(Window) == DialogResult.OK ? dialog.FileName : null;
+        });
+        if (file == null) return;
+        await InventoryGate.WaitAsync();
+        try { File.WriteAllText(file, JsonSerializer.Serialize(Inventory())); }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException) { throw new ApiException("Could not save: " + ex.Message); }
+        finally { InventoryGate.Release(); }
+        Toast($"Inventory saved to {Path.GetFileName(file)}.", "good");
+    }
+
+    /// <summary>Adds the items of a saved inventory that aren't in this one (nothing here is replaced or removed).</summary>
+    [Call("backup.importInventory")]
+    private async Task ImportInventory()
+    {
+        var file = await OnUi(() =>
+        {
+            using var dialog = new OpenFileDialog { Title = "Add a saved inventory", Filter = "Inventory (*.json)|*.json" };
+            return dialog.ShowDialog(Window) == DialogResult.OK ? dialog.FileName : null;
+        });
+        if (file == null) return;
+        List<InventoryItem> items;
+        try { items = JsonSerializer.Deserialize<List<InventoryItem>>(File.ReadAllText(file))?.Where(i => i is { Uid: not null, Kind: not null, Name: not null }).ToList() ?? []; }
+        catch (Exception ex) when (ex is JsonException or IOException or UnauthorizedAccessException) { throw new ApiException("That isn't a saved inventory: " + ex.Message); }
+        await InventoryGate.WaitAsync();
+        try
+        {
+            var have = Inventory().Select(i => i.Uid).ToHashSet();
+            var add = items.Where(i => have.Add(i.Uid)).ToList();
+            EnsureRoom(add.Count);
+            Inventory().InsertRange(0, add);
+            SaveInventory();
+            Toast($"{add.Count} item{(add.Count == 1 ? "" : "s")} added ({items.Count - add.Count} already here).", "good");
+        }
+        finally { InventoryGate.Release(); }
+        App.NotifyChanged();
+    }
+
     private static string RemovedFile => Path.Combine(AppState.LauncherDataDir, "inventory-removed.json");
 
     private static List<InventoryItem> LastRemoved()
@@ -440,7 +497,7 @@ public partial class Api
         var batch = Inventory().Where(i => gone.Contains(i.Uid)).ToList();
         if (batch.Count == 0) return 0; // keep the last Undo Remove
         // Kept for Undo Remove (the last batch only).
-        File.WriteAllText(RemovedFile, JsonSerializer.Serialize(batch));
+        SafeFile.WriteAllText(RemovedFile, JsonSerializer.Serialize(batch));
         var removed = Inventory().RemoveAll(i => gone.Contains(i.Uid));
         SaveInventory();
         Toast($"Removed {removed} duplicate{(removed == 1 ? "" : "s")}.", "good");

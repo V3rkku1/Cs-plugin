@@ -181,6 +181,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 GameMode = CvarInt("game_mode"),
                 Humans = players.Count(p => !IsBotPlayer(p)),
                 Bots = players.Count(IsBotPlayer),
+                MaxPlayers = Server.MaxPlayers,
                 Players = players.Where(p => !IsBotPlayer(p)).Select(p => p.PlayerName).ToList(),
                 SharedLoadout = SharedLoadout,
                 PrivateServer = _privateServer,

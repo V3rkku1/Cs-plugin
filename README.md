@@ -83,7 +83,9 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
      Steam is ready, and the server then just sits idle. CS2 waits until the Workshop map has loaded,
      then starts and joins by itself.
      A new Workshop map starts in **Custom** mode (what most Workshop maps are tagged for: movement
-     hubs only spawn you there). Pick another mode and the launcher remembers it for that map.
+     hubs only spawn you there). Hosted from the Workshop page, a map whose name says what it is starts
+     in a fitting mode instead (`aim_`/`awp_`/`dm_` Deathmatch, `ar_` or "arms race" Arms Race, `de_`/`cs_`
+     Casual). Pick another mode and the launcher remembers it for that map.
    - **If the server crashes or closes by itself**, the Activity log shows its last console lines
      (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
      you report a problem.
@@ -170,12 +172,14 @@ band first: FN 3%, MW 24%, FT 33%, WW 24%, BS 16%, then squeezed into the skin's
 0-1000, StatTrak 10% in weapon cases. Everything you unbox goes to the page's *Inventory*, where
 **Equip** puts a gun skin, knife, gloves, pin or music kit on in game. Every container can be opened:
 weapon cases, sticker and autograph capsules, souvenir packages, pins, patches, music kit boxes and
-graffiti. Nothing touches a Steam inventory.
+graffiti. Nothing touches a Steam inventory. The page's title line also shows what the openings would
+have cost for real: the keys for weapon cases and the containers at today's market prices.
 
 **INVENTORY page** (the old Skins tab): what you unboxed, laid out like CS2's inventory: All Items,
 Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
 an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
-came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
+came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Export** saves the inventory to a
+file (a backup, or to move it to another PC); **Import** adds the items of such a file that aren't there yet. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
 from your inventory (applying uses the sticker up, like in the game): pick one, then click on the gun where it goes
 (numbered marks show the five slots, zoom up to 2.4×, arrow keys nudge the selected sticker), drag them anywhere, turn,
 resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game

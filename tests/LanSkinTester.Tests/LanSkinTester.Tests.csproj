@@ -43,6 +43,10 @@
     <Compile Include="..\..\src\Launcher\Core\ClientConsole.cs" Link="Launcher\ClientConsole.cs" />
     <Compile Include="..\..\src\Launcher\Core\FriendsInvite.cs" Link="Launcher\FriendsInvite.cs" />
     <Compile Include="..\..\src\Launcher\Core\RouterPort.cs" Link="Launcher\RouterPort.cs" />
+    <Compile Include="..\..\src\Launcher\Core\PriceList.cs" Link="Launcher\PriceList.cs" />
+    <Compile Include="..\..\src\Launcher\Core\CaseRoller.cs" Link="Launcher\CaseRoller.cs" />
+    <Compile Include="..\..\src\Launcher\Core\ItemDatabase.cs" Link="Launcher\ItemDatabase.cs" />
+    <Compile Include="..\..\src\Launcher\Core\SafeFile.cs" Link="Launcher\SafeFile.cs" />
   </ItemGroup>
 
 </Project>

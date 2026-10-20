@@ -89,7 +89,24 @@ public class TestSession
     public static bool StatusFromThisServer(long statusTime, DateTime serverStartUtc) =>
         statusTime > new DateTimeOffset(DateTime.SpecifyKind(serverStartUtc, DateTimeKind.Utc)).ToUnixTimeSeconds() + 2;
 
-    public static bool Cs2Running() => Process.GetProcessesByName("cs2").Length > 0;
+    public static bool Cs2Running() => Cs2Ids().Length > 0;
+
+    private sealed record Cs2Snapshot(DateTime At, int[] Ids);
+    private static Cs2Snapshot? _cs2;
+
+    /// <summary>
+    /// Ids of every cs2.exe. The poll and the page state ask many times a second, and each lookup lists every
+    /// process on the PC, so the answer is kept for a second (and dropped when the launcher starts or kills one).
+    /// </summary>
+    private static int[] Cs2Ids()
+    {
+        if (_cs2 is { } snap && DateTime.UtcNow - snap.At < TimeSpan.FromSeconds(1)) return snap.Ids;
+        var processes = Process.GetProcessesByName("cs2");
+        var ids = processes.Select(p => p.Id).ToArray();
+        foreach (var p in processes) p.Dispose();
+        _cs2 = new Cs2Snapshot(DateTime.UtcNow, ids);
+        return ids;
+    }
 
     /// <summary>The server's process id and start time, so a restarted launcher still knows which cs2.exe is the server.</summary>
     private static string PidFile => Path.Combine(AppState.LauncherDataDir, "server.pid");
@@ -117,7 +134,7 @@ public class TestSession
     public static bool ClientRunning()
     {
         var server = FindServer()?.Id;
-        return Process.GetProcessesByName("cs2").Any(p => p.Id != server);
+        return Cs2Ids().Any(id => id != server);
     }
 
     /// <summary>
@@ -155,6 +172,7 @@ public class TestSession
             p.WaitForExit(10_000);
         }
         catch (Exception) { /* already gone */ }
+        _cs2 = null;
     }
 
     private void LaunchServer(ServerSettings settings)
@@ -194,8 +212,11 @@ public class TestSession
     /// <summary>Starts CS2 (VAC off for this run) joining another server.</summary>
     public void Join(ServerSettings settings, string address, string password) => RunCs2(settings.JoinArguments(_game, address, password));
 
-    private Process? RunCs2(string arguments) =>
-        Process.Start(new ProcessStartInfo(_game.Exe) { Arguments = arguments, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(_game.Exe)! });
+    private Process? RunCs2(string arguments)
+    {
+        _cs2 = null;
+        return Process.Start(new ProcessStartInfo(_game.Exe) { Arguments = arguments, UseShellExecute = true, WorkingDirectory = Path.GetDirectoryName(_game.Exe)! });
+    }
 
     /// <summary>The dedicated server process started by this launcher (null after a launcher restart).</summary>
     public static Process? Server { get; private set; }

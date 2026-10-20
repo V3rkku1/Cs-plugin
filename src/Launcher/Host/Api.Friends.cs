@@ -104,7 +104,7 @@ public partial class Api
         }
         if (a.Password != null)
         {
-            var password = a.Password.Replace("\"", "").Trim();
+            var password = ServerSettings.CleanPassword(a.Password);
             if (password == s.Password) return;
             s.Password = password;
             App.SaveSettings();
@@ -276,14 +276,28 @@ public partial class Api
     private async Task<FriendsList> FriendsListNow()
     {
         var saved = App.Settings.FriendsList;
-        var checks = saved.Select(f => FriendFinder.QueryAsync(f.Address)).ToList();
-        var infos = await Task.WhenAll(checks);
+        var infos = await Task.WhenAll(saved.Select(f => QueryFriendAsync(f.Address)));
         var rows = saved.Select((f, i) => infos[i] is { } info
-                ? new FriendRow(i, f.Name, f.Address, true, $"Hosting {info.Map} · {info.Players}/{info.MaxPlayers} players" + (info.Bots > 0 ? $" + {info.Bots} bots" : ""), info.Password)
+                ? new FriendRow(i, f.Name, f.Address, true, $"Hosting {info.Map} · {info.Players}/{info.MaxPlayers} players" + (info.Bots > 0 ? $" + {info.Bots} bots" : "") + $" · {info.Ping} ms", info.Password)
                 : new FriendRow(i, f.Name, f.Address, false, "Not hosting right now", false))
             .OrderByDescending(r => r.Online).ThenBy(r => r.Name)
             .ToList();
         return new FriendsList(rows, FriendFinder.LanHosts(), App.Settings.HostName);
+    }
+
+    private readonly Dictionary<string, (DateTime At, ServerInfo? Info)> _friendInfo = new();
+
+    /// <summary>
+    /// A saved friend's server, asked at most every 5 seconds: the list reloads with every change in the launcher,
+    /// and each friend who isn't hosting costs a few seconds of waiting.
+    /// </summary>
+    private async Task<ServerInfo?> QueryFriendAsync(string address)
+    {
+        lock (_friendInfo)
+            if (_friendInfo.TryGetValue(address, out var known) && DateTime.UtcNow - known.At < TimeSpan.FromSeconds(5)) return known.Info;
+        var info = await FriendFinder.QueryAsync(address);
+        lock (_friendInfo) _friendInfo[address] = (DateTime.UtcNow, info);
+        return info;
     }
 
     public record AddFriendArgs(string? Name, string? Text);
@@ -344,6 +358,6 @@ public partial class Api
     private (string, string, int, int, bool)? HostBeacon()
     {
         if (!App.TestModeOn || App.ReadServerStatus() is not { } status) return null;
-        return (App.Settings.HostName, status.Map, status.Humans, 10, App.Settings.Server.Password != "");
+        return (App.Settings.HostName, status.Map, status.Humans, status.MaxPlayers > 0 ? status.MaxPlayers : 10, App.Settings.Server.Password != "");
     }
 }

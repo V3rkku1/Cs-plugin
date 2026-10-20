@@ -49,6 +49,8 @@ public class LauncherSettings
     /// </summary>
     public bool AdminUnlocked { get; set; }
     public int CasesOpened { get; set; }
+    /// <summary>Openings per container id, for "what it would have cost" on the Cases page.</summary>
+    public Dictionary<string, int> CaseOpens { get; set; } = new();
 
     /// <summary>Market prices are shown in this currency (USD, EUR or GBP). Opening cases is free.</summary>
     public string Currency { get; set; } = "USD";
@@ -74,7 +76,7 @@ public class LauncherSettings
     public void Save()
     {
         Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
-        File.WriteAllText(FilePath, JsonSerializer.Serialize(this));
+        SafeFile.WriteAllText(FilePath, JsonSerializer.Serialize(this));
     }
 }
 

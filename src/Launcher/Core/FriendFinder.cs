@@ -9,7 +9,7 @@ namespace LanSkinTester.Launcher.Core;
 public record LanHost(string Name, string Address, string Map, int Players, int MaxPlayers, bool Password, DateTime Seen);
 
 /// <summary>What a server says about itself (Steam's A2S_INFO query).</summary>
-public record ServerInfo(string Name, string Map, int Players, int MaxPlayers, int Bots, bool Password);
+public record ServerInfo(string Name, string Map, int Players, int MaxPlayers, int Bots, bool Password, int Ping = 0);
 
 /// <summary>
 /// Friends list helpers. While hosting, the launcher announces the server on every local network
@@ -112,16 +112,18 @@ public static class FriendFinder
             request.AddRange(Encoding.ASCII.GetBytes("Source Engine Query\0"));
             for (var attempt = 0; attempt < 2; attempt++)
             {
+                var sent = System.Diagnostics.Stopwatch.StartNew();
                 await udp.SendAsync(request.ToArray());
                 using var cts = new CancellationTokenSource(timeoutMs);
                 var reply = (await udp.ReceiveAsync(cts.Token)).Buffer;
+                var ping = (int)sent.ElapsedMilliseconds;
                 if (reply.Length < 5) return null;
                 if (reply[4] == 0x41 && reply.Length >= 9) // challenge: send again with it
                 {
                     request.AddRange(reply.Skip(5).Take(4));
                     continue;
                 }
-                return reply[4] == 0x49 ? ParseInfo(reply) : null;
+                return reply[4] == 0x49 ? ParseInfo(reply) is { } info ? info with { Ping = ping } : null : null;
             }
         }
         catch (Exception) { /* offline, or not a game server */ }

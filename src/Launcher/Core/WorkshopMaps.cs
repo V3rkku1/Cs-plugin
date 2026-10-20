@@ -37,6 +37,14 @@ public static class WorkshopMaps
         return list;
     }
 
+    /// <summary>Steam has downloaded the map: any .vpk in its folder (cheap enough for the poll every second).</summary>
+    public static bool IsDownloaded(GameFolder game, string id)
+    {
+        var dir = ContentDir(game, id);
+        try { return Directory.Exists(dir) && Directory.EnumerateFiles(dir, "*.vpk", SearchOption.AllDirectories).Any(); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; } // Steam is updating it
+    }
+
     /// <summary>The map's .vpk if Steam has downloaded it, else null.</summary>
     public static string? FindDownloaded(GameFolder game, string id)
     {

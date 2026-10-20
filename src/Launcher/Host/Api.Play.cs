@@ -76,7 +76,7 @@ public partial class Api
         {
             status?.Map, status?.GameType, status?.GameMode, status?.Humans, status?.Bots, status?.Players,
             status?.SkinsAllowed, status?.DisabledReason, on = App.TestModeOn, step = JoinStep(status), w = _pendingWorkshopId, s = _workshopSentAt,
-            sub = g != null && id != null && WorkshopMaps.FindDownloaded(g, id) != null,
+            sub = g != null && id != null && WorkshopMaps.IsDownloaded(g, id),
         });
         if (tick == _lastTick) return;
         _lastTick = tick;
@@ -204,7 +204,7 @@ public partial class Api
             return string.IsNullOrWhiteSpace(s.WorkshopMap)
                 ? new WorkshopInfo(null, "Optional · overrides the map", "muted")
                 : new WorkshopInfo(null, "Paste the map's ID or Workshop link", "warning");
-        var subscribed = App.Game != null && WorkshopMaps.FindDownloaded(App.Game, id) != null;
+        var subscribed = App.Game != null && WorkshopMaps.IsDownloaded(App.Game, id);
         return subscribed
             ? new WorkshopInfo(id, "Subscribed · the server loads it from the Workshop", "good")
             : new WorkshopInfo(id, "The server downloads it (needs internet)", "muted");
@@ -901,7 +901,7 @@ public partial class Api
         s.RetakeBombTimer = Math.Clamp(s.RetakeBombTimer, 15, 60);
         s.WorkshopMap = (s.WorkshopMap ?? "").Trim();
         s.GameArgs = (s.GameArgs ?? "").Trim();
-        s.Password = (s.Password ?? "").Replace("\"", "").Trim();
+        s.Password = ServerSettings.CleanPassword(s.Password);
         App.SaveSettings();
         App.NotifyChanged();
     }

@@ -50,7 +50,7 @@ public partial class Api
         var ids = Regex.Matches(html, @"sharedfiles/filedetails/\?id=(\d{6,})").Select(m => m.Groups[1].Value).Distinct().Take(30).ToList();
         await LoadWorkshopDetails(ids);
         var game = App.Game;
-        return ids.Select(id => ToItem(id, game != null && WorkshopMaps.FindDownloaded(game, id) != null, 0, null))
+        return ids.Select(id => ToItem(id, game != null && WorkshopMaps.IsDownloaded(game, id), 0, null))
             .Where(i => i.Title != "")
             .ToList();
     }
@@ -79,7 +79,12 @@ public partial class Api
     private async Task HostWorkshopMap(string id)
     {
         if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
-        App.Settings.Server = ServerSettings.ForWorkshop(App.Settings.Server, id);
+        var s = ServerSettings.ForWorkshop(App.Settings.Server, id);
+        // Never played here before: a mode that fits its name (de_, aim_, arms race...), else Custom.
+        if (!s.MapModes.ContainsKey(id) && WorkshopDetails.TryGetValue(id, out var d)
+            && ServerSettings.GuessMode(WebUtility.HtmlDecode(DetailText(d, "title")), DetailTags(d)) is { } guess)
+            s.Mode = guess;
+        App.Settings.Server = s;
         App.SaveSettings();
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());
@@ -90,18 +95,23 @@ public partial class Api
     {
         if (!WorkshopDetails.TryGetValue(id, out var d))
             return new WorkshopItem(id, downloaded ? $"Workshop map {id}" : "", "", FileSizeText(bytes), DateText(updated), downloaded, true, "");
-        string Str(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+        string Str(string name) => DetailText(d, name);
         long Long(string name) => d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.Number ? v.GetInt64()
             : d.TryGetProperty(name, out v) && v.ValueKind == JsonValueKind.String && long.TryParse(v.GetString(), out var n) ? n : 0;
-        var tags = d.TryGetProperty("tags", out var t) && t.ValueKind == JsonValueKind.Array
-            ? t.EnumerateArray().Select(x => x.TryGetProperty("tag", out var tag) ? tag.GetString() ?? "" : "").Where(x => x != "").ToList()
-            : new List<string>();
+        var tags = DetailTags(d);
         var cs2 = tags.Any(x => x.Contains("CS2", StringComparison.OrdinalIgnoreCase)) || Long("time_updated") > 1695686400; // after CS2's release
         var size = bytes > 0 ? bytes : Long("file_size");
         var when = updated ?? (Long("time_updated") > 0 ? DateTimeOffset.FromUnixTimeSeconds(Long("time_updated")).UtcDateTime : (DateTime?)null);
         return new WorkshopItem(id, WebUtility.HtmlDecode(Str("title")), Str("preview_url"), FileSizeText(size), DateText(when), downloaded, cs2,
             string.Join(" · ", tags.Where(x => !x.Equals("CS2", StringComparison.OrdinalIgnoreCase)).Take(3)));
     }
+
+    private static string DetailText(JsonElement d, string name) =>
+        d.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String ? v.GetString() ?? "" : "";
+
+    private static List<string> DetailTags(JsonElement d) => d.TryGetProperty("tags", out var t) && t.ValueKind == JsonValueKind.Array
+        ? t.EnumerateArray().Select(x => x.TryGetProperty("tag", out var tag) ? tag.GetString() ?? "" : "").Where(x => x != "").ToList()
+        : [];
 
     private static string FileSizeText(long bytes) => bytes <= 0 ? "" : bytes >= 1L << 30
         ? (bytes / (double)(1L << 30)).ToString("0.0 GB", CultureInfo.InvariantCulture)

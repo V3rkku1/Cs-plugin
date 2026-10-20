@@ -9,6 +9,8 @@ public class ServerStatus
     public int GameMode { get; set; }
     public int Humans { get; set; }
     public int Bots { get; set; }
+    /// <summary>The server's player slots (0 from plugins older than this field).</summary>
+    public int MaxPlayers { get; set; }
     public List<string> Players { get; set; } = new();
     public bool SharedLoadout { get; set; } = true;
     public bool PrivateServer { get; set; }

@@ -336,6 +336,9 @@ public class ServerSettings
     /// <summary>Optional server password for friends.</summary>
     public string Password { get; set; } = "";
 
+    /// <summary>A password safe in a server command and on CS2's command line: no quotes or line breaks.</summary>
+    public static string CleanPassword(string? text) => new string((text ?? "").Where(c => c != '"' && !char.IsControl(c)).ToArray()).Trim();
+
     public static readonly string[] HackerModes = ["Off", "Everyone", "One random"];
 
     /// <summary>Hacker mode: 0 off, 1 every player hacks (great vs bots), 2 one random hacker per round ("catch the hacker").</summary>
@@ -494,6 +497,19 @@ public class ServerSettings
         SpawnProtection = false, GunMenu = false, MapVote = false, RoundSummary = false, WelcomeMessage = false, CleanupGuns = false,
     };
 
+    /// <summary>
+    /// A mode that fits a Workshop map from its title and tags, or null (it then starts in Custom: surf, kz and
+    /// movement hubs only spawn you there).
+    /// </summary>
+    public static string? GuessMode(string title, IEnumerable<string> tags)
+    {
+        var text = (title + " " + string.Join(' ', tags)).ToLowerInvariant();
+        if (Regex.IsMatch(text, @"(\bar_|arms ?race|gun ?game)")) return "Arms Race";
+        if (Regex.IsMatch(text, @"(\b(aim|awp|dm|1v1)_|deathmatch)")) return "Deathmatch";
+        if (Regex.IsMatch(text, @"(\b(de|cs)_|defuse|hostage|bomb ?site)")) return "Casual";
+        return null;
+    }
+
     public GameMode GetMode()
     {
         var mode = Modes.FirstOrDefault(m => m.Name == Mode) ?? Modes[0];
@@ -541,7 +557,7 @@ public class ServerSettings
     public string JoinArguments(GameFolder game, string address, string? password)
     {
         var extra = (GameArgs ?? "").Replace("+connect", "").Trim();
-        var pass = string.IsNullOrWhiteSpace(password) ? "" : $"+password \"{password.Trim()}\" ";
+        var pass = CleanPassword(password) is { Length: > 0 } clean ? $"+password \"{clean}\" " : "";
         var exec = WriteClientCfg(game) ? $"+exec {ClientCfg} " : "";
         // -netconport: the launcher can type in this CS2's console (sends your skins on a friend's server).
         return $"-insecure -netconport {ClientConsole.Port} -netconpassword {ClientConsole.Password} {extra} {exec}{pass}+connect {address}".Replace("  ", " ");

@@ -648,6 +648,8 @@ export function InventoryPage() {
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
         ${state.undo > 0 && html`<${Button} icon="refresh" onClick=${() => tryCall("cases.undoRemove")} title="Bring back what Remove Duplicates removed last">Undo Remove (${state.undo})<//>`}
+        <${Button} icon="save" onClick=${() => tryCall("backup.exportInventory")} title="Save your inventory to a file (a backup, or to move it to another PC)">Export<//>
+        <${Button} icon="import" onClick=${() => tryCall("backup.importInventory")} title="Add the items from a saved inventory file">Import<//>
         <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin in the same exterior">Remove Duplicates (${duplicates.length})<//>
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
