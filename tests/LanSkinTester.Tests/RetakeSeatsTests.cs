@@ -1,4 +1,3 @@
-using LanSkinTester.Launcher.Core;
 using Seats = global::LanSkinTester.LanSkinTester;
 
 namespace LanSkinTester.Tests;
@@ -247,12 +246,9 @@ public class RetakeSeatsTests
     public void LauncherAndPluginAgreeOnTheFirstQuota()
     {
         // The cfg's bot_quota is what the plugin computes for one person (you).
-        foreach (var maxPlayers in Enumerable.Range(2, 9))
-        foreach (var bots in new[] { 0, 1, 6, 8, 20 })
-        {
-            var s = new ServerSettings { Mode = ServerSettings.RetakesMode, RetakeStyle = 1, RetakeMaxPlayers = maxPlayers, Bots = bots };
-            Assert.Contains($"bot_quota {Seats.SeatQuota(maxPlayers, Math.Min(bots, 31), 1)}\n", s.ToCfg().Replace("\r", ""));
-        }
+        Assert.NotEmpty(LauncherCommands.Load().RetakeQuotas);
+        foreach (var q in LauncherCommands.Load().RetakeQuotas)
+            Assert.Equal(Seats.SeatQuota(q[0], Math.Min(q[1], 31), 1), q[2]);
     }
 
     [Theory]

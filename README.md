@@ -29,17 +29,14 @@ Pick one:
   (no admin prompt) into `%LocalAppData%\Programs\LAN Skin Tester`, adds a Start menu shortcut and an
   optional desktop shortcut, and appears in Windows' *Installed apps*, so it can be uninstalled
   there. Uninstalling keeps your loadouts and settings.
-- `LanSkinTesterLauncher.exe` (about 65 MB): the same launcher as one portable file.
-- `LanSkinTesterLauncher-small.zip` (about 1 MB): extract it and run `LanSkinTesterLauncher.exe`.
-  It needs the [.NET 10 Desktop Runtime and ASP.NET Core Runtime](https://dotnet.microsoft.com/download/dotnet/10.0).
-  If you don't have it, Windows offers a download link the first time you open it.
+- `LanSkinTesterLauncher.exe`: the same launcher as one portable file. Nothing else to install.
 
 The launcher has eight pages in its sidebar: Play, Live Server, Inventory, Cases, Hacker Mode, Workshop,
 Friends and Setup (Ctrl+1 to Ctrl+8). **Ctrl+K** (or *Search* in the sidebar) finds any page, quick start or action:
 type "dm" and press Enter to start Deathmatch. **F11** switches to full screen and back. Maximized or full screen on a big monitor, the
 whole page zooms up to fill the window instead of staying small. The launcher shows a toast when a friend joins or
 leaves your server. On first start it opens on **SETUP**. The window uses Microsoft's WebView2, which
-Windows 10 and 11 already have; without it the launcher opens in your web browser instead.
+Windows 10 and 11 already have (if it is missing, install the *Evergreen Runtime* from microsoft.com/edge/webview2).
 
 **SETUP page**
 
@@ -677,24 +674,26 @@ Saved loadouts are in `plugins/LanSkinTester/loadouts.json`.
 GitHub Actions builds everything on every push and puts the files on the **Latest build** release.
 Builds of other branches are under *Actions → Build → Artifacts*. To build yourself:
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download) for the plugin and
+[Rust](https://rustup.rs) for the launcher (a [Tauri](https://tauri.app) app).
 
 ```
 ./build.sh
 ```
 
-This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`),
-`build/LanSkinTesterLauncher.exe` and `build/LanSkinTesterLauncher-small.zip` (the launcher, with the plugin built in).
-On Windows without bash, run `dotnet publish src/LanSkinTester -c Release -o out` and copy
-`LanSkinTester.dll` and the `gamedata` folder to `plugins/LanSkinTester/`.
+This creates `build/LanSkinTester.zip` (ready to extract into `game/csgo/`) and `build/LanSkinTesterLauncher.exe`
+(the launcher, with the plugin built in). The launcher builds on Windows (Git Bash), or on Linux with
+[cargo-xwin](https://github.com/rust-cross/cargo-xwin). Without bash, run
+`dotnet publish src/LanSkinTester -c Release -o out` and copy `LanSkinTester.dll` and the `gamedata` folder to
+`plugins/LanSkinTester/`.
 
-The launcher's UI is HTML/CSS/JS in `src/Launcher/web/` (see `src/Launcher/DESIGN.md`). Run
-`LanSkinTesterLauncher.exe --serve 5099 --token dev --web-dir src\Launcher\web` to open it in a normal
-browser at http://127.0.0.1:5099/?t=dev and see edits on reload.
+Tests: `dotnet test tests/LanSkinTester.Tests` (plugin) and `cargo test` in `src/Launcher` (launcher). The
+launcher's UI is HTML/CSS/JS in `src/Launcher/web/`, its logic Rust in `src/Launcher/src/` (see
+`src/Launcher/DESIGN.md`).
 
 ## Credits
 
-- Launcher UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
+- Launcher: [Tauri](https://tauri.app) (MIT / Apache-2.0); UI: [Preact](https://preactjs.com) and [htm](https://github.com/developit/htm) (MIT / Apache-2.0), [Inter](https://rsms.me/inter/) (OFL).
 - Skin, sticker, charm, agent and pin data and pictures: [ByMykel/CSGO-API](https://github.com/ByMykel/CSGO-API) (MIT).
 - Inspect link format: checked against [cs2inspect](https://pypi.org/project/cs2inspect/).
 - The skin-applying technique (attribute lists, knife subclass change, glove refresh, stickers, charms, agents, pins)

@@ -1,45 +1,47 @@
 #!/usr/bin/env bash
 # Builds:
 #   build/LanSkinTester.zip            - the plugin, laid out as it goes into game/csgo/
-#   build/LanSkinTesterLauncher.exe    - Windows launcher (installer + skin picker), plugin included
-#   build/LanSkinTesterLauncher-small.zip - same, needs the .NET 10 Desktop Runtime installed
+#   build/LanSkinTesterLauncher.exe    - Windows launcher (Tauri, Rust), plugin included
 #   build/LanSkinTesterSetup.exe       - installer (Start menu / desktop shortcuts, uninstaller), if NSIS is installed
+# The launcher builds on Windows (Git Bash), or on Linux with cargo-xwin (cargo install cargo-xwin).
 set -euo pipefail
 cd "$(dirname "$0")"
+# Windows paths for the Rust compiler and NSIS when this runs in Git Bash.
+ROOT=$(pwd -W 2>/dev/null || pwd)
 
-# The commit goes into the launcher's version so it can tell when GitHub has a newer build.
-REV=$(git rev-parse HEAD 2>/dev/null || true)
-VERSION_ARGS=(-p:SourceRevisionId="$REV")
-# TEST_BUILD=1: no commit in the version ("dev build"), so the launcher doesn't update itself to the main release.
-[ "${TEST_BUILD:-}" = 1 ] && VERSION_ARGS=(-p:IncludeSourceRevisionInInformationalVersion=false)
+# zip, or 7-Zip where there is no zip (Git Bash on Windows).
+zipdir() { if command -v zip >/dev/null; then zip -qr "$1" "$2"; else 7z a -tzip -bso0 "$1" "$2"; fi; }
 
 OUT=build/addons/counterstrikesharp/plugins/LanSkinTester
 rm -rf build
 dotnet publish src/LanSkinTester -c Release -o "$OUT"
 # Only our own DLL is needed; CounterStrikeSharp provides the rest at runtime.
 find "$OUT" -maxdepth 1 -type f ! -name 'LanSkinTester.dll' ! -name 'LanSkinTester.deps.json' -delete
-(cd build && zip -qr LanSkinTester.zip addons) && echo "Built build/LanSkinTester.zip"
+(cd build && zipdir LanSkinTester.zip addons) && echo "Built build/LanSkinTester.zip"
 
-# Self-contained single exe: runs on any Windows 10/11 without installing .NET.
-dotnet publish src/Launcher -c Release -r win-x64 --self-contained true \
-  -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true -p:EnableCompressionInSingleFile=true \
-  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" "${VERSION_ARGS[@]}" -o build/launcher
-mv build/launcher/LanSkinTesterLauncher.exe build/ && rm -rf build/launcher
+# The commit goes into the launcher so it can tell when GitHub has a newer build.
+# TEST_BUILD=1: no commit ("dev build"), so the launcher doesn't update itself to the main release.
+export LST_PLUGIN_DIR="$ROOT/$OUT"
+if [ "${TEST_BUILD:-}" != 1 ]; then export LST_COMMIT=$(git rev-parse HEAD 2>/dev/null || true); fi
+TARGET=x86_64-pc-windows-msvc
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) CARGO=(cargo build) ;;
+  *) if command -v cargo-xwin >/dev/null; then CARGO=(cargo xwin build); else CARGO=(); fi ;;
+esac
+if [ ${#CARGO[@]} -eq 0 ]; then
+  echo "Skipping the launcher: build on Windows, or install cargo-xwin (cargo install cargo-xwin)"
+  exit 0
+fi
+"${CARGO[@]}" --release --target "$TARGET" --manifest-path src/Launcher/Cargo.toml
+cp "src/Launcher/target/$TARGET/release/LanSkinTesterLauncher.exe" build/
 echo "Built build/LanSkinTesterLauncher.exe"
 
-# Small variant (~0.3 MB zip) that uses the installed .NET 10 Desktop Runtime (Windows offers to download it).
-rm -rf src/Launcher/obj src/Launcher/bin  # don't reuse the self-contained build's intermediate files
-dotnet publish src/Launcher -c Release -r win-x64 --self-contained false \
-  -p:DebugType=none -p:PluginOutput="$PWD/$OUT/" "${VERSION_ARGS[@]}" -o build/LanSkinTesterLauncher-small
-(cd build && zip -qr LanSkinTesterLauncher-small.zip LanSkinTesterLauncher-small) && rm -rf build/LanSkinTesterLauncher-small
-echo "Built build/LanSkinTesterLauncher-small.zip"
-
-# Installer (needs NSIS: apt-get install nsis). Wraps the self-contained exe.
+# Installer (needs NSIS). Wraps the launcher exe.
 if command -v makensis >/dev/null; then
   VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/LanSkinTester/LanSkinTester.csproj | head -1)
-  makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$PWD/build/LanSkinTesterLauncher.exe" \
-    -DOUT="$PWD/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
+  makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$ROOT/build/LanSkinTesterLauncher.exe" \
+    -DOUT="$ROOT/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
   echo "Built build/LanSkinTesterSetup.exe"
 else
-  echo "makensis not found - skipping the installer (apt-get install nsis)"
+  echo "makensis not found - skipping the installer (apt-get install nsis / choco install nsis)"
 fi

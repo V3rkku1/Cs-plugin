@@ -1,7 +1,7 @@
 // Setup › Appearance: turns the saved theme values into CSS variables, plus the background picture
 // and the user's custom.css (both served by the launcher from its data folder).
 
-import { token } from "./api.js";
+import { media } from "./api.js";
 
 /** Ready-made looks. Picking one sets these values; each can still be changed after. */
 export const PRESETS = [
@@ -45,7 +45,7 @@ export function applyTheme(theme = {}, solid = false) {
   root.setProperty("--font", FONTS[t.font] ?? FONTS.inter);
 
   if (theme.image) {
-    root.setProperty("--bg-image", `url("/theme/background?t=${token}&v=${theme.image}")`);
+    root.setProperty("--bg-image", `url("${media}theme/background?v=${theme.image}")`);
     root.setProperty("--bg-dim", String((Number(t.dim) || 0) / 100));
   } else {
     root.removeProperty("--bg-image");
@@ -62,7 +62,7 @@ export function watchCustomCss() {
     link.rel = "stylesheet";
     document.head.appendChild(link);
   }
-  const reload = () => { link.href = `/theme/custom.css?t=${token}&v=${Date.now()}`; };
+  const reload = () => { link.href = `${media}theme/custom.css?v=${Date.now()}`; };
   reload();
   window.addEventListener("focus", reload);
 }

@@ -1,8 +1,8 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!--
-    Tests that run on Linux in CI. The plugin is referenced as a project; the launcher is a Windows app,
-    so the launcher files these tests need are compiled in directly (with small stand-ins in Shims.cs).
+    The plugin's tests. The launcher (Rust, src/Launcher) has its own tests (cargo test); what it writes for the
+    server is in launcher-commands.json, which these tests check against the plugin.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -30,24 +30,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="..\..\src\Launcher\Core\ServerSettings.cs" Link="Launcher\ServerSettings.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameFolder.cs" Link="Launcher\GameFolder.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameModeCatalog.cs" Link="Launcher\GameModeCatalog.cs" />
-    <Compile Include="..\..\src\Launcher\Core\WorkshopMaps.cs" Link="Launcher\WorkshopMaps.cs" />
-    <Compile Include="..\..\src\Launcher\Core\FireRelay.cs" Link="Launcher\FireRelay.cs" />
-    <Compile Include="..\..\src\Launcher\Core\GameInfoPatcher.cs" Link="Launcher\GameInfoPatcher.cs" />
-    <Compile Include="..\..\src\Launcher\Core\TestSession.cs" Link="Launcher\TestSession.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Upnp.cs" Link="Launcher\Upnp.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Network.cs" Link="Launcher\Network.cs" />
-    <Compile Include="..\..\src\Launcher\Core\Installer.cs" Link="Launcher\Installer.cs" />
-    <Compile Include="..\..\src\Launcher\Core\ClientConsole.cs" Link="Launcher\ClientConsole.cs" />
-    <Compile Include="..\..\src\Launcher\Core\FriendsInvite.cs" Link="Launcher\FriendsInvite.cs" />
-    <Compile Include="..\..\src\Launcher\Core\RouterPort.cs" Link="Launcher\RouterPort.cs" />
-    <Compile Include="..\..\src\Launcher\Core\PriceList.cs" Link="Launcher\PriceList.cs" />
-    <Compile Include="..\..\src\Launcher\Core\CaseRoller.cs" Link="Launcher\CaseRoller.cs" />
-    <Compile Include="..\..\src\Launcher\Core\ItemDatabase.cs" Link="Launcher\ItemDatabase.cs" />
-    <Compile Include="..\..\src\Launcher\Core\SafeFile.cs" Link="Launcher\SafeFile.cs" />
-    <Compile Include="..\..\src\Launcher\Core\TradeUpMath.cs" Link="Launcher\TradeUpMath.cs" />
+    <None Include="launcher-commands.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>

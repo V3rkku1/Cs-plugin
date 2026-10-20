@@ -1,0 +1,10 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "LAN Skin Tester",
+  "mainBinaryName": "LanSkinTesterLauncher",
+  "version": "2.19.0",
+  "identifier": "io.github.v3rkku1.lanskintester",
+  "build": { "frontendDist": "web" },
+  "app": { "withGlobalTauri": true, "windows": [], "security": { "csp": null } },
+  "bundle": { "active": false, "icon": ["app.ico", "web/app.png"] }
+}

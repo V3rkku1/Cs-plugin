@@ -1,31 +1,22 @@
-// Talks to the launcher (C#) over the local server: calls, live events and toasts.
+// Talks to the launcher (Rust, Tauri): calls, live events and toasts.
 import { useState, useEffect, useCallback, useRef } from "./vendor/preact-htm.js";
 
-/** The launcher's random token from the page address: every call, event and picture needs it. */
-export const token = new URLSearchParams(location.search).get("t") ?? "";
+const { invoke, convertFileSrc } = window.__TAURI__.core;
 const listeners = new Map();
 /** Last result of each useApi call ("name|args"), so a page shows at once when you switch back to it. */
 const cache = new Map();
 
+/** The launcher's own files (pictures, theme background, custom.css): lst://localhost/ or http://lst.localhost/. */
+export const media = convertFileSrc("", "lst");
+
 /** Calls a launcher method. Errors become a toast and reject with the message. */
 export async function call(name, args) {
-  let response;
   try {
-    response = await fetch(`/api/${name}`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Token": token },
-      body: args === undefined ? undefined : JSON.stringify(args),
-    });
-  } catch {
-    toast("The launcher isn't responding.", "bad");
-    throw new Error("offline");
+    return await invoke("call", { name, args: args ?? null });
+  } catch (error) {
+    toast(String(error), "bad");
+    throw new Error(String(error));
   }
-  const reply = await response.json().catch(() => ({ ok: false, error: `HTTP ${response.status}` }));
-  if (!reply.ok) {
-    toast(reply.error, "bad");
-    throw new Error(reply.error);
-  }
-  return reply.result;
 }
 
 /** Like call(), but swallows the error (the toast already told the user). */
@@ -43,7 +34,7 @@ function emit(type, data) {
 }
 
 /** Image URL through the launcher's picture cache. */
-export const img = (url, size = 256) => url ? `/img?s=${size}&t=${token}&u=${encodeURIComponent(url)}` : "";
+export const img = (url, size = 256) => url ? `${media}img?s=${size}&u=${encodeURIComponent(url)}` : "";
 
 /** Switches the window to another page: navigate("live"). */
 export const navigate = id => window.dispatchEvent(new CustomEvent("navigate", { detail: id }));
@@ -53,20 +44,7 @@ export function toast(text, kind = "info") {
   emit("toast", { text, kind });
 }
 
-let source;
-function connect() {
-  source = new EventSource(`/events?t=${token}`);
-  source.onmessage = e => {
-    const { type, data } = JSON.parse(e.data);
-    emit(type, data);
-  };
-  source.onopen = () => emit("changed");
-  source.onerror = () => {
-    source.close();
-    setTimeout(connect, 1500);
-  };
-}
-connect();
+window.__TAURI__.event.listen("lst", e => emit(e.payload.type, e.payload.data));
 
 /**
  * Loads a launcher call's result and reloads it whenever the launcher says something changed
