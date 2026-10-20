@@ -39,8 +39,10 @@ echo "Built build/LanSkinTesterLauncher.exe"
 # Installer (needs NSIS). Wraps the launcher exe.
 if command -v makensis >/dev/null; then
   VERSION=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/LanSkinTester/LanSkinTester.csproj | head -1)
-  makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$ROOT/build/LanSkinTesterLauncher.exe" \
-    -DOUT="$ROOT/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
+  # NSIS on Windows wants backslashes (it found no file at D:/a/...).
+  NSIS_ROOT=$(cygpath -w "$PWD" 2>/dev/null || pwd)
+  makensis -V2 -DVERSION="${VERSION:-0.0.0}" -DEXE="$NSIS_ROOT/build/LanSkinTesterLauncher.exe" \
+    -DOUT="$NSIS_ROOT/build/LanSkinTesterSetup.exe" installer/LanSkinTester.nsi
   echo "Built build/LanSkinTesterSetup.exe"
 else
   echo "makensis not found - skipping the installer (apt-get install nsis / choco install nsis)"
