@@ -64,7 +64,13 @@ public static class FriendFinder
                 if (!text.StartsWith(Magic) || Network.OwnAddresses().Contains(from.Address.ToString())) continue;
                 if (JsonSerializer.Deserialize<Beacon>(text[Magic.Length..]) is not { } b) continue;
                 var address = $"{from.Address}:{b.Port}";
-                lock (Hosts) Hosts[address] = new LanHost(Clean(b.Name), address, Clean(b.Map), b.Players, b.Max, b.Password, DateTime.UtcNow);
+                lock (Hosts)
+                {
+                    Hosts[address] = new LanHost(Clean(b.Name), address, Clean(b.Map), b.Players, b.Max, b.Password, DateTime.UtcNow);
+                    // Servers that stopped announcing a minute ago are gone for good.
+                    foreach (var old in Hosts.Where(h => DateTime.UtcNow - h.Value.Seen > TimeSpan.FromMinutes(1)).Select(h => h.Key).ToList())
+                        Hosts.Remove(old);
+                }
             }
             catch (Exception)
             {

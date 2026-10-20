@@ -47,8 +47,22 @@ public partial class Api
     private List<InventoryItem> Inventory()
     {
         if (_inventory != null) return _inventory;
-        try { _inventory = File.Exists(InventoryFile) ? JsonSerializer.Deserialize<List<InventoryItem>>(File.ReadAllText(InventoryFile)) ?? new() : new(); }
-        catch (Exception e) when (e is JsonException or IOException) { _inventory = new(); }
+        string text;
+        try { text = File.Exists(InventoryFile) ? File.ReadAllText(InventoryFile) : "[]"; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Not cached: an empty list now would be saved over the real one with the next change.
+            throw new ApiException("Could not read your inventory (is another program using it?): " + e.Message);
+        }
+        try { _inventory = JsonSerializer.Deserialize<List<InventoryItem>>(text) ?? new(); }
+        catch (JsonException e)
+        {
+            _inventory = new();
+            var aside = SafeFile.SetAside(InventoryFile);
+            App.Log($"Your inventory file is damaged ({e.Message}). " + (aside != null
+                ? $"It was kept as {Path.GetFileName(aside)}; starting with an empty inventory."
+                : "It couldn't be moved aside, so the next change replaces it."));
+        }
         return _inventory;
     }
 

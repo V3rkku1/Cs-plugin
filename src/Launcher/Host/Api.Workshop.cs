@@ -17,7 +17,8 @@ public partial class Api
     public record WorkshopState(bool HasGame, List<WorkshopItem> Downloaded, string? Hosting);
 
     /// <summary>Titles and pictures from Steam, kept for the launcher's run (they rarely change).</summary>
-    private static readonly Dictionary<string, JsonElement> WorkshopDetails = new();
+    // Concurrent: the Downloaded list and a search fill it at the same time.
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, JsonElement> WorkshopDetails = new();
 
     [Call("workshop.state")]
     private async Task<WorkshopState> WorkshopStateNow()

@@ -66,8 +66,10 @@ public class LauncherSettings
             ServerSettings.SkinCommands = settings.AdminUnlocked;
             return settings;
         }
-        catch (Exception)
+        catch (Exception e)
         {
+            // A damaged file is kept aside: the next save would otherwise replace it with defaults for good.
+            if (e is JsonException) SafeFile.SetAside(FilePath);
             ServerSettings.SkinCommands = false;
             return new();
         }

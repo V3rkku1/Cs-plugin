@@ -67,7 +67,7 @@ public partial class Api
         // CS2's tickets: every input adds one ticket for each item of the next grade in its own collection (for
         // Coverts, its case's knives / gloves), and one ticket wins. A collection's items get more likely the more
         // inputs come from it, and less likely the more items it has to share them with.
-        var tickets = new List<(CaseItem Item, CaseInfo Box)>();
+        var perInput = new List<IReadOnlyList<(CaseItem Item, CaseInfo Box)>>();
         var next = covert ? "Rare" : TradeLadder[Array.IndexOf(TradeLadder, grade) + 1];
         foreach (var input in inputs)
         {
@@ -76,9 +76,9 @@ public partial class Api
             var outs = covert ? box.Rare.GroupBy(r => r.Name).Select(g => g.First()).ToList() : box.Items.Where(x => x.Rarity == next).ToList();
             if (outs.Count == 0)
                 return (Fail(covert ? $"{input.Name}: its collection has no knives or gloves." : $"{input.Name}: its collection has no {next} item, so it can't go higher.", needed), empty, inputs);
-            tickets.AddRange(outs.Select(o => (o, box)));
+            perInput.Add(outs.Select(o => (o, box)).ToList());
         }
-        var pool = tickets.Select(t => (t.Item, t.Box, Chance: 1.0 / tickets.Count, Rare: covert)).ToList();
+        var pool = TradeUpMath.Tickets(perInput).Select(t => (t.Item.Item, t.Item.Box, t.Chance, Rare: covert)).ToList();
 
         var outcomes = Outcomes(pool, inputs);
         double? inputValue = inputs.All(i => PriceOf(i) != null) ? inputs.Sum(i => PriceOf(i) ?? 0) : null;
@@ -92,17 +92,9 @@ public partial class Api
     /// <summary>CS2's float: the average of where each input sits in its own range, put on the new skin's range.</summary>
     private float TradeFloat(List<InventoryItem> inputs, ushort def, int paint)
     {
-        var normalized = inputs.Average(i =>
-        {
-            var s = App.Db.Find(i.Def, i.Paint);
-            var min = s?.MinFloat ?? 0f;
-            var max = s?.MaxFloat ?? 1f;
-            return max > min ? Math.Clamp((i.Wear - min) / (max - min), 0f, 1f) : 0f;
-        });
+        var ranges = inputs.Select(i => App.Db.Find(i.Def, i.Paint) is { } s ? (i.Wear, s.MinFloat, s.MaxFloat) : (i.Wear, 0f, 1f));
         var target = App.Db.Find(def, paint);
-        var tMin = target?.MinFloat ?? 0f;
-        var tMax = target?.MaxFloat ?? 1f;
-        return (float)Math.Clamp(tMin + normalized * (tMax - tMin), 0.000001, 0.999999);
+        return TradeUpMath.Float(ranges, target?.MinFloat ?? 0f, target?.MaxFloat ?? 1f);
     }
 
     private List<TradeOutcome> Outcomes(List<(CaseItem Item, CaseInfo Box, double Chance, bool Rare)> pool, List<InventoryItem> inputs)

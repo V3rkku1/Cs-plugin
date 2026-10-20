@@ -47,6 +47,7 @@
     <Compile Include="..\..\src\Launcher\Core\CaseRoller.cs" Link="Launcher\CaseRoller.cs" />
     <Compile Include="..\..\src\Launcher\Core\ItemDatabase.cs" Link="Launcher\ItemDatabase.cs" />
     <Compile Include="..\..\src\Launcher\Core\SafeFile.cs" Link="Launcher\SafeFile.cs" />
+    <Compile Include="..\..\src\Launcher\Core\TradeUpMath.cs" Link="Launcher\TradeUpMath.cs" />
   </ItemGroup>
 
 </Project>

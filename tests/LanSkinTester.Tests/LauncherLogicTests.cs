@@ -74,4 +74,39 @@ public class LauncherLogicTests
         }
         finally { File.Delete(file); }
     }
+
+    [Fact]
+    public void TradeUpTicketsFollowTheCollections()
+    {
+        // 7 inputs from a collection with 2 next-grade items, 3 from one with 4: 14 vs 12 tickets.
+        var perInput = Enumerable.Repeat<IReadOnlyList<string>>(["a1", "a2"], 7)
+            .Concat(Enumerable.Repeat<IReadOnlyList<string>>(["b1", "b2", "b3", "b4"], 3));
+        var chance = TradeUpMath.Tickets(perInput).GroupBy(t => t.Item[0]).ToDictionary(g => g.Key, g => g.Sum(t => t.Chance));
+        Assert.Equal(14.0 / 26, chance['a'], 9);
+        Assert.Equal(12.0 / 26, chance['b'], 9);
+    }
+
+    [Fact]
+    public void TradeUpFloatUsesEachInputsRange()
+    {
+        // Both inputs sit halfway in their own ranges: the result is halfway in the new skin's range.
+        var wear = TradeUpMath.Float([(0.5f, 0f, 1f), (0.2f, 0.1f, 0.3f)], 0.06f, 0.8f);
+        Assert.Equal(0.43f, wear, 4);
+    }
+
+    [Fact]
+    public void DamagedFileIsSetAside()
+    {
+        var dir = Directory.CreateTempSubdirectory("lst-aside").FullName;
+        try
+        {
+            var file = Path.Combine(dir, "inventory.json");
+            File.WriteAllText(file, "{broken");
+            var aside = SafeFile.SetAside(file);
+            Assert.False(File.Exists(file));
+            Assert.Equal("{broken", File.ReadAllText(aside!));
+            Assert.StartsWith("inventory.broken-", Path.GetFileName(aside));
+        }
+        finally { Directory.Delete(dir, true); }
+    }
 }
