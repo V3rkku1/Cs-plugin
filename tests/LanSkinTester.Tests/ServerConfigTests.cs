@@ -306,6 +306,7 @@ public class ServerConfigTests
     public void WorkshopMapKeepsItsOwnRules()
     {
         var s = ServerSettings.ForWorkshop(new ServerSettings { Password = "pw" }, "3070244462");
+        Assert.Equal("Custom", s.Mode); // nothing remembered for this map
         var cfg = s.ToCfg();
         // aim_botz-style maps add their own bots and set buying; none of this may override them.
         foreach (var line in new[] { "bot_kick", "bot_quota", "mp_limitteams", "mp_warmup_end", "sv_cheats", "mp_items_prohibited", "mp_maxmoney" })

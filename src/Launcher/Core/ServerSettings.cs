@@ -124,7 +124,7 @@ public class ServerSettings
     /// <summary>Per map (Workshop id or map name): team sizes {T, CT} saved with "Save for this map".</summary>
     public Dictionary<string, int[]> MapTeamSizes { get; set; } = new();
 
-    /// <summary>Per Workshop map id: the game mode it was last played in (movement hubs want Custom).</summary>
+    /// <summary>Per Workshop map id: the game mode it was last played in. A map not in here starts in Custom.</summary>
     public Dictionary<string, string> MapModes { get; set; } = new();
 
     [JsonIgnore]
@@ -132,9 +132,10 @@ public class ServerSettings
 
     public void RememberMapMode() { if (WorkshopMapId is { } id) MapModes[id] = Mode; }
 
+    // Custom by default: Workshop maps are mostly built for it (movement hubs only spawn you there).
     public void RecallMapMode()
     {
-        if (WorkshopMapId is { } id && MapModes.TryGetValue(id, out var m) && Modes.Any(x => x.Name == m)) Mode = m;
+        if (WorkshopMapId is { } id) Mode = MapModes.TryGetValue(id, out var m) && Modes.Any(x => x.Name == m) ? m : "Custom";
     }
     public int Difficulty { get; set; } = 3;
     public int BotTeam { get; set; }
