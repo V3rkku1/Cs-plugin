@@ -80,6 +80,7 @@ public partial class Api
     private async Task HostWorkshopMap(string id)
     {
         if (!IsWorkshopId(id)) throw new ApiException("Not a Workshop item.");
+        if (TryPlayOffline(id)) return;
         var s = ServerSettings.ForWorkshop(App.Settings.Server, id);
         // Never played here before: a mode that fits its name (de_, aim_, arms race...), else Custom.
         if (!s.MapModes.ContainsKey(id) && WorkshopDetails.TryGetValue(id, out var d)
@@ -90,6 +91,24 @@ public partial class Api
         App.NotifyChanged();
         if (App.TestModeOn) await ApplyToServer(new AskArgs());
         else await StartServerAsync(new AskArgs());
+    }
+
+    /// <summary>
+    /// Movement Hub and similar single-player maps switch maps with map_workshop, which a dedicated server
+    /// doesn't have: you'd sit at team select on an empty loader map. Those start as an offline game instead.
+    /// Returns false for a normal map.
+    /// </summary>
+    private bool TryPlayOffline(string id)
+    {
+        var game = App.Game;
+        if (game == null || WorkshopMaps.OfflineOnlyMap(game, id) is not { } map) return false;
+        const string why = "This map only works as an offline game (its own script changes maps), so it doesn't run on the server.";
+        if (App.TestModeOn) throw new ApiException(why + " Press Stop first, then Host it again.");
+        if (TestSession.Cs2Running()) throw new ApiException(why + " Close CS2 first, then Host it again.");
+        new TestSession(game).PlayOffline(App.Settings.Server, id, map);
+        App.Log($"Workshop map {id} ({map}) starts as an offline game: its script changes maps itself, which only works without the server. Friends can't join it.");
+        Toast($"Starting {map} offline…");
+        return true;
     }
 
     private WorkshopItem ToItem(string id, bool downloaded, long bytes, DateTime? updated)

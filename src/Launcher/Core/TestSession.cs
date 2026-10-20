@@ -212,6 +212,16 @@ public class TestSession
     /// <summary>Starts CS2 (VAC off for this run) joining another server.</summary>
     public void Join(ServerSettings settings, string address, string password) => RunCs2(settings.JoinArguments(_game, address, password));
 
+    /// <summary>
+    /// Starts CS2 as an offline game on a Workshop map (no server, gameinfo.gi untouched): for maps whose
+    /// script only works when the game is its own server (<see cref="WorkshopMaps.OfflineOnlyMap"/>).
+    /// </summary>
+    public void PlayOffline(ServerSettings settings, string id, string map)
+    {
+        var extra = (settings.GameArgs ?? "").Replace("+connect", "").Trim();
+        RunCs2($"{extra} +map_workshop {id} {map}".Trim());
+    }
+
     private Process? RunCs2(string arguments)
     {
         _cs2 = null;

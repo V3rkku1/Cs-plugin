@@ -86,6 +86,10 @@ Windows 10 and 11 already have; without it the launcher opens in your web browse
      hubs only spawn you there). Hosted from the Workshop page, a map whose name says what it is starts
      in a fitting mode instead (`aim_`/`awp_`/`dm_` Deathmatch, `ar_` or "arms race" Arms Race, `de_`/`cs_`
      Casual). Pick another mode and the launcher remembers it for that map.
+   - **Offline-only Workshop maps** (e.g. Movement Hub) change maps with their own script (`map_workshop`),
+     which only works when your game is its own server. On the dedicated server they stay on an empty
+     loader map and you're stuck at team select, so Host / Start opens them in CS2 as an offline game
+     instead (`+map_workshop <id> <map>`, no server, no plugins). Friends can't join those.
    - **If the server crashes or closes by itself**, the Activity log shows its last console lines
      (the server runs with `-condebug` and writes `csgo\console.log`). Send those lines along when
      you report a problem.

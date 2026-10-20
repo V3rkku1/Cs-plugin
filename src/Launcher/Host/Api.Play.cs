@@ -267,6 +267,7 @@ public partial class Api
         if (App.TestModeOn) throw new ApiException("The server is already running - press Apply Changes, or Stop first.");
         if (!App.Ready) throw new ApiException("Install first (Setup page).");
         var server = App.Settings.Server;
+        if (server.WorkshopMapId is { } workshopId && TryPlayOffline(workshopId)) return;
         var forFriends = a.ForFriends || server.Friends != ServerSettings.FriendsNetwork.Lan;
 
         _playBusy = true;
