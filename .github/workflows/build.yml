@@ -44,7 +44,12 @@ jobs:
 
       - name: Install NSIS (for the installer)
         run: |
-          command -v makensis || choco install nsis -y --no-progress
+          # Chocolatey's package source fails now and then: try a few times.
+          for i in 1 2 3; do
+            [ -x "/c/Program Files (x86)/NSIS/makensis.exe" ] && break
+            choco install nsis -y --no-progress && break
+            sleep 20
+          done
           echo "C:\Program Files (x86)\NSIS" >> "$GITHUB_PATH"
 
       - name: Build plugin, launcher and installer
