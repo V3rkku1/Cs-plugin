@@ -1053,7 +1053,14 @@ impl ServerSettings {
                 .map(String::from),
             );
             o.push(format!("lst_bot_calm {}", b(self.calm_bots)));
-            o.extend(["lst_bot_no_snipers 0", "sv_skirmish_id 0"].map(String::from));
+            o.extend(
+                [
+                    "lst_bot_skins 0",
+                    "lst_bot_no_snipers 0",
+                    "sv_skirmish_id 0",
+                ]
+                .map(String::from),
+            );
             return o.join("\r\n") + "\r\n";
         }
 
@@ -1135,6 +1142,11 @@ impl ServerSettings {
             o.push("bh_namesource 1".into());
         }
         o.push(format!("lst_bot_calm {}", b(self.calm_bots)));
+        // Bot Improver brings its own (BotRandomizer, agents too); otherwise the plugin's random skins.
+        o.push(format!(
+            "lst_bot_skins {}",
+            b(self.bot_skins && !self.bot_improver)
+        ));
         o.push("bot_kick".into());
         // Retakes only have so many seats: leave one for you; the plugin lets one more bot go per friend.
         let wanted = self.bots.clamp(0, 31);

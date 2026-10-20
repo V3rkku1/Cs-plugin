@@ -61,6 +61,7 @@
     "lst_bot_rifles ak47,m4a1,m4a1_silencer",
     "bh_namesource 1",
     "lst_bot_calm 1",
+    "lst_bot_skins 0",
     "bot_kick",
     "bot_quota 9",
     "lst_retake_seats 0 9 0",

@@ -48,7 +48,8 @@ the map; a few settings restart the server and ask first):
   (*Save for this map*).
 - **Bots:** 0–20, skill, team, weapons (**Rifles** by default: no AWPs, shotguns, SMGs or machine guns, and
   *Rifles* picks what bots keep: AK-47 and M4s, AK only, M4A4 only, M4A1-S only or all rifles; anything else
-  is swapped), *Calm Bots* (no bunny-hopping).
+  is swapped), *Calm Bots* (no bunny-hopping), *Bot Skins* (random skins, knife and gloves on every bot,
+  with *Reroll*; Bot Improver adds agents).
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
   low gravity.
@@ -366,6 +367,7 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_bot_no_snipers 1` / `0` | Bots only keep the rifles `lst_bot_rifles` allows (snipers and other rifles are swapped) |
 | `lst_bot_rifles ak47,m4a1,m4a1_silencer` | Rifles bots may keep (`famas`, `galilar`, `aug`, `sg556` too) |
 | `lst_stats_reset` | Start the session stats over |
+| `lst_bot_skins 1` / `0` / `reroll` | Random skins, knife and gloves on every bot (from the skins list), or new ones |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |
 | `lst_host_account <id>` | The host's Steam account id: the host always gets the launcher's loadout |

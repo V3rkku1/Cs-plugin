@@ -231,6 +231,11 @@ export function LivePage() {
             <${Stepper} value=${s.teamSizeT} min=${1} max=${16} format=${v => v + " T"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeT", v)} />
             <${Stepper} value=${s.teamSizeCT} min=${1} max=${16} format=${v => v + " CT"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeCT", v)} />
             <${Button} size="sm" onClick=${() => tryCall("live.saveTeamSize")} title="Remember these sizes whenever this map is played">Save for this map<//><//>
+          <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins"
+              subtitle=${s.botSkins ? `Random skins, knives and gloves on every bot${s.botImprover ? ", agents too (Bot Improver)" : ""}` : "Off: bots use default skins"}>
+            ${s.botSkins && html`<${Button} size="sm" icon="shuffle" disabled=${!up} onClick=${() => send(s.botImprover ? "br_reroll" : "lst_bot_skins reroll")}>Reroll<//>`}
+            <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} />
+          <//>
           <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
             <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
           <//>
@@ -308,10 +313,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bots Buy" subtitle="Every bot gets this weapon, or buys like normal">
             <${Select} width=${190} value=${s.botForceWeapon} options=${BOT_GUNS}
               onChange=${v => tryCall("live.botweapon", v)} /><//>
-          <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins" subtitle=${s.botSkins ? "Random skins, knives, gloves and agents on every bot" : "Off: bots use default skins and agents"}>
-            <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} /><//>
           <${ActionGrid} disabled=${!up} actions=${[
-            ...(s.botSkins ? [["Reroll Bot Skins", "br_reroll", "shuffle"]] : []),
             ["Flying Scoutsman On", () => tryCall("live.scouts", true), "sparkles"],
             ["Flying Scoutsman Off", () => tryCall("live.scouts", false), "stop"]]} />
         <//>`}

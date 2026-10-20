@@ -105,7 +105,7 @@ public class ServerConfigTests
                      "lst_god", "lst_noclip", "lst_respawn", "lst_refresh", "lst_rethrow", "lst_spot save", "lst_spot load", "lst_swap",
                      "lst_endround ct", "lst_endround t", "lst_view first", "lst_view third", "lst_pause on", "lst_pause off",
                      "br_reroll", "bot_aim mixed", "bot_nades normal", "lst_give weapon_ak47", "lst_show_damage 1",
-                     "lst_shared_loadout 1", "sv_password \"x\"", "lst_stats_reset",
+                     "lst_shared_loadout 1", "sv_password \"x\"", "lst_stats_reset", "lst_bot_skins reroll",
                  })
             AssertKnown(line);
     }
