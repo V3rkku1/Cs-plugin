@@ -442,10 +442,14 @@ public partial class Api
         Toast($"Inventory saved to {Path.GetFileName(file)}.", "good");
     }
 
-    /// <summary>Adds the items of a saved inventory that aren't in this one (nothing here is replaced or removed).</summary>
+    /// <summary>
+    /// Adds the items of a saved inventory that aren't in this one (nothing here is replaced or removed). Admin only:
+    /// a hand-edited file could hold any item, which would get around "unbox only".
+    /// </summary>
     [Call("backup.importInventory")]
     private async Task ImportInventory()
     {
+        if (!App.Settings.AdminUnlocked) throw new ApiException("Importing needs the admin code (Cases page).");
         var file = await OnUi(() =>
         {
             using var dialog = new OpenFileDialog { Title = "Add a saved inventory", Filter = "Inventory (*.json)|*.json" };

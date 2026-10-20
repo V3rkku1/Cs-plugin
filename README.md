@@ -179,7 +179,7 @@ have cost for real: the keys for weapon cases and the containers at today's mark
 Weapons, Knives & Gloves, Stickers & Graffiti, Collectibles; sort by newest, rarity, price or name. Click
 an item to inspect it (exterior, the exact float on CS2's wear bar, pattern, market price, which case it
 came from) and **Equip** / **Unequip** it. It replaces the old Skins page. **Export** saves the inventory to a
-file (a backup, or to move it to another PC); **Import** adds the items of such a file that aren't there yet. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
+file (a backup, or to move it to another PC); **Import** (with the admin code) adds the items of such a file that aren't there yet. **Stickers…** on a gun opens a sticker editor like CS2's: apply up to 5 stickers
 from your inventory (applying uses the sticker up, like in the game): pick one, then click on the gun where it goes
 (numbered marks show the five slots, zoom up to 2.4×, arrow keys nudge the selected sticker), drag them anywhere, turn,
 resize and scrape them; scraped all the way, a sticker comes off for good. An equipped gun changes in game
