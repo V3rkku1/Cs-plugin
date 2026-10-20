@@ -531,10 +531,15 @@ public class ServerSettings
         // plugin can't run the launcher's commands (e.g. switching to a Workshop map) until someone joins.
         // sv_skirmish_id survives map changes. 12 is Valve's Retakes war game; every other mode clears it.
         // Retake team sizes have to be set before the map loads (they decide the slot count).
+        // Custom has no player count of its own: without -maxplayers the server has 0 slots and nobody can pick a team.
         var skirmish = IsValveRetakes ? 12 : 0;
         var retake = IsValveRetakes ? " +mp_retake_t_count 3 +mp_retake_ct_count 4" : "";
-        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {B(!PrivateServer)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake} +{MapCommand(running: false)}";
+        return $"-dedicated -insecure -condebug +sv_hibernate_when_empty 0 +sv_lan {B(!PrivateServer)} -port {Port} +game_type {mode.GameType} +game_mode {mode.Mode} +sv_skirmish_id {skirmish}{retake}{(NeedsPlayerSlots ? " -maxplayers 64" : "")} +{MapCommand(running: false)}";
     }
+
+    /// <summary>Custom mode: the server must start with -maxplayers (switching to it on a running server needs a restart).</summary>
+    [JsonIgnore]
+    public bool NeedsPlayerSlots => GetMode().GameType == 3;
 
     /// <summary>The Workshop id from an id or a steamcommunity.com/sharedfiles/...?id=123 link.</summary>
     public string? WorkshopMapId

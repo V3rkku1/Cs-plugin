@@ -285,6 +285,16 @@ public class ServerConfigTests
         Assert.Contains($"+game_type {mode.GameType} +game_mode {mode.Mode}", args);
         Assert.Matches(@"\+map \S+", args);
         Assert.Contains($"+sv_skirmish_id {(s.IsValveRetakes ? 12 : 0)}", args);
+        Assert.Equal(mode.GameType == 3, args.Contains("-maxplayers 64"));
+    }
+
+    [Fact]
+    public void CustomModeStartsWithPlayerSlots()
+    {
+        var s = ServerSettings.ForWorkshop(new ServerSettings(), "3355497176");
+        Assert.Contains("-maxplayers 64", s.StartArguments());
+        s.Mode = "Casual";
+        Assert.DoesNotContain("-maxplayers", s.StartArguments());
     }
 
     [Fact]

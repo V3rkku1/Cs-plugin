@@ -16,6 +16,7 @@ public partial class Api
     private string? _runningMode, _runningMap, _runningRetakeKey;
     private bool _runningOnline;      // started with sv_lan 0 (can download Workshop maps)
     private bool _runningForFriends;
+    private bool _runningSlots;       // started with -maxplayers (Custom mode)
 
     private bool _playBusy;           // opening the router port / downloading a retakes plugin
     private string? _startError;      // the last "could not start", shown on the hero until the next start
@@ -330,6 +331,7 @@ public partial class Api
             _runningMap = server.WorkshopMapId ?? server.Map;
             _runningOnline = server.PrivateServer;
             _runningForFriends = forFriends;
+            _runningSlots = server.NeedsPlayerSlots;
             _runningRetakeKey = server.PluginRetakeKey();
             var map = server.WorkshopMapId != null ? $"Workshop map {server.WorkshopMapId}" : server.Map;
             if (server.WorkshopNeedsDownload)
@@ -368,11 +370,13 @@ public partial class Api
         var server = App.Settings.Server;
         var map = server.WorkshopMapId ?? server.Map;
         var reload = _runningMode == null || _runningMode != server.Mode || _runningMap != map;
-        if (RetakesNeedRestart(game, server))
+        var needsSlots = server.NeedsPlayerSlots && !_runningSlots;
+        if (needsSlots || RetakesNeedRestart(game, server))
         {
             if (!a.Confirmed)
             {
-                var why = Installer.RetakePluginsMismatch(game, server) || Installer.ExtraPluginsMismatch(game, server)
+                var why = needsSlots ? "Custom mode needs player slots that are set when the server starts, so the server needs a restart."
+                    : Installer.RetakePluginsMismatch(game, server) || Installer.ExtraPluginsMismatch(game, server)
                     ? "A server plugin has to load or unload, so the server needs a restart."
                     : "These retakes settings are read when the plugin loads, so the server needs a restart.";
                 Ask("Restart the server?", why, "Restart", "play.apply", new AskArgs(Confirmed: true));
@@ -423,7 +427,11 @@ public partial class Api
                 var server = App.Settings.Server;
                 _runningMode = server.Mode;
                 _runningMap = server.WorkshopMapId ?? server.Map;
+                _runningSlots = server.NeedsPlayerSlots;
                 _runningRetakeKey = server.PluginRetakeKey();
+                // The new server boots on the normal map: switch it to the Workshop map once it's up.
+                ClearWorkshopWait();
+                if (server.WorkshopNeedsDownload) (_pendingWorkshopId, _bootstrapMap, _startGameAfterWorkshop) = (server.WorkshopMapId, server.Map, false);
                 SetJoinWhenUp(JoinWhenUp.Reconnect);
                 App.Log("Server restarting - CS2 stays open and rejoins when it is up.");
                 Toast("Restarting the server… CS2 rejoins in a moment.");
