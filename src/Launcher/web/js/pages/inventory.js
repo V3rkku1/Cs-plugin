@@ -54,6 +54,8 @@ function Inspect({ v, cur, close }) {
       ${equippable(v) && (v.equipped
         ? html`<${Button} block onClick=${() => tryCall("cases.unequip", i.uid)}>Unequip<//>`
         : html`<${Button} kind="prominent" block icon="check" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>`)}
+      ${i.kind === "skin" && i.def > 0 && html`<${Button} block icon="eye" onClick=${() => tryCall("cases.tryInGame", i.uid)}
+        title="Equips it, kicks the bots and puts it in your hands on the running server">Try in Game<//>`}
       <${Button} kind="destructive" block icon="trash" onClick=${async () => {
         if (await confirm({ title: "Delete item?", message: `Remove ${i.name} from your inventory?`, ok: "Delete", danger: true })) { await tryCall("cases.remove", i.uid); close(); }
       }}>Delete<//>

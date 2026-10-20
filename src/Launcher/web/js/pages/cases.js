@@ -322,7 +322,8 @@ export function CasesPage() {
 
   const cur = state.currency;
   return html`<${Page} title="Cases" subtitle=${`Free to open · ${state.opened} opened · inventory worth ${money(state.inventoryValue, cur)}` +
-    (state.keysUsed || state.casesCost ? ` · for real: ${state.keysUsed} key${state.keysUsed === 1 ? "" : "s"} + ${money(state.casesCost, cur)} of cases` : "")}
+    (state.keysUsed || state.casesCost ? ` · for real: ${state.keysUsed} key${state.keysUsed === 1 ? "" : "s"} + ${money(state.casesCost, cur)} of cases` +
+      ` = ${money(state.spent, cur)} · ${state.profit >= 0 ? "profit" : "loss"} ${money(Math.abs(state.profit), cur)}` : "")}
       actions=${html`
         <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />

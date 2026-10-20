@@ -33,6 +33,17 @@ pub const BOT_WEAPON_CHOICES: [&str; 5] = [
     "Knives only",
     "Any weapons",
 ];
+/// "Rifles" bots: which rifles they may keep (the plugin swaps the rest), as (label, lst_bot_rifles list).
+pub const BOT_RIFLE_CHOICES: [(&str, &str); 5] = [
+    ("AK-47 and M4s", "ak47,m4a1,m4a1_silencer"),
+    ("AK-47 only", "ak47"),
+    ("M4A4 only", "m4a1"),
+    ("M4A1-S only", "m4a1_silencer"),
+    (
+        "All rifles",
+        "ak47,m4a1,m4a1_silencer,famas,galilar,aug,sg556",
+    ),
+];
 pub const BOT_TEAMS: [&str; 3] = ["Both teams", "Terrorists", "Counter-Terrorists"];
 pub const RETAKE_STYLES: [&str; 2] = ["Valve", "Plugin"];
 pub const BOT_AIM_MODES: [&str; 3] = ["mixed", "head", "body"];
@@ -242,6 +253,8 @@ pub struct ServerSettings {
     pub difficulty: i32,
     pub bot_team: i32,
     pub bot_weapons: i32,
+    /// Index into BOT_RIFLE_CHOICES.
+    pub bot_rifles: i32,
     pub free_for_all: bool,
     pub bots_dont_shoot: bool,
     pub infinite_ammo: bool,
@@ -336,6 +349,7 @@ impl Default for ServerSettings {
             difficulty: 3,
             bot_team: 0,
             bot_weapons: 0,
+            bot_rifles: 0,
             free_for_all: false,
             bots_dont_shoot: false,
             infinite_ammo: false,
@@ -1109,8 +1123,14 @@ impl ServerSettings {
         }
         o.push("bot_allow_rifles 1".into());
         o.push("bot_allow_pistols 1".into());
-        o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps other rifles for AK/M4
-                                                             // Bot Hider's identity gives the scoreboard name too, so it matches the profile (new bots only).
+        o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps the rifles not allowed
+        o.push(format!(
+            "lst_bot_rifles {}",
+            BOT_RIFLE_CHOICES
+                [self.bot_rifles.clamp(0, BOT_RIFLE_CHOICES.len() as i32 - 1) as usize]
+                .1
+        ));
+        // Bot Hider's identity gives the scoreboard name too, so it matches the profile (new bots only).
         if self.bot_hider || self.bot_improver {
             o.push("bh_namesource 1".into());
         }
@@ -1559,6 +1579,13 @@ mod tests {
     fn forced_sniper_is_not_swapped_for_a_rifle() {
         let mut s = preset("Free-for-all Deathmatch");
         assert!(s.to_cfg().contains("lst_bot_no_snipers 1"));
+        assert!(s
+            .to_cfg()
+            .contains("lst_bot_rifles ak47,m4a1,m4a1_silencer"));
+        s.bot_rifles = 99;
+        assert!(s
+            .to_cfg()
+            .contains("lst_bot_rifles ak47,m4a1,m4a1_silencer,famas"));
         s.bot_improver = true;
         s.bot_force_weapon = "awp".into();
         let cfg = s.to_cfg();

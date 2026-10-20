@@ -318,8 +318,26 @@ pub struct ServerStatus {
     pub players: Vec<String>,
     pub skins_allowed: bool,
     pub disabled_reason: String,
+    /// Session stats, bots too, best first (empty from older plugins).
+    pub stats: Vec<PlayerStats>,
     /// Unix time of the last write; old files mean "server not running".
     pub time: i64,
+}
+
+/// One player's kills, deaths, headshots and damage since the map started (Rounds: rounds played, for ADR).
+#[derive(Deserialize, Serialize, Clone, Debug, Default, PartialEq)]
+#[serde(
+    rename_all(deserialize = "PascalCase", serialize = "camelCase"),
+    default
+)]
+pub struct PlayerStats {
+    pub name: String,
+    pub bot: bool,
+    pub kills: i32,
+    pub deaths: i32,
+    pub headshots: i32,
+    pub damage: i32,
+    pub rounds: i32,
 }
 
 pub const STATUS_FILE: &str = "status.json";

@@ -58,6 +58,7 @@
     "bot_allow_rifles 1",
     "bot_allow_pistols 1",
     "lst_bot_no_snipers 1",
+    "lst_bot_rifles ak47,m4a1,m4a1_silencer",
     "bh_namesource 1",
     "lst_bot_calm 1",
     "bot_kick",

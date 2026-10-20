@@ -77,6 +77,7 @@ struct LiveStatus {
     skins_allowed: bool,
     disabled_reason: String,
     version: String,
+    stats: Vec<items::PlayerStats>,
 }
 
 #[derive(Serialize)]
@@ -100,6 +101,7 @@ struct PlayView {
     difficulties: [&'static str; 4],
     bot_teams: [&'static str; 3],
     bot_weapons: [&'static str; 5],
+    bot_rifles: Vec<&'static str>,
     retake_styles: [&'static str; 2],
     give: Vec<Value>,
     port: u16,
@@ -466,6 +468,7 @@ fn view(st: &State) -> PlayView {
         skins_allowed: x.skins_allowed,
         disabled_reason: x.disabled_reason.clone(),
         version: x.version.clone(),
+        stats: x.stats.clone(),
     });
     let (title, detail, kind) = match (&status, &live) {
         (Some(x), Some(l)) => {
@@ -547,6 +550,7 @@ fn view(st: &State) -> PlayView {
         difficulties: server::DIFFICULTIES,
         bot_teams: server::BOT_TEAMS,
         bot_weapons: server::BOT_WEAPON_CHOICES,
+        bot_rifles: server::BOT_RIFLE_CHOICES.iter().map(|c| c.0).collect(),
         retake_styles: server::RETAKE_STYLES,
         give: give_items()
             .into_iter()
@@ -579,7 +583,7 @@ pub fn poll_server(app: &Arc<App>) {
     check_server_crash(app, &mut st);
     let id = st.settings.server.workshop_map_id();
     let tick = json!({
-        "status": status.as_ref().map(|s| json!([s.map, s.game_type, s.game_mode, s.humans, s.bots, s.players, s.skins_allowed, s.disabled_reason])),
+        "status": status.as_ref().map(|s| json!([s.map, s.game_type, s.game_mode, s.humans, s.bots, s.players, s.skins_allowed, s.disabled_reason, s.stats])),
         "on": st.test_mode_on(), "step": join_step(&st, status.as_ref()), "w": st.play.pending_workshop_id, "s": st.play.workshop_sent_at.is_some(),
         "sub": st.game.as_ref().zip(id).is_some_and(|(g, id)| game::workshop_downloaded(g, &id)),
     })
@@ -1386,6 +1390,9 @@ fn set_server(app: &App, changes: Map<String, Value>) -> R<()> {
     s.bot_weapons = s
         .bot_weapons
         .clamp(0, server::BOT_WEAPON_CHOICES.len() as i32 - 1);
+    s.bot_rifles = s
+        .bot_rifles
+        .clamp(0, server::BOT_RIFLE_CHOICES.len() as i32 - 1);
     s.bot_aim = s.bot_aim.clamp(0, server::BOT_AIM_MODES.len() as i32 - 1);
     s.bot_nades = s
         .bot_nades

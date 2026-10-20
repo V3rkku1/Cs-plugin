@@ -187,6 +187,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 PrivateServer = _privateServer,
                 SkinsAllowed = SkinsAllowed(),
                 DisabledReason = DisabledReason() ?? "",
+                Stats = StatsForStatus(),
                 Time = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             };
 
@@ -951,7 +952,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!skinsearch <text>  !skinreset",
             "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
-            "!save [name]  !load [name]  !spots  !rethrow  !damage  !armor  !nades  !clear  !swap",
+            "!save [name]  !load [name]  !spots  !rethrow  !savenade <name>  !lineup <name>  !lineups  !delnade <name>  !damage  !armor  !nades  !clear  !swap",
             "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
             "!hacks - hacker mode status  !cheats - cheat menu  !aimkey <key>  !aimtoggle",
         ];
