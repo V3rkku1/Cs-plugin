@@ -68,7 +68,10 @@ public static class FriendsInvite
         var address = AddressPattern.Match(text);
         if (!address.Success) return null;
         var password = PasswordPattern.Match(text);
-        return new JoinTarget(WithPort(address.Groups[1].Value), password.Success ? password.Groups[1].Value : fallbackPassword.Trim());
+        var pass = password.Success ? password.Groups[1].Value : fallbackPassword.Trim();
+        // The invite's "(or type the address … and password X)" line: the bracket isn't part of the password.
+        if (password.Success && pass.EndsWith(')') && !pass.Contains('(') && text.Contains('(')) pass = pass[..^1];
+        return new JoinTarget(WithPort(address.Groups[1].Value), pass);
     }
 
     /// <summary>The address and password inside a code, or null when it isn't a valid one.</summary>

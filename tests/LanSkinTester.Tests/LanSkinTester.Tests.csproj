@@ -41,6 +41,8 @@
     <Compile Include="..\..\src\Launcher\Core\Network.cs" Link="Launcher\Network.cs" />
     <Compile Include="..\..\src\Launcher\Core\Installer.cs" Link="Launcher\Installer.cs" />
     <Compile Include="..\..\src\Launcher\Core\ClientConsole.cs" Link="Launcher\ClientConsole.cs" />
+    <Compile Include="..\..\src\Launcher\Core\FriendsInvite.cs" Link="Launcher\FriendsInvite.cs" />
+    <Compile Include="..\..\src\Launcher\Core\RouterPort.cs" Link="Launcher\RouterPort.cs" />
   </ItemGroup>
 
 </Project>

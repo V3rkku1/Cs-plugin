@@ -966,10 +966,8 @@ public class ServerSettings
     /// </summary>
     public static void SendCommands(GameFolder game, params string[] commands)
     {
-        var file = Path.Combine(game.PluginDir, "server_commands.txt");
-        var existing = File.Exists(file) ? File.ReadAllText(file) : "";
-        var temp = file + ".tmp";
-        File.WriteAllText(temp, existing + string.Join("\n", commands) + "\n");
-        File.Move(temp, file, overwrite: true);
+        // Appended in one write: the plugin's move fails while the file is open, and a read-then-replace ran
+        // commands twice when the plugin took the file in between.
+        File.AppendAllText(Path.Combine(game.PluginDir, "server_commands.txt"), string.Join("\n", commands) + "\n");
     }
 }

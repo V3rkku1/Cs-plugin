@@ -54,14 +54,14 @@ public static class FriendFinder
             log($"Friends list: can't listen for friends hosting on your network ({ex.Message}).");
             return;
         }
-        var own = Network.OwnAddresses();
         while (true)
         {
             try
             {
                 IPEndPoint? from = null;
                 var text = Encoding.UTF8.GetString(udp.Receive(ref from));
-                if (own.Contains(from.Address.ToString()) || !text.StartsWith(Magic)) continue; // our own announcement, or noise
+                // Noise, or our own announcement (addresses looked up each time: a VPN may connect after the launcher started).
+                if (!text.StartsWith(Magic) || Network.OwnAddresses().Contains(from.Address.ToString())) continue;
                 if (JsonSerializer.Deserialize<Beacon>(text[Magic.Length..]) is not { } b) continue;
                 var address = $"{from.Address}:{b.Port}";
                 lock (Hosts) Hosts[address] = new LanHost(Clean(b.Name), address, Clean(b.Map), b.Players, b.Max, b.Password, DateTime.UtcNow);
