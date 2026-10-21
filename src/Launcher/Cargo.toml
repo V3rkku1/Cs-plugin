@@ -38,6 +38,6 @@ windows-sys = { version = "0.59", features = ["Win32_Foundation", "Win32_Graphic
 
 [profile.release]
 opt-level = "s"
-lto = true
-codegen-units = 1
+# Thin LTO, default codegen units: a few % bigger exe, builds on every core.
+lto = "thin"
 strip = true
