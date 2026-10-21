@@ -172,40 +172,44 @@ pub fn firewall_rule_exists() -> bool {
     false
 }
 
-/// Runs a PowerShell script hidden; given as UTF-16 base64 so quotes and non-ASCII folders survive.
-pub fn powershell(script: &str, wait: bool) -> std::io::Result<Option<i32>> {
-    let utf16: Vec<u8> = script.encode_utf16().flat_map(u16::to_le_bytes).collect();
-    let encoded = base64::engine::general_purpose::STANDARD.encode(utf16);
-    let mut cmd = std::process::Command::new("powershell.exe");
-    cmd.args([
-        "-NoProfile",
-        "-NonInteractive",
-        "-ExecutionPolicy",
-        "Bypass",
-        "-WindowStyle",
-        "Hidden",
-        "-EncodedCommand",
-        &encoded,
-    ]);
-    #[cfg(windows)]
-    hidden(&mut cmd);
-    let mut child = cmd.spawn()?;
-    Ok(if wait { child.wait()?.code() } else { None })
-}
-
-/// PowerShell's '…' literal.
-pub fn ps_quote(text: &str) -> String {
-    format!("'{}'", text.replace('\'', "''"))
-}
-
 /// Adds an inbound firewall rule for cs2.exe (asks for admin). False if the user said no.
+#[cfg(windows)]
 pub fn allow_through_firewall(exe: &std::path::Path) -> bool {
+    use windows_sys::Win32::Foundation::CloseHandle;
+    use windows_sys::Win32::System::Threading::{
+        GetExitCodeProcess, WaitForSingleObject, INFINITE,
+    };
+    use windows_sys::Win32::UI::Shell::{
+        ShellExecuteExW, SEE_MASK_NOCLOSEPROCESS, SHELLEXECUTEINFOW,
+    };
     let args = format!(
         "/c netsh advfirewall firewall delete rule name=\"{FIREWALL_RULE}\" >nul & netsh advfirewall firewall add rule name=\"{FIREWALL_RULE}\" dir=in action=allow program=\"{}\" enable=yes profile=any",
         exe.display()
     );
-    let script = format!("$p = Start-Process -FilePath cmd.exe -ArgumentList {} -Verb RunAs -WindowStyle Hidden -Wait -PassThru; exit $p.ExitCode", ps_quote(&args));
-    matches!(powershell(&script, true), Ok(Some(0)))
+    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+    let (verb, file, params) = (wide("runas"), wide("cmd.exe"), wide(&args));
+    // "runas" shows the UAC prompt; nShow stays 0 (SW_HIDE) so no console window flashes.
+    let mut info: SHELLEXECUTEINFOW = unsafe { std::mem::zeroed() };
+    info.cbSize = std::mem::size_of::<SHELLEXECUTEINFOW>() as u32;
+    info.fMask = SEE_MASK_NOCLOSEPROCESS;
+    info.lpVerb = verb.as_ptr();
+    info.lpFile = file.as_ptr();
+    info.lpParameters = params.as_ptr();
+    unsafe {
+        if ShellExecuteExW(&mut info) == 0 || info.hProcess.is_null() {
+            return false;
+        }
+        WaitForSingleObject(info.hProcess, INFINITE);
+        let mut code = 1;
+        GetExitCodeProcess(info.hProcess, &mut code);
+        CloseHandle(info.hProcess);
+        code == 0
+    }
+}
+
+#[cfg(not(windows))]
+pub fn allow_through_firewall(_exe: &std::path::Path) -> bool {
+    false
 }
 
 // -------------------------------------------------------------------------------------------------

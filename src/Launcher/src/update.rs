@@ -1,11 +1,11 @@
 //! Self-update: compares the commit this launcher was built from (build.sh passes it as LST_COMMIT) with the
 //! "latest" release tag on GitHub, downloads the new LanSkinTesterLauncher.exe and swaps it in after this
-//! launcher exits (a hidden PowerShell script waits for the exit, replaces the exe and starts it again).
+//! launcher exits (the running exe is renamed aside, the new one takes its name and starts once this one closes).
 
 use crate::util;
 use serde_json::Value;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub const RELEASE_URL: &str = "https://github.com/V3rkku1/Cs-plugin/releases/tag/latest";
@@ -109,7 +109,7 @@ fn update_dir() -> PathBuf {
     std::env::temp_dir().join("LanSkinTester-update")
 }
 
-/// Written by the swap script: "ok" or the reason it failed. Read by the next launcher start.
+/// Written by the swap: "ok". Read by the next launcher start.
 fn result_file() -> PathBuf {
     update_dir().join("result.txt")
 }
@@ -164,26 +164,45 @@ fn download_once(http: &ureq::Agent, progress: &dyn Fn(f64)) -> Result<PathBuf, 
     Ok(target)
 }
 
-/// Starts a hidden script that waits for this process to exit, replaces the exe and starts the new one (or
-/// the old one again if the swap keeps failing). The caller then exits.
-pub fn replace_after_exit(new_exe: &std::path::Path) -> std::io::Result<()> {
-    use crate::net::ps_quote as q;
-    let script = format!(
-        "$ErrorActionPreference = 'SilentlyContinue'
-$new = {}; $cur = {}; $result = {}
-Wait-Process -Id {} -Timeout 60
-$ok = $false; $why = ''
-for ($i = 0; $i -lt 40 -and -not $ok; $i++) {{
-    try {{ Copy-Item -LiteralPath $new -Destination $cur -Force -ErrorAction Stop; $ok = $true }}
-    catch {{ $why = $_.Exception.Message; Start-Sleep -Milliseconds 500 }}
-}}
-if ($ok) {{ Set-Content -LiteralPath $result -Value 'ok' -Encoding UTF8; Remove-Item -LiteralPath $new }}
-else {{ Set-Content -LiteralPath $result -Value ('failed: ' + $why) -Encoding UTF8 }}
-Start-Process -FilePath $cur",
-        q(&new_exe.display().to_string()), q(&current_exe().display().to_string()), q(&result_file().display().to_string()), std::process::id()
-    );
-    let _ = fs::remove_file(result_file());
-    crate::net::powershell(&script, false).map(drop)
+/// Moves this exe aside (Windows allows that while it runs), copies the new one in its place and starts it with
+/// --after <pid>, so it waits for this one to exit. The caller then exits; the old copy goes on the next start.
+pub fn replace_after_exit(new_exe: &Path) -> std::io::Result<()> {
+    let cur = current_exe();
+    let old = old_exe();
+    let _ = fs::remove_file(&old);
+    fs::rename(&cur, &old)?;
+    if let Err(e) = fs::copy(new_exe, &cur) {
+        let _ = fs::rename(&old, &cur);
+        return Err(e);
+    }
+    let _ = fs::remove_file(new_exe);
+    let _ = fs::write(result_file(), "ok");
+    std::process::Command::new(&cur)
+        .args(["--after", &std::process::id().to_string()])
+        .spawn()
+        .map(drop)
+}
+
+fn old_exe() -> PathBuf {
+    current_exe().with_extension("old.exe")
+}
+
+/// The updated launcher waits here (at most a minute) until the old one has closed and saved its window.
+pub fn wait_for_exit(pid: u32) {
+    let pid = sysinfo::Pid::from_u32(pid);
+    let mut sys = sysinfo::System::new();
+    for _ in 0..300 {
+        sys.refresh_processes_specifics(
+            sysinfo::ProcessesToUpdate::Some(&[pid]),
+            true,
+            sysinfo::ProcessRefreshKind::nothing(),
+        );
+        if sys.process(pid).is_none() {
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    let _ = fs::remove_file(old_exe());
 }
 
 /// The last swap's outcome ("ok" / "failed: ..."), once; None when there was none.

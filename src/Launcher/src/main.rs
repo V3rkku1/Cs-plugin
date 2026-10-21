@@ -218,6 +218,14 @@ fn main() {
     if let Some(i) = args.iter().position(|a| a == "--page") {
         start_page = args.get(i + 1).cloned();
     }
+    // Started by a self-update: let the old launcher close first.
+    if let Some(pid) = args
+        .iter()
+        .position(|a| a == "--after")
+        .and_then(|i| args.get(i + 1)?.parse().ok())
+    {
+        update::wait_for_exit(pid);
+    }
     tauri::Builder::default()
         .register_asynchronous_uri_scheme_protocol("lst", |ctx, request, responder| {
             let handle = ctx.app_handle().clone();
