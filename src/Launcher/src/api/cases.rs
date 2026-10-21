@@ -918,7 +918,52 @@ fn require_admin(st: &State, what: &str) -> R<()> {
     }
 }
 
+/// The free weekly drop: a random weapon skin from the whole pool, rarer grades much less likely, so a Covert
+/// like AWP | Medusa is a lucky drop. Knives and gloves stay case-only, as in CS2.
+const CARE_PACKAGE_ID: &str = "care-package";
+
+/// The drop pool: every painted weapon skin, knives and gloves left out (those stay case-only, as in CS2).
+fn care_package_items(skins: &[crate::itemdb::SkinInfo]) -> Vec<CaseItem> {
+    skins
+        .iter()
+        .filter(|s| {
+            s.paint != 0 && s.category != "Knives" && s.category != "Gloves" && !s.finish.is_empty()
+        })
+        .map(|s| CaseItem {
+            id: format!("skin-{}", s.paint),
+            name: s.full_name(),
+            paint: s.paint,
+            rarity: s.rarity.clone(),
+            color: s.rarity_color.clone(),
+            image: s.image.clone(),
+            phase: s.phase.clone(),
+        })
+        .collect()
+}
+
+fn care_package(st: &State) -> CaseInfo {
+    let items = care_package_items(&st.db.skins);
+    // Show AWP | Medusa on the package when it's in the pool, else whatever is first.
+    let cover = items
+        .iter()
+        .find(|i| i.name == "AWP | Medusa")
+        .or_else(|| items.first())
+        .map_or_else(String::new, |i| i.image.clone());
+    CaseInfo {
+        id: CARE_PACKAGE_ID.into(),
+        name: "Care Package".into(),
+        image: cover,
+        kind: "Drop".into(),
+        items,
+        rare: vec![],
+        rare_image: None,
+    }
+}
+
 fn find_case(st: &State, id: &str) -> R<CaseInfo> {
+    if id == CARE_PACKAGE_ID {
+        return Ok(care_package(st));
+    }
     st.db
         .cases
         .iter()
@@ -931,9 +976,14 @@ fn cases_state(app: &App, st: &State, items: &[InventoryItem]) -> Value {
     // Newest first, like the game's store; weapon cases before the rest.
     let mut rows: Vec<(usize, &CaseInfo)> = st.db.cases.iter().enumerate().collect();
     rows.sort_by_key(|(i, c)| ((c.kind != "Case") as u8, std::cmp::Reverse(*i)));
-    let rows: Vec<Value> = rows.iter().map(|(_, c)| json!({
+    let mut rows: Vec<Value> = rows.iter().map(|(_, c)| json!({
         "id": c.id, "name": c.name, "image": c.image, "type": c.kind, "count": c.items.len() + c.rare.len(), "rare": !c.rare.is_empty(),
     })).collect();
+    // The free Care Package drop, first, whenever the skin pool is loaded.
+    if !st.db.skins.is_empty() {
+        let cp = care_package(st);
+        rows.insert(0, json!({ "id": cp.id, "name": cp.name, "image": cp.image, "type": cp.kind, "count": cp.items.len(), "rare": false }));
+    }
     let value: f64 = items.iter().filter_map(|i| price_of(app, st, i)).sum();
     // What the openings would have cost for real: a key per weapon case, and the containers.
     let opens: Vec<(&CaseInfo, i32)> = st
@@ -997,6 +1047,8 @@ fn contents(app: &App, st: &State, id: &str) -> R<Value> {
     let groups: Vec<Value> = odds.iter().map(|(grade, chance)| {
         let rare = grade == "Rare";
         let items: Vec<&CaseItem> = if rare { case.rare.iter().collect() } else { case.items.iter().filter(|i| &i.rarity == grade).collect() };
+        // The Care Package draws from every skin: show its odds, not a grid of a thousand cards.
+        let items: Vec<&CaseItem> = if case.kind == "Drop" { vec![] } else { items };
         // Doppler phases are one finish in the list.
         let mut seen = HashSet::new();
         let shown: Vec<Value> = items.iter().filter(|i| seen.insert(i.name.clone()))
@@ -1588,6 +1640,32 @@ pub fn backup(app: &Arc<App>, name: &str) -> R<Value> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::itemdb::SkinInfo;
+
+    #[test]
+    fn care_package_pool_is_weapon_skins_only() {
+        let skin =
+            |weapon: &str, finish: &str, paint: i32, category: &str, rarity: &str| SkinInfo {
+                def_index: 9,
+                paint,
+                weapon: weapon.into(),
+                finish: finish.into(),
+                category: category.into(),
+                rarity: rarity.into(),
+                ..Default::default()
+            };
+        let skins = vec![
+            skin("AWP", "Medusa", 446, "Rifles", "Covert"),
+            skin("AK-47", "Redline", 282, "Rifles", "Classified"),
+            skin("Karambit", "Fade", 38, "Knives", "Covert"), // knife: out
+            skin("★", "Gloves", 10006, "Gloves", "Extraordinary"), // gloves: out
+            skin("AWP", "", 0, "Rifles", "Covert"),           // vanilla: out
+        ];
+        let items = care_package_items(&skins);
+        let names: Vec<&str> = items.iter().map(|i| i.name.as_str()).collect();
+        assert_eq!(names, ["AWP | Medusa", "AK-47 | Redline"]);
+        assert_eq!(items[0].id, "skin-446");
+    }
 
     fn gun(def: u16, paint: i32) -> InventoryItem {
         InventoryItem {
