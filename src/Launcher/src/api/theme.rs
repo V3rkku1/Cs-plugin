@@ -30,7 +30,7 @@ fn clean_value(key: &str, value: &str) -> Option<String> {
         "opacity" => number(40, 100),
         "radius" => number(0, 160),
         "dim" => number(0, 90),
-        "font" => ["inter", "segoe", "system", "mono"]
+        "font" => ["inter", "segoe", "system", "mono", "dyslexic"]
             .contains(&value)
             .then(|| value.into()),
         "preset" => PRESET.is_match(value).then(|| value.into()),

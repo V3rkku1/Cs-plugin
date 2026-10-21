@@ -115,7 +115,7 @@ function Appearance({ state }) {
         <${Segmented} options=${[{ value: "0", label: "Square" }, { value: "50", label: "Small" }, { value: "100", label: "Round" }, { value: "140", label: "Rounder" }]}
           value=${t.radius} onChange=${v => setTheme({ radius: v })} /><//>
       <${Row} icon=${{ name: "textsize", color: "blue" }} title="Font">
-        <${Segmented} options=${[{ value: "inter", label: "Inter" }, { value: "segoe", label: "Segoe UI" }, { value: "system", label: "System" }, { value: "mono", label: "Mono" }]}
+        <${Segmented} options=${[{ value: "inter", label: "Inter" }, { value: "segoe", label: "Segoe UI" }, { value: "system", label: "System" }, { value: "mono", label: "Mono" }, { value: "dyslexic", label: "OpenDyslexic" }]}
           value=${t.font} onChange=${v => setTheme({ font: v })} /><//>
       <${Row} icon=${{ name: "textsize", color: "green" }} title="Text Size">
         <${Segmented} options=${[{ value: "small", label: "Small" }, { value: "normal", label: "Normal" }, { value: "large", label: "Large" }]} value=${state.textSize}
