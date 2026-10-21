@@ -22,6 +22,7 @@ const FONTS = {
   segoe: `"Segoe UI Variable Text", "Segoe UI", system-ui, sans-serif`,
   system: `system-ui, sans-serif`,
   mono: `"Cascadia Mono", Consolas, ui-monospace, monospace`,
+  dyslexic: `OpenDyslexic, system-ui, sans-serif`,
 };
 
 const RADII = { "--r-xl": 30, "--r-lg": 22, "--r-md": 14, "--r-sm": 10 };

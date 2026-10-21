@@ -9,6 +9,8 @@
 @font-face { font-family: Inter; font-weight: 600; src: url(../fonts/inter-latin-600-normal.woff2) format("woff2"); }
 @font-face { font-family: Inter; font-weight: 700; src: url(../fonts/inter-latin-700-normal.woff2) format("woff2"); }
 @font-face { font-family: Inter; font-weight: 800; src: url(../fonts/inter-latin-800-normal.woff2) format("woff2"); }
+@font-face { font-family: OpenDyslexic; font-weight: 100 500; src: url(../fonts/opendyslexic-latin-400-normal.woff2) format("woff2"); }
+@font-face { font-family: OpenDyslexic; font-weight: 600 900; src: url(../fonts/opendyslexic-latin-700-normal.woff2) format("woff2"); }
 
 :root {
   color-scheme: dark;
