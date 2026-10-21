@@ -146,6 +146,8 @@
 }
 .tile.quick:hover .tile-delete, .tile-delete:focus-visible { opacity: 1; }
 .tile-delete:hover { background: var(--red); color: #fff; }
+.tile-share { right: 40px; }
+.tile-share:hover { background: var(--blue); }
 .tile.quick.add {
   --c: rgba(255, 255, 255, 0.22);
   background: rgba(255, 255, 255, 0.03);

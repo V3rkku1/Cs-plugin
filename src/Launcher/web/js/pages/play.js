@@ -118,6 +118,10 @@ function Tile({ preset, index, disabled }) {
     if (await confirm({ title: "Delete setup?", message: `Delete the saved setup "${preset.title}"?`, ok: "Delete", danger: true }))
       tryCall("play.deleteSetup", preset.title);
   };
+  const share = e => {
+    e.stopPropagation();
+    tryCall("play.shareSetup", preset.title);
+  };
   return html`<button class="tile quick glass sheen" style=${`--c: var(--${color})`} disabled=${disabled}
       title=${preset.saved ? `Your setup · ${preset.subtitle}` : preset.subtitle}
       onClick=${() => tryCall("play.preset", { title: preset.title, saved: preset.saved })}>
@@ -125,6 +129,7 @@ function Tile({ preset, index, disabled }) {
     <span class="title">${preset.title}</span>
     <span class="subtitle">${preset.subtitle}</span>
     ${preset.saved && html`<span class="tile-delete" role="button" title="Delete this setup" onClick=${remove}><${Icon} name="x" size=${13} stroke=${2.4} /></span>`}
+    ${preset.saved && html`<span class="tile-delete tile-share" role="button" title="Copy a code to send this setup to a friend" onClick=${share}><${Icon} name="copy" size=${13} stroke=${2.2} /></span>`}
   </button>`;
 }
 
@@ -135,6 +140,10 @@ export function PlayPage() {
   const save = async () => {
     const name = await prompt({ title: "Save Setup", message: "Saves the current Live Server settings (mode, map, bots, rules) as a quick start.", placeholder: "Name", ok: "Save" });
     if (name?.trim()) tryCall("play.saveSetup", { name });
+  };
+  const paste = async () => {
+    const code = await prompt({ title: "Add a Friend's Setup", message: "Paste a setup code a friend sent you (it starts with LSTQ1-).", placeholder: "LSTQ1-…", ok: "Add" });
+    if (code?.trim()) tryCall("play.importSetup", code.trim());
   };
   const builtIn = state.presets.filter(p => !p.saved);
   const saved = state.presets.filter(p => p.saved);
@@ -155,6 +164,11 @@ export function PlayPage() {
           <span class="quick-icon"><${Icon} name="plus" size=${20} stroke=${2.2} /></span>
           <span class="title">Save Current Setup</span>
           <span class="subtitle">${state.settings.mode} · ${state.settings.map} · ${state.settings.bots === 0 ? "no bots" : `${state.settings.bots} bots`}</span>
+        </button>
+        <button class="tile quick add" onClick=${paste}>
+          <span class="quick-icon"><${Icon} name="friends" size=${20} stroke=${2.2} /></span>
+          <span class="title">Add Friend's Setup</span>
+          <span class="subtitle">Paste a setup code</span>
         </button>
       </div>
     <//>

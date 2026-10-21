@@ -11,6 +11,7 @@ use crate::server::{self, ServerSettings, PORT, PRESETS};
 use crate::session::{self, Session};
 use crate::settings::SavedSetup;
 use crate::util;
+use base64::Engine;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
@@ -252,6 +253,46 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             app.save(&st);
             drop(st);
             app.toast(format!("Deleted \"{name}\"."), "info");
+            app.changed();
+            ok(())
+        }
+        "play.shareSetup" => {
+            let name: String = arg(a)?;
+            let code = app
+                .state()
+                .settings
+                .saved_setups
+                .iter()
+                .find(|x| x.name.eq_ignore_ascii_case(&name))
+                .map(setup_code)
+                .ok_or_else(|| bad("That saved setup is gone."))?;
+            if app.copy(&code) {
+                app.toast(
+                    "Setup code copied. Send it to a friend: they paste it on Play › Your Setups.",
+                    "good",
+                );
+            } else {
+                app.toast("Could not use the clipboard.", "bad");
+            }
+            ok(code)
+        }
+        "play.importSetup" => {
+            let code: String = arg(a)?;
+            let mut st = app.state();
+            let setup = setup_from_code(&code, &st.settings.server, |n| {
+                PRESETS.iter().any(|p| p.title.eq_ignore_ascii_case(n))
+                    || st
+                        .settings
+                        .saved_setups
+                        .iter()
+                        .any(|x| x.name.eq_ignore_ascii_case(n))
+            })?;
+            let name = setup.name.clone();
+            st.settings.saved_setups.push(setup);
+            app.save(&st);
+            drop(st);
+            app.log(format!("Added a friend's setup \"{name}\"."));
+            app.toast(format!("Added \"{name}\" to Your Setups."), "good");
             app.changed();
             ok(())
         }
@@ -1384,6 +1425,16 @@ fn set_server(app: &App, changes: Map<String, Value>) -> R<()> {
     } else {
         s.map.trim().to_string()
     };
+    clean_settings(&mut s);
+    st.settings.server = s;
+    app.save(&st);
+    drop(st);
+    app.changed();
+    Ok(())
+}
+
+/// Keeps every choice in range (also for a setup code a friend sent).
+fn clean_settings(s: &mut ServerSettings) {
     s.bots = s.bots.clamp(0, 20);
     s.difficulty = s.difficulty.clamp(0, 3);
     s.bot_team = s.bot_team.clamp(0, 2);
@@ -1420,11 +1471,74 @@ fn set_server(app: &App, changes: Map<String, Value>) -> R<()> {
     s.workshop_map = s.workshop_map.trim().to_string();
     s.game_args = s.game_args.trim().to_string();
     s.password = server::clean_password(&s.password);
-    st.settings.server = s;
-    app.save(&st);
-    drop(st);
-    app.changed();
-    Ok(())
+}
+
+/// Setup codes friends send each other: this prefix, then the setup as base64 JSON.
+const SETUP_CODE: &str = "LSTQ1-";
+
+/// A saved setup as a code for a friend. Only the game rules go in: no password, launch options or notes.
+fn setup_code(setup: &SavedSetup) -> String {
+    let mut setup = setup.clone();
+    let s = &mut setup.settings;
+    s.password.clear();
+    s.game_args.clear();
+    s.aim_bind_key.clear();
+    s.map_modes.clear();
+    s.map_team_sizes.clear();
+    let json = serde_json::to_string(&setup).unwrap();
+    format!(
+        "{SETUP_CODE}{}",
+        base64::engine::general_purpose::STANDARD.encode(json)
+    )
+}
+
+/// A friend's setup code as a setup for this PC: hosting, password, launch options and this PC's notes stay
+/// `mine`, the rest is checked like the Live Server page does. The name gets " 2", " 3"… when it's taken.
+fn setup_from_code(
+    code: &str,
+    mine: &ServerSettings,
+    taken: impl Fn(&str) -> bool,
+) -> R<SavedSetup> {
+    static MAP: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[A-Za-z0-9_\-]{1,64}$").unwrap());
+    let mut setup: SavedSetup = code
+        .trim()
+        .strip_prefix(SETUP_CODE)
+        .and_then(|b64| base64::engine::general_purpose::STANDARD.decode(b64).ok())
+        .and_then(|json| serde_json::from_slice(&json).ok())
+        .ok_or_else(|| bad("That isn't a setup code (they start with LSTQ1-)."))?;
+    let s = &mut setup.settings;
+    if !server::modes().iter().any(|m| m.name == s.mode) {
+        return Err(bad(
+            "That setup uses a game mode this launcher doesn't have.",
+        ));
+    }
+    // The map goes into server commands: a plain map name only.
+    if !MAP.is_match(&s.map) {
+        return Err(bad("That setup's map name isn't valid."));
+    }
+    s.workshop_map = s.workshop_map_id().unwrap_or_default();
+    (s.friends, s.password, s.shared_skins) =
+        (mine.friends, mine.password.clone(), mine.shared_skins);
+    s.game_args = mine.game_args.clone();
+    s.auto_start_game = mine.auto_start_game;
+    s.aim_bind_key = mine.aim_bind_key.clone();
+    s.map_modes = mine.map_modes.clone();
+    s.map_team_sizes = mine.map_team_sizes.clone();
+    clean_settings(s);
+    let base: String = setup.name.trim().chars().take(20).collect();
+    let base = if base.is_empty() {
+        "Friend's Setup".to_string()
+    } else {
+        base
+    };
+    setup.name = base.clone();
+    for i in 2.. {
+        if !taken(&setup.name) {
+            break;
+        }
+        setup.name = format!("{base} {i}");
+    }
+    Ok(setup)
 }
 
 /// Any server console command (first line only).
@@ -1497,4 +1611,66 @@ fn set_scouts(app: &App, on: bool) -> R<()> {
     ));
     app.toast("Flying Scoutsman off - reloading the map…", "good");
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn encode(setup: &SavedSetup) -> String {
+        let json = serde_json::to_string(setup).unwrap();
+        format!(
+            "{SETUP_CODE}{}",
+            base64::engine::general_purpose::STANDARD.encode(json)
+        )
+    }
+
+    #[test]
+    fn setup_codes_carry_the_rules_but_not_private_settings() {
+        let mut s = ServerSettings::default();
+        s.bots = 7;
+        s.password = "secret".into();
+        s.game_args = "-novid +exec evil".into();
+        let code = setup_code(&SavedSetup {
+            name: "Aim".into(),
+            settings: s,
+        });
+        let json = base64::engine::general_purpose::STANDARD
+            .decode(&code[SETUP_CODE.len()..])
+            .unwrap();
+        assert!(!String::from_utf8(json).unwrap().contains("secret"));
+
+        let mut mine = ServerSettings::default();
+        mine.password = "mine".into();
+        mine.game_args = "-w 1920".into();
+        let got =
+            setup_from_code(&code, &mine, |n| n == "Aim").unwrap_or_else(|_| panic!("valid code"));
+        let s = &got.settings;
+        assert_eq!(
+            (
+                got.name.as_str(),
+                s.bots,
+                s.password.as_str(),
+                s.game_args.as_str()
+            ),
+            ("Aim 2", 7, "mine", "-w 1920")
+        );
+    }
+
+    #[test]
+    fn bad_setup_codes_are_refused() {
+        let mine = ServerSettings::default();
+        assert!(setup_from_code("hello", &mine, |_| false).is_err());
+        let mut setup = SavedSetup {
+            name: "x".into(),
+            settings: ServerSettings::default(),
+        };
+        setup.settings.map = "de_dust2; rcon_password x".into();
+        assert!(setup_from_code(&encode(&setup), &mine, |_| false).is_err());
+        setup.settings.map = "de_dust2".into();
+        setup.settings.bots = 999;
+        let got = setup_from_code(&encode(&setup), &mine, |_| false)
+            .unwrap_or_else(|_| panic!("valid code"));
+        assert_eq!(got.settings.bots, 20);
+    }
 }
