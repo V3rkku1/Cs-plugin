@@ -646,16 +646,13 @@ pub fn set_extra_plugins(game: &GameFolder, s: &ServerSettings) -> io::Result<()
     for p in IMPROVER_PLUGINS {
         set_tree_active(game, &format!("plugins/{p}"), want_improver_plugin(s, p))?;
     }
-    if s.uses_deathmatch_plugin() {
-        plain_deathmatch(game);
-    }
     set_tree_active(game, "plugins/Deathmatch", s.uses_deathmatch_plugin())?;
     set_tree_active(game, "shared/DeathmatchAPI", s.uses_deathmatch_plugin())
 }
 
 /// NockyCZ's Deathmatch rotates "Only Headshot", "Only Deagle", "Only Pistols"… by default: turn that off so it
 /// stays on its Default mode (every gun). A missing config is written with just this; the plugin fills the rest.
-fn plain_deathmatch(game: &GameFolder) {
+pub fn plain_deathmatch(game: &GameFolder) {
     let path = game
         .css()
         .join("configs/plugins/Deathmatch/Deathmatch.json");
