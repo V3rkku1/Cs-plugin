@@ -298,7 +298,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "bot", color: "indigo" }} title="Bot Hider" subtitle=${s.botImprover ? "Included in Bot Improver" : "Bots look like real players: no BOT tag, names, avatars, ping · downloads from GitHub on first Start"}>
             <${Toggle} value=${s.botHider || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botHider", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Deathmatch Plugin"
-              subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, custom modes (only AWP, pistols…), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
+              subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, every gun (no weapon-only rounds), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
 
