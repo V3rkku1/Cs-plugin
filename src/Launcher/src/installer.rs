@@ -656,6 +656,7 @@ pub fn plain_deathmatch(game: &GameFolder) {
     let path = game
         .css()
         .join("configs/plugins/Deathmatch/Deathmatch.json");
+    let existed = path.exists();
     let mut root = match fs::read_to_string(&path) {
         Err(_) => serde_json::json!({}),
         // One that can't be read (comments, hand edits) stays as it is.
@@ -664,13 +665,21 @@ pub fn plain_deathmatch(game: &GameFolder) {
             _ => return,
         },
     };
-    if root["Gameplay Settings"]["Custom Modes"] == false {
+    let g = &root["Gameplay Settings"];
+    // Off and already starting on the Default (every-gun) mode: nothing to write.
+    if g["Custom Modes"] == false && g["Map Start Custom Mode"] == 0 {
         return;
     }
     if !root["Gameplay Settings"].is_object() {
         root["Gameplay Settings"] = serde_json::json!({});
     }
     root["Gameplay Settings"]["Custom Modes"] = false.into();
+    root["Gameplay Settings"]["Map Start Custom Mode"] = 0.into();
+    // A file we create needs the plugin's config version, or CounterStrikeSharp regenerates it with the
+    // rotating modes back on at load. An existing file keeps whatever version it already carries.
+    if !existed && root["ConfigVersion"].is_null() {
+        root["ConfigVersion"] = 1.into();
+    }
     let _ = fs::create_dir_all(path.parent().unwrap());
     let _ = fs::write(path, serde_json::to_string_pretty(&root).unwrap());
 }
@@ -1024,17 +1033,30 @@ mod tests {
             .join("configs/plugins/Deathmatch/Deathmatch.json");
         let read = || serde_json::from_str::<Value>(&fs::read_to_string(&path).unwrap()).unwrap();
         plain_deathmatch(&game);
-        assert_eq!(read()["Gameplay Settings"]["Custom Modes"], false);
-        fs::write(&path, r#"{"Gameplay Settings": {"Custom Modes": true, "Game Length": 45}, "Save Players Weapons": true}"#).unwrap();
+        let fresh = read();
+        // A file we created: off, starts on Default, and carries a version so CSS keeps it.
+        assert_eq!(fresh["Gameplay Settings"]["Custom Modes"], false);
+        assert_eq!(fresh["Gameplay Settings"]["Map Start Custom Mode"], 0);
+        assert_eq!(fresh["ConfigVersion"], 1);
+        fs::write(&path, r#"{"ConfigVersion": 7, "Gameplay Settings": {"Custom Modes": true, "Map Start Custom Mode": 4, "Game Length": 45}, "Save Players Weapons": true}"#).unwrap();
         plain_deathmatch(&game);
         let v = read();
+        // Existing file: forced off and to Default, its own version and other keys kept.
         assert_eq!(
             (
                 &v["Gameplay Settings"]["Custom Modes"],
+                &v["Gameplay Settings"]["Map Start Custom Mode"],
                 &v["Gameplay Settings"]["Game Length"],
-                &v["Save Players Weapons"]
+                &v["Save Players Weapons"],
+                &v["ConfigVersion"]
             ),
-            (&Value::Bool(false), &Value::from(45), &Value::Bool(true))
+            (
+                &Value::Bool(false),
+                &Value::from(0),
+                &Value::from(45),
+                &Value::Bool(true),
+                &Value::from(7)
+            )
         );
         fs::write(&path, "// hand edited\n{").unwrap();
         plain_deathmatch(&game);
