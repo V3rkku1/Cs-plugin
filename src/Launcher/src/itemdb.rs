@@ -406,7 +406,11 @@ fn parse_music_kit(n: &Value) -> Option<CollectibleInfo> {
 }
 
 fn parse_case(n: &Value) -> Option<CaseInfo> {
-    let kind = s(&n["type"]);
+    let mut kind = s(&n["type"]);
+    // Terminals ("Sealed Genesis Terminal") come without a type.
+    if kind.is_empty() && s(&n["name"]).contains("Terminal") {
+        kind = "Terminal".into();
+    }
     let contains = n["contains"].as_array().filter(|a| !a.is_empty())?;
     if kind.is_empty() {
         return None;
@@ -518,5 +522,18 @@ mod tests {
         assert_eq!(db.weapon_of_item("★ StatTrak™ Karambit | Fade"), Some(507));
         assert_eq!(db.weapon_of_item("Sticker | x"), None);
         fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn terminals_without_a_type_become_a_terminal_container() {
+        let term = serde_json::json!({
+            "id": "crate-5176", "name": "Sealed Genesis Terminal", "type": null,
+            "contains": [{ "id": "skin-1", "name": "AK-47 | X", "paint_index": 282, "rarity": { "name": "Classified", "color": "#d32ce6" }, "image": "x" }],
+            "contains_rare": [],
+        });
+        assert_eq!(parse_case(&term).unwrap().kind, "Terminal");
+        // A real empty type with no name hint stays dropped.
+        let no_type = serde_json::json!({ "name": "Mystery", "type": null, "contains": [{ "id": "skin-1", "name": "AK-47 | X" }] });
+        assert!(parse_case(&no_type).is_none());
     }
 }
