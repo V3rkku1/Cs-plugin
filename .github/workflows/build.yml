@@ -35,6 +35,8 @@ jobs:
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: src/Launcher
+          # Only main saves: every branch saving its own cache pushed main's out of the 10 GB limit.
+          save-if: ${{ github.ref == 'refs/heads/main' }}
 
       - name: Run plugin tests
         run: dotnet test tests/LanSkinTester.Tests -c Release
