@@ -646,8 +646,36 @@ pub fn set_extra_plugins(game: &GameFolder, s: &ServerSettings) -> io::Result<()
     for p in IMPROVER_PLUGINS {
         set_tree_active(game, &format!("plugins/{p}"), want_improver_plugin(s, p))?;
     }
+    if s.uses_deathmatch_plugin() {
+        plain_deathmatch(game);
+    }
     set_tree_active(game, "plugins/Deathmatch", s.uses_deathmatch_plugin())?;
     set_tree_active(game, "shared/DeathmatchAPI", s.uses_deathmatch_plugin())
+}
+
+/// NockyCZ's Deathmatch rotates "Only Headshot", "Only Deagle", "Only Pistols"… by default: turn that off so it
+/// stays on its Default mode (every gun). A missing config is written with just this; the plugin fills the rest.
+fn plain_deathmatch(game: &GameFolder) {
+    let path = game
+        .css()
+        .join("configs/plugins/Deathmatch/Deathmatch.json");
+    let mut root = match fs::read_to_string(&path) {
+        Err(_) => serde_json::json!({}),
+        // One that can't be read (comments, hand edits) stays as it is.
+        Ok(t) => match serde_json::from_str::<Value>(&t) {
+            Ok(v) if v.is_object() => v,
+            _ => return,
+        },
+    };
+    if root["Gameplay Settings"]["Custom Modes"] == false {
+        return;
+    }
+    if !root["Gameplay Settings"].is_object() {
+        root["Gameplay Settings"] = serde_json::json!({});
+    }
+    root["Gameplay Settings"]["Custom Modes"] = false.into();
+    let _ = fs::create_dir_all(path.parent().unwrap());
+    let _ = fs::write(path, serde_json::to_string_pretty(&root).unwrap());
 }
 
 /// Bot Hider's "player" identity clears the engine's bot flag; B3none's retakes would then take the bots for
@@ -989,5 +1017,31 @@ mod tests {
             Some("plugins/a.dll")
         );
         assert_eq!(css_relative("readme.txt"), None);
+    }
+
+    #[test]
+    fn deathmatch_custom_modes_get_turned_off() {
+        let game = temp_game();
+        let path = game
+            .css()
+            .join("configs/plugins/Deathmatch/Deathmatch.json");
+        let read = || serde_json::from_str::<Value>(&fs::read_to_string(&path).unwrap()).unwrap();
+        plain_deathmatch(&game);
+        assert_eq!(read()["Gameplay Settings"]["Custom Modes"], false);
+        fs::write(&path, r#"{"Gameplay Settings": {"Custom Modes": true, "Game Length": 45}, "Save Players Weapons": true}"#).unwrap();
+        plain_deathmatch(&game);
+        let v = read();
+        assert_eq!(
+            (
+                &v["Gameplay Settings"]["Custom Modes"],
+                &v["Gameplay Settings"]["Game Length"],
+                &v["Save Players Weapons"]
+            ),
+            (&Value::Bool(false), &Value::from(45), &Value::Bool(true))
+        );
+        fs::write(&path, "// hand edited\n{").unwrap();
+        plain_deathmatch(&game);
+        assert_eq!(fs::read_to_string(&path).unwrap(), "// hand edited\n{");
+        fs::remove_dir_all(&game.root).unwrap();
     }
 }
