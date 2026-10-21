@@ -8,7 +8,7 @@ const CARD = 168; // reel card width incl. gap
 const SPIN_MS = 7200;
 const TYPE_NAMES = {
   "Case": "Weapon Cases", "Sticker Capsule": "Sticker Capsules", "Autograph Capsule": "Autographs", "Souvenir": "Souvenirs",
-  "Souvenir Highlight": "Highlights", "Music Kit Box": "Music Kits", "Pins": "Pins", "Patch Capsule": "Patches", "Graffiti": "Graffiti",
+  "Souvenir Highlight": "Highlights", "Music Kit Box": "Music Kits", "Pins": "Pins", "Patch Capsule": "Patches", "Graffiti": "Graffiti", "Terminal": "Terminals",
 };
 const pct = c => `${(c * 100).toFixed(2)}%`;
 const equippable = i => (i.kind === "skin" && i.def) || ((i.kind === "pin" || i.kind === "music") && i.collectibleId);
