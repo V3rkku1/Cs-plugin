@@ -105,7 +105,7 @@ public class ServerConfigTests
                      "lst_god", "lst_noclip", "lst_respawn", "lst_refresh", "lst_rethrow", "lst_spot save", "lst_spot load", "lst_swap",
                      "lst_endround ct", "lst_endround t", "lst_view first", "lst_view third", "lst_pause on", "lst_pause off",
                      "br_reroll", "bot_aim mixed", "bot_nades normal", "lst_give weapon_ak47", "lst_show_damage 1",
-                     "lst_shared_loadout 1", "sv_password \"x\"",
+                     "lst_shared_loadout 1", "sv_password \"x\"", "lst_stats_reset", "lst_bot_skins reroll",
                  })
             AssertKnown(line);
     }
@@ -117,4 +117,11 @@ public class ServerConfigTests
         foreach (var (name, command) in Plugin.Where(c => c.Key.StartsWith("lst_")))
             Assert.True(command.ServerOnly, $"{name} can be run by players");
     }
+
+    [Theory]
+    [InlineData("ak47,m4a1,m4a1_silencer", true, "weapon_ak47")]
+    [InlineData("ak47", false, "weapon_ak47")] // no CT rifle allowed: the CT bot gets an AK too
+    [InlineData("m4a1", true, "weapon_m4a1")]
+    public void BotGetsAnAllowedRifle(string allowed, bool t, string expected) =>
+        Assert.Equal(expected, global::LanSkinTester.LanSkinTester.BotRifleFor(allowed.Split(','), t));
 }

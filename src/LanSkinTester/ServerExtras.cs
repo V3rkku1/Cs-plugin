@@ -34,12 +34,7 @@ public partial class LanSkinTester
     private string[]? _voteChoices;
     private readonly Dictionary<ulong, PlayerStats> _stats = new();
     private readonly Dictionary<ulong, PlayerStats> _roundStats = new();
-
-    private sealed class PlayerStats
-    {
-        public string Name = "";
-        public int Kills, Deaths, Headshots, Damage;
-    }
+    private int _statRounds;
 
     private void LoadExtras()
     {
@@ -52,6 +47,7 @@ public partial class LanSkinTester
             _voteChoices = null;
             _stats.Clear();
             _roundStats.Clear();
+            _statRounds = 0;
             if (_qolReady) Server.NextWorldUpdate(() => Server.ExecuteCommand("mp_warmup_pausetimer 1"));
         });
     }
@@ -331,21 +327,38 @@ public partial class LanSkinTester
     // Round MVP, !stats, !top
     // ---------------------------------------------------------------------------------------------
 
+    // Bots are counted too (for the launcher's Live page), by slot: their SteamID is 0.
+    private static ulong StatKey(CCSPlayerController player) => player.IsBot ? (ulong)player.Slot : player.SteamID;
+
     private PlayerStats StatsOf(Dictionary<ulong, PlayerStats> table, CCSPlayerController player)
     {
-        if (!table.TryGetValue(player.SteamID, out var s)) table[player.SteamID] = s = new PlayerStats();
+        if (!table.TryGetValue(StatKey(player), out var s)) table[StatKey(player)] = s = new PlayerStats();
         s.Name = player.PlayerName;
+        s.Bot = player.IsBot;
         return s;
     }
+
+    [ConsoleCommand("lst_stats_reset", "Start the session stats (!stats, !top, the launcher's Live page) over")]
+    [CommandHelper(whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnStatsResetCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _stats.Clear();
+        _roundStats.Clear();
+        _statRounds = 0;
+    }
+
+    /// <summary>The session's stats for status.json, best first.</summary>
+    private List<PlayerStats> StatsForStatus() => _stats.Values
+        .Select(s => new PlayerStats { Name = s.Name, Bot = s.Bot, Kills = s.Kills, Deaths = s.Deaths, Headshots = s.Headshots, Damage = s.Damage, Rounds = Math.Max(_statRounds, 1) })
+        .OrderByDescending(s => s.Kills).ThenByDescending(s => s.Damage).ToList();
 
     [GameEventHandler]
     public HookResult OnExtrasDeath(EventPlayerDeath @event, GameEventInfo info)
     {
-        if (!_qolSummary) return HookResult.Continue;
         var victim = @event.Userid;
         var attacker = @event.Attacker;
-        if (victim is { IsValid: true, IsBot: false }) StatsOf(_stats, victim).Deaths++;
-        if (attacker is { IsValid: true, IsBot: false } && attacker.Slot != victim?.Slot)
+        if (victim is { IsValid: true }) StatsOf(_stats, victim).Deaths++;
+        if (attacker is { IsValid: true } && attacker.Slot != victim?.Slot)
         {
             foreach (var table in new[] { _stats, _roundStats })
             {
@@ -360,7 +373,7 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnExtrasHurt(EventPlayerHurt @event, GameEventInfo info)
     {
-        if (!_qolSummary || @event.Attacker is not { IsValid: true, IsBot: false } attacker || attacker.Slot == @event.Userid?.Slot)
+        if (@event.Attacker is not { IsValid: true } attacker || attacker.Slot == @event.Userid?.Slot)
             return HookResult.Continue;
         var damage = Math.Min(@event.DmgHealth, 100);
         StatsOf(_stats, attacker).Damage += damage;
@@ -371,8 +384,9 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnExtrasRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
+        if (!IsWarmup()) _statRounds++;
         if (!_qolSummary || IsDeathmatch()) return HookResult.Continue;
-        var mvp = _roundStats.Values.OrderByDescending(s => s.Kills).ThenByDescending(s => s.Damage).FirstOrDefault();
+        var mvp = _roundStats.Values.Where(s => !s.Bot).OrderByDescending(s => s.Kills).ThenByDescending(s => s.Damage).FirstOrDefault();
         _roundStats.Clear();
         if (mvp == null || mvp.Kills == 0) return HookResult.Continue;
         Server.PrintToChatAll($" {ChatColors.Gold}★ Round MVP{ChatColors.Default} {mvp.Name}: {mvp.Kills} kill{(mvp.Kills == 1 ? "" : "s")}" +
@@ -394,15 +408,15 @@ public partial class LanSkinTester
     [ConsoleCommand("css_stats", "Your kills, deaths, headshots and damage on this map")]
     public void OnStatsCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (player == null || !player.IsValid) return;
+        if (player == null || !player.IsValid || !_qolSummary) return;
         Reply(player, _stats.TryGetValue(player.SteamID, out var s) ? Describe(s) : "No kills or deaths yet on this map.");
     }
 
     [ConsoleCommand("css_top", "Best players on this map")]
     public void OnTopCommand(CCSPlayerController? player, CommandInfo cmd)
     {
-        if (player == null || !player.IsValid) return;
-        var top = _stats.Values.OrderByDescending(s => s.Kills).ThenByDescending(s => s.Damage).Take(3).ToList();
+        if (player == null || !player.IsValid || !_qolSummary) return;
+        var top = _stats.Values.Where(s => !s.Bot).OrderByDescending(s => s.Kills).ThenByDescending(s => s.Damage).Take(3).ToList();
         if (top.Count == 0)
         {
             Reply(player, "No kills yet on this map.");

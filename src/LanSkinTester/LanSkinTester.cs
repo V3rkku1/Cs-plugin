@@ -78,6 +78,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
         LoadHackerMode();
         LoadPractice();
+        LoadBotSkins();
         LoadExtras();
     }
 
@@ -102,7 +103,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
 
             var pawn = itemServices.Pawn.Value;
             var player = pawn?.Controller.Value?.As<CCSPlayerController>();
-            if (player != null && IsHumanPlayer(player))
+            if (player != null && Skinned(player))
                 ApplyWeaponSkin(player, weapon);
         }
         catch (Exception ex)
@@ -126,7 +127,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 if (!weapon.IsValid) return;
 
                 var player = FindWeaponOwner(weapon);
-                if (player != null && IsHumanPlayer(player))
+                if (player != null && Skinned(player))
                     ApplyWeaponSkin(player, weapon);
             }
             catch (Exception ex)
@@ -187,6 +188,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
                 PrivateServer = _privateServer,
                 SkinsAllowed = SkinsAllowed(),
                 DisabledReason = DisabledReason() ?? "",
+                Stats = StatsForStatus(),
                 Time = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             };
 
@@ -411,7 +413,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     public HookResult OnPlayerSpawn(EventPlayerSpawn @event, GameEventInfo info)
     {
         var player = @event.Userid;
-        if (player == null || !IsHumanPlayer(player)) return HookResult.Continue;
+        if (player == null || !Skinned(player)) return HookResult.Continue;
 
         var reason = DisabledReason();
         if (reason != null)
@@ -951,7 +953,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!skinsearch <text>  !skinreset",
             "!gen <gen code> or !inspect <link> - import a real item (float, pattern, stickers)",
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
-            "!save [name]  !load [name]  !spots  !rethrow  !damage  !armor  !nades  !clear  !swap",
+            "!save [name]  !load [name]  !spots  !rethrow  !savenade <name>  !lineup <name>  !lineups  !delnade <name>  !damage  !armor  !nades  !clear  !swap",
             "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
             "!hacks - hacker mode status  !cheats - cheat menu  !aimkey <key>  !aimtoggle",
         ];
@@ -1110,6 +1112,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     // The host (on this PC, or the launcher's Steam account) always gets the launcher's loadout.
     private PlayerLoadout GetLoadout(CCSPlayerController player)
     {
+        if (IsBotPlayer(player)) return BotLoadout(player);
         if (IsHost(player)) return _store.Get(LoadoutStore.LocalKey);
         // A friend whose launcher sent their own skins (css_myskins) wears those.
         if (_store.Find(OwnKey(player)) is { } own) return own;

@@ -1,3 +1,4 @@
+using System.Text.Json;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
@@ -10,7 +11,7 @@ namespace LanSkinTester;
 
 /// <summary>
 /// Practice quality-of-life on the local server: damage in chat, god mode, saved spots, grenade rethrow,
-/// a grenade clear, armor and nades, team swap and round wins. Same rule as the other practice commands:
+/// grenade lineups saved per map (!savenade, kept in lineups/&lt;map&gt;.json), a grenade clear, armor and nades, team swap and round wins. Same rule as the other practice commands:
 /// only on a LAN or private server. The launcher drives the lst_* commands; players can use the chat ones.
 /// </summary>
 public partial class LanSkinTester
@@ -170,6 +171,57 @@ public partial class LanSkinTester
     {
         if (!PracticeAllowed(player)) return;
         Rethrow(player!);
+    }
+
+    [ConsoleCommand("css_savenade", "Save your last grenade throw as a lineup for this map: !savenade <name>")]
+    public void OnSaveNadeChat(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        if (!_throws.TryGetValue(player!.Slot, out var thrown))
+        {
+            Reply(player, "Throw a grenade first, then !savenade name.");
+            return;
+        }
+        var name = CleanSpot(cmd.ArgCount > 1 ? cmd.GetArg(1) : "");
+        var lineups = Lineups();
+        lineups[name] = thrown;
+        SaveLineups(lineups);
+        Reply(player, $"Saved lineup \"{name}\". !lineup {name} brings you back.");
+    }
+
+    [ConsoleCommand("css_lineups", "List this map's saved grenade lineups")]
+    public void OnLineupsChat(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        var lineups = Lineups();
+        Reply(player!, lineups.Count == 0 ? "No lineups on this map yet. Throw, then !savenade name."
+            : "Lineups: " + string.Join(", ", lineups.OrderBy(l => l.Key).Select(l => $"{l.Key} ({l.Value.Weapon.Replace("weapon_", "")})")));
+    }
+
+    [ConsoleCommand("css_lineup", "Go to a saved grenade lineup with that grenade: !lineup <name>")]
+    [CommandHelper(minArgs: 1, usage: "<name>")]
+    public void OnLineupChat(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        var name = CleanSpot(cmd.GetArg(1));
+        if (!Lineups().TryGetValue(name, out var lineup))
+        {
+            Reply(player!, $"No lineup named \"{name}\". !lineups lists them.");
+            return;
+        }
+        GoToThrow(player!, lineup);
+        Reply(player!, $"Lineup \"{name}\": throw!");
+    }
+
+    [ConsoleCommand("css_delnade", "Delete a saved grenade lineup: !delnade <name>")]
+    [CommandHelper(minArgs: 1, usage: "<name>")]
+    public void OnDelNadeChat(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        var name = CleanSpot(cmd.GetArg(1));
+        var lineups = Lineups();
+        if (lineups.Remove(name)) SaveLineups(lineups);
+        Reply(player!, $"Deleted \"{name}\".");
     }
 
     [ConsoleCommand("css_damage", "Toggle the damage report in chat")]
@@ -363,6 +415,12 @@ public partial class LanSkinTester
             Reply(player, "Throw a grenade first, then !rethrow.");
             return;
         }
+        GoToThrow(player, thrown);
+        Reply(player, "Back to your last throw.");
+    }
+
+    private void GoToThrow(CCSPlayerController player, ThrownGrenade thrown)
+    {
         void Go()
         {
             if (!player.IsValid || !player.PawnIsAlive) return;
@@ -379,7 +437,23 @@ public partial class LanSkinTester
             AddTimer(0.2f, Go);
         }
         else Go();
-        Reply(player, "Back to your last throw.");
+    }
+
+    // Lineups are shared by everyone on the server and kept across restarts, one file per map.
+    private string LineupFile() => Path.Combine(ModuleDirectory, "lineups",
+        new string(Server.MapName.Select(c => char.IsLetterOrDigit(c) ? c : '_').ToArray()) + ".json");
+
+    private Dictionary<string, ThrownGrenade> Lineups()
+    {
+        try { return JsonSerializer.Deserialize<Dictionary<string, ThrownGrenade>>(File.ReadAllText(LineupFile())) ?? new(); }
+        catch (Exception e) when (e is IOException or JsonException or UnauthorizedAccessException) { return new(); }
+    }
+
+    private void SaveLineups(Dictionary<string, ThrownGrenade> lineups)
+    {
+        var file = LineupFile();
+        Directory.CreateDirectory(Path.GetDirectoryName(file)!);
+        File.WriteAllText(file, JsonSerializer.Serialize(lineups));
     }
 
     private static void SwapTeams()

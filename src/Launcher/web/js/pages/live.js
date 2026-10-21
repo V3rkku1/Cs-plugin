@@ -75,6 +75,20 @@ function Logs() {
   </div>`;
 }
 
+/** Session stats from the plugin (bots too), best first. */
+function StatsTable({ stats }) {
+  if (!stats?.length) return html`<div class="empty small faint" style="padding:14px">No kills yet on this map.</div>`;
+  return html`<table class="stats-table">
+    <tr><th>Player</th><th>K</th><th>D</th><th>K/D</th><th>HS%</th><th>ADR</th></tr>
+    ${stats.map(p => html`<tr class=${p.bot ? "bot" : ""}>
+      <td>${p.name}${p.bot ? " (bot)" : ""}</td><td>${p.kills}</td><td>${p.deaths}</td>
+      <td>${(p.deaths ? p.kills / p.deaths : p.kills).toFixed(2)}</td>
+      <td>${p.kills ? Math.round(100 * p.headshots / p.kills) : 0}%</td>
+      <td>${Math.round(p.damage / Math.max(p.rounds, 1))}</td>
+    </tr>`)}
+  </table>`;
+}
+
 function StatusCard({ state }) {
   const color = { good: "var(--green)", warning: "var(--orange)", busy: "var(--blue)", off: "var(--text-3)" }[state.liveKind];
   return html`<div class="live-status glass" style=${`--c:${color}`}>
@@ -210,10 +224,18 @@ export function LivePage() {
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Weapons" subtitle=${owns ? "This mode hands out its own guns" : ""}>
             <${Select} width=${200} disabled=${owns} value=${s.botWeapons} options=${state.botWeapons.map((t, i) => ({ value: i, label: t }))} onChange=${v => set("botWeapons", v)} />
           <//>
+          ${s.botWeapons === 0 && !owns && html`<${Row} icon=${{ name: "crosshair", color: "orange" }} title="Rifles" subtitle="Bots swap any other rifle or sniper for these">
+            <${Select} width=${200} value=${s.botRifles} options=${state.botRifles.map((t, i) => ({ value: i, label: t }))} onChange=${v => set("botRifles", v)} />
+          <//>`}
           <${Row} title="Team Size" subtitle="Most players per side, people and bots (classic modes)">
             <${Stepper} value=${s.teamSizeT} min=${1} max=${16} format=${v => v + " T"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeT", v)} />
             <${Stepper} value=${s.teamSizeCT} min=${1} max=${16} format=${v => v + " CT"} parse=${t => parseInt(t)} onChange=${v => set("teamSizeCT", v)} />
             <${Button} size="sm" onClick=${() => tryCall("live.saveTeamSize")} title="Remember these sizes whenever this map is played">Save for this map<//><//>
+          <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins"
+              subtitle=${s.botSkins ? `Random skins, knives and gloves on every bot${s.botImprover ? ", agents too (Bot Improver)" : ""}` : "Off: bots use default skins"}>
+            ${s.botSkins && html`<${Button} size="sm" icon="shuffle" disabled=${!up} onClick=${() => send(s.botImprover ? "br_reroll" : "lst_bot_skins reroll")}>Reroll<//>`}
+            <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} />
+          <//>
           <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
             <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
           <//>
@@ -291,10 +313,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "bot", color: "green" }} title="Bots Buy" subtitle="Every bot gets this weapon, or buys like normal">
             <${Select} width=${190} value=${s.botForceWeapon} options=${BOT_GUNS}
               onChange=${v => tryCall("live.botweapon", v)} /><//>
-          <${Row} icon=${{ name: "skins", color: "purple" }} title="Bot Skins" subtitle=${s.botSkins ? "Random skins, knives, gloves and agents on every bot" : "Off: bots use default skins and agents"}>
-            <${Toggle} value=${s.botSkins} onChange=${v => set("botSkins", v)} /><//>
           <${ActionGrid} disabled=${!up} actions=${[
-            ...(s.botSkins ? [["Reroll Bot Skins", "br_reroll", "shuffle"]] : []),
             ["Flying Scoutsman On", () => tryCall("live.scouts", true), "sparkles"],
             ["Flying Scoutsman Off", () => tryCall("live.scouts", false), "stop"]]} />
         <//>`}
@@ -331,7 +350,11 @@ export function LivePage() {
             ["Add CT", "bot_add_ct", "plus"], ["Add T", "bot_add_t", "plus"], ["Kick Bots", "bot_kick", "minus"],
             ["Respawn", "lst_respawn", "run"], ["God Mode", "lst_god", "shield"]]} />
         <//>
-        <${Section} title="Practice">
+        <${Section} title="Session Stats" note=${up ? "since the map started" : "unlocks when the server is up"}>
+          <${StatsTable} stats=${state.status?.stats} />
+          <${ActionGrid} disabled=${!up} actions=${[["Reset Stats", "lst_stats_reset", "refresh"]]} />
+        <//>
+        <${Section} title="Practice" footer="Lineups in chat: throw, then !savenade name · !lineup name · !lineups · !delnade name">
           <${ActionGrid} disabled=${!up} actions=${[
             ["Third Person", "lst_view third", "eye"], ["First Person", "lst_view first", "person"], ["Noclip", "lst_noclip", "sparkles"],
             ["Armor", "lst_armor", "shield"], ["Nades", "lst_nades", "target"], ["Clear", "lst_clear", "trash"],

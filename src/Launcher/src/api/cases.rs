@@ -539,6 +539,30 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             equip(app, inv, &st, &arg::<String>(a)?)?;
             ok(())
         }
+        // Inspect room: equip it, empty the server of bots and put it in your hands (gloves just show).
+        // Skipped: a fixed camera and lighting choice (map-specific); third person / noclip are on Live › Practice.
+        "cases.tryInGame" => {
+            let uid: String = arg(a)?;
+            let st = app.state();
+            equip(app, inv, &st, &uid)?;
+            let def = find(inv.items(app)?, &uid)?.def;
+            let (Some(game), Some(_)) = (st.game.clone(), st.server_status()) else {
+                app.toast(
+                    "Equipped. Start the server (Play) to try it in game.",
+                    "info",
+                );
+                return ok(());
+            };
+            let mut commands = vec!["bot_kick".to_string()];
+            if is_knife_type(def) {
+                commands.push("lst_give weapon_knife".into());
+            } else if let Some(classname) = crate::items::classname(def) {
+                commands.push(format!("lst_give {classname}"));
+            }
+            crate::server::send_commands(&game, &commands)
+                .map_err(|e| bad(format!("Could not send: {e}")))?;
+            ok(())
+        }
         "cases.equipSide" => {
             let a: SideArgs = arg(a)?;
             let st = app.state();
@@ -927,10 +951,23 @@ fn cases_state(app: &App, st: &State, items: &[InventoryItem]) -> Value {
         .iter()
         .map(|o| o.1 as f64 * app.prices.price(&o.0.name).unwrap_or(0.0))
         .sum();
+    // Steam's fixed key price (not on the market); profit counts only what came out of a container.
+    let key_price = match st.settings.currency.as_str() {
+        "EUR" => 2.35,
+        "GBP" => 2.05,
+        _ => 2.49,
+    };
+    let spent = cost + keys as f64 * key_price;
+    let unboxed: f64 = items
+        .iter()
+        .filter(|i| !i.case_name.is_empty())
+        .filter_map(|i| price_of(app, st, i))
+        .sum();
     let round = |x: f64| (x * 100.0).round() / 100.0 + 0.0; // + 0.0: an empty sum is -0.0
     json!({
         "dbEmpty": st.db.cases.is_empty(), "unlocked": st.settings.admin_unlocked, "opened": st.settings.cases_opened, "cases": rows,
         "inventoryCount": items.len(), "currency": st.settings.currency, "inventoryValue": round(value), "keysUsed": keys, "casesCost": round(cost),
+        "spent": round(spent), "profit": round(unboxed - spent),
     })
 }
 

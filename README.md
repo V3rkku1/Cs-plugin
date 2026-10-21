@@ -47,7 +47,9 @@ the map; a few settings restart the server and ask first):
   Retakes, and Rush when your CS2 has it), map, a **Workshop map** (ID or link), team sizes
   (*Save for this map*).
 - **Bots:** 0–20, skill, team, weapons (**Rifles** by default: no AWPs, shotguns, SMGs or machine guns, and
-  any sniper a bot gets is swapped for an AK-47 / M4A4), *Calm Bots* (no bunny-hopping).
+  *Rifles* picks what bots keep: AK-47 and M4s, AK only, M4A4 only, M4A1-S only or all rifles; anything else
+  is swapped), *Calm Bots* (no bunny-hopping), *Bot Skins* (random skins, knife and gloves on every bot,
+  with *Reroll*; Bot Improver adds agents).
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
   low gravity.
@@ -57,7 +59,8 @@ the map; a few settings restart the server and ask first):
 - **Launch:** your own CS2 launch options, and whether CS2 starts automatically.
 - **Live controls** (when the server is up): restart, end warmup, pause, resume, swap, CT/T win; add CT,
   add T, kick bots, respawn, god; third person, noclip, armor, nades, clear, save/load spot, rethrow,
-  damage report, refresh skins, give weapon; **Command** runs any server console command.
+  damage report, refresh skins, give weapon; **Session Stats** (K, D, K/D, HS%, ADR for everyone, bots too,
+  with *Reset Stats*); **Command** runs any server console command.
 - **Logs:** the launcher's activity, the server console and the CounterStrikeSharp log, with *Errors only*.
   **Copy Logs** copies all of it as one report, errors first, to paste when asking for help.
 - **Reset to Default** makes it a plain CS2 server (Casual, no bots, normal rules, no extra plugins); friends,
@@ -66,7 +69,7 @@ the map; a few settings restart the server and ask first):
 **Inventory.** What you unboxed, like CS2's inventory: All Items, Loadout, Weapons, Knives & Gloves,
 Stickers & Graffiti, Collectibles; search, filter and sort by newest, rarity, price or name. Click an item
 to inspect it (exterior, exact float, pattern, price, case) and **Equip** it, for both sides or **EQUIP T** /
-**EQUIP CT**. The **Loadout** tab shows what each side wears; *Use Default* takes it off. An equipped item
+**EQUIP CT**. **Try in Game** equips it, kicks the bots and puts it in your hands on the running server. The **Loadout** tab shows what each side wears; *Use Default* takes it off. An equipped item
 changes in game within a second.
 - **Stickers…** on a gun: apply up to 5 stickers from your inventory (applying uses the sticker up), place,
   turn, resize and scrape them; scraped all the way, a sticker comes off.
@@ -79,7 +82,8 @@ changes in game within a second.
 music kits, graffiti. Valve's odds (Mil-Spec 79.92%, Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife
 or gloves 0.26%), real float ranges, pattern 0–1000, StatTrak 10% in weapon cases. *Open ×5* / *×10*, Space
 opens, a click skips the reel. Prices are real market prices for information (Skinport, then the Steam
-Market; USD, EUR or GBP), and the page shows what your openings would have cost.
+Market; USD, EUR or GBP), and the page shows what your openings would have cost (keys at Steam's price plus the
+containers) and your profit or loss against what you unboxed.
 
 **Unbox only and the admin code:** by default you can equip only what you unboxed (plus vanilla guns), and
 `!skin`, `!gen`, `!knife` and `!gloves` are off on your server. The owner's admin code (Cases › *Admin code*)
@@ -305,6 +309,7 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!god` | God mode (type it again to turn it off) |
 | `!save [name]` / `!load [name]` / `!spots` | Save where you stand and go back. Names are optional |
 | `!rethrow` | Back to your last grenade throw, with that grenade |
+| `!savenade <name>` / `!lineup <name>` / `!lineups` / `!delnade <name>` | Save your last throw as a lineup for this map (kept across restarts, shared by everyone), go back to it with that grenade, list or delete them |
 | `!damage` | Toggle the damage report in chat |
 | `!armor` / `!nades` / `!clear` | Armor and a kit, a set of grenades, or remove smokes and fires |
 | `!swap` | Swap the two teams |
@@ -359,7 +364,10 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_aim_bone head\|neck\|chest` | Body part for the aimbot and the triggerbot |
 | `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
 | `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
-| `lst_bot_no_snipers 1` / `0` | Bots never keep a sniper rifle (swapped for an AK-47 / M4A4) |
+| `lst_bot_no_snipers 1` / `0` | Bots only keep the rifles `lst_bot_rifles` allows (snipers and other rifles are swapped) |
+| `lst_bot_rifles ak47,m4a1,m4a1_silencer` | Rifles bots may keep (`famas`, `galilar`, `aug`, `sg556` too) |
+| `lst_stats_reset` | Start the session stats over |
+| `lst_bot_skins 1` / `0` / `reroll` | Random skins, knife and gloves on every bot (from the skins list), or new ones |
 | `lst_shared_loadout 1` / `0` | Everyone uses the launcher's skins / each player picks their own |
 | `lst_private_server 1` | Allow skins with `sv_lan 0` (Radmin / VPN friends). Only for your own private server |
 | `lst_host_account <id>` | The host's Steam account id: the host always gets the launcher's loadout |

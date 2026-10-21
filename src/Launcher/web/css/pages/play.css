@@ -171,6 +171,11 @@
 
 .action-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(128px, 1fr)); gap: 8px; padding: 14px; }
 .action-grid .btn { justify-content: flex-start; }
+.stats-table { width: calc(100% - 28px); margin: 14px; border-collapse: collapse; font-size: 13px; }
+.stats-table th, .stats-table td { padding: 5px 6px; text-align: right; }
+.stats-table th:first-child, .stats-table td:first-child { text-align: left; }
+.stats-table th { color: var(--text-3); font-weight: 500; }
+.stats-table .bot { color: var(--text-3); }
 
 .row .subtitle.note-good { color: var(--green); }
 .row .subtitle.note-warning { color: var(--orange); }

@@ -8,33 +8,53 @@ namespace LanSkinTester;
 
 /// <summary>
 /// "Rifles" bots: with max money, bots buy the AWP every round. The launcher turns off bot sniping with
-/// the bot_allow_* cvars, and as a safety net the plugin swaps any sniper rifle a bot still gets for an
-/// AK-47 (T) or M4A4 (CT).  lst_bot_no_snipers 1|0
+/// the bot_allow_* cvars, and the plugin swaps any sniper or rifle a bot gets that isn't in the allowed list
+/// for an allowed one (its own side's first).  lst_bot_no_snipers 1|0 · lst_bot_rifles ak47,m4a1,m4a1_silencer
 /// </summary>
 public partial class LanSkinTester
 {
-    private static readonly HashSet<string> SniperRifles = ["awp", "ssg08", "scar20", "g3sg1"];
+    private static readonly string[] SwappableRifles =
+        ["awp", "ssg08", "scar20", "g3sg1", "ak47", "m4a1", "m4a1_silencer", "famas", "galilar", "aug", "sg556"];
+    private static readonly HashSet<string> TRifles = ["ak47", "galilar", "sg556", "g3sg1"];
     private bool _botNoSnipers;
+    private string[] _botRifles = ["ak47", "m4a1", "m4a1_silencer"];
 
-    [ConsoleCommand("lst_bot_no_snipers", "1 = bots never keep a sniper rifle (it's swapped for an AK-47 / M4A4)")]
+    [ConsoleCommand("lst_bot_no_snipers", "1 = bots only keep the rifles lst_bot_rifles allows (others are swapped)")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnBotNoSnipersCommand(CCSPlayerController? caller, CommandInfo cmd) => _botNoSnipers = cmd.GetArg(1) == "1";
+
+    [ConsoleCommand("lst_bot_rifles", "Rifles bots may keep: lst_bot_rifles ak47,m4a1,m4a1_silencer")]
+    [CommandHelper(minArgs: 1, usage: "<rifle,rifle,...>", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotRiflesCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var rifles = cmd.ArgString.Replace("weapon_", "").Split([',', ' '], StringSplitOptions.RemoveEmptyEntries)
+            .Where(SwappableRifles.Contains).Distinct().ToArray();
+        if (rifles.Length > 0) _botRifles = rifles;
+    }
+
+    /// <summary>What a bot on <paramref name="t"/> (or CT) gets instead: an allowed rifle of its side, else any allowed one.</summary>
+    internal static string BotRifleFor(string[] allowed, bool t)
+    {
+        var own = allowed.Where(r => TRifles.Contains(r) == t).ToArray();
+        var pick = own.Length > 0 ? own : allowed;
+        return "weapon_" + pick[Random.Shared.Next(pick.Length)];
+    }
 
     [GameEventHandler]
     public HookResult OnBotItemPickup(EventItemPickup @event, GameEventInfo info)
     {
         var bot = @event.Userid;
         var item = (@event.Item ?? "").Replace("weapon_", "");
-        if (!_botNoSnipers || bot == null || !bot.IsValid || !SniperRifles.Contains(item) || !IsBotPlayer(bot)) return HookResult.Continue;
+        if (!_botNoSnipers || bot == null || !bot.IsValid || !SwappableRifles.Contains(item) || _botRifles.Contains(item) || !IsBotPlayer(bot))
+            return HookResult.Continue;
 
         Server.NextFrame(() =>
         {
             if (!bot.IsValid || !bot.PawnIsAlive) return;
             Utilities.RemoveItemByDesignerName(bot, "weapon_" + item);
-            var rifle = bot.Team == CsTeam.Terrorist ? "weapon_ak47" : "weapon_m4a1";
-            // Don't hand out a second rifle if it already carries one.
-            if (FindPlayerWeapon(bot, w => w.DesignerName is "weapon_ak47" or "weapon_m4a1" or "weapon_m4a1_silencer") == null)
-                bot.GiveNamedItem(rifle);
+            // Don't hand out a second rifle if it already carries an allowed one.
+            if (FindPlayerWeapon(bot, w => _botRifles.Contains(w.DesignerName.Replace("weapon_", ""))) == null)
+                bot.GiveNamedItem(BotRifleFor(_botRifles, bot.Team == CsTeam.Terrorist));
         });
         return HookResult.Continue;
     }
