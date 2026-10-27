@@ -33,6 +33,16 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                 fs::read_to_string(game.plugin_dir().join(TRAINING_FILE)).unwrap_or_default();
             ok(stats(&text, &player))
         }
+        "trainer.statsReset" => {
+            // Kept as training.jsonl.bak, so one mistaken click can be undone by hand.
+            let game = app.state().game()?.clone();
+            let file = game.plugin_dir().join(TRAINING_FILE);
+            if file.exists() {
+                fs::rename(&file, file.with_extension("jsonl.bak"))?;
+            }
+            app.changed();
+            ok(())
+        }
         "trainer.reaction" => {
             let ms: f64 = arg(a)?;
             let game = app.state().game()?.clone();
@@ -59,8 +69,12 @@ struct Day {
     deaths: u32,
     reflex: Vec<f64>,
     test: Vec<f64>,
-    shots: u32,
-    shots_ok: u32,
+    cs_shots: u32,
+    cs_ok: u32,
+    rounds: u32,
+    fired: u32,
+    hits: u32,
+    damage: u32,
     jumps: Vec<(f64, f64)>,
     drill_rounds: u32,
     drill_wins: u32,
@@ -108,8 +122,14 @@ fn stats(text: &str, player: &str) -> Value {
             "reflex" => d.reflex.push(num("ms")),
             "test" => d.test.push(num("ms")),
             "shot" => {
-                d.shots += 1;
-                d.shots_ok += l["ok"].as_bool().unwrap_or(false) as u32;
+                d.cs_shots += 1;
+                d.cs_ok += l["ok"].as_bool().unwrap_or(false) as u32;
+            }
+            "round" => {
+                d.rounds += 1;
+                d.fired += num("shots") as u32;
+                d.hits += num("hits") as u32;
+                d.damage += num("dmg") as u32;
             }
             "jump" => d.jumps.push((num("dist"), num("sync"))),
             "drill" => {
@@ -129,10 +149,13 @@ fn stats(text: &str, player: &str) -> Value {
                 "day": date.format("%Y-%m-%d").to_string(),
                 "kills": d.kills, "deaths": d.deaths, "hs": d.hs,
                 "hsPct": pct(d.hs, d.kills),
-                "kd": (d.deaths > 0).then(|| (d.kills as f64 * 100.0 / d.deaths as f64).round() / 100.0),
+                "kd": (d.kills + d.deaths > 0).then(|| (d.kills as f64 * 100.0 / d.deaths.max(1) as f64).round() / 100.0),
                 "reflex": avg(&d.reflex), "reflexBest": d.reflex.iter().cloned().reduce(f64::min), "reflexN": d.reflex.len(),
                 "test": avg(&d.test), "testN": d.test.len(),
-                "shots": d.shots, "stopPct": pct(d.shots_ok, d.shots),
+                                "csShots": d.cs_shots, "stopPct": pct(d.cs_ok, d.cs_shots),
+                "rounds": d.rounds, "fired": d.fired, "hits": d.hits, "damage": d.damage,
+                "accPct": pct(d.hits, d.fired),
+                "adr": (d.rounds > 0).then(|| (d.damage as f64 / d.rounds as f64).round()),
                 "jumps": d.jumps.len(), "jumpBest": d.jumps.iter().map(|j| j.0).reduce(f64::max), "sync": avg(&sync),
                 "drillRounds": d.drill_rounds, "drillPct": pct(d.drill_wins, d.drill_rounds),
             })
@@ -184,6 +207,8 @@ mod tests {
             "{{\"t\":{t},\"k\":\"kill\",\"p\":\"me\",\"hs\":true}}\n{{\"t\":{t},\"k\":\"kill\",\"p\":\"me\",\"hs\":false}}\n\
              {{\"t\":{t},\"k\":\"death\",\"p\":\"me\"}}\n{{\"t\":{t},\"k\":\"reflex\",\"p\":\"me\",\"ms\":300}}\n\
              {{\"t\":{t},\"k\":\"reflex\",\"p\":\"me\",\"ms\":500}}\n{{\"t\":{t},\"k\":\"test\",\"p\":\"\",\"ms\":200}}\n\
+             {{\"t\":{t},\"k\":\"round\",\"p\":\"me\",\"shots\":10,\"hits\":4,\"dmg\":120}}\n\
+             {{\"t\":{t},\"k\":\"round\",\"p\":\"me\",\"shots\":0,\"hits\":0,\"dmg\":0}}\n\
              {{\"t\":{t},\"k\":\"kill\",\"p\":\"friend\",\"hs\":true}}\nnot json\n"
         );
         let s = stats(&text, "");
@@ -207,6 +232,14 @@ mod tests {
             ),
             (Some(400.0), Some(300.0), Some(200.0))
         );
-        assert_eq!(stats(&text, "friend")["days"][0]["kills"], 1);
+        assert_eq!(
+            (day["accPct"].as_f64(), day["adr"].as_f64()),
+            (Some(40.0), Some(60.0))
+        );
+        let friend = &stats(&text, "friend")["days"][0];
+        assert_eq!(
+            (friend["kills"].as_u64(), friend["kd"].as_f64()),
+            (Some(1), Some(1.0))
+        );
     }
 }

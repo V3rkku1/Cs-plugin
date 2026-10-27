@@ -107,16 +107,18 @@ a grenade pops, rethrow and clear. *Site drills* against bots on a bomb map (Com
 B, 1–5 bots: *Clear Site* (bots stand on random spots inside the bomb site and hold angles), *Plant & Hold*
 (bots wait at CT spawn and retake once you plant), *Hold Site* (you start on the site as CT, bots push); chat
 keeps your round score. *Reaction Drill:* one bot pops up in front of you and chat shows how many ms you
-took to hit it. *Movement:* jump stats on screen (speed, distance, pre-speed, gain, strafe sync, strafes,
+took to hit it (3 s and it moves on). *Movement:* jump stats on screen (speed, distance, pre-speed, gain, strafe sync, strafes,
 bhop chain; `!speed`), easy bhop, checkpoint and teleport, noclip. *Aim:* counter-strafe check on every
 shot (`!cs`), bullet impacts, frozen bots, bots that copy your movement. Plus a reaction test in the
 launcher itself. A drill or Practice Mode changes the server until you turn it off; **Apply Changes** on
 Live Server puts your setup back.
 
 **Stats.** Are you improving? Each skill this week against last week (better / worse), a chart per day and
-a table: Reaction Drill and Reaction Test times, headshot %, K/D, stopped shots (counter-strafe check),
-strafe sync, longest jump and drill rounds won. Kills count in every mode, except kills with an aimbot and
-Reaction Drill hits; with friends on the server, pick whose stats to see. Kept in
+a table (2 weeks to all time): Reaction Drill and Reaction Test times, headshot %, K/D, accuracy, damage
+per round, stopped shots (counter-strafe check), strafe sync, longest jump and drill rounds won, plus your
+personal bests. Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
+Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over
+(the old file is kept as `training.jsonl.bak`). Kept in
 `plugins/LanSkinTester/training.jsonl`.
 
 **Workshop.** The maps Steam has downloaded for CS2, a search of the Workshop, **Host** (starts or switches

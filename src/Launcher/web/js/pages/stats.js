@@ -2,8 +2,8 @@
 // folder), this week against last week, a chart per skill and a table per day.
 // No chart library: each chart is one small inline SVG line.
 import { html, useState } from "../vendor/preact-htm.js";
-import { useApi } from "../api.js";
-import { Page, Section, Select, Segmented, Icon } from "../ui.js";
+import { tryCall, useApi } from "../api.js";
+import { Page, Section, Select, Segmented, Button, Icon, confirm } from "../ui.js";
 
 const sum = (days, key) => days.reduce((a, d) => a + (d[key] ?? 0), 0);
 /** The average of a per-day value, weighted by that day's count. */
@@ -21,14 +21,18 @@ const METRICS = [
   { key: "hsPct", title: "Headshots", unit: "%", color: "orange", count: "kills", from: "kills in any mode (not with an aimbot)",
     period: d => sum(d, "kills") ? sum(d, "hs") * 100 / sum(d, "kills") : null },
   { key: "kd", title: "K/D", unit: "", color: "blue", count: "kills", digits: 2, from: "kills and deaths in any mode",
-    period: d => sum(d, "deaths") ? sum(d, "kills") / sum(d, "deaths") : null },
-  { key: "stopPct", title: "Stopped Shots", unit: "%", color: "red", count: "shots", from: "Trainer › Counter-Strafe Check",
-    period: d => weighted(d, "stopPct", "shots") },
+    period: d => sum(d, "kills") + sum(d, "deaths") ? sum(d, "kills") / Math.max(1, sum(d, "deaths")) : null },
+  { key: "accPct", title: "Accuracy", unit: "%", color: "yellow", count: "fired", from: "shots that hit an enemy, any mode",
+    period: d => sum(d, "fired") ? sum(d, "hits") * 100 / sum(d, "fired") : null },
+  { key: "adr", title: "Damage / Round", unit: "", color: "pink", count: "rounds", from: "damage to enemies per round, any mode",
+    period: d => sum(d, "rounds") ? sum(d, "damage") / sum(d, "rounds") : null },
+  { key: "stopPct", title: "Stopped Shots", unit: "%", color: "red", count: "csShots", from: "Trainer › Counter-Strafe Check",
+    period: d => weighted(d, "stopPct", "csShots") },
   { key: "sync", title: "Strafe Sync", unit: "%", color: "purple", count: "jumps", from: "Trainer › Jump Stats",
     period: d => weighted(d, "sync", "jumps") },
   { key: "jumpBest", title: "Longest Jump", unit: "u", color: "indigo", count: "jumps", from: "Trainer › Jump Stats",
     period: d => d.some(x => x.jumpBest != null) ? Math.max(...d.map(x => x.jumpBest ?? 0)) : null },
-  { key: "drillPct", title: "Drill Rounds Won", unit: "%", color: "pink", count: "drillRounds", from: "Trainer › Site Drills",
+  { key: "drillPct", title: "Drill Rounds Won", unit: "%", color: "green", count: "drillRounds", from: "Trainer › Site Drills",
     period: d => weighted(d, "drillPct", "drillRounds") },
 ];
 
@@ -44,8 +48,8 @@ function Tile({ m, days }) {
   const now = m.period(week);
   const then = m.period(before);
   let trend = html`<span class="faint">no data last week</span>`;
-  if (now != null && then != null && then !== 0) {
-    const change = (now - then) / Math.abs(then) * 100;
+  if (now != null && then != null) {
+    const change = then === 0 ? (now === 0 ? 0 : 100 * Math.sign(now)) : (now - then) / Math.abs(then) * 100;
     const better = m.lower ? change < 0 : change > 0;
     trend = Math.abs(change) < 1 ? html`<span class="faint">same as last week</span>`
       : html`<span style=${`color: var(--${better ? "green" : "red"})`}>
@@ -53,7 +57,7 @@ function Tile({ m, days }) {
         </span>`;
   }
   return html`<div class="card glass pad" style="min-width:0">
-    <div class="subtitle">${m.title} · this week</div>
+    <div class="subtitle">${m.title}</div>
     <div style="font-size:28px;font-weight:700;margin:4px 0">${fmt(m, now)}</div>
     <div style="font-size:12px">${trend}</div>
   </div>`;
@@ -91,23 +95,66 @@ function Chart({ m, days }) {
   </svg>`;
 }
 
+// Best single day for each skill. min: the day needs that many samples to count (no 1-kill 100% HS days).
+const BESTS = [
+  { title: "Fastest Reaction", m: METRICS[0], pick: d => d.reflexBest, count: "reflexN", min: 1, lower: true },
+  { title: "Best Headshot Day", m: METRICS[2], pick: d => d.hsPct, count: "kills", min: 10 },
+  { title: "Best Accuracy Day", m: METRICS[4], pick: d => d.accPct, count: "fired", min: 50 },
+  { title: "Best Damage Day", m: METRICS[5], pick: d => d.adr, count: "rounds", min: 5 },
+  { title: "Longest Jump", m: METRICS[8], pick: d => d.jumpBest, count: "jumps", min: 1 },
+];
+
+function Bests({ days }) {
+  const items = BESTS.map(b => {
+    const ok = days.filter(d => (d[b.count] ?? 0) >= b.min && b.pick(d) != null);
+    if (!ok.length) return null;
+    const best = ok.reduce((a, d) => (b.lower ? b.pick(d) < b.pick(a) : b.pick(d) > b.pick(a)) ? d : a);
+    return { ...b, value: b.pick(best), day: best.day };
+  }).filter(Boolean);
+  if (!items.length) return null;
+  return html`<${Section} title="Personal Bests">
+    <div class="cols" style=${`--n:${items.length};padding:14px;gap:14px`}>
+      ${items.map(i => html`<div>
+        <div class="subtitle"><${Icon} name="star" size=${12} /> ${i.title}</div>
+        <div style="font-size:22px;font-weight:700">${fmt(i.m, i.value)}</div>
+        <div class="subtitle faint">${i.day}</div>
+      </div>`)}
+    </div>
+  <//>`;
+}
+
+const RANGES = [[14, "2 Weeks"], [30, "Month"], [90, "3 Months"], [100000, "All"]];
+
 export function StatsPage() {
   const [player, setPlayer] = useState("");
   const [view, setView] = useState(0);
+  const [range, setRange] = useState(1);
   const [stats] = useApi("trainer.stats", player, ["play.tick"]);
   if (!stats) return html`<${Page} title="Stats" />`;
-  const days = stats.days.slice(-60);
+  const today = localToday();
+  const days = stats.days.filter(d => dayOffset(d.day, today) < RANGES[range][0]);
   const shown = METRICS.filter(m => days.some(d => (d[m.count] ?? 0) > 0));
+  const reset = async () => {
+    if (await confirm({ title: "Reset all stats?", message: "Every player's history starts again from zero. The old file is kept as training.jsonl.bak in the plugin folder.", ok: "Reset", danger: true }))
+      tryCall("trainer.statsReset");
+  };
 
   return html`<${Page} title="Stats" subtitle="Your reaction time, headshots and movement over time: are you improving?"
-      actions=${stats.players.length > 1 && html`<${Select} options=${stats.players.map(p => ({ value: p, label: p }))}
-        value=${stats.player} onChange=${setPlayer} width=${180} />`}>
-    ${days.length === 0 ? html`<${Section}>
+      actions=${html`${stats.players.length > 1 && html`<${Select} options=${stats.players.map(p => ({ value: p, label: p }))}
+        value=${stats.player} onChange=${setPlayer} width=${180} />`}
+        ${stats.days.length > 0 && html`<${Button} size="sm" kind="plain" icon="trash" onClick=${reset}>Reset<//>`}`}>
+    ${stats.days.length === 0 ? html`<${Section}>
         <div class="pad subtitle" style="padding:28px">Nothing recorded yet. Play a match, or use the Trainer: Reaction Drill,
           Reaction Test, Jump Stats, Counter-Strafe Check and Site Drills all count. Stats show up here by day.</div>
       <//>` : html`
-      <div class="cols" style="--n:4;margin-bottom:22px">${METRICS.map(m => html`<${Tile} m=${m} days=${days} />`)}</div>
-      <div style="margin-bottom:12px"><${Segmented} options=${["Charts", "Table"]} value=${view} onChange=${setView} /></div>
+      <div class="section-title">This week <span class="note">compared with last week</span></div>
+      <div class="cols" style="--n:5;margin-bottom:22px">${METRICS.map(m => html`<${Tile} m=${m} days=${stats.days} />`)}</div>
+      <div style="margin-bottom:22px"><${Bests} days=${stats.days} /></div>
+      <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
+        <${Segmented} options=${["Charts", "Table"]} value=${view} onChange=${setView} />
+        <${Segmented} options=${RANGES.map(r => r[1])} value=${range} onChange=${setRange} />
+      </div>
+      ${days.length === 0 && html`<div class="subtitle" style="padding:12px 0">Nothing in this time range.</div>`}
       ${view === 0
         ? html`<div class="cols wrap" style="--n:2">${shown.map(m => html`<${Section} title=${m.title} note=${m.lower ? "lower is better" : "higher is better"}>
             <div style="padding:12px 14px"><${Chart} m=${m} days=${days} /></div>

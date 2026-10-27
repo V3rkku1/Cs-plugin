@@ -15,8 +15,9 @@ namespace LanSkinTester;
 /// hold a site against a push), a reaction drill (one bot pops up in front of you, the time to hit it is
 /// shown), movement stats (speed, jump distance, strafe sync), a counter-strafe check on every shot,
 /// lineups (saved ones by name, built-in ones by position: lst_goto) with the grenade's air time when it
-/// pops. Every result also goes to training.jsonl (one JSON line each) for the launcher's Stats page. Bots are never placed from per-map files: site spots are random floor points inside the map's own
-/// bomb site volume.
+/// pops. Every result also goes to training.jsonl (one JSON line each) for the launcher's Stats page,
+/// with shots, hits and damage per round. Bots are never placed from per-map files: site spots are
+/// random floor points inside the map's own bomb site volume.
 /// </summary>
 public partial class LanSkinTester
 {
@@ -26,17 +27,21 @@ public partial class LanSkinTester
     private bool _drillSiteB;
     private int _drillWins, _drillRounds, _lineupIndex;
     private float _reflexShownAt = -1;
+    private int _reflexShow; // which pop-up this is, so an old "too slow" timer leaves a newer one alone
     private readonly List<float> _reflexTimes = new();
     private readonly Dictionary<int, JumpTrack> _speedo = new();
     private bool _nadeInfo;
     private readonly Dictionary<int, float> _thrownAt = new();
     // Counter-strafe check: the last tick each player held a movement key.
     private readonly Dictionary<int, int> _counterStrafe = new();
+    private readonly Dictionary<int, float> _lastShot = new();
+    // This round's shots, hits and damage per human, written to training.jsonl when the round ends.
+    private readonly Dictionary<int, (int Shots, int Hits, int Damage)> _roundAim = new();
 
     private sealed class JumpTrack
     {
         public bool OnGround = true;
-        public float FromX, FromY, Pre, Max, LastYaw, Last, LastPre, LastMax;
+        public float FromX, FromY, FromZ, Pre, Max, LastYaw, Last, LastPre, LastMax;
         public int Hops, LandedTick, TurnTicks, SyncTicks, Strafes, LastSide, LastSync, LastStrafes;
     }
 
@@ -48,6 +53,8 @@ public partial class LanSkinTester
             _speedo.Clear();
             _thrownAt.Clear();
             _counterStrafe.Clear();
+            _lastShot.Clear();
+            _roundAim.Clear();
             _reflexShownAt = -1;
             _lineupIndex = 0;
         });
@@ -95,7 +102,11 @@ public partial class LanSkinTester
         if (lineups.Count == 0) return;
         var name = cmd.GetArg(1).ToLowerInvariant() == "next" ? lineups[_lineupIndex++ % lineups.Count].Key : CleanSpot(cmd.GetArg(1));
         var lineup = lineups.FirstOrDefault(l => l.Key == name);
-        if (lineup.Key == null) return;
+        if (lineup.Key == null)
+        {
+            TellHumans($"No lineup named \"{name}\" on this map.");
+            return;
+        }
         foreach (var player in Humans())
         {
             GoToThrow(player, lineup.Value);
@@ -309,15 +320,29 @@ public partial class LanSkinTester
         if (_drill != Drill.Reflex) return;
         var bot = Utilities.GetPlayers().FirstOrDefault(p => p.IsValid && IsBotPlayer(p) && p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist);
         var human = Humans().FirstOrDefault(p => p.PawnIsAlive);
-        if (bot == null || human?.PlayerPawn.Value is not { IsValid: true, AbsOrigin: not null } pawn) return;
+        // The bot is still joining, or you are dead or somewhere with no room: try again shortly.
+        void Retry() => AddTimer(1f, () => ShowReflexBot(), TimerFlags.STOP_ON_MAPCHANGE);
+        if (bot == null || human?.PlayerPawn.Value is not { IsValid: true, AbsOrigin: not null } pawn)
+        {
+            Retry();
+            return;
+        }
         if (!bot.PawnIsAlive)
         {
-            if (respawned) return;
+            if (respawned)
+            {
+                Retry();
+                return;
+            }
             bot.Respawn();
             AddTimer(0.2f, () => ShowReflexBot(respawned: true), TimerFlags.STOP_ON_MAPCHANGE);
             return;
         }
-        if (ReflexSpot(pawn) is not { } spot) return;
+        if (ReflexSpot(pawn) is not { } spot)
+        {
+            Retry();
+            return;
+        }
         PlaceAt(bot, spot, pawn.AbsOrigin);
         Anchor(bot, true);
         if (bot.PlayerPawn.Value is { IsValid: true } botPawn)
@@ -326,9 +351,16 @@ public partial class LanSkinTester
             Utilities.SetStateChanged(botPawn, "CBaseEntity", "m_iHealth");
         }
         _reflexShownAt = Server.CurrentTime;
+        var show = ++_reflexShow;
+        AddTimer(3f, () =>
+        {
+            if (_drill != Drill.Reflex || show != _reflexShow || _reflexShownAt < 0) return;
+            TellHumans("Too slow (3 s). Next one…");
+            ShowReflexBot();
+        }, TimerFlags.STOP_ON_MAPCHANGE);
     }
 
-    /// <summary>A visible floor point 300 to 1000 units ahead of the player, within 60° of where they look.</summary>
+    /// <summary>A visible floor point 300 to 1000 units ahead of the player, within 45° of where they look (on screen).</summary>
     private Vector? ReflexSpot(CCSPlayerPawn pawn)
     {
         var from = pawn.AbsOrigin!;
@@ -337,7 +369,7 @@ public partial class LanSkinTester
         {
             for (var tries = 0; tries < 12; tries++)
             {
-                var yaw = (pawn.EyeAngles.Y + (Random.Shared.NextSingle() * 120 - 60)) * MathF.PI / 180;
+                var yaw = (pawn.EyeAngles.Y + (Random.Shared.NextSingle() * 90 - 45)) * MathF.PI / 180;
                 var far = 300 + Random.Shared.NextSingle() * 700;
                 var ahead = Trace.TraceEndShape(eye, new Vector(eye.X + MathF.Cos(yaw) * far, eye.Y + MathF.Sin(yaw) * far, eye.Z), pawn, SightTrace);
                 var reach = (ahead.DidHit() ? ahead.Fraction * far : far) - 40;
@@ -440,7 +472,8 @@ public partial class LanSkinTester
         foreach (var (slot, track) in _speedo)
         {
             var player = Utilities.GetPlayerFromSlot(slot);
-            if (player is not { IsValid: true, PawnIsAlive: true } || player.PlayerPawn.Value is not { IsValid: true, AbsOrigin: not null } pawn) continue;
+            if (player is not { IsValid: true, PawnIsAlive: true } || !IsHumanPlayer(player)
+                || player.PlayerPawn.Value is not { IsValid: true, AbsOrigin: not null } pawn) continue;
             var v = pawn.AbsVelocity;
             var speed = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
             var onGround = (pawn.Flags & (uint)PlayerFlags.FL_ONGROUND) != 0;
@@ -450,7 +483,7 @@ public partial class LanSkinTester
             {
                 // A jump within a few ticks of landing is a bunnyhop.
                 track.Hops = Server.TickCount - track.LandedTick <= 3 ? track.Hops + 1 : 0;
-                (track.FromX, track.FromY, track.Pre, track.Max) = (at.X, at.Y, speed, speed);
+                (track.FromX, track.FromY, track.FromZ, track.Pre, track.Max) = (at.X, at.Y, at.Z, speed, speed);
                 track.TurnTicks = track.SyncTicks = track.Strafes = track.LastSide = 0;
             }
             else if (!onGround)
@@ -476,7 +509,8 @@ public partial class LanSkinTester
                 (track.LastPre, track.LastMax, track.LastStrafes) = (track.Pre, track.Max, track.Strafes);
                 track.LastSync = track.TurnTicks == 0 ? 0 : track.SyncTicks * 100 / track.TurnTicks;
                 track.LandedTick = Server.TickCount;
-                if (track.Last >= 150) // a real jump, not a step off a box
+                // Only real jumps count for the stats: landing about as high as you took off (not off a box).
+                if (track.Last >= 150 && MathF.Abs(at.Z - track.FromZ) < 8)
                     LogTraining(player, "jump", ("dist", MathF.Round(track.Last)), ("pre", MathF.Round(track.LastPre)), ("sync", track.LastSync));
             }
             track.OnGround = onGround;
@@ -495,20 +529,30 @@ public partial class LanSkinTester
     {
         var player = @event.Userid;
         var weapon = @event.Weapon ?? "";
-        if (player is not { IsValid: true }) return HookResult.Continue;
+        if (player is not { IsValid: true } || !IsHumanPlayer(player)) return HookResult.Continue;
         if (IsGrenade(weapon))
         {
             if (_nadeInfo) _thrownAt[player.Slot] = Server.CurrentTime;
             return HookResult.Continue;
         }
-        if (!_counterStrafe.TryGetValue(player.Slot, out var lastMove) || weapon.Contains("knife") || weapon.Contains("bayonet")
+        if (weapon.Contains("knife") || weapon.Contains("bayonet") || weapon.Contains("taser")) return HookResult.Continue;
+        if (_drill != Drill.Reflex && !HackerSlots().Contains(player.Slot))
+        {
+            var aim = _roundAim.GetValueOrDefault(player.Slot);
+            _roundAim[player.Slot] = aim with { Shots = aim.Shots + 1 };
+        }
+        // Only the first shot of a burst: the rest of a spray says nothing about stopping.
+        var firstShot = Server.CurrentTime - _lastShot.GetValueOrDefault(player.Slot, -1f) > 0.4f;
+        _lastShot[player.Slot] = Server.CurrentTime;
+        if (!firstShot || !_counterStrafe.TryGetValue(player.Slot, out var lastMove)
             || player.PlayerPawn.Value is not { IsValid: true } pawn) return HookResult.Continue;
         var v = pawn.AbsVelocity;
         var speed = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
         // shortcut: one limit for every gun (34% of a rifle's 215 u/s), not each weapon's own max speed.
         var stopped = speed <= 73;
         var held = (player.Buttons & MoveKeys) != 0;
-        var since = held ? "still holding a move key" : $"{(Server.TickCount - lastMove) * Server.TickInterval * 1000:0} ms after letting go";
+        var since = held ? "still holding a move key" : lastMove == 0 ? "standing"
+            : $"{(Server.TickCount - lastMove) * Server.TickInterval * 1000:0} ms after letting go";
         LogTraining(player, "shot", ("ok", stopped));
         player.PrintToCenter(stopped ? $"Accurate · {speed:0} u/s · {since}" : $"MOVING · {speed:0} u/s · {since}");
         return HookResult.Continue;
@@ -545,10 +589,48 @@ public partial class LanSkinTester
         var victim = @event.Userid;
         var attacker = @event.Attacker;
         if (victim is not { IsValid: true }) return HookResult.Continue;
-        if (attacker is { IsValid: true } && attacker.Slot != victim.Slot && attacker.Team != victim.Team
-            && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
+        if (attacker is { IsValid: true } && IsEnemy(attacker, victim) && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
             LogTraining(attacker, "kill", ("hs", @event.Headshot));
         if (IsHumanPlayer(victim)) LogTraining(victim, "death");
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnTrainingHurt(EventPlayerHurt @event, GameEventInfo info)
+    {
+        var attacker = @event.Attacker;
+        var victim = @event.Userid;
+        var weapon = @event.Weapon ?? "";
+        if (_drill == Drill.Reflex || attacker is not { IsValid: true } || victim is not { IsValid: true } || !IsHumanPlayer(attacker)
+            || !IsEnemy(attacker, victim) || HackerSlots().Contains(attacker.Slot) || IsGrenade(weapon) || weapon == "inferno") return HookResult.Continue;
+        var aim = _roundAim.GetValueOrDefault(attacker.Slot);
+        _roundAim[attacker.Slot] = aim with { Hits = aim.Hits + 1, Damage = aim.Damage + Math.Max(0, @event.DmgHealth) };
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnTrainingRoundEnd(EventRoundEnd @event, GameEventInfo info)
+    {
+        // One line per human per round, so damage per round counts the quiet rounds too.
+        if (_drill != Drill.Reflex)
+            foreach (var player in Humans().Where(p => p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist))
+            {
+                var aim = _roundAim.GetValueOrDefault(player.Slot);
+                LogTraining(player, "round", ("shots", aim.Shots), ("hits", Math.Min(aim.Hits, aim.Shots)), ("dmg", aim.Damage));
+            }
+        _roundAim.Clear();
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnTrainingDisconnect(EventPlayerDisconnect @event, GameEventInfo info)
+    {
+        if (@event.Userid is not { } player) return HookResult.Continue;
+        _speedo.Remove(player.Slot);
+        _counterStrafe.Remove(player.Slot);
+        _lastShot.Remove(player.Slot);
+        _roundAim.Remove(player.Slot);
+        _thrownAt.Remove(player.Slot);
         return HookResult.Continue;
     }
 
