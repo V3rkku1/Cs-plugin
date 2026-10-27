@@ -193,6 +193,13 @@ public partial class LanSkinTester
             return;
         }
 
+        // Bombs, rounds and buying: only the classic modes (Casual, Competitive, Wingman) have them.
+        if (drill != Drill.Reflex && CvarInt("game_type") != 0)
+        {
+            _drill = Drill.Off;
+            TellHumans("Site drills need Competitive or Casual (pick it on the Play page), not this mode.");
+            return;
+        }
         if (drill != Drill.Reflex && !FindSite(_drillSiteB, out _, out _))
         {
             _drill = Drill.Off;
@@ -208,7 +215,7 @@ public partial class LanSkinTester
             count = 1;
         }
         else foreach (var player in Humans().Where(p => p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist && p.Team != humanTeam))
-            player.SwitchTeam(humanTeam);
+            player.ChangeTeam(humanTeam); // not SwitchTeam: its native call crashed the server (0xC0000005)
         var botTeam = humanTeam == CsTeam.Terrorist ? "ct" : "t";
         Server.ExecuteCommand($"mp_warmup_end; bot_kick; bot_quota_mode normal; bot_join_team {botTeam}; bot_quota {count}");
         if (drill == Drill.Reflex)
@@ -376,7 +383,7 @@ public partial class LanSkinTester
                 if (reach < 250) continue;
                 var x = eye.X + MathF.Cos(yaw) * reach;
                 var y = eye.Y + MathF.Sin(yaw) * reach;
-                if (FloorAt(x, y, eye.Z, eye.Z - 400) is not { } z) continue;
+                if (FloorAt(x, y, eye.Z, eye.Z - 400, pawn) is not { } z) continue;
                 var head = Trace.TraceEndShape(eye, new Vector(x, y, z + 60), pawn, SightTrace);
                 if (!head.DidHit() || head.Fraction >= 0.97f) return new Vector(x, y, z);
             }
@@ -392,10 +399,12 @@ public partial class LanSkinTester
     // Sites
     // ---------------------------------------------------------------------------------------------
 
-    private static bool FindSite(bool siteB, out Vector min, out Vector max)
+    private static bool FindSite(bool siteB, out Vector min, out Vector max) => FindSite(siteB, out min, out max, out _);
+
+    private static bool FindSite(bool siteB, out Vector min, out Vector max, out CBombTarget? site)
     {
         min = max = new Vector(0, 0, 0);
-        var site = Utilities.FindAllEntitiesByDesignerName<CBombTarget>("func_bomb_target")
+        site = Utilities.FindAllEntitiesByDesignerName<CBombTarget>("func_bomb_target")
             .FirstOrDefault(t => t.IsValid && t.IsBombSiteB == siteB);
         if (site?.Collision == null) return false;
         var o = site.AbsOrigin ?? new Vector(0, 0, 0);
@@ -410,14 +419,14 @@ public partial class LanSkinTester
     private List<Vector> SiteSpots(bool siteB, int count)
     {
         var spots = new List<Vector>();
-        if (count <= 0 || !FindSite(siteB, out var min, out var max)) return spots;
+        if (count <= 0 || !FindSite(siteB, out var min, out var max, out var site)) return spots;
         try
         {
             for (var tries = 0; tries < 60 && spots.Count < count; tries++)
             {
                 var x = min.X + Random.Shared.NextSingle() * (max.X - min.X);
                 var y = min.Y + Random.Shared.NextSingle() * (max.Y - min.Y);
-                if (FloorAt(x, y, max.Z, min.Z - 64) is not { } z) continue;
+                if (FloorAt(x, y, max.Z, min.Z - 64, site!) is not { } z) continue;
                 var spot = new Vector(x, y, z);
                 if (tries < 40 && spots.Any(s => Distance(s, spot) < 120)) continue;
                 spots.Add(spot);
@@ -430,9 +439,10 @@ public partial class LanSkinTester
         return spots;
     }
 
-    private static float? FloorAt(float x, float y, float top, float bottom)
+    /// <summary>The floor under a point. <paramref name="ignore"/> must be a real entity: no null pointers into the engine's trace.</summary>
+    private static float? FloorAt(float x, float y, float top, float bottom, CBaseEntity ignore)
     {
-        var down = Trace.TraceEndShape(new Vector(x, y, top), new Vector(x, y, bottom), null, SightTrace);
+        var down = Trace.TraceEndShape(new Vector(x, y, top), new Vector(x, y, bottom), ignore, SightTrace);
         return down.DidHit() && down.Fraction > 0.01f ? down.EndPos.Z + 2 : null;
     }
 
