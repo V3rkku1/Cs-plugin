@@ -32,7 +32,7 @@ On first start it opens on **Setup**. Press **Install Everything**, then go to *
 
 ### Pages
 
-The sidebar has eight pages (**Ctrl+1** to **Ctrl+8**). **Ctrl+K** finds any page, quick start or action
+The sidebar has nine pages (**Ctrl+1** to **Ctrl+9**). **Ctrl+K** finds any page, quick start or action
 (type "dm", Enter starts Deathmatch). **F5** starts or applies changes, **Shift+F5** stops, **F11** is full
 screen, **Ctrl+F** searches the inventory. On a big screen the page zooms to fill the window.
 
@@ -97,6 +97,14 @@ ESP, name tags, aimbot (legit / silent / rage, body part, target, key, aggressio
 triggerbot, recoil control, zero spread, radar, bunnyhop, no flash, enemy info, infinite ammo, speed, damage
 boost. In game, `!cheats` opens a menu where each player sets their own. The triggerbot clicks your mouse
 through the launcher (localhost port 27099), only while the test session runs and CS2 is in front.
+
+**Trainer.** Site drills against bots on a bomb map (Competitive or Casual), site A or B, 1–5 bots: *Clear
+Site* (bots stand on random spots inside the bomb site and hold angles), *Plant & Hold* (bots wait at CT spawn
+and retake once you plant), *Hold Site* (you start on the site as CT, bots push). Chat keeps your round score.
+*Reaction Drill*: one bot pops up in front of you and chat shows how many ms you took to hit it. *Speedometer*
+(speed, jump distance, pre-speed, bhop chain; `!speed`), noclip, this map's saved lineups (*Go*, *Next*,
+delete) and a reaction test in the launcher itself. A drill changes bots and teams until you stop it; **Apply
+Changes** on Live Server puts your setup back.
 
 **Workshop.** The maps Steam has downloaded for CS2, a search of the Workshop, **Host** (starts or switches
 the server on that map) and *Subscribe* (opens it in Steam). A Workshop map loads the official way: the
@@ -309,6 +317,7 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!god` | God mode (type it again to turn it off) |
 | `!save [name]` / `!load [name]` / `!spots` | Save where you stand and go back. Names are optional |
 | `!rethrow` | Back to your last grenade throw, with that grenade |
+| `!speed` | Speedometer and jump stats on or off |
 | `!savenade <name>` / `!lineup <name>` / `!lineups` / `!delnade <name>` | Save your last throw as a lineup for this map (kept across restarts, shared by everyone), go back to it with that grenade, list or delete them |
 | `!damage` | Toggle the damage report in chat |
 | `!armor` / `!nades` / `!clear` | Armor and a kit, a set of grenades, or remove smokes and fires |
@@ -353,6 +362,9 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_armor` / `lst_nades` / `lst_clear` | Armor and a kit, grenades, or remove smokes and fires |
 | `lst_spot save` / `lst_spot load` | Save or load a practice spot |
 | `lst_rethrow` | Back to the last grenade throw |
+| `lst_drill clear\|retake\|hold\|reflex [a\|b] [bots]` / `lst_drill off` | Start or stop a Trainer drill (`!drill` in chat) |
+| `lst_speedo 1` / `lst_speedo 0` | Speedometer and jump stats for every human |
+| `lst_lineup <name>\|next` / `lst_delnade <name>` | Send everyone to a saved lineup, or delete one |
 | `lst_swap` | Swap the teams |
 | `lst_endround ct` / `t` | End the round |
 | `lst_score <ct> <t>` | Set the score |
