@@ -1,7 +1,7 @@
 // Trainer: built-in and saved grenade lineups, site drills against bots, a reaction drill, movement and
 // aim practice (Trainer.cs in the plugin), plus a reaction test right here in the launcher.
 import { html, useState, useRef, useEffect } from "../vendor/preact-htm.js";
-import { tryCall, useApi } from "../api.js";
+import { call, tryCall, useApi } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Stepper, TextField, Select, Icon } from "../ui.js";
 import { usePlay } from "./play.js";
 import { LINEUPS } from "../lineups-data.js";
@@ -45,7 +45,13 @@ function ReactionTest() {
 
   const press = () => {
     if (phase === "wait") { clearTimeout(timer.current); setPhase("early"); return; }
-    if (phase === "go") { setTimes(t => [...t.slice(-9), Math.round(performance.now() - shownAt.current)]); setPhase("idle"); return; }
+    if (phase === "go") {
+      const ms = Math.round(performance.now() - shownAt.current);
+      setTimes(t => [...t.slice(-9), ms]);
+      setPhase("idle");
+      call("trainer.reaction", ms).catch(() => {}); // for the Stats page; no CS2 folder yet is fine
+      return;
+    }
     setPhase("wait");
     timer.current = setTimeout(() => { shownAt.current = performance.now(); setPhase("go"); }, 1200 + Math.random() * 2800);
   };

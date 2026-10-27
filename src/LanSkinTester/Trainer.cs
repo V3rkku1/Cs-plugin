@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -14,7 +15,7 @@ namespace LanSkinTester;
 /// hold a site against a push), a reaction drill (one bot pops up in front of you, the time to hit it is
 /// shown), movement stats (speed, jump distance, strafe sync), a counter-strafe check on every shot,
 /// lineups (saved ones by name, built-in ones by position: lst_goto) with the grenade's air time when it
-/// pops. Bots are never placed from per-map files: site spots are random floor points inside the map's own
+/// pops. Every result also goes to training.jsonl (one JSON line each) for the launcher's Stats page. Bots are never placed from per-map files: site spots are random floor points inside the map's own
 /// bomb site volume.
 /// </summary>
 public partial class LanSkinTester
@@ -281,6 +282,7 @@ public partial class LanSkinTester
         if (@event.Winner is not ((int)CsTeam.Terrorist or (int)CsTeam.CounterTerrorist)) return HookResult.Continue;
         _drillRounds++;
         if (@event.Winner == (int)humanTeam) _drillWins++;
+        foreach (var player in Humans()) LogTraining(player, "drill", ("drill", _drill.ToString().ToLowerInvariant()), ("won", @event.Winner == (int)humanTeam));
         TellHumans($"{(@event.Winner == (int)humanTeam ? "Round won" : "Round lost")} · drill {_drillWins}/{_drillRounds} won");
         return HookResult.Continue;
     }
@@ -293,6 +295,7 @@ public partial class LanSkinTester
         {
             var ms = (Server.CurrentTime - _reflexShownAt) * 1000f;
             _reflexTimes.Add(ms);
+            LogTraining(attacker, "reflex", ("ms", MathF.Round(ms)));
             Reply(attacker, $"Reaction {ms:0} ms · average {_reflexTimes.Average():0} · best {_reflexTimes.Min():0} · {_reflexTimes.Count} hits");
         }
         _reflexShownAt = -1;
@@ -473,6 +476,8 @@ public partial class LanSkinTester
                 (track.LastPre, track.LastMax, track.LastStrafes) = (track.Pre, track.Max, track.Strafes);
                 track.LastSync = track.TurnTicks == 0 ? 0 : track.SyncTicks * 100 / track.TurnTicks;
                 track.LandedTick = Server.TickCount;
+                if (track.Last >= 150) // a real jump, not a step off a box
+                    LogTraining(player, "jump", ("dist", MathF.Round(track.Last)), ("pre", MathF.Round(track.LastPre)), ("sync", track.LastSync));
             }
             track.OnGround = onGround;
             track.LastYaw = yaw;
@@ -504,6 +509,7 @@ public partial class LanSkinTester
         var stopped = speed <= 73;
         var held = (player.Buttons & MoveKeys) != 0;
         var since = held ? "still holding a move key" : $"{(Server.TickCount - lastMove) * Server.TickInterval * 1000:0} ms after letting go";
+        LogTraining(player, "shot", ("ok", stopped));
         player.PrintToCenter(stopped ? $"Accurate · {speed:0} u/s · {since}" : $"MOVING · {speed:0} u/s · {since}");
         return HookResult.Continue;
     }
@@ -525,5 +531,39 @@ public partial class LanSkinTester
         if (!_nadeInfo || player is not { IsValid: true } || !_thrownAt.Remove(player.Slot, out var at)) return HookResult.Continue;
         Reply(player, $"{what} popped after {Server.CurrentTime - at:0.0} s. !rethrow to try again, !savenade name to keep it.");
         return HookResult.Continue;
+    }
+
+    // ---------------------------------------------------------------------------------------------
+    // Training history (the launcher's Stats page)
+    // ---------------------------------------------------------------------------------------------
+
+    [GameEventHandler]
+    public HookResult OnTrainingDeath(EventPlayerDeath @event, GameEventInfo info)
+    {
+        // Reaction drill hits are logged as reaction times, and aimbot kills don't count.
+        if (_drill == Drill.Reflex) return HookResult.Continue;
+        var victim = @event.Userid;
+        var attacker = @event.Attacker;
+        if (victim is not { IsValid: true }) return HookResult.Continue;
+        if (attacker is { IsValid: true } && attacker.Slot != victim.Slot && attacker.Team != victim.Team
+            && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
+            LogTraining(attacker, "kill", ("hs", @event.Headshot));
+        if (IsHumanPlayer(victim)) LogTraining(victim, "death");
+        return HookResult.Continue;
+    }
+
+    private string TrainingFile => Path.Combine(ModuleDirectory, "training.jsonl");
+
+    private void LogTraining(CCSPlayerController player, string kind, params (string Key, object Value)[] values)
+    {
+        var line = new Dictionary<string, object>
+        {
+            ["t"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
+            ["k"] = kind,
+            ["p"] = player.PlayerName,
+        };
+        foreach (var (key, value) in values) line[key] = value;
+        try { File.AppendAllText(TrainingFile, JsonSerializer.Serialize(line) + "\n"); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { /* stats are a nice-to-have */ }
     }
 }

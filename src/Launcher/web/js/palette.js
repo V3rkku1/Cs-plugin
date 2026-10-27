@@ -5,7 +5,7 @@ import { Icon, sheet } from "./ui.js";
 
 const pageItems = [
   ["play", "Play", "play"], ["live", "Live Server", "server"], ["inventory", "Inventory", "skins"], ["cases", "Cases", "key"],
-  ["hacker", "Hacker Mode", "hacker"], ["trainer", "Trainer", "target"], ["workshop", "Workshop", "map"], ["friends", "Friends", "friends"], ["setup", "Setup", "setup"],
+  ["hacker", "Hacker Mode", "hacker"], ["trainer", "Trainer", "target"], ["stats", "Stats", "sliders"], ["workshop", "Workshop", "map"], ["friends", "Friends", "friends"], ["setup", "Setup", "setup"],
 ];
 
 async function actions(navigate) {

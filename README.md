@@ -32,7 +32,7 @@ On first start it opens on **Setup**. Press **Install Everything**, then go to *
 
 ### Pages
 
-The sidebar has nine pages (**Ctrl+1** to **Ctrl+9**). **Ctrl+K** finds any page, quick start or action
+The sidebar has ten pages (**Ctrl+1** to **Ctrl+9** for the first nine). **Ctrl+K** finds any page, quick start or action
 (type "dm", Enter starts Deathmatch). **F5** starts or applies changes, **Shift+F5** stops, **F11** is full
 screen, **Ctrl+F** searches the inventory. On a big screen the page zooms to fill the window.
 
@@ -112,6 +112,12 @@ bhop chain; `!speed`), easy bhop, checkpoint and teleport, noclip. *Aim:* counte
 shot (`!cs`), bullet impacts, frozen bots, bots that copy your movement. Plus a reaction test in the
 launcher itself. A drill or Practice Mode changes the server until you turn it off; **Apply Changes** on
 Live Server puts your setup back.
+
+**Stats.** Are you improving? Each skill this week against last week (better / worse), a chart per day and
+a table: Reaction Drill and Reaction Test times, headshot %, K/D, stopped shots (counter-strafe check),
+strafe sync, longest jump and drill rounds won. Kills count in every mode, except kills with an aimbot and
+Reaction Drill hits; with friends on the server, pick whose stats to see. Kept in
+`plugins/LanSkinTester/training.jsonl`.
 
 **Workshop.** The maps Steam has downloaded for CS2, a search of the Workshop, **Host** (starts or switches
 the server on that map) and *Subscribe* (opens it in Steam). A Workshop map loads the official way: the
