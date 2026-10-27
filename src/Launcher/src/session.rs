@@ -232,6 +232,10 @@ impl Session<'_> {
         // The last server's: CS2 must wait until this server's plugin writes new ones.
         let _ = fs::remove_file(self.game.plugin_dir().join(LOADED_FILE));
         let _ = fs::remove_file(self.game.plugin_dir().join(STATUS_FILE));
+        // Commands queued for the last server: one that crashed it would crash this one too.
+        for f in ["server_commands.txt", "server_commands.txt.run"] {
+            let _ = fs::remove_file(self.game.plugin_dir().join(f));
+        }
         let child = self.run_cs2(&settings.start_arguments())?;
         if let Some(p) = proc_of(child.id()) {
             let _ = fs::write(pid_file(), format!("{} {}", p.pid, p.start));
