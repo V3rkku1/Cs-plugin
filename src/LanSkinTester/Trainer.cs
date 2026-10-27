@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Extensions.Logging;
 using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
@@ -11,8 +12,10 @@ namespace LanSkinTester;
 /// <summary>
 /// The launcher's Trainer page: site drills against bots (clear a held site, plant and stop the retake,
 /// hold a site against a push), a reaction drill (one bot pops up in front of you, the time to hit it is
-/// shown), a speedometer with jump stats, and lineups by name (lst_lineup). Bots are never placed from
-/// per-map files: site spots are random floor points inside the map's own bomb site volume.
+/// shown), movement stats (speed, jump distance, strafe sync), a counter-strafe check on every shot,
+/// lineups (saved ones by name, built-in ones by position: lst_goto) with the grenade's air time when it
+/// pops. Bots are never placed from per-map files: site spots are random floor points inside the map's own
+/// bomb site volume.
 /// </summary>
 public partial class LanSkinTester
 {
@@ -24,12 +27,16 @@ public partial class LanSkinTester
     private float _reflexShownAt = -1;
     private readonly List<float> _reflexTimes = new();
     private readonly Dictionary<int, JumpTrack> _speedo = new();
+    private bool _nadeInfo;
+    private readonly Dictionary<int, float> _thrownAt = new();
+    // Counter-strafe check: the last tick each player held a movement key.
+    private readonly Dictionary<int, int> _counterStrafe = new();
 
     private sealed class JumpTrack
     {
         public bool OnGround = true;
-        public float FromX, FromY, Pre, Last, LastPre;
-        public int Hops, LandedTick;
+        public float FromX, FromY, Pre, Max, LastYaw, Last, LastPre, LastMax;
+        public int Hops, LandedTick, TurnTicks, SyncTicks, Strafes, LastSide, LastSync, LastStrafes;
     }
 
     private void LoadTrainer()
@@ -38,6 +45,8 @@ public partial class LanSkinTester
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
             _speedo.Clear();
+            _thrownAt.Clear();
+            _counterStrafe.Clear();
             _reflexShownAt = -1;
             _lineupIndex = 0;
         });
@@ -91,6 +100,50 @@ public partial class LanSkinTester
             GoToThrow(player, lineup.Value);
             Reply(player, $"Lineup \"{name}\" ({lineup.Value.Weapon.Replace("weapon_", "")}): throw!");
         }
+    }
+
+    [ConsoleCommand("lst_goto", "Send every human to a lineup spot with a grenade: lst_goto x y z pitch yaw smoke|flash|molotov|he [text]")]
+    [CommandHelper(minArgs: 6, usage: "x y z pitch yaw smoke|flash|molotov|he [text]", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnGotoCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var n = new float[5];
+        for (var i = 0; i < 5; i++)
+            if (!float.TryParse(cmd.GetArg(i + 1), NumberStyles.Float, CultureInfo.InvariantCulture, out n[i])) return;
+        var nade = cmd.GetArg(6).ToLowerInvariant();
+        var text = string.Join(' ', Enumerable.Range(7, Math.Max(0, cmd.ArgCount - 7)).Select(cmd.GetArg));
+        _nadeInfo = true;
+        foreach (var player in Humans())
+        {
+            var weapon = nade switch
+            {
+                "flash" => "weapon_flashbang",
+                "he" => "weapon_hegrenade",
+                "molotov" => player.Team == CsTeam.CounterTerrorist ? "weapon_incgrenade" : "weapon_molotov",
+                _ => "weapon_smokegrenade",
+            };
+            GoToThrow(player, new ThrownGrenade(new Spot(n[0], n[1], n[2], n[3], n[4]), weapon));
+            if (text.Length > 0) Reply(player, text);
+        }
+    }
+
+    [ConsoleCommand("lst_nadeinfo", "Tell the thrower how long each grenade flew: 1 on, 0 off")]
+    [CommandHelper(minArgs: 1, usage: "1|0", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnNadeInfoCommand(CCSPlayerController? caller, CommandInfo cmd) => _nadeInfo = cmd.GetArg(1) == "1";
+
+    [ConsoleCommand("lst_cstrafe", "Counter-strafe check on every shot for every human: 1 on, 0 off")]
+    [CommandHelper(minArgs: 1, usage: "1|0", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnCounterStrafeCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _counterStrafe.Clear();
+        if (cmd.GetArg(1) == "1") foreach (var player in Humans()) _counterStrafe[player.Slot] = 0;
+    }
+
+    [ConsoleCommand("css_cs", "Toggle the counter-strafe check on your shots")]
+    public void OnCounterStrafeChat(CCSPlayerController? player, CommandInfo cmd)
+    {
+        if (!PracticeAllowed(player)) return;
+        if (!_counterStrafe.Remove(player!.Slot)) _counterStrafe[player.Slot] = 0;
+        Reply(player, _counterStrafe.ContainsKey(player.Slot) ? "Counter-strafe check on: stop before you shoot." : "Counter-strafe check off.");
     }
 
     [ConsoleCommand("lst_delnade", "Delete a saved lineup on this map: lst_delnade <name>")]
@@ -376,7 +429,11 @@ public partial class LanSkinTester
 
     private void OnTrainerTick()
     {
-        if (_speedo.Count == 0) return;
+        foreach (var slot in _counterStrafe.Keys.ToList())
+        {
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player is { IsValid: true } && (player.Buttons & MoveKeys) != 0) _counterStrafe[slot] = Server.TickCount;
+        }
         foreach (var (slot, track) in _speedo)
         {
             var player = Utilities.GetPlayerFromSlot(slot);
@@ -385,22 +442,88 @@ public partial class LanSkinTester
             var speed = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
             var onGround = (pawn.Flags & (uint)PlayerFlags.FL_ONGROUND) != 0;
             var at = pawn.AbsOrigin;
+            var yaw = pawn.EyeAngles.Y;
             if (track.OnGround && !onGround)
             {
                 // A jump within a few ticks of landing is a bunnyhop.
                 track.Hops = Server.TickCount - track.LandedTick <= 3 ? track.Hops + 1 : 0;
-                (track.FromX, track.FromY, track.Pre) = (at.X, at.Y, speed);
+                (track.FromX, track.FromY, track.Pre, track.Max) = (at.X, at.Y, speed, speed);
+                track.TurnTicks = track.SyncTicks = track.Strafes = track.LastSide = 0;
             }
-            else if (!track.OnGround && onGround)
+            else if (!onGround)
+            {
+                // Strafe sync: turning left while holding only A, or right while holding only D.
+                var turn = yaw - track.LastYaw;
+                if (turn > 180) turn -= 360;
+                if (turn < -180) turn += 360;
+                var left = (player.Buttons & PlayerButtons.Moveleft) != 0;
+                var right = (player.Buttons & PlayerButtons.Moveright) != 0;
+                var side = left == right ? 0 : left ? 1 : -1;
+                if (side != 0 && side != track.LastSide) { track.Strafes++; track.LastSide = side; }
+                if (MathF.Abs(turn) > 0.01f)
+                {
+                    track.TurnTicks++;
+                    if ((turn > 0 && side == 1) || (turn < 0 && side == -1)) track.SyncTicks++;
+                }
+                track.Max = MathF.Max(track.Max, speed);
+            }
+            if (!track.OnGround && onGround)
             {
                 track.Last = MathF.Sqrt((at.X - track.FromX) * (at.X - track.FromX) + (at.Y - track.FromY) * (at.Y - track.FromY));
-                track.LastPre = track.Pre;
+                (track.LastPre, track.LastMax, track.LastStrafes) = (track.Pre, track.Max, track.Strafes);
+                track.LastSync = track.TurnTicks == 0 ? 0 : track.SyncTicks * 100 / track.TurnTicks;
                 track.LandedTick = Server.TickCount;
             }
             track.OnGround = onGround;
+            track.LastYaw = yaw;
             if (Server.TickCount % 4 == 0)
-                player.PrintToCenterHtml($"<font class='fontSize-xl' color='#7CFC00'>{speed:0}</font> u/s<br>" +
-                    $"jump {track.Last:0} u · pre {track.LastPre:0} · hops {track.Hops}");
+                player.PrintToCenterHtml($"<font class='fontSize-xl' color='#7CFC00'>{speed:0}</font> u/s · hops {track.Hops}<br>" +
+                    $"<font class='fontSize-s'>jump {track.Last:0} u · pre {track.LastPre:0} · max {track.LastMax:0} · " +
+                    $"gain {track.LastMax - track.LastPre:+0;-0;0} · sync {track.LastSync}% · {track.LastStrafes} strafes</font>");
         }
+    }
+
+    private const PlayerButtons MoveKeys = PlayerButtons.Forward | PlayerButtons.Back | PlayerButtons.Moveleft | PlayerButtons.Moveright;
+
+    [GameEventHandler]
+    public HookResult OnTrainerWeaponFire(EventWeaponFire @event, GameEventInfo info)
+    {
+        var player = @event.Userid;
+        var weapon = @event.Weapon ?? "";
+        if (player is not { IsValid: true }) return HookResult.Continue;
+        if (IsGrenade(weapon))
+        {
+            if (_nadeInfo) _thrownAt[player.Slot] = Server.CurrentTime;
+            return HookResult.Continue;
+        }
+        if (!_counterStrafe.TryGetValue(player.Slot, out var lastMove) || weapon.Contains("knife") || weapon.Contains("bayonet")
+            || player.PlayerPawn.Value is not { IsValid: true } pawn) return HookResult.Continue;
+        var v = pawn.AbsVelocity;
+        var speed = MathF.Sqrt(v.X * v.X + v.Y * v.Y);
+        // shortcut: one limit for every gun (34% of a rifle's 215 u/s), not each weapon's own max speed.
+        var stopped = speed <= 73;
+        var held = (player.Buttons & MoveKeys) != 0;
+        var since = held ? "still holding a move key" : $"{(Server.TickCount - lastMove) * Server.TickInterval * 1000:0} ms after letting go";
+        player.PrintToCenter(stopped ? $"Accurate · {speed:0} u/s · {since}" : $"MOVING · {speed:0} u/s · {since}");
+        return HookResult.Continue;
+    }
+
+    [GameEventHandler]
+    public HookResult OnTrainerSmoke(EventSmokegrenadeDetonate @event, GameEventInfo info) => NadePopped(@event.Userid, "Smoke");
+
+    [GameEventHandler]
+    public HookResult OnTrainerFlash(EventFlashbangDetonate @event, GameEventInfo info) => NadePopped(@event.Userid, "Flash");
+
+    [GameEventHandler]
+    public HookResult OnTrainerHe(EventHegrenadeDetonate @event, GameEventInfo info) => NadePopped(@event.Userid, "HE");
+
+    [GameEventHandler]
+    public HookResult OnTrainerMolotovPop(EventMolotovDetonate @event, GameEventInfo info) => NadePopped(@event.Userid, "Molotov");
+
+    private HookResult NadePopped(CCSPlayerController? player, string what)
+    {
+        if (!_nadeInfo || player is not { IsValid: true } || !_thrownAt.Remove(player.Slot, out var at)) return HookResult.Continue;
+        Reply(player, $"{what} popped after {Server.CurrentTime - at:0.0} s. !rethrow to try again, !savenade name to keep it.");
+        return HookResult.Continue;
     }
 }
