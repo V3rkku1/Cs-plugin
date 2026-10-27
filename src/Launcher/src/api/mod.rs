@@ -11,6 +11,7 @@ mod setup;
 pub mod shell;
 mod theme;
 mod tradeup;
+mod trainer;
 mod workshop;
 
 pub use cases::Inv;
@@ -343,6 +344,7 @@ fn dispatch(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         },
         "friends" => friends::call(app, name, a),
         "hacker" => hacker::call(app, name, a),
+        "trainer" => trainer::call(app, name, a),
         "workshop" => workshop::call(app, name, a),
         "backup" => cases::backup(app, name),
         _ => Err(bad(format!("Unknown call: {name}"))),

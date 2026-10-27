@@ -78,6 +78,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
         LoadHackerMode();
         LoadPractice();
+        LoadTrainer();
         LoadBotSkins();
         LoadExtras();
     }

@@ -8,6 +8,8 @@ import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
 import { HackerPage } from "./pages/hacker.js";
+import { TrainerPage } from "./pages/trainer.js";
+import { StatsPage } from "./pages/stats.js";
 import { FriendsPage } from "./pages/friends.js";
 import { WorkshopPage } from "./pages/workshop.js";
 import { CasesPage } from "./pages/cases.js";
@@ -20,6 +22,8 @@ const pages = [
   { id: "inventory", label: "Inventory", icon: "skins", component: InventoryPage },
   { id: "cases", label: "Cases", icon: "key", component: CasesPage },
   { id: "hacker", label: "Hacker Mode", icon: "hacker", component: HackerPage },
+  { id: "trainer", label: "Trainer", icon: "target", component: TrainerPage },
+  { id: "stats", label: "Stats", icon: "sliders", component: StatsPage },
   { id: "workshop", label: "Workshop", icon: "map", component: WorkshopPage },
   { id: "friends", label: "Friends", icon: "friends", component: FriendsPage },
   { id: "setup", label: "Setup", icon: "setup", component: SetupPage },
@@ -53,7 +57,7 @@ function Sidebar({ page, setPage, state }) {
     <nav class="nav" ref=${nav}>
       <div class="nav-indicator" style=${`transform: translateY(${y}px)`}></div>
       ${pages.map((p, i) => html`<button class=${"nav-item" + (p.id === page ? " active" : "")} onClick=${() => setPage(p.id)}>
-        <${Icon} name=${p.icon} size=${20} /> ${p.label} <kbd>Ctrl ${i + 1}</kbd>
+        <${Icon} name=${p.icon} size=${20} /> ${p.label} ${i < 9 && html`<kbd>Ctrl ${i + 1}</kbd>`}
       </button>`)}
     </nav>
     <div class="spacer"></div>
@@ -89,7 +93,7 @@ function App() {
     window.addEventListener("navigate", go);
     const keys = e => {
       if (e.ctrlKey && e.key.toLowerCase() === "k") { openPalette(setPage); e.preventDefault(); }
-      else if (e.ctrlKey && e.key >= "1" && e.key <= "8") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
+      else if (e.ctrlKey && e.key >= "1" && e.key <= "9") { setPage(pages[Number(e.key) - 1].id); e.preventDefault(); }
       else if (e.ctrlKey && e.key.toLowerCase() === "f") { setPage("inventory"); setTimeout(() => window.dispatchEvent(new Event("focus-search")), 50); e.preventDefault(); }
       else if (e.key === "F11") { tryCall("app.fullscreen"); e.preventDefault(); }
       else if (e.key === "F5" && !e.shiftKey) { tryCall("play.startOrApply"); e.preventDefault(); }
