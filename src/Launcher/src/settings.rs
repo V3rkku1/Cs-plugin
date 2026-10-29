@@ -36,6 +36,8 @@ pub struct LauncherSettings {
     pub host_name: String,
     /// The owner's admin code was entered on this PC: every item can be used ("unbox only" without it).
     pub admin_unlocked: bool,
+    /// The code hash it was unlocked with: a new admin code locks PCs unlocked with an old one.
+    pub admin_hash: String,
     pub cases_opened: i32,
     /// Openings per container id, for "what it would have cost" on the Cases page.
     pub case_opens: BTreeMap<String, i32>,
@@ -62,6 +64,7 @@ impl Default for LauncherSettings {
             friends_list: vec![],
             host_name: user_name(),
             admin_unlocked: false,
+            admin_hash: String::new(),
             cases_opened: 0,
             case_opens: BTreeMap::new(),
             currency: "USD".into(),
@@ -102,7 +105,7 @@ pub struct JoinTarget {
 impl LauncherSettings {
     pub fn load() -> Self {
         let file = util::settings_file();
-        let settings = match fs::read_to_string(&file) {
+        let mut settings = match fs::read_to_string(&file) {
             Ok(text) => match util::read_json::<LauncherSettings>(&text) {
                 Ok(s) => s,
                 Err(_) => {
@@ -113,6 +116,7 @@ impl LauncherSettings {
             },
             Err(_) => Self::default(),
         };
+        settings.admin_unlocked &= settings.admin_hash == crate::api::UNLOCK_HASH;
         crate::server::SKIN_COMMANDS.store(
             settings.admin_unlocked,
             std::sync::atomic::Ordering::Relaxed,

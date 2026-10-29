@@ -456,14 +456,22 @@ public partial class LanSkinTester
         File.WriteAllText(file, JsonSerializer.Serialize(lineups));
     }
 
-    private static void SwapTeams()
+    private void SwapTeams()
     {
+        var alive = new List<CCSPlayerController>();
         foreach (var player in Utilities.GetPlayers())
         {
             if (!player.IsValid || player.IsHLTV) continue;
-            if (player.Team == CsTeam.Terrorist) player.SwitchTeam(CsTeam.CounterTerrorist);
-            else if (player.Team == CsTeam.CounterTerrorist) player.SwitchTeam(CsTeam.Terrorist);
+            if (player.PawnIsAlive) alive.Add(player);
+            // ChangeTeam, not SwitchTeam: SwitchTeam's native call crashed the server (0xC0000005).
+            if (player.Team == CsTeam.Terrorist) player.ChangeTeam(CsTeam.CounterTerrorist);
+            else if (player.Team == CsTeam.CounterTerrorist) player.ChangeTeam(CsTeam.Terrorist);
         }
+        // ChangeTeam kills: bring back whoever was alive, on their new side.
+        AddTimer(0.2f, () =>
+        {
+            foreach (var player in alive.Where(p => p.IsValid && !p.PawnIsAlive)) player.Respawn();
+        });
     }
 
     private static void EndRound(bool tWin)

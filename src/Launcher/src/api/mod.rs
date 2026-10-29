@@ -14,7 +14,7 @@ mod tradeup;
 mod trainer;
 mod workshop;
 
-pub use cases::Inv;
+pub use cases::{Inv, UNLOCK_HASH};
 pub use play::poll_server;
 pub use shell::{confirm_close, started, watch_game};
 pub use theme::apply_title_bar;
