@@ -23,7 +23,7 @@ use std::sync::atomic::Ordering;
 use std::sync::Arc;
 
 /// SHA-256 of "lst-cases-v1:" + the code in capitals. Only the owner knows the code.
-const UNLOCK_HASH: &str = "512cc0b3e9337b2a0c02746e42c68c0399fab31d7212b47e485daa2bb4c8851e";
+pub const UNLOCK_HASH: &str = "5e0d1df55fe4b0fc7528ff9f2b62aec673bb31d82ed6c9bfc7179bf3fd557f69";
 /// Most items kept: past this, opening stops (the inventory file and pages get slow beyond it).
 const MAX_INVENTORY: usize = 50_000;
 /// Guns only one side can buy: their skin is the same for both sides.
@@ -898,6 +898,11 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
 fn set_admin(app: &App, on: bool) {
     let mut st = app.state();
     st.settings.admin_unlocked = on;
+    st.settings.admin_hash = if on {
+        UNLOCK_HASH.into()
+    } else {
+        String::new()
+    };
     SKIN_COMMANDS.store(on, Ordering::Relaxed);
     app.save(&st);
     if let Some(g) = st.game.clone() {
