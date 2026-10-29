@@ -30,6 +30,7 @@ public partial class LanSkinTester
     private int _reflexShow; // which pop-up this is, so an old "too slow" timer leaves a newer one alone
     private readonly List<float> _reflexTimes = new();
     private readonly Dictionary<int, JumpTrack> _speedo = new();
+    private readonly Dictionary<int, Vector> _anchors = new();
     private bool _nadeInfo;
     private readonly Dictionary<int, float> _thrownAt = new();
     // Counter-strafe check: the last tick each player held a movement key.
@@ -50,7 +51,9 @@ public partial class LanSkinTester
         RegisterListener<Listeners.OnTick>(OnTrainerTick);
         RegisterListener<Listeners.OnMapStart>(_ =>
         {
+            _drill = Drill.Off; // a new map may be a mode the drill can't run in
             _speedo.Clear();
+            _anchors.Clear();
             _thrownAt.Clear();
             _counterStrafe.Clear();
             _lastShot.Clear();
@@ -187,7 +190,7 @@ public partial class LanSkinTester
 
         if (drill == Drill.Off)
         {
-            foreach (var bot in Utilities.GetPlayers().Where(p => p.IsValid && IsBotPlayer(p))) Anchor(bot, false);
+            _anchors.Clear();
             if (wasReflex) Server.ExecuteCommand("bot_dont_shoot 0; mp_ignore_round_win_conditions 0");
             TellHumans("Drill off. Apply Changes on the launcher's Live Server page brings back your bots and rules.");
             return;
@@ -250,10 +253,10 @@ public partial class LanSkinTester
                 for (var i = 0; i < Math.Min(spots.Count, bots.Count); i++)
                 {
                     PlaceAt(bots[i], spots[i], face);
-                    Anchor(bots[i], true);
+                    Anchor(bots[i], spots[i]);
                 }
             }
-            else if (_drill == Drill.Retake) bots.ForEach(b => Anchor(b, true));
+            else if (_drill == Drill.Retake) bots.ForEach(b => Anchor(b));
             else
             {
                 var spots = SiteSpots(_drillSiteB, humans.Count);
@@ -268,6 +271,7 @@ public partial class LanSkinTester
     public HookResult OnDrillRoundStart(EventRoundStart @event, GameEventInfo info)
     {
         if (_drill == Drill.Off) return HookResult.Continue;
+        _anchors.Clear(); // everyone spawned somewhere new
         if (_drill == Drill.Reflex)
         {
             AddTimer(0.5f, () => ShowReflexBot(), TimerFlags.STOP_ON_MAPCHANGE);
@@ -287,7 +291,7 @@ public partial class LanSkinTester
     public HookResult OnDrillBombPlanted(EventBombPlanted @event, GameEventInfo info)
     {
         if (_drill != Drill.Retake) return HookResult.Continue;
-        foreach (var bot in Utilities.GetPlayers().Where(p => p.IsValid && IsBotPlayer(p))) Anchor(bot, false);
+        _anchors.Clear();
         TellHumans("Bomb down: here they come.");
         return HookResult.Continue;
     }
@@ -351,7 +355,7 @@ public partial class LanSkinTester
             return;
         }
         PlaceAt(bot, spot, pawn.AbsOrigin);
-        Anchor(bot, true);
+        Anchor(bot, spot);
         if (bot.PlayerPawn.Value is { IsValid: true } botPawn)
         {
             botPawn.Health = 1; // any hit counts
@@ -453,14 +457,25 @@ public partial class LanSkinTester
         pawn.Teleport(spot, new QAngle(0, yaw, 0), new Vector(0, 0, 0));
     }
 
-    /// <summary>Anchored players can't walk but still turn and shoot.</summary>
-    private static void Anchor(CCSPlayerController player, bool on)
+    /// <summary>
+    /// Anchored players can't walk but still turn and shoot: every tick they are put back on their spot
+    /// (HoldAnchors). Only Teleport, no move type change: writing a bot's move type may crash the server.
+    /// </summary>
+    private void Anchor(CCSPlayerController player, Vector? spot = null)
     {
-        if (player.PlayerPawn.Value is not { IsValid: true } pawn) return;
-        var anchored = pawn.MoveType == MoveType_t.MOVETYPE_NONE;
-        if (anchored == on) return;
-        pawn.MoveType = pawn.ActualMoveType = on ? MoveType_t.MOVETYPE_NONE : MoveType_t.MOVETYPE_WALK;
-        Utilities.SetStateChanged(pawn, "CBaseEntity", "m_MoveType");
+        // A copy: AbsOrigin is the engine's live value and moves with the pawn.
+        if ((spot ?? player.PlayerPawn.Value?.AbsOrigin) is { } at) _anchors[player.Slot] = new Vector(at.X, at.Y, at.Z);
+    }
+
+    private void HoldAnchors()
+    {
+        foreach (var (slot, spot) in _anchors)
+        {
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player is not { IsValid: true, PawnIsAlive: true } || player.PlayerPawn.Value is not { IsValid: true, AbsOrigin: { } at } pawn) continue;
+            if (MathF.Abs(at.X - spot.X) + MathF.Abs(at.Y - spot.Y) > 1f)
+                pawn.Teleport(spot, null, new Vector(0, 0, 0));
+        }
     }
 
     private void TellHumans(string message)
@@ -474,6 +489,7 @@ public partial class LanSkinTester
 
     private void OnTrainerTick()
     {
+        if (_anchors.Count > 0) HoldAnchors();
         foreach (var slot in _counterStrafe.Keys.ToList())
         {
             var player = Utilities.GetPlayerFromSlot(slot);
@@ -637,6 +653,7 @@ public partial class LanSkinTester
     {
         if (@event.Userid is not { } player) return HookResult.Continue;
         _speedo.Remove(player.Slot);
+        _anchors.Remove(player.Slot);
         _counterStrafe.Remove(player.Slot);
         _lastShot.Remove(player.Slot);
         _roundAim.Remove(player.Slot);
