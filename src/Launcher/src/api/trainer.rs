@@ -29,9 +29,21 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             let Some(game) = app.state().game.clone() else {
                 return ok(json!({ "players": [], "days": [] }));
             };
-            let text =
-                fs::read_to_string(game.plugin_dir().join(TRAINING_FILE)).unwrap_or_default();
-            ok(stats(&text, &player))
+            // The page asks on every server tick change (each kill): only re-read when the file changed.
+            let file = game.plugin_dir().join(TRAINING_FILE);
+            let meta = fs::metadata(&file).ok();
+            let key = (
+                meta.as_ref().map(|m| m.len()),
+                meta.and_then(|m| m.modified().ok()),
+                player,
+            );
+            let mut cache = STATS_CACHE.lock().unwrap();
+            if let Some((_, v)) = cache.as_ref().filter(|c| c.0 == key) {
+                return ok(v.clone());
+            }
+            let value = stats(&fs::read_to_string(&file).unwrap_or_default(), &key.2);
+            *cache = Some((key, value.clone()));
+            ok(value)
         }
         "trainer.statsReset" => {
             // Kept as training.jsonl.bak, so one mistaken click can be undone by hand.
@@ -60,6 +72,9 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
 }
 
 const TRAINING_FILE: &str = "training.jsonl";
+
+type StatsKey = (Option<u64>, Option<std::time::SystemTime>, String);
+static STATS_CACHE: std::sync::Mutex<Option<(StatsKey, Value)>> = std::sync::Mutex::new(None);
 
 /// One day's totals for one player.
 #[derive(Default)]
