@@ -490,7 +490,8 @@ public partial class LanSkinTester
     private void OnTrainerTick()
     {
         if (_anchors.Count > 0) HoldAnchors();
-        foreach (var slot in _counterStrafe.Keys.ToList())
+        if (_counterStrafe.Count > 0)
+            foreach (var slot in _counterStrafe.Keys.ToList())
         {
             var player = Utilities.GetPlayerFromSlot(slot);
             if (player is { IsValid: true } && (player.Buttons & MoveKeys) != 0) _counterStrafe[slot] = Server.TickCount;

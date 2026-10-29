@@ -681,6 +681,7 @@ public partial class LanSkinTester
 
     private void ReleaseAllForcedAttacks()
     {
+        if (_attackHeld.Count == 0) return; // runs every tick while hacker mode is off
         foreach (var slot in _attackHeld.ToList())
         {
             var player = Utilities.GetPlayerFromSlot(slot);
