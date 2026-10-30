@@ -40,6 +40,8 @@ pub struct LauncherSettings {
     pub admin_hash: String,
     /// The CS2 build Metamod, CounterStrikeSharp and the server plugins were last updated for.
     pub addons_cs2_build: String,
+    /// Whole loadouts saved under a name (Inventory › Loadout), equipped with one click.
+    pub loadout_presets: BTreeMap<String, crate::items::PlayerLoadout>,
     pub cases_opened: i32,
     /// Openings per container id, for "what it would have cost" on the Cases page.
     pub case_opens: BTreeMap<String, i32>,
@@ -68,6 +70,7 @@ impl Default for LauncherSettings {
             admin_unlocked: false,
             admin_hash: String::new(),
             addons_cs2_build: String::new(),
+            loadout_presets: BTreeMap::new(),
             cases_opened: 0,
             case_opens: BTreeMap::new(),
             currency: "USD".into(),

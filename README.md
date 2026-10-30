@@ -36,7 +36,8 @@ The sidebar has ten pages (**Ctrl+1** to **Ctrl+9** for the first nine). **Ctrl+
 (type "dm", Enter starts Deathmatch). **F5** starts or applies changes, **Shift+F5** stops, **F11** is full
 screen, **Ctrl+F** searches the inventory. On a big screen the page zooms to fill the window.
 
-**Play.** Quick starts: *Competitive 5v5*, *Free-for-all Deathmatch*, *Valve Retakes*, *Plugin Retakes*, plus
+**Play.** *Before You Start* lists what would stop the server (missing mods, a CS2 update the add-ons
+aren't updated for, the server port in use, a nearly full disk), each with its fix. Quick starts: *Competitive 5v5*, *Free-for-all Deathmatch*, *Valve Retakes*, *Plugin Retakes*, plus
 your own (*Save Current Setup* stores the mode, map, bots and rules under a name; **×** deletes it). **Start** opens the server window and CS2 with VAC off, and CS2 joins when the server is up.
 **Open CS2** starts the game again if you closed it. **Stop** closes both and puts CS2 back to normal.
 
@@ -69,7 +70,8 @@ the map; a few settings restart the server and ask first):
 **Inventory.** What you unboxed, like CS2's inventory: All Items, Loadout, Weapons, Knives & Gloves,
 Stickers & Graffiti, Collectibles; search, filter and sort by newest, rarity, price or name. Click an item
 to inspect it (exterior, exact float, pattern, price, case) and **Equip** it, for both sides or **EQUIP T** /
-**EQUIP CT**. **Try in Game** equips it, kicks the bots and puts it in your hands on the running server. The **Loadout** tab shows what each side wears; *Use Default* takes it off. An equipped item
+**EQUIP CT**. **Try in Game** equips it, kicks the bots and puts it in your hands on the running server. The **Loadout** tab shows what each side wears; *Use Default* takes it off. *Presets* save the whole
+loadout under a name ("Blue set") and equip it again with one click. An equipped item
 changes in game within a second.
 - **Stickers…** on a gun: apply up to 5 stickers from your inventory (applying uses the sticker up), place,
   turn, resize and scrape them; scraped all the way, a sticker comes off.
@@ -107,19 +109,22 @@ lineup's pictures). Your own lineups from `!savenade` are listed too. *Grenade P
 Practice Mode (endless round, free buys, infinite grenades), trajectory preview, the air time in chat when
 a grenade pops, rethrow and clear. *Site drills* against bots on a bomb map (Competitive or Casual), site A or
 B, 1–5 bots: *Clear Site* (bots stand on random spots inside the bomb site and hold angles), *Plant & Hold*
-(bots wait at CT spawn and retake once you plant), *Hold Site* (you start on the site as CT, bots push); chat
-keeps your round score. *Reaction Drill:* one bot pops up in front of you and chat shows how many ms you
+(bots wait at CT spawn and retake once you plant), *Hold Site* (you start on the site as CT, bots push),
+*Prefire* (bots on site angles don't shoot; chat times how fast you clear them), *Clutch Retake* (the bomb is
+already planted and bots guard it; retake alone and defuse); chat keeps your round score. *Reaction Drill:* one bot pops up in front of you and chat shows how many ms you
 took to hit it (3 s and it moves on). *Flick Drill:* the same, but the bot can appear anywhere around you,
 behind you too. Both can hand you a gun first (AK-47, M4A1-S, AWP, Deagle, USP-S). *Movement:* jump stats on screen (speed, distance, pre-speed, gain, strafe sync, strafes,
-bhop chain; `!speed`), easy bhop, checkpoint and teleport, noclip. *Aim:* counter-strafe check on every
-shot (`!cs`), bullet impacts, frozen bots, bots that copy your movement. Plus a reaction test in the
+bhop chain; `!speed`), easy bhop, checkpoint and teleport, timed *courses* (set a start and a finish on any
+map, `!course start|finish|clear`, best time kept), noclip. *Aim:* counter-strafe check on every
+shot (`!cs`), spray score (how far a spray lands from its first bullet, `!spray`), bullet impacts, frozen bots, bots that copy your movement. Plus a reaction test in the
 launcher itself. A drill or Practice Mode changes the server until you turn it off; **Apply Changes** on
 Live Server puts your setup back.
 
 **Stats.** Are you improving? Each skill this week against last week (better / worse), a chart per day and
 a table (2 weeks to all time): Reaction Drill, Flick Drill and Reaction Test times, headshot %, K/D, accuracy, damage
-per round, stopped shots (counter-strafe check), strafe sync, longest jump and drill rounds won, plus your
-personal bests. Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
+per round, stopped shots (counter-strafe check), strafe sync, longest jump, prefire time, spray spread and drill rounds won, plus your
+personal bests, achievements, and all-time tables per gun (kills, headshots, accuracy) and per map (rounds
+won, K/D, damage per round, drill wins, best course time). Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
 Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over
 (the old file is kept as `training.jsonl.bak`). Kept in
 `plugins/LanSkinTester/training.jsonl`.
@@ -150,7 +155,9 @@ router; on CGNAT (common on mobile internet) use Radmin; or forward UDP 27015 by
 
 **Setup.** The CS2 folder (found automatically, or *Browse*), and a checklist of Metamod, CounterStrikeSharp,
 the plugin, the CounterStrikeSharp skin setting and the item lists, each with its own Install/Update button.
-*Check for updates*, *Install from zip* (when a download fails), *Repair*, *Uninstall everything* (restores
+*Update Everything* (newest Metamod, CounterStrikeSharp, server plugins, skin data and launcher; this also
+runs by itself after a CS2 update, and Start waits for it), *Check for updates*, *Install from zip* (when a
+download fails), *Repair*, *Uninstall everything* (restores
 `gameinfo.gi`; the loadout is backed up), *Open folder* buttons, and *Reset Launcher*. **Appearance:** themes,
 accent / background / panel colours, opacity, title bar colour, corners, font, text size, a background picture,
 *Reduce Transparency* and *Reduce Motion*; *Theme Code* shares your look as `LST1-…`; *Open custom.css* edits

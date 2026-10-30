@@ -189,6 +189,17 @@ pub fn started(app: &Arc<App>) {
         }
     }
     report_last_update(app);
+    // CS2 updated since the server add-ons were: fetch the new ones now, so Start doesn't wait for them.
+    let bg = app.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(5));
+        let game = bg.state().game.clone();
+        if let Some(g) = game.filter(|g| g.metamod_installed() && g.css_installed()) {
+            if super::play::addons_stale(&bg, &g) && !session::cs2_running() {
+                super::play::update_addons(&bg, &g, false);
+            }
+        }
+    });
     let app = app.clone();
     std::thread::spawn(move || {
         check_for_update(&app, true);
@@ -287,7 +298,7 @@ fn report_last_update(app: &App) {
 }
 
 /// The "Check for updates" button: looks now and says if this is already the newest.
-fn check_update_now(app: &Arc<App>) -> R<bool> {
+pub(super) fn check_update_now(app: &Arc<App>) -> R<bool> {
     if app.state().shell.updating {
         return Ok(true);
     }

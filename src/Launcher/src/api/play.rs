@@ -151,6 +151,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             }
             ok(())
         }
+        "play.health" => ok(health(app)),
         "play.start" => start_server(app, arg(a)?).map(|_| Value::Null),
         "play.apply" => apply_to_server(app, arg(a)?).map(|_| Value::Null),
         "play.openGame" => {
@@ -1248,6 +1249,142 @@ pub fn stop_from_close(app: &App) -> std::io::Result<()> {
 // Server plugins
 // -------------------------------------------------------------------------------------------------
 
+/// Problems to fix before pressing Start, worst first: [{kind: bad|warn, title, detail, fix?}]. A fix is
+/// a launcher call ({label, call}) or a page ({label, page}).
+fn health(app: &App) -> Vec<Value> {
+    let mut list = vec![];
+    let (game, running) = {
+        let st = app.state();
+        (st.game.clone(), st.test_mode_on())
+    };
+    let Some(game) = game else {
+        list.push(json!({ "kind": "bad", "title": "CS2 not found", "detail": "Pick your CS2 folder on the Setup page.",
+            "fix": { "label": "Setup", "page": "setup" } }));
+        return list;
+    };
+    if !game.metamod_installed() || !game.css_installed() || !game.plugin_installed() {
+        list.push(json!({ "kind": "bad", "title": "Server mods missing", "detail": "Metamod, CounterStrikeSharp or the plugin is not installed.",
+            "fix": { "label": "Install", "call": "setup.all" } }));
+    } else if addons_stale(app, &game) {
+        list.push(json!({ "kind": "warn", "title": format!("CS2 was updated ({})", game.cs2_build().unwrap_or_default()),
+            "detail": "Old server add-ons crash the server after a CS2 update. They update by themselves when you press Start.",
+            "fix": { "label": "Update now", "call": "setup.updateAll" } }));
+    }
+    let disks = sysinfo::Disks::new_with_refreshed_list();
+    let root = game.csgo();
+    if let Some(disk) = disks
+        .iter()
+        .filter(|d| root.starts_with(d.mount_point()))
+        .max_by_key(|d| d.mount_point().as_os_str().len())
+    {
+        let free = disk.available_space() / 1_000_000_000;
+        if free < 2 {
+            list.push(json!({ "kind": "warn", "title": format!("Only {free} GB free on {}", disk.mount_point().display()),
+                "detail": "Updates and the server's files need space: free some up." }));
+        }
+    }
+    if !running && std::net::UdpSocket::bind(("0.0.0.0", PORT)).is_err() {
+        list.push(json!({ "kind": "warn", "title": format!("Port {PORT} is in use"),
+            "detail": "Another CS2 server is running on this PC: close it, or the server can't start." }));
+    }
+    list
+}
+
+/// CS2 changed build since the add-ons were last updated for it.
+pub fn addons_stale(app: &App, game: &GameFolder) -> bool {
+    game.cs2_build()
+        .is_some_and(|b| b != app.state().settings.addons_cs2_build)
+}
+
+/// One update at a time: Start, Setup and the launcher's own background check can all ask.
+static UPDATING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+/// Downloads the latest Metamod, CounterStrikeSharp and every downloaded server plugin that is installed,
+/// then remembers the CS2 build they are for. A failed download keeps the old copy (tried again next time).
+/// CS2 and the server must be closed. Returns whether everything updated.
+pub fn update_addons(app: &App, game: &GameFolder, force: bool) -> bool {
+    let _one = UPDATING.lock().unwrap_or_else(|e| e.into_inner());
+    if !force && !addons_stale(app, game) {
+        return true; // another caller just did it
+    }
+    let build = game.cs2_build().unwrap_or_default();
+    app.log(format!(
+        "Updating Metamod, CounterStrikeSharp and the server plugins{}...",
+        if build.is_empty() {
+            String::new()
+        } else {
+            format!(" for CS2 {build}")
+        }
+    ));
+    let log = |l: String| app.log(l);
+    let i = Installer {
+        game,
+        http: &app.http,
+        log: &log,
+        progress: &|_| {},
+    };
+    type Step<'a> = (&'a str, bool, Box<dyn Fn() -> installer::R<()> + 'a>);
+    let steps: Vec<Step> = vec![
+        ("Metamod", true, Box::new(|| i.install_metamod())),
+        ("CounterStrikeSharp", true, Box::new(|| i.install_css())),
+        (
+            "Bot Improver",
+            installer::bot_improver_installed(game),
+            Box::new(|| i.install_bot_improver()),
+        ),
+        (
+            "Bot Controller",
+            installer::bot_controller_installed(game),
+            Box::new(|| i.install_bot_controller()),
+        ),
+        (
+            "Bot Hider",
+            installer::bot_hider_installed(game),
+            Box::new(|| i.install_bot_hider()),
+        ),
+        (
+            "the Deathmatch plugin",
+            installer::deathmatch_installed(game),
+            Box::new(|| i.install_deathmatch()),
+        ),
+        (
+            "the retakes plugin",
+            installer::retakes_installed(game),
+            Box::new(|| i.install_retakes()),
+        ),
+        (
+            "instadefuse",
+            installer::instadefuse_installed(game),
+            Box::new(|| i.install_instadefuse()),
+        ),
+        (
+            "the retakes allocator",
+            installer::allocator_installed(game),
+            Box::new(|| i.install_allocator()),
+        ),
+    ];
+    let mut ok = true;
+    for (label, wanted, install) in steps {
+        if !wanted {
+            continue;
+        }
+        if let Err(e) = install() {
+            app.log(format!("Could not update {label}: {e}"));
+            ok = false;
+        }
+    }
+    app.allow_skins_in_css(Some(game));
+    if ok {
+        let mut st = app.state();
+        st.settings.addons_cs2_build = build;
+        app.save(&st);
+        drop(st);
+        app.log("Server add-ons are up to date.");
+    }
+    app.changed();
+    ok
+}
+
 /// Downloads the server plugins the settings use the first time, then loads or parks each one. The retakes
 /// plugin reads its JSON when it loads, so that is written before the server starts.
 fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
@@ -1310,38 +1447,12 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
         ));
     }
     let log = |l: String| app.log(l);
-    // A CS2 update makes old Metamod, CounterStrikeSharp and plugins crash the server (0xC0000005): after
-    // one, everything is downloaded again (the add-on makers usually fix theirs within a day or two).
-    let build = game.cs2_build();
-    let stale = build
-        .as_ref()
-        .is_some_and(|b| *b != app.state().settings.addons_cs2_build)
-        && !session::cs2_running();
-    let mut updated = stale;
-    if stale {
-        app.log(format!(
-            "CS2 was updated ({}): updating Metamod, CounterStrikeSharp and the server plugins...",
-            build.as_deref().unwrap_or("")
-        ));
-        let i = Installer {
-            game: &game,
-            http: &app.http,
-            log: &log,
-            progress: &|_| {},
-        };
-        for (label, result) in [
-            ("Metamod", i.install_metamod()),
-            ("CounterStrikeSharp", i.install_css()),
-        ] {
-            if let Err(e) = result {
-                app.log(format!("Could not update {label}: {e}"));
-                updated = false;
-            }
-        }
-        app.allow_skins_in_css(Some(&game));
+    // A CS2 update makes old Metamod, CounterStrikeSharp and plugins crash the server (0xC0000005).
+    if addons_stale(app, &game) && !session::cs2_running() {
+        update_addons(app, &game, false);
     }
     for (label, installed, install, hint) in wanted {
-        if installed(&game) && !stale {
+        if installed(&game) {
             continue;
         }
         if session::cs2_running() {
@@ -1356,19 +1467,8 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
             progress: &|_| {},
         }) {
             app.log(format!("Could not download {label}: {e}"));
-            if installed(&game) {
-                updated = false; // the old copy still runs
-                continue;
-            }
             return Err(bad(format!("{label} could not be downloaded: {e}. {hint}")));
         }
-    }
-    if updated {
-        let mut st = app.state();
-        st.settings.addons_cs2_build = build.unwrap_or_default();
-        app.save(&st);
-        drop(st);
-        app.log("Server add-ons updated for this CS2 version.");
     }
     // Only a config file: safe to write while CS2 runs, so before the check below that skips the plugin files.
     if server.uses_deathmatch_plugin() {

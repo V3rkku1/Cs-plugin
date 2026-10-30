@@ -3,7 +3,7 @@
 import { html, useState, useRef, useEffect } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Stepper, TextField, Select, Icon } from "../ui.js";
-import { usePlay } from "./play.js";
+import { usePlay, Health } from "./play.js";
 import { LINEUPS } from "../lineups-data.js";
 
 const send = command => tryCall("live.command", command);
@@ -12,6 +12,8 @@ const DRILLS = [
   { id: "clear", icon: "crosshair", color: "orange", title: "Clear Site", text: "Bots hold angles on the site. Clear it and plant." },
   { id: "retake", icon: "bolt", color: "red", title: "Plant & Hold", text: "You plant, bots wait at CT spawn and retake once the bomb is down." },
   { id: "hold", icon: "shield", color: "blue", title: "Hold Site", text: "You start on the site as CT, bots push it." },
+  { id: "prefire", icon: "clock", color: "yellow", title: "Prefire", text: "Bots stand on site angles and don't shoot. Clear them: chat shows your time." },
+  { id: "clutch", icon: "person", color: "pink", title: "Clutch Retake", text: "The bomb is already planted and bots guard it. Retake alone and defuse." },
   { id: "reflex", icon: "target", color: "green", title: "Reaction Drill", text: "One bot pops up in front of you. Chat shows how fast you hit it." },
   { id: "flick", icon: "refresh", color: "purple", title: "Flick Drill", text: "One bot appears anywhere around you, behind you too. Turn and hit it." },
 ];
@@ -174,6 +176,7 @@ export function TrainerPage() {
       subtitle="Learn lineups, train your reactions, aim and movement, and practise sites against bots.">
     <div class="cols wrap" style="--n:2">
       <div class="stack">
+        <${Health} />
         <${Launch} play=${play} />
         <${Lineups} up=${up} running=${play.status?.map ?? ""} />
 
@@ -234,6 +237,13 @@ export function TrainerPage() {
               <${Button} size="sm" disabled=${!up} onClick=${() => send("lst_spot load")}>Teleport<//>
             </div>
           <//>
+          <${Row} icon=${{ name: "map", color: "orange" }} title="Course" subtitle="Stand on the start, then the finish, and set each: leaving the start starts the clock (!course)">
+            <div class="action-grid" style="padding:0;grid-template-columns:repeat(3,72px)">
+              <${Button} size="sm" disabled=${!up} onClick=${() => send("lst_course start")}>Start<//>
+              <${Button} size="sm" disabled=${!up} onClick=${() => send("lst_course finish")}>Finish<//>
+              <${Button} size="sm" disabled=${!up} onClick=${() => send("lst_course clear")}>Clear<//>
+            </div>
+          <//>
           <${Row} icon=${{ name: "sparkles", color: "purple" }} title="Noclip" subtitle="Fly around to learn the map">
             <${Button} size="sm" disabled=${!up} onClick=${() => send("lst_noclip")}>Toggle<//>
           <//>
@@ -242,6 +252,9 @@ export function TrainerPage() {
         <${Section} title="Aim">
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Counter-Strafe Check" subtitle="Each shot says if you were standing still and how fast you stopped · !cs">
             <${OnOff} up=${up} on="lst_cstrafe 1" off="lst_cstrafe 0" />
+          <//>
+          <${Row} icon=${{ name: "crosshair", color: "yellow" }} title="Spray Score" subtitle="Spray 8+ bullets at a wall: chat says how far they landed from your first bullet · !spray">
+            <${OnOff} up=${up} on="lst_spray 1" off="lst_spray 0" />
           <//>
           <${Row} icon=${{ name: "target", color: "orange" }} title="Show Impacts" subtitle="Where every bullet hit, to learn spray patterns (cheats on)">
             <${OnOff} up=${up} on="sv_cheats 1; sv_showimpacts 1; sv_showimpacts_time 4" off="sv_showimpacts 0" />

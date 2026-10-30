@@ -94,6 +94,25 @@ struct Day {
     jumps: Vec<(f64, f64)>,
     drill_rounds: u32,
     drill_wins: u32,
+    prefire: Vec<f64>,
+    spray: Vec<f64>,
+}
+
+/// All-time totals for one gun or one map.
+#[derive(Default)]
+struct Tally {
+    kills: u32,
+    hs: u32,
+    deaths: u32,
+    shots: u32,
+    hits: u32,
+    rounds: u32,
+    decided: u32,
+    wins: u32,
+    damage: u32,
+    drill_rounds: u32,
+    drill_wins: u32,
+    course: Option<f64>,
 }
 
 /// Players seen (most lines first) and the chosen one's days, oldest first. "" picks the most active
@@ -118,6 +137,8 @@ fn stats(text: &str, player: &str) -> Value {
     };
 
     let mut days: BTreeMap<NaiveDate, Day> = BTreeMap::new();
+    let mut guns: BTreeMap<String, Tally> = BTreeMap::new();
+    let mut maps: BTreeMap<String, Tally> = BTreeMap::new();
     for l in &lines {
         let p = l["p"].as_str().unwrap_or("");
         let Some(t) = l["t"].as_i64() else { continue };
@@ -129,12 +150,48 @@ fn stats(text: &str, player: &str) -> Value {
         };
         let d = days.entry(date).or_default();
         let num = |k: &str| l[k].as_f64().unwrap_or(0.0);
+        let yes = |k: &str| l[k].as_bool().unwrap_or(false) as u32;
+        // Lines from before the map and gun were logged count for neither table.
+        let mut map = l["m"]
+            .as_str()
+            .filter(|m| !m.is_empty())
+            .map(|m| maps.entry(m.to_string()).or_default());
+        let mut gun = l["w"]
+            .as_str()
+            .filter(|w| !w.is_empty())
+            .map(|w| guns.entry(w.to_string()).or_default());
         match l["k"].as_str().unwrap_or("") {
             "kill" => {
                 d.kills += 1;
-                d.hs += l["hs"].as_bool().unwrap_or(false) as u32;
+                d.hs += yes("hs");
+                for t in [map.as_deref_mut(), gun.as_deref_mut()]
+                    .into_iter()
+                    .flatten()
+                {
+                    t.kills += 1;
+                    t.hs += yes("hs");
+                }
             }
-            "death" => d.deaths += 1,
+            "death" => {
+                d.deaths += 1;
+                if let Some(m) = map.as_deref_mut() {
+                    m.deaths += 1;
+                }
+            }
+            "gun" => {
+                if let Some(g) = gun.as_deref_mut() {
+                    g.shots += num("shots") as u32;
+                    g.hits += num("hits") as u32;
+                }
+            }
+            "prefire" => d.prefire.push(num("ms")),
+            "spray" => d.spray.push(num("deg")),
+            "course" => {
+                if let Some(m) = map.as_deref_mut() {
+                    let s = num("ms") / 1000.0;
+                    m.course = Some(m.course.map_or(s, |b| b.min(s)));
+                }
+            }
             "reflex" => d.reflex.push(num("ms")),
             "flick" => d.flick.push(num("ms")),
             "test" => d.test.push(num("ms")),
@@ -147,11 +204,23 @@ fn stats(text: &str, player: &str) -> Value {
                 d.fired += num("shots") as u32;
                 d.hits += num("hits") as u32;
                 d.damage += num("dmg") as u32;
+                if let Some(m) = map.as_deref_mut() {
+                    m.rounds += 1;
+                    m.damage += num("dmg") as u32;
+                    if let Some(won) = l["won"].as_bool() {
+                        m.decided += 1;
+                        m.wins += won as u32;
+                    }
+                }
             }
             "jump" => d.jumps.push((num("dist"), num("sync"))),
             "drill" => {
                 d.drill_rounds += 1;
-                d.drill_wins += l["won"].as_bool().unwrap_or(false) as u32;
+                d.drill_wins += yes("won");
+                if let Some(m) = map.as_deref_mut() {
+                    m.drill_rounds += 1;
+                    m.drill_wins += yes("won");
+                }
             }
             _ => {}
         }
@@ -176,10 +245,25 @@ fn stats(text: &str, player: &str) -> Value {
                 "adr": (d.rounds > 0).then(|| (d.damage as f64 / d.rounds as f64).round()),
                 "jumps": d.jumps.len(), "jumpBest": d.jumps.iter().map(|j| j.0).reduce(f64::max), "sync": avg(&sync),
                 "drillRounds": d.drill_rounds, "drillPct": pct(d.drill_wins, d.drill_rounds),
+                "prefire": avg(&d.prefire), "prefireN": d.prefire.len(),
+                "spray": (!d.spray.is_empty()).then(|| (d.spray.iter().sum::<f64>() / d.spray.len() as f64 * 100.0).round() / 100.0), "sprayN": d.spray.len(),
             })
         })
         .collect();
-    json!({ "player": player, "players": players.iter().map(|p| p.0).collect::<Vec<_>>(), "days": days })
+    let table = |all: BTreeMap<String, Tally>| -> Vec<Value> {
+        all.into_iter()
+            .map(|(name, t)| json!({
+                "name": name, "kills": t.kills, "deaths": t.deaths, "hsPct": pct(t.hs, t.kills),
+                "kd": (t.kills + t.deaths > 0).then(|| (t.kills as f64 * 100.0 / t.deaths.max(1) as f64).round() / 100.0),
+                "shots": t.shots, "accPct": pct(t.hits, t.shots), "rounds": t.rounds, "winPct": pct(t.wins, t.decided),
+                "adr": (t.rounds > 0).then(|| (t.damage as f64 / t.rounds as f64).round()),
+                "drillRounds": t.drill_rounds, "drillPct": pct(t.drill_wins, t.drill_rounds),
+                "course": t.course.map(|c| (c * 100.0).round() / 100.0),
+            }))
+            .collect()
+    };
+    json!({ "player": player, "players": players.iter().map(|p| p.0).collect::<Vec<_>>(), "days": days,
+            "guns": table(guns), "maps": table(maps) })
 }
 
 /// The plugin's file name for a map: anything but letters and digits becomes `_`.
@@ -253,6 +337,26 @@ mod tests {
         assert_eq!(
             (day["accPct"].as_f64(), day["adr"].as_f64()),
             (Some(40.0), Some(60.0))
+        );
+        let guns = format!("{{\"t\":{t},\"k\":\"kill\",\"p\":\"me\",\"hs\":true,\"w\":\"ak47\",\"m\":\"de_dust2\"}}\n\
+             {{\"t\":{t},\"k\":\"gun\",\"p\":\"me\",\"w\":\"ak47\",\"shots\":10,\"hits\":3,\"m\":\"de_dust2\"}}\n\
+             {{\"t\":{t},\"k\":\"round\",\"p\":\"me\",\"shots\":10,\"hits\":3,\"dmg\":90,\"won\":true,\"m\":\"de_dust2\"}}\n\
+             {{\"t\":{t},\"k\":\"course\",\"p\":\"me\",\"ms\":12345,\"m\":\"de_dust2\"}}\n");
+        let g = stats(&guns, "me");
+        assert_eq!(
+            g["guns"],
+            json!([{ "name": "ak47", "kills": 1, "deaths": 0, "hsPct": 100.0, "kd": 1.0, "shots": 10, "accPct": 30.0,
+            "rounds": 0, "winPct": null, "adr": null, "drillRounds": 0, "drillPct": null, "course": null }])
+        );
+        let m = &g["maps"][0];
+        assert_eq!(
+            (
+                m["name"].as_str(),
+                m["winPct"].as_f64(),
+                m["adr"].as_f64(),
+                m["course"].as_f64()
+            ),
+            (Some("de_dust2"), Some(100.0), Some(90.0), Some(12.35))
         );
         let friend = &stats(&text, "friend")["days"][0];
         assert_eq!(
