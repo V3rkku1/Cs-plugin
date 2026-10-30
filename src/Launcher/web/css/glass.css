@@ -1055,6 +1055,8 @@ kbd { font-family: var(--font); }
 .cs-item .fav { position: absolute; top: 6px; left: 8px; opacity: 0; cursor: pointer; color: var(--text-dim, #999); }
 .cs-item:hover .fav, .cs-item .fav.on { opacity: 1; }
 .cs-item .fav.on { color: #e4ae39; }
+.content-card .fav { color: var(--text-dim, #999); opacity: 0.6; }
+.content-card .fav.on { color: #e4ae39; opacity: 1; }
 .join-steps { display: flex; gap: 6px; margin: 10px 0; }
 .join-step { flex: 1; padding: 6px 8px; border-radius: 8px; font-size: 0.8em; text-align: center; background: rgba(255, 255, 255, 0.06); opacity: 0.6; }
 .join-step.done { opacity: 1; background: color-mix(in srgb, var(--green) 35%, transparent); }

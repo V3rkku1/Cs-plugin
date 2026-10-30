@@ -29,6 +29,41 @@ const pages = [
   { id: "setup", label: "Setup", icon: "setup", component: SetupPage },
 ];
 
+// The first-start tour: what to press first, one step at a time (again from Setup › Show the Tour).
+const TOUR = [
+  ["Welcome!", "Try CS2 skins, knives and gloves on your own private server, play with bots and friends, and train. Here's the quick way in.", null],
+  ["1 · Setup", "Press Install Everything once. It adds what the server needs to your CS2 folder (your normal CS2 isn't changed).", "setup"],
+  ["2 · Play", "Pick a quick start. The server starts in its own window and CS2 joins by itself. Stop puts CS2 back to normal.", "play"],
+  ["3 · Cases & Inventory", "Open cases for free, then Equip what you unboxed in the Inventory. It shows in game right away.", "cases"],
+  ["4 · Trainer & Stats", "Learn lineups, run drills and aim training. Stats shows if you're getting better.", "trainer"],
+];
+
+function Tour({ setPage }) {
+  const [step, setStep] = useState(() => { try { return localStorage.getItem("tour.done") ? -1 : 0; } catch { return 0; } });
+  useEffect(() => {
+    const show = () => setStep(0);
+    window.addEventListener("show-tour", show);
+    return () => window.removeEventListener("show-tour", show);
+  }, []);
+  if (step < 0) return null;
+  const done = () => { setStep(-1); try { localStorage.setItem("tour.done", "1"); } catch { /* no storage */ } };
+  const [title, text, page] = TOUR[step];
+  const last = step === TOUR.length - 1;
+  return html`<div class="glass liquid" role="dialog" aria-label="Tour"
+      style="position:fixed;right:24px;bottom:24px;width:360px;z-index:50;padding:18px;border-radius:16px;box-shadow:var(--shadow)">
+    <div class="small faint">${step + 1} / ${TOUR.length}</div>
+    <h3 style="margin:4px 0 6px">${title}</h3>
+    <div style="margin-bottom:14px">${text}</div>
+    <div class="hstack" style="gap:8px">
+      <button class="btn plain sm" onClick=${done}>Skip</button>
+      <div class="grow"></div>
+      ${step > 0 && html`<button class="btn sm" onClick=${() => setStep(step - 1)}>Back</button>`}
+      ${page && html`<button class="btn sm" onClick=${() => setPage(page)}>Show me</button>`}
+      <button class="btn prominent sm" onClick=${() => { if (last) done(); else { setStep(step + 1); if (TOUR[step + 1][2]) setPage(TOUR[step + 1][2]); } }}>${last ? "Done" : "Next"}</button>
+    </div>
+  </div>`;
+}
+
 const statusColors = { good: "var(--green)", warning: "var(--orange)", bad: "var(--red)" };
 
 function Sidebar({ page, setPage, state }) {
@@ -131,6 +166,7 @@ function App() {
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
     <${UpdatePopup} state=${state} />
+    <${Tour} setPage=${setPage} />
     <${Toasts} />
   </div>`;
 }

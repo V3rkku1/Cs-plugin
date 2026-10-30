@@ -41,17 +41,20 @@ struct ShellView {
     update_commit: Option<String>,
     update_notes: Vec<String>,
     auto_update: bool,
+    notifications: bool,
     checking_update: bool,
     last_update_check: Option<String>,
 }
 
-const PAGE_TITLES: [(&str, &str); 9] = [
+const PAGE_TITLES: [(&str, &str); 11] = [
     ("play", "Play"),
     ("live", "Live Server"),
     ("skins", "All Skins"),
     ("inventory", "Inventory"),
     ("cases", "Cases"),
     ("hacker", "Hacker Mode"),
+    ("trainer", "Trainer"),
+    ("stats", "Stats"),
     ("workshop", "Workshop"),
     ("friends", "Friends"),
     ("setup", "Setup"),
@@ -107,6 +110,16 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             open_external(path).map(|_| Value::Null)
         }
         "app.checkUpdate" => ok(check_update_now(app)?),
+        "app.notifications" => {
+            let on: bool = arg(a)?;
+            let mut st = app.state();
+            st.settings.notifications = on;
+            app.save(&st);
+            drop(st);
+            crate::notify::ENABLED.store(on, std::sync::atomic::Ordering::Relaxed);
+            app.changed();
+            ok(())
+        }
         "app.autoUpdate" => {
             let on: bool = arg(a)?;
             let mut st = app.state();
@@ -168,6 +181,7 @@ fn state(app: &App) -> ShellView {
             .map(|u| u.notes.clone())
             .unwrap_or_default(),
         auto_update: st.settings.auto_update,
+        notifications: st.settings.notifications,
         checking_update: st.shell.checking_update,
         last_update_check: st.shell.last_update_check.clone(),
     }
@@ -274,6 +288,10 @@ fn check_for_update(app: &Arc<App>, startup: bool) -> Option<String> {
     if is_new {
         app.log(format!("Newer launcher build {short} on GitHub - click \"Update available\" in the sidebar to install it."));
         app.toast("Launcher update available.", "info");
+        app.notify(
+            "Launcher update",
+            "A new LAN Skin Tester build is out: open the launcher to update.",
+        );
     }
     app.changed();
     None

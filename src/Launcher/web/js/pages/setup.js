@@ -35,6 +35,12 @@ function LauncherSection() {
     <${Row} icon=${{ name: "refresh", color: "green" }} title="Update Automatically" subtitle="Install new versions when the launcher opens">
       <${Toggle} value=${app.autoUpdate} onChange=${v => tryCall("app.autoUpdate", v)} />
     <//>
+    <${Row} icon=${{ name: "info", color: "orange" }} title="Windows Notifications" subtitle="When the launcher is in the background: the server is up, a friend joined, an update is out">
+      <${Toggle} value=${app.notifications} onChange=${v => tryCall("app.notifications", v)} />
+    <//>
+    <${Row} icon=${{ name: "sparkles", color: "purple" }} title="Show the Tour" subtitle="The short first-start guide again">
+      <${Button} size="sm" onClick=${() => window.dispatchEvent(new Event("show-tour"))}>Show<//>
+    <//>
     <${Row} icon=${{ name: "trash", color: "red" }} title="Reset Launcher" subtitle="Delete all launcher data and start fresh">
       <${Button} size="sm" kind="destructive" disabled=${app.testMode} onClick=${resetAll}>Reset<//>
     <//>

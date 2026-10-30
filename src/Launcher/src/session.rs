@@ -37,6 +37,38 @@ fn system(pids: ProcessesToUpdate) -> System {
     sys
 }
 
+/// CPU (% of the whole PC) and memory (MB) of the server and the CS2 game, and the PC's free memory. CPU needs
+/// two looks a moment apart, so the first call after a while reads 0.
+pub fn performance() -> serde_json::Value {
+    static SYS: std::sync::Mutex<Option<System>> = std::sync::Mutex::new(None);
+    let mut guard = SYS.lock().unwrap_or_else(|e| e.into_inner());
+    let sys = guard.get_or_insert_with(System::new);
+    sys.refresh_processes_specifics(
+        ProcessesToUpdate::All,
+        true,
+        ProcessRefreshKind::nothing().with_cpu().with_memory(),
+    );
+    sys.refresh_memory();
+    let cores = std::thread::available_parallelism().map_or(1, |n| n.get()) as f32;
+    let server = find_server().map(|p| p.pid);
+    let (mut srv, mut game) = ((0f32, 0u64), (0f32, 0u64));
+    for (pid, p) in sys.processes().iter().filter(|(_, p)| is_cs2(p.name())) {
+        let slot = if Some(pid.as_u32()) == server {
+            &mut srv
+        } else {
+            &mut game
+        };
+        slot.0 += p.cpu_usage() / cores;
+        slot.1 += p.memory() / 1_000_000;
+    }
+    let total = sys.total_memory().max(1);
+    serde_json::json!({
+        "server": { "cpu": srv.0.round(), "memMb": srv.1 }, "game": { "cpu": game.0.round(), "memMb": game.1 },
+        "ramUsedPct": (100 * (total - sys.available_memory()) / total), "ramFreeGb": (sys.available_memory() as f64 / 1e9 * 10.0).round() / 10.0,
+        "totalGb": (total as f64 / 1e9).round(),
+    })
+}
+
 fn cs2_ids() -> Vec<u32> {
     let mut cache = CS2.lock().unwrap();
     if let Some((at, ids)) = cache.as_ref() {

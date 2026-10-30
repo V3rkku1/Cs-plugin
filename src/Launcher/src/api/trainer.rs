@@ -166,22 +166,19 @@ fn stats(text: &str, player: &str) -> Value {
             "kill" => {
                 d.kills += 1;
                 d.hs += yes("hs");
-                for t in [map.as_deref_mut(), gun.as_deref_mut()]
-                    .into_iter()
-                    .flatten()
-                {
+                for t in [map.as_mut(), gun.as_mut()].into_iter().flatten() {
                     t.kills += 1;
                     t.hs += yes("hs");
                 }
             }
             "death" => {
                 d.deaths += 1;
-                if let Some(m) = map.as_deref_mut() {
+                if let Some(m) = map.as_mut() {
                     m.deaths += 1;
                 }
             }
             "gun" => {
-                if let Some(g) = gun.as_deref_mut() {
+                if let Some(g) = gun.as_mut() {
                     g.shots += num("shots") as u32;
                     g.hits += num("hits") as u32;
                 }
@@ -193,7 +190,7 @@ fn stats(text: &str, player: &str) -> Value {
             "prefire" => d.prefire.push(num("ms")),
             "spray" => d.spray.push(num("deg")),
             "course" => {
-                if let Some(m) = map.as_deref_mut() {
+                if let Some(m) = map.as_mut() {
                     let s = num("ms") / 1000.0;
                     m.course = Some(m.course.map_or(s, |b| b.min(s)));
                 }
@@ -210,7 +207,7 @@ fn stats(text: &str, player: &str) -> Value {
                 d.fired += num("shots") as u32;
                 d.hits += num("hits") as u32;
                 d.damage += num("dmg") as u32;
-                if let Some(m) = map.as_deref_mut() {
+                if let Some(m) = map.as_mut() {
                     m.rounds += 1;
                     m.damage += num("dmg") as u32;
                     if let Some(won) = l["won"].as_bool() {
@@ -223,7 +220,7 @@ fn stats(text: &str, player: &str) -> Value {
             "drill" => {
                 d.drill_rounds += 1;
                 d.drill_wins += yes("won");
-                if let Some(m) = map.as_deref_mut() {
+                if let Some(m) = map.as_mut() {
                     m.drill_rounds += 1;
                     m.drill_wins += yes("won");
                 }
