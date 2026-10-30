@@ -186,6 +186,37 @@ function Achievements({ days }) {
   <//>`;
 }
 
+/** The last spray, as it landed: each bullet from the first one. Perfect control keeps every bullet in the middle;
+ * the rings are the spray score's "great" (1.5°) and "good" (3°). */
+// Skipped: each gun's raw recoil pattern drawn behind it (no exact data for CS2, and it changes with updates).
+function SprayPicture({ s }) {
+  const pts = [];
+  for (let i = 0; i + 1 < s.pts.length; i += 2) pts.push([s.pts[i], s.pts[i + 1]]);
+  const S = 220, half = S / 2;
+  const reach = Math.max(4, ...pts.flat().map(Math.abs)) * 1.1;
+  const at = ([x, y]) => [half + x / reach * half, half - y / reach * half];
+  const line = pts.map((p, i) => `${i ? "L" : "M"}${at(p).map(n => n.toFixed(1)).join(",")}`).join("");
+  return html`<${Section} title="Last Spray" note=${`${s.w || "gun"} · ${pts.length} bullets · ${s.deg.toFixed(2)}° average · ${new Date(s.t * 1000).toLocaleString()}`}>
+    <div class="hstack" style="padding:12px 14px;gap:18px;align-items:center;flex-wrap:wrap">
+      <svg viewBox=${`0 0 ${S} ${S}`} style="width:220px;max-width:100%;height:auto;display:block" role="img"
+          aria-label=${`Last spray: ${pts.length} bullets, ${s.deg.toFixed(2)} degrees from the first bullet on average`}>
+        <g fill="none" stroke="currentColor" opacity=".3">
+          <circle cx=${half} cy=${half} r=${1.5 / reach * half} /><circle cx=${half} cy=${half} r=${3 / reach * half} stroke-dasharray="3 3" />
+          <line x1=${half} x2=${half} y1="0" y2=${S} opacity=".5" /><line y1=${half} y2=${half} x1="0" x2=${S} opacity=".5" />
+        </g>
+        <path d=${line} fill="none" stroke="var(--teal)" stroke-width="1.5" opacity=".6" />
+        ${pts.map((p, i) => { const [x, y] = at(p); return html`<circle cx=${x} cy=${y} r=${i ? 3.5 : 5} fill=${i ? "var(--teal)" : "var(--orange)"}>
+          <title>Bullet ${i + 1}: ${p[0].toFixed(2)}° ${p[0] < 0 ? "left" : "right"}, ${p[1].toFixed(2)}° ${p[1] < 0 ? "down" : "up"}</title></circle>`; })}
+      </svg>
+      <div class="small" style="max-width:320px;line-height:1.5">
+        <div><span style="color:var(--orange)">●</span> first bullet, <span style="color:var(--teal)">●</span> the rest, in order.</div>
+        <div>Perfect control keeps every bullet on the first. Inner ring: great (1.5°), dashed ring: good (3°).</div>
+        <div class="faint">Bullets high: pull down more. Off to one side: follow the spray's sideways kick. Trainer › Spray Score records it.</div>
+      </div>
+    </div>
+  <//>`;
+}
+
 const RANGES = [[14, "2 Weeks"], [30, "Month"], [90, "3 Months"], [100000, "All"]];
 
 export function StatsPage() {
@@ -214,6 +245,7 @@ export function StatsPage() {
       <div class="cols" style="--n:5;margin-bottom:22px">${METRICS.map(m => html`<${Tile} m=${m} days=${stats.days} />`)}</div>
       <div style="margin-bottom:22px"><${Bests} days=${stats.days} /></div>
       <div style="margin-bottom:22px"><${Achievements} days=${stats.days} /></div>
+      ${stats.lastSpray && html`<div style="margin-bottom:22px"><${SprayPicture} s=${stats.lastSpray} /></div>`}
       <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
         <${Segmented} options=${["Charts", "Per Day", "Guns", "Maps"]} value=${view} onChange=${setView} />
         ${view < 2 && html`<${Segmented} options=${RANGES.map(r => r[1])} value=${range} onChange=${setRange} />`}

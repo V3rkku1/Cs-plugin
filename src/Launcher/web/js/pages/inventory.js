@@ -1,6 +1,7 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
 import { html, useState, useEffect, useRef, useMemo } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, navigate, img } from "../api.js";
+import { fadePercent } from "../fade.js";
 import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, prompt, sheet } from "../ui.js";
 
 export const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
@@ -42,11 +43,65 @@ async function giftItem(i, close) {
   await prompt({ title: "Gift Code", message: `For ${r.name}. It's on your clipboard too. One code, one item: keep it safe until your friend redeems it.`, value: r.code, ok: "Done" });
 }
 
+/** Storage units: named boxes of up to 1000 items. Stored items are out of the inventory until taken out. */
+function StorageSheet({ close }) {
+  const [units] = useApi("inventory.units");
+  const [open, setOpen] = useState(null);
+  const [inside] = useApi("inventory.unitItems", open ?? "");
+  const unit = units?.find(u => u.uid === open);
+  const create = async () => {
+    const name = await prompt({ title: "New Storage Unit", message: "Holds up to 1000 items. Stored items can't be equipped until you take them out.", placeholder: "e.g. Old skins", ok: "Create" });
+    if (name?.trim()) tryCall("inventory.unitNew", name.trim());
+  };
+  const rename = async u => {
+    const name = await prompt({ title: "Rename Storage Unit", value: u.name, ok: "Rename" });
+    if (name?.trim()) tryCall("inventory.unitRename", { uid: u.uid, name: name.trim() });
+  };
+  const remove = async u => {
+    if (await confirm({ title: `Delete "${u.name}"?`, message: u.count ? `Its ${u.count} items go back to your inventory.` : "It's empty.", ok: "Delete", danger: true })) {
+      await tryCall("inventory.unitDelete", u.uid);
+      setOpen(null);
+    }
+  };
+  if (!units) return html`<div class="picker"><div class="empty small">Loading…</div></div>`;
+  return html`<div class="picker">
+    <div class="picker-head"><h2>${unit ? unit.name : "Storage Units"}</h2>
+      <span class="faint small">${unit ? `${unit.count} / ${unit.size} items` : "Click an item's Store button in the inspect panel to put it in a unit."}</span></div>
+    ${unit ? html`
+      ${!inside?.length ? html`<div class="empty small">Empty.</div>`
+        : html`<div class="cs-grid">${inside.map(v => html`<div key=${v.item.uid} class="cs-item" style=${`--c:${v.item.color}`}>
+            <div class="pic"><${ItemPic} src=${v.item.image} size=${256} /></div>
+            <div class="text"><div class="weapon">${v.weapon}</div><div class="fin">${v.finish}</div></div>
+            <${Button} size="sm" onClick=${() => tryCall("inventory.store", { uids: [v.item.uid], unit: null })}>Take Out<//>
+          </div>`)}</div>`}
+      <div class="picker-foot"><${Button} onClick=${() => setOpen(null)}>Back<//><div class="grow"></div>
+        ${inside?.length > 0 && html`<${Button} onClick=${() => tryCall("inventory.store", { uids: inside.map(v => v.item.uid), unit: null })}>Take All Out<//>`}
+        <${Button} icon="tag" onClick=${() => rename(unit)}>Rename<//>
+        <${Button} kind="destructive" icon="trash" onClick=${() => remove(unit)}>Delete<//></div>`
+    : html`
+      ${!units.length ? html`<div class="empty small">No storage units yet.</div>`
+        : units.map(u => html`<div key=${u.uid} class="inspect-row" style="cursor:pointer" onClick=${() => setOpen(u.uid)}>
+            <span><${Icon} name="folder" size=${14} /> ${u.name}</span><b>${u.count} / ${u.size}</b></div>`)}
+      <div class="picker-foot"><div class="grow"></div>
+        <${Button} kind="prominent" icon="plus" onClick=${create}>New Storage Unit<//>
+        <${Button} onClick=${() => close(undefined)}>Done<//></div>`}
+  </div>`;
+}
+
+/** Puts the item in a storage unit (it comes off if equipped). */
+function StoreButton({ uid, close }) {
+  const [units] = useApi("inventory.units");
+  if (!units?.length) return null;
+  return html`<${Select} placeholder="Store in a unit…" value=${null} options=${units.map(u => ({ value: u.uid, label: `${u.name} (${u.count})` }))}
+    onChange=${async unit => { if (await tryCall("inventory.store", { uids: [uid], unit }) != null) close(); }} />`;
+}
+
 function Inspect({ v, cur, close }) {
   const i = v.item;
   const st = i.statTrak && i.kind === "skin";
   const [preview, setPreview] = useState(null);
   const wear = preview ?? i.wear;
+  const fade = i.kind === "skin" ? fadePercent(v.weapon, v.finish, i.seed) : null;
   return html`<aside class="inv-inspect glass" style=${`--c:${i.color}`}>
     <div class="hstack"><div class="grow"></div><${Button} kind="plain" icon="x" onClick=${close} title="Close" /></div>
     <div class="inspect-pic" style="position:relative"><div style=${preview == null ? "" : wearLook(wear)}><${ItemPic} src=${i.image} size=${512} /></div>
@@ -62,6 +117,7 @@ function Inspect({ v, cur, close }) {
       <div onPointerUp=${() => setTimeout(() => setPreview(null), 2500)}>
         <${Slider} min=${0} max=${1} step=${0.01} value=${wear} onChange=${setPreview} format=${w => w.toFixed(2)} /></div>
       <div class="inspect-row"><span>Pattern</span><b class="mono">${i.seed}</b></div>`}
+    ${fade != null && html`<div class="inspect-row"><span>Fade</span><b class="mono">${fade.toFixed(1)}%</b></div>`}
     ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">${i.statTrakCount ?? 0}</b></div>`}
     ${i.kind === "skin" && v.category === "weapons" && html`
       <div class="inspect-row"><span>Stickers</span><b>${(i.stickers ?? []).length}/5</b></div>
@@ -77,6 +133,7 @@ function Inspect({ v, cur, close }) {
       ${i.kind === "skin" && i.def > 0 && html`<${Button} block icon="eye" onClick=${() => tryCall("cases.tryInGame", i.uid)}
         title="Equips it, kicks the bots and puts it in your hands on the running server">Try in Game<//>`}
       ${!v.equipped && html`<${Button} block icon="friends" onClick=${() => giftItem(i, close)} title="Give it to a friend with a code">Gift to a Friend<//>`}
+      <${StoreButton} uid=${i.uid} close=${close} />
       <${Button} kind="destructive" block icon="trash" onClick=${async () => {
         if (await confirm({ title: "Delete item?", message: `Remove ${i.name} from your inventory?`, ok: "Delete", danger: true })) { await tryCall("cases.remove", i.uid); close(); }
       }}>Delete<//>
@@ -691,6 +748,8 @@ export function InventoryPage() {
       actions=${html`
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
+        <${Button} icon="folder" onClick=${() => sheet(close => html`<${StorageSheet} close=${close} />`, { wide: true })}
+          title="Boxes for items you don't use right now">Storage Units${state.units ? ` (${state.units})` : ""}<//>
         ${state.undo > 0 && html`<${Button} icon="refresh" onClick=${() => tryCall("cases.undoRemove")} title="Bring back what Remove Duplicates removed last">Undo Remove (${state.undo})<//>`}
         <${Button} icon="friends" onClick=${async () => {
           const code = await prompt({ title: "Redeem Gift", message: "Paste the gift code your friend sent you (it starts with LSTG1-).", placeholder: "LSTG1-…", ok: "Redeem" });

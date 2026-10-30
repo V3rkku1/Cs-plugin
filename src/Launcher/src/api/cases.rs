@@ -3,6 +3,7 @@
 //! was unboxed here can be equipped; the code unlocks every skin. Nothing here touches a Steam inventory.
 
 mod extras;
+mod units;
 
 use super::{arg, bad, ok, unknown, App, State, R};
 use crate::itemdb::{CaseInfo, CaseItem};
@@ -59,6 +60,13 @@ pub struct InventoryItem {
     pub item_id: Option<String>,
     pub team: Option<String>,
     pub stickers: Option<Vec<AppliedSticker>>,
+    /// The storage unit (its uid) the item is in. Stored items can't be used until taken out.
+    pub unit: Option<String>,
+}
+
+/// Not a storage unit and not inside one: an item you can equip, trade up, gift...
+pub fn loose(i: &InventoryItem) -> bool {
+    i.unit.is_none() && i.kind != "unit"
 }
 
 /// A sticker stuck on a gun: which one, where (slot, offset, rotation, scale) and how scraped.
@@ -151,10 +159,14 @@ fn now() -> String {
 }
 
 fn find<'a>(items: &'a [InventoryItem], uid: &str) -> R<&'a InventoryItem> {
-    items
+    let item = items
         .iter()
         .find(|i| i.uid == uid)
-        .ok_or_else(|| bad("That item isn't in your inventory any more."))
+        .ok_or_else(|| bad("That item isn't in your inventory any more."))?;
+    if !loose(item) {
+        return Err(bad("That item is in a storage unit: take it out first."));
+    }
+    Ok(item)
 }
 
 /// An inventory item as the pages show it: its price, whether it's equipped, its name split like CS2 shows it.
@@ -273,7 +285,7 @@ pub fn read_loadout(app: &App, inv: &mut Inv, st: &State) -> R<PlayerLoadout> {
 fn owned_ids(items: &[InventoryItem], kind: &str) -> HashSet<i32> {
     items
         .iter()
-        .filter(|i| i.kind == kind)
+        .filter(|i| i.kind == kind && loose(i))
         .map(|i| {
             if i.collectible_id > 0 {
                 i.collectible_id
@@ -297,7 +309,7 @@ fn id_number(item_id: Option<&str>) -> i32 {
 fn prune_unowned(l: &mut PlayerLoadout, items: &[InventoryItem]) -> bool {
     let skins: HashSet<(u16, i32)> = items
         .iter()
-        .filter(|i| i.kind == "skin" && i.def != 0)
+        .filter(|i| i.kind == "skin" && i.def != 0 && loose(i))
         .map(|i| (i.def, i.paint))
         .collect();
     // Applying a sticker uses it up, so the ones stuck on unboxed guns count as owned too.
@@ -305,6 +317,7 @@ fn prune_unowned(l: &mut PlayerLoadout, items: &[InventoryItem]) -> bool {
     stickers.extend(
         items
             .iter()
+            .filter(|i| loose(i))
             .flat_map(|i| i.stickers.iter().flatten().map(|s| s.id)),
     );
     let (charms, pins, kits) = (
@@ -443,6 +456,9 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
     if let Some(result) = extras::call(app, inv, name, a) {
         return result;
     }
+    if let Some(result) = units::call(app, inv, name, a) {
+        return result;
+    }
     match name {
         "cases.state" => {
             let st = app.state();
@@ -518,15 +534,17 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             if extras::sync_stat_trak(inv.items(app)?, &loadout) {
                 inv.save(app);
             }
-            let items: Vec<InventoryView> = inv
-                .items(app)?
+            let all = inv.items(app)?;
+            let units = all.iter().filter(|i| i.kind == "unit").count();
+            let items: Vec<InventoryView> = all
                 .iter()
+                .filter(|i| loose(i))
                 .map(|i| view(app, &st, i, &loadout))
                 .collect();
             let total: f64 = items.iter().filter_map(|v| v.price).sum();
             let undo = last_removed().len();
             ok(
-                json!({ "items": items, "total": (total * 100.0).round() / 100.0 + 0.0, "currency": st.settings.currency, "admin": st.settings.admin_unlocked, "undo": undo,
+                json!({ "items": items, "total": (total * 100.0).round() / 100.0 + 0.0, "currency": st.settings.currency, "admin": st.settings.admin_unlocked, "undo": undo, "units": units,
                     "presets": st.settings.loadout_presets.keys().collect::<Vec<_>>() }),
             )
         }
@@ -581,7 +599,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             let item = inv
                 .items(app)?
                 .iter()
-                .find(|i| i.uid == a.uid && i.kind == "skin" && i.def != 0)
+                .find(|i| i.uid == a.uid && i.kind == "skin" && i.def != 0 && loose(i))
                 .cloned()
                 .ok_or_else(|| bad("That skin isn't in your inventory any more."))?;
             if !(a.team == 2 || a.team == 3) || ONE_SIDE_GUNS.contains(&item.def) {
@@ -870,6 +888,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                     c.key
                 }),
                 team: c.team,
+                unit: None,
                 stickers: None,
             };
             inv.items(app)?.insert(0, item.clone());
@@ -879,7 +898,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             ok(view(app, &st, &item, &loadout))
         }
         "inventory.stickers" => {
-            let list: Vec<Value> = inv.items(app)?.iter().filter(|i| i.kind == "sticker" && sticker_id(i) > 0)
+            let list: Vec<Value> = inv.items(app)?.iter().filter(|i| i.kind == "sticker" && sticker_id(i) > 0 && loose(i))
                 .map(|i| json!({ "uid": i.uid, "id": sticker_id(i), "name": i.name, "image": i.image, "color": i.color }))
                 .collect();
             ok(list)
@@ -891,7 +910,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             let gun = gun_for(items, &a.gun)?;
             let sticker = items
                 .iter()
-                .find(|i| i.uid == a.sticker && i.kind == "sticker")
+                .find(|i| i.uid == a.sticker && i.kind == "sticker" && loose(i))
                 .cloned()
                 .ok_or_else(|| bad("That sticker isn't in your inventory any more."))?;
             let mut list = gun.stickers.clone().unwrap_or_default();
@@ -1196,6 +1215,7 @@ fn make_item(st: &State, case: &CaseInfo, drop: &CaseItem, rng: &mut impl Rng) -
         item_id: Some(drop.id.clone()),
         team: None,
         stickers: None,
+        unit: None,
     }
 }
 
@@ -1261,7 +1281,15 @@ fn put_on(l: &mut PlayerLoadout, item: &InventoryItem) -> R<()> {
 fn unequip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
     let item = find(inv.items(app)?, uid)?.clone();
     let mut store = require_plugin(st)?;
-    let l = store.local();
+    take_off(store.local(), &item);
+    store.save()?;
+    app.toast("Unequipped.", "info");
+    app.changed();
+    Ok(())
+}
+
+/// Takes one item out of a loadout (not saved).
+fn take_off(l: &mut PlayerLoadout, item: &InventoryItem) {
     match item.kind.as_str() {
         "skin" => {
             for skins in [&mut l.skins, &mut l.skins_t, &mut l.skins_ct] {
@@ -1292,10 +1320,6 @@ fn unequip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
         }
         _ => {}
     }
-    store.save()?;
-    app.toast("Unequipped.", "info");
-    app.changed();
-    Ok(())
 }
 
 fn last_removed() -> Vec<InventoryItem> {
@@ -1601,10 +1625,7 @@ fn sticker_id(i: &InventoryItem) -> i32 {
 }
 
 fn gun_for(items: &[InventoryItem], uid: &str) -> R<InventoryItem> {
-    let gun = items
-        .iter()
-        .find(|i| i.uid == uid)
-        .ok_or_else(|| bad("That gun isn't in your inventory any more."))?;
+    let gun = find(items, uid)?;
     if gun.kind != "skin" || gun.def == 0 || is_glove_type(gun.def) || is_knife_type(gun.def) {
         return Err(bad("Stickers only go on guns."));
     }
@@ -1692,10 +1713,17 @@ pub fn backup(app: &Arc<App>, name: &str) -> R<Value> {
             let have = inv.items(app)?;
             let mut uids: HashSet<String> = have.iter().map(|i| i.uid.clone()).collect();
             let total = items.len();
-            let add: Vec<InventoryItem> = items
+            let mut add: Vec<InventoryItem> = items
                 .into_iter()
                 .filter(|i| uids.insert(i.uid.clone()))
                 .collect();
+            // An item whose storage unit isn't coming along would be hidden for good: it comes out loose.
+            let unit_ids: HashSet<String> = have.iter().chain(&add).filter(|i| i.kind == "unit").map(|i| i.uid.clone()).collect();
+            for i in &mut add {
+                if i.unit.as_ref().is_some_and(|u| !unit_ids.contains(u)) {
+                    i.unit = None;
+                }
+            }
             inv.ensure_room(app, add.len())?;
             let n = add.len();
             inv.items(app)?.splice(0..0, add);

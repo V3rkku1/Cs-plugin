@@ -139,7 +139,7 @@ fn random_loadout(app: &App, inv: &mut Inv) -> R<Value> {
     for i in inv
         .items(app)?
         .iter()
-        .filter(|i| i.kind == "skin" && i.def != 0)
+        .filter(|i| i.kind == "skin" && i.def != 0 && super::loose(i))
     {
         by_def.entry(i.def).or_default().push(i.clone());
     }
