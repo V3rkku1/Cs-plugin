@@ -38,6 +38,8 @@ pub struct LauncherSettings {
     pub admin_unlocked: bool,
     /// The code hash it was unlocked with: a new admin code locks PCs unlocked with an old one.
     pub admin_hash: String,
+    /// The CS2 build Metamod, CounterStrikeSharp and the server plugins were last updated for.
+    pub addons_cs2_build: String,
     pub cases_opened: i32,
     /// Openings per container id, for "what it would have cost" on the Cases page.
     pub case_opens: BTreeMap<String, i32>,
@@ -65,6 +67,7 @@ impl Default for LauncherSettings {
             host_name: user_name(),
             admin_unlocked: false,
             admin_hash: String::new(),
+            addons_cs2_build: String::new(),
             cases_opened: 0,
             case_opens: BTreeMap::new(),
             currency: "USD".into(),

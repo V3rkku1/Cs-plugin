@@ -18,7 +18,7 @@
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
     <!-- The plugin leaves CounterStrikeSharp out of its output; the tests load the plugin's types, so they need it. -->
-    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.376" />
+    <PackageReference Include="CounterStrikeSharp.API" Version="1.0.378" />
   </ItemGroup>
 
   <ItemGroup>
