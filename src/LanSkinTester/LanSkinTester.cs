@@ -76,7 +76,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         AddTimer(2.0f, WriteStatus, TimerFlags.REPEAT);
         RegisterListener<Listeners.OnMapStart>(_ => AddTimer(2.0f, ExecServerSettings, TimerFlags.STOP_ON_MAPCHANGE));
         VirtualFunctions.GiveNamedItemFunc.Hook(OnGiveNamedItemPost, HookMode.Post);
-        LoadHackerMode();
         LoadPractice();
         LoadTrainer();
         LoadBotSkins();
@@ -87,7 +86,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
     public override void Unload(bool hotReload)
     {
         VirtualFunctions.GiveNamedItemFunc.Unhook(OnGiveNamedItemPost, HookMode.Post);
-        UnloadHackerMode();
     }
 
     // ---------------------------------------------------------------------------------------------
@@ -957,7 +955,6 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
             "!give <weapon>  !3p / !fp  !respawn  !noclip  !god",
             "!save [name]  !load [name]  !spots  !rethrow  !savenade <name>  !lineup <name>  !lineups  !delnade <name>  !damage  !armor  !nades  !clear  !swap",
             "!guns <rifle> [pistol]  !rtv  !vote <n>  !stats  !top  !ready",
-            "!hacks - hacker mode status  !cheats - cheat menu  !aimkey <key>  !aimtoggle",
         ];
         foreach (var line in lines) cmd.ReplyToCommand(line);
     }

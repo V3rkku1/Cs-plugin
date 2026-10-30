@@ -4,7 +4,6 @@
 
 mod cases;
 pub mod friends;
-mod hacker;
 mod logs;
 mod play;
 mod setup;
@@ -78,7 +77,6 @@ pub struct State {
     pub setup: setup::SetupState,
     pub play: play::PlayState,
     pub friends: friends::FriendsState,
-    pub hacker_sent: bool,
     pub collections: tradeup::Collections,
 }
 
@@ -115,9 +113,7 @@ impl State {
 
 impl App {
     pub fn new(handle: AppHandle, start_page: Option<String>) -> Arc<App> {
-        let mut settings = LauncherSettings::load();
-        // Hacker mode is never carried over from last time: it is on only when picked in this session.
-        settings.server.hacker_mode = 0;
+        let settings = LauncherSettings::load();
         let db = Arc::new(ItemDatabase::load_cached(&itemdb::data_dir()));
         Arc::new_cyclic(|me: &std::sync::Weak<App>| {
             let (log_me, changed_me) = (me.clone(), me.clone());
@@ -144,7 +140,6 @@ impl App {
                     setup: Default::default(),
                     play: Default::default(),
                     friends: Default::default(),
-                    hacker_sent: false,
                     collections: Default::default(),
                 }),
                 inv: Mutex::new(Inv::default()),
@@ -358,7 +353,6 @@ fn dispatch(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             _ => play::call(app, name, a),
         },
         "friends" => friends::call(app, name, a),
-        "hacker" => hacker::call(app, name, a),
         "trainer" => trainer::call(app, name, a),
         "workshop" => workshop::call(app, name, a),
         "backup" => cases::backup(app, name),

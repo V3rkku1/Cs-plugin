@@ -15,7 +15,6 @@ mod net;
 mod notify;
 mod odds;
 mod prices;
-mod relay;
 mod server;
 mod session;
 mod settings;
@@ -244,9 +243,8 @@ fn main() {
                 let a = app.clone();
                 let _ = net::ROUTER_CHANGED.set(Box::new(move || a.changed()));
             }
-            let (a1, a2, a3) = (app.clone(), app.clone(), app.clone());
-            relay::start(move || a1.state().test_mode_on(), move |l| a2.log(l));
-            net::start_listening(move |l| a3.log(l));
+            let a = app.clone();
+            net::start_listening(move |l| a.log(l));
             let a = app.clone();
             net::start_beacon(move || api::friends::beacon(&a));
             open_window(&handle, &app)?;

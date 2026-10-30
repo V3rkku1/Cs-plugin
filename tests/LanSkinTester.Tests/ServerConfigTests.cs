@@ -6,18 +6,13 @@ using CounterStrikeSharp.API.Modules.Commands;
 namespace LanSkinTester.Tests;
 
 /// <summary>
-/// What the launcher writes for the server (every quick start, with and without Bot Improver, hacker mode, Flying
+/// What the launcher writes for the server (every quick start, with and without Bot Improver, Flying
 /// Scoutsman, a Workshop map), from launcher-commands.json. The launcher's own tests (cargo test in src/Launcher)
 /// keep that file current.
 /// </summary>
 public sealed class LauncherCommands
 {
     public List<string> Commands { get; set; } = [];
-    public string AllPowers { get; set; } = "";
-    public List<string> AimKeys { get; set; } = [];
-    public List<string> AimStyles { get; set; } = [];
-    public List<string> AimBones { get; set; } = [];
-    public List<string> AimTargets { get; set; } = [];
     /// <summary>Plugin retakes: [max players, bots, the cfg's bot_quota].</summary>
     public List<int[]> RetakeQuotas { get; set; } = [];
 
@@ -114,7 +109,7 @@ public class ServerConfigTests
     [Fact]
     public void LauncherOnlyCommandsAreServerOnly()
     {
-        // Players must not be able to run what the launcher drives (lst_*), except the aimbot key binds.
+        // Players must not be able to run what the launcher drives (lst_*).
         foreach (var (name, command) in Plugin.Where(c => c.Key.StartsWith("lst_")))
             Assert.True(command.ServerOnly, $"{name} can be run by players");
     }

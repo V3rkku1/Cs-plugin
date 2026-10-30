@@ -100,7 +100,6 @@ struct PlayView {
     presets: Vec<Value>,
     modes: Vec<Value>,
     workshop: Value,
-    hacker_detail: &'static str,
     difficulties: [&'static str; 4],
     bot_teams: [&'static str; 3],
     bot_weapons: [&'static str; 5],
@@ -608,7 +607,6 @@ fn view(st: &State) -> PlayView {
             .map(|m| json!({ "name": m.name, "maps": m.maps }))
             .collect(),
         workshop: workshop_info(st, s),
-        hacker_detail: super::hacker::summary(s),
         difficulties: server::DIFFICULTIES,
         bot_teams: server::BOT_TEAMS,
         bot_weapons: server::BOT_WEAPON_CHOICES,
@@ -1674,7 +1672,6 @@ fn setup_code(setup: &SavedSetup) -> String {
     let s = &mut setup.settings;
     s.password.clear();
     s.game_args.clear();
-    s.aim_bind_key.clear();
     s.map_modes.clear();
     s.map_team_sizes.clear();
     let json = serde_json::to_string(&setup).unwrap();
@@ -1713,7 +1710,6 @@ fn setup_from_code(
         (mine.friends, mine.password.clone(), mine.shared_skins);
     s.game_args = mine.game_args.clone();
     s.auto_start_game = mine.auto_start_game;
-    s.aim_bind_key = mine.aim_bind_key.clone();
     s.map_modes = mine.map_modes.clone();
     s.map_team_sizes = mine.map_team_sizes.clone();
     clean_settings(s);

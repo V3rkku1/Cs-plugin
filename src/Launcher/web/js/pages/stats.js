@@ -20,7 +20,7 @@ const METRICS = [
     period: d => weighted(d, "flick", "flickN") },
   { key: "test", title: "Reaction Test", unit: "ms", color: "teal", lower: true, count: "testN", from: "Trainer › Reaction Test",
     period: d => weighted(d, "test", "testN") },
-  { key: "hsPct", title: "Headshots", unit: "%", color: "orange", count: "kills", from: "kills in any mode (not with an aimbot)",
+  { key: "hsPct", title: "Headshots", unit: "%", color: "orange", count: "kills", from: "kills in any mode",
     period: d => sum(d, "kills") ? sum(d, "hs") * 100 / sum(d, "kills") : null },
   { key: "kd", title: "K/D", unit: "", color: "blue", count: "kills", digits: 2, from: "kills and deaths in any mode",
     period: d => sum(d, "kills") + sum(d, "deaths") ? sum(d, "kills") / Math.max(1, sum(d, "deaths")) : null },

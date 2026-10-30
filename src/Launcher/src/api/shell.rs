@@ -46,13 +46,12 @@ struct ShellView {
     last_update_check: Option<String>,
 }
 
-const PAGE_TITLES: [(&str, &str); 11] = [
+const PAGE_TITLES: [(&str, &str); 10] = [
     ("play", "Play"),
     ("live", "Live Server"),
     ("skins", "All Skins"),
     ("inventory", "Inventory"),
     ("cases", "Cases"),
-    ("hacker", "Hacker Mode"),
     ("trainer", "Trainer"),
     ("stats", "Stats"),
     ("workshop", "Workshop"),

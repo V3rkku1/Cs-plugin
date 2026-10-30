@@ -42,8 +42,7 @@ function Launch({ play }) {
   const running = play.testMode;
   const go = async setup => {
     const extra = setup.aim ? { bots: aimBots, headshotOnly: hs, botsDontShoot: !shoot } : {};
-    // Hacker Mode off: aimbot kills don't count in Stats, and practice is about your own aim.
-    if (await tryCall("live.set", { ...setup.set, ...extra, map, workshopMap: null, hackerMode: 0 }) === undefined) return;
+    if (await tryCall("live.set", { ...setup.set, ...extra, map, workshopMap: null }) === undefined) return;
     tryCall(running ? "play.apply" : "play.start");
   };
   return html`<${Section} title="Launch" note=${running ? `running: ${play.settings.mode} on ${play.status?.map ?? play.settings.map}` : "starts the server and CS2"}

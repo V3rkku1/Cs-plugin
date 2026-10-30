@@ -7,7 +7,6 @@ import { UpdatePopup, openUpdate } from "./update.js";
 import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
 import { LivePage } from "./pages/live.js";
-import { HackerPage } from "./pages/hacker.js";
 import { TrainerPage } from "./pages/trainer.js";
 import { StatsPage } from "./pages/stats.js";
 import { FriendsPage } from "./pages/friends.js";
@@ -21,7 +20,6 @@ const pages = [
   { id: "live", label: "Live Server", icon: "server", component: LivePage },
   { id: "inventory", label: "Inventory", icon: "skins", component: InventoryPage },
   { id: "cases", label: "Cases", icon: "key", component: CasesPage },
-  { id: "hacker", label: "Hacker Mode", icon: "hacker", component: HackerPage },
   { id: "trainer", label: "Trainer", icon: "target", component: TrainerPage },
   { id: "stats", label: "Stats", icon: "sliders", component: StatsPage },
   { id: "workshop", label: "Workshop", icon: "map", component: WorkshopPage },
@@ -119,7 +117,7 @@ function App() {
   useEffect(() => { if (page == null && state) setPageState(state.page); }, [state]);
 
   // Every page's data is ready before you click it: no empty page while it loads.
-  useEffect(() => prefetch(["play.state", "cases.inventory", "hacker.state", "friends.state"]), []);
+  useEffect(() => prefetch(["play.state", "cases.inventory", "friends.state"]), []);
 
   const setPage = id => {
     setPageState(id);
@@ -163,8 +161,9 @@ function App() {
     return () => window.removeEventListener("pointermove", move);
   }, []);
 
-  // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page).
-  const Current = pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component;
+  // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page); a removed page
+  // (Hacker Mode) opens Play.
+  const Current = pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component ?? PlayPage;
   return html`<div class="app">
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
