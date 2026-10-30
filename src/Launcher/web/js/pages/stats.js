@@ -16,6 +16,8 @@ const weighted = (days, key, count) => {
 const METRICS = [
   { key: "reflex", title: "Reaction Drill", unit: "ms", color: "green", lower: true, count: "reflexN", from: "Trainer › Reaction Drill",
     period: d => weighted(d, "reflex", "reflexN") },
+  { key: "flick", title: "Flick Drill", unit: "ms", color: "orange", lower: true, count: "flickN", from: "Trainer › Flick Drill",
+    period: d => weighted(d, "flick", "flickN") },
   { key: "test", title: "Reaction Test", unit: "ms", color: "teal", lower: true, count: "testN", from: "Trainer › Reaction Test",
     period: d => weighted(d, "test", "testN") },
   { key: "hsPct", title: "Headshots", unit: "%", color: "orange", count: "kills", from: "kills in any mode (not with an aimbot)",
@@ -95,13 +97,15 @@ function Chart({ m, days }) {
   </svg>`;
 }
 
+const metric = key => METRICS.find(m => m.key === key);
+
 // Best single day for each skill. min: the day needs that many samples to count (no 1-kill 100% HS days).
 const BESTS = [
-  { title: "Fastest Reaction", m: METRICS[0], pick: d => d.reflexBest, count: "reflexN", min: 1, lower: true },
-  { title: "Best Headshot Day", m: METRICS[2], pick: d => d.hsPct, count: "kills", min: 10 },
-  { title: "Best Accuracy Day", m: METRICS[4], pick: d => d.accPct, count: "fired", min: 50 },
-  { title: "Best Damage Day", m: METRICS[5], pick: d => d.adr, count: "rounds", min: 5 },
-  { title: "Longest Jump", m: METRICS[8], pick: d => d.jumpBest, count: "jumps", min: 1 },
+  { title: "Fastest Reaction", m: metric("reflex"), pick: d => d.reflexBest, count: "reflexN", min: 1, lower: true },
+  { title: "Best Headshot Day", m: metric("hsPct"), pick: d => d.hsPct, count: "kills", min: 10 },
+  { title: "Best Accuracy Day", m: metric("accPct"), pick: d => d.accPct, count: "fired", min: 50 },
+  { title: "Best Damage Day", m: metric("adr"), pick: d => d.adr, count: "rounds", min: 5 },
+  { title: "Longest Jump", m: metric("jumpBest"), pick: d => d.jumpBest, count: "jumps", min: 1 },
 ];
 
 function Bests({ days }) {

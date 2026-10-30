@@ -98,7 +98,9 @@ triggerbot, recoil control, zero spread, radar, bunnyhop, no flash, enemy info, 
 boost. In game, `!cheats` opens a menu where each player sets their own. The triggerbot clicks your mouse
 through the launcher (localhost port 27099), only while the test session runs and CS2 is in front.
 
-**Trainer.** *Lineups:* 278 built-in smokes, flashes and molotovs for Mirage, Inferno, Dust II, Ancient,
+**Trainer.** *Launch:* pick a map and a practice setup (Lineups & Utility, Site Drills, Aim Warm-up
+with bot count, headshots only and passive bots, Movement) and the server starts, or switches if it runs.
+*Lineups:* 278 built-in smokes, flashes and molotovs for Mirage, Inferno, Dust II, Ancient,
 Anubis, Nuke, Overpass and Train (positions and angles from cs2util.com), filtered by grenade, side and
 name; **Go** puts you on the spot, aimed, with the grenade, and chat says how to throw it (**?** opens the
 lineup's pictures). Your own lineups from `!savenade` are listed too. *Grenade Practice:* one-click
@@ -107,14 +109,15 @@ a grenade pops, rethrow and clear. *Site drills* against bots on a bomb map (Com
 B, 1–5 bots: *Clear Site* (bots stand on random spots inside the bomb site and hold angles), *Plant & Hold*
 (bots wait at CT spawn and retake once you plant), *Hold Site* (you start on the site as CT, bots push); chat
 keeps your round score. *Reaction Drill:* one bot pops up in front of you and chat shows how many ms you
-took to hit it (3 s and it moves on). *Movement:* jump stats on screen (speed, distance, pre-speed, gain, strafe sync, strafes,
+took to hit it (3 s and it moves on). *Flick Drill:* the same, but the bot can appear anywhere around you,
+behind you too. Both can hand you a gun first (AK-47, M4A1-S, AWP, Deagle, USP-S). *Movement:* jump stats on screen (speed, distance, pre-speed, gain, strafe sync, strafes,
 bhop chain; `!speed`), easy bhop, checkpoint and teleport, noclip. *Aim:* counter-strafe check on every
 shot (`!cs`), bullet impacts, frozen bots, bots that copy your movement. Plus a reaction test in the
 launcher itself. A drill or Practice Mode changes the server until you turn it off; **Apply Changes** on
 Live Server puts your setup back.
 
 **Stats.** Are you improving? Each skill this week against last week (better / worse), a chart per day and
-a table (2 weeks to all time): Reaction Drill and Reaction Test times, headshot %, K/D, accuracy, damage
+a table (2 weeks to all time): Reaction Drill, Flick Drill and Reaction Test times, headshot %, K/D, accuracy, damage
 per round, stopped shots (counter-strafe check), strafe sync, longest jump and drill rounds won, plus your
 personal bests. Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
 Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over
@@ -377,7 +380,7 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_armor` / `lst_nades` / `lst_clear` | Armor and a kit, grenades, or remove smokes and fires |
 | `lst_spot save` / `lst_spot load` | Save or load a practice spot |
 | `lst_rethrow` | Back to the last grenade throw |
-| `lst_drill clear\|retake\|hold\|reflex [a\|b] [bots]` / `lst_drill off` | Start or stop a Trainer drill (`!drill` in chat) |
+| `lst_drill clear\|retake\|hold\|reflex\|flick [a\|b] [bots] [weapon]` / `lst_drill off` | Start or stop a Trainer drill (`!drill` in chat) |
 | `lst_speedo 1` / `lst_speedo 0` | Speedometer and jump stats for every human |
 | `lst_lineup <name>\|next` / `lst_delnade <name>` | Send everyone to a saved lineup, or delete one |
 | `lst_goto x y z pitch yaw smoke\|flash\|molotov\|he [text]` | Send everyone to a spot, aimed, with that grenade |
