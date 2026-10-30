@@ -127,14 +127,16 @@ public class ServerConfigTests
         Assert.Equal(expected, global::LanSkinTester.LanSkinTester.BotRifleFor(allowed.Split(','), t));
 }
 
-public class CustomKnifeTests
+public class CustomModelTests
 {
     [Fact]
-    public void ReadsTheModelFromTheLauncherCfg()
+    public void ReadsTheModelsFromTheLauncherCfg()
     {
-        Assert.Equal("models/weapons/custom/knife.vmdl",
-            global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("sv_lan 0\nlst_custom_knife \"models/weapons/custom/knife.vmdl\"\n"));
-        Assert.Equal("", global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("lst_custom_knife \"\"\n"));
-        Assert.Equal("", global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("lst_custom_knife \"../evil; quit\"\n"));
+        var models = global::LanSkinTester.LanSkinTester.CustomModelsFromCfg(
+            "sv_lan 0\nlst_custom_model clear\nlst_custom_model knife \"models/weapons/custom/knife.vmdl\"\n" +
+            "lst_custom_model weapon_ak47 \"models/ak.vmdl\"\nlst_custom_model agent_ct \"../evil; quit\"\nlst_custom_model sv_cheats \"models/x.vmdl\"\n");
+        Assert.Equal(2, models.Count);
+        Assert.Equal("models/weapons/custom/knife.vmdl", models["knife"]);
+        Assert.Equal("models/ak.vmdl", models["weapon_ak47"]);
     }
 }

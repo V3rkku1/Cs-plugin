@@ -22,8 +22,9 @@ public partial class LanSkinTester
         if (!IsHumanPlayer(player)) return;
         var loadout = GetLoadout(player);
 
-        var model = player.Team == CsTeam.CounterTerrorist ? loadout.AgentCT : player.Team == CsTeam.Terrorist ? loadout.AgentT : null;
-        if (model != null && AgentModel.IsMatch(model))
+        var custom = CustomAgentFor(player);
+        var model = custom ?? (player.Team == CsTeam.CounterTerrorist ? loadout.AgentCT : player.Team == CsTeam.Terrorist ? loadout.AgentT : null);
+        if (model != null && (custom != null || AgentModel.IsMatch(model)))
         {
             Server.NextFrame(() =>
             {

@@ -33,7 +33,7 @@
     "lst_host_account 0",
     "sv_password \"\"",
     "mm_extra_addons \"\"",
-    "lst_custom_knife \"\"",
+    "lst_custom_model clear",
     "sv_cheats 1",
     "sv_infinite_ammo 0",
     "bot_dont_shoot 0",

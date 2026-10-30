@@ -635,7 +635,7 @@ pub fn extra_plugins_mismatch(game: &GameFolder, s: &ServerSettings) -> bool {
         || native("BotVision", s.bot_improver)
         || tree("plugins/BotAI", s.bot_improver)
         || tree("plugins/Deathmatch", s.uses_deathmatch_plugin())
-        || native("multiaddonmanager", s.custom_knife().is_some())
+        || native("multiaddonmanager", !s.custom_models().is_empty())
         || IMPROVER_PLUGINS
             .iter()
             .any(|p| tree(&format!("plugins/{p}"), want_improver_plugin(s, p)))
@@ -664,7 +664,7 @@ pub fn set_extra_plugins(game: &GameFolder, s: &ServerSettings) -> io::Result<()
         set_tree_active(game, &format!("plugins/{p}"), want_improver_plugin(s, p))?;
     }
     set_tree_active(game, "plugins/Deathmatch", s.uses_deathmatch_plugin())?;
-    set_native_active(game, "multiaddonmanager", s.custom_knife().is_some())?;
+    set_native_active(game, "multiaddonmanager", !s.custom_models().is_empty())?;
     set_tree_active(game, "shared/DeathmatchAPI", s.uses_deathmatch_plugin())
 }
 
