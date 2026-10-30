@@ -23,6 +23,10 @@ impl GameFolder {
     pub fn game_info(&self) -> PathBuf {
         self.csgo().join("gameinfo.gi")
     }
+    /// CS2's build ("1.41.9.2", PatchVersion in steam.inf). Each update can break Metamod and the plugins.
+    pub fn cs2_build(&self) -> Option<String> {
+        patch_version(&fs::read_to_string(self.csgo().join("steam.inf")).ok()?)
+    }
     pub fn exe(&self) -> PathBuf {
         self.root
             .join("game")
@@ -710,9 +714,24 @@ fn read_game_modes(game: &GameFolder) -> Option<String> {
         .map(|b| String::from_utf8_lossy(&b).into_owned())
 }
 
+fn patch_version(steam_inf: &str) -> Option<String> {
+    steam_inf
+        .lines()
+        .find_map(|l| l.trim().strip_prefix("PatchVersion="))
+        .map(|v| v.trim().to_string())
+        .filter(|v| !v.is_empty())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn reads_the_cs2_build() {
+        let inf = "ClientVersion=2000123\r\nPatchVersion=1.41.9.2\r\nProductName=cs2\r\n";
+        assert_eq!(patch_version(inf).as_deref(), Some("1.41.9.2"));
+        assert_eq!(patch_version("ProductName=cs2"), None);
+    }
 
     const GAME_INFO: &str = "\"GameInfo\"\n{\n\tFileSystem\n\t{\n\t\tSearchPaths\n\t\t{\n\t\t\tGame_LowViolence\tcsgo_lv\n\t\t\tGame\tcsgo\n\t\t\tGame\tcsgo_imported\n\t\t\tMod\tcsgo\n\t\t}\n\t}\n}\n";
 
