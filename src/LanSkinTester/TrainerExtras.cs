@@ -55,7 +55,11 @@ public partial class LanSkinTester
     private void StartClutch(List<CCSPlayerController> bots)
     {
         var spots = SiteSpots(_drillSiteB, bots.Count + 1);
-        if (spots.Count == 0) return;
+        if (spots.Count == 0 || !FindSite(_drillSiteB, out _, out _, out var site))
+        {
+            TellHumans("Could not find a spot for the bomb on this site: this round plays like Hold Site.");
+            return;
+        }
         foreach (var bot in bots) bot.RemoveItemByDesignerName("weapon_c4");
         for (var i = 0; i < bots.Count && i + 1 < spots.Count; i++) PlaceAt(bots[i], spots[i + 1], null);
         try
@@ -63,15 +67,27 @@ public partial class LanSkinTester
             var c4 = Utilities.CreateEntityByName<CPlantedC4>("planted_c4");
             if (c4 == null) return;
             c4.BombTicking = true;
+            c4.CannotBeDefused = false;
+            c4.BeingDefused = false;
+            c4.HasExploded = false;
             c4.BombSite = _drillSiteB ? 1 : 0;
             c4.TimerLength = 40;
             c4.C4Blow = Server.CurrentTime + 40;
+            c4.SourceSoundscapeHash = 2005810340; // the beeping (what a real plant sets)
             c4.Teleport(spots[0], new QAngle(0, 0, 0), new Vector(0, 0, 0));
             c4.DispatchSpawn();
             var rules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
-            if (rules != null) rules.BombPlanted = true;
-            // Tells the bots (and the HUD) the bomb is down, as the planter.
-            if (bots.FirstOrDefault() is { } planter) new EventBombPlanted(true) { Userid = planter, Site = c4.BombSite }.FireEvent(false);
+            if (rules != null)
+            {
+                rules.BombPlanted = true;
+                rules.BombDefused = false;
+            }
+            // Tells the bots and the HUD the bomb is down. The event's site is the bomb site's entity, not A/B.
+            if (bots.FirstOrDefault() is { } planter) new EventBombPlanted(true) { Userid = planter, Site = (int)site!.Index }.FireEvent(false);
+            AddTimer(0.5f, () =>
+            {
+                if (!c4.IsValid) TellHumans("The bomb didn't stay down (CS2 update?): this round plays like Hold Site.");
+            }, TimerFlags.STOP_ON_MAPCHANGE);
         }
         catch (Exception ex)
         {
@@ -85,6 +101,9 @@ public partial class LanSkinTester
 
     private bool _sprayAll;
     private readonly Dictionary<int, SprayTrack> _spray = new();
+    // Shots fired per player and the last shot an impact was counted for: a bullet through a wall reports
+    // an impact on every surface it passes, only the first one counts.
+    private readonly Dictionary<int, (int Fired, int Counted)> _sprayShots = new();
 
     private sealed class SprayTrack
     {
@@ -99,6 +118,7 @@ public partial class LanSkinTester
     {
         _sprayAll = cmd.GetArg(1) == "1";
         _spray.Clear();
+        _sprayShots.Clear();
     }
 
     [ConsoleCommand("css_spray", "Toggle the spray score")]
@@ -116,7 +136,9 @@ public partial class LanSkinTester
         var player = @event.Userid;
         if (!_sprayAll || player is not { IsValid: true } || !IsHumanPlayer(player)
             || player.PlayerPawn.Value is not { IsValid: true, AbsOrigin: { } at } pawn) return HookResult.Continue;
-        // shortcut: a wallbang reports an impact on each surface, so it counts twice; fine for spraying at a wall.
+        var shots = _sprayShots.GetValueOrDefault(player.Slot);
+        if (shots.Fired == shots.Counted) return HookResult.Continue;
+        _sprayShots[player.Slot] = shots with { Counted = shots.Fired };
         var eye = new Vector(at.X, at.Y, at.Z + EyeHeight(pawn));
         var dir = Normalize(new Vector(@event.X - eye.X, @event.Y - eye.Y, @event.Z - eye.Z));
         var now = Server.CurrentTime;

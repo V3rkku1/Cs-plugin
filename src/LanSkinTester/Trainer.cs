@@ -579,6 +579,11 @@ public partial class LanSkinTester
             return HookResult.Continue;
         }
         if (weapon.Contains("knife") || weapon.Contains("bayonet") || weapon.Contains("taser")) return HookResult.Continue;
+        if (_sprayAll)
+        {
+            var shots = _sprayShots.GetValueOrDefault(player.Slot);
+            _sprayShots[player.Slot] = shots with { Fired = shots.Fired + 1 };
+        }
         if (!PassiveBots && !HackerSlots().Contains(player.Slot))
         {
             var aim = _roundAim.GetValueOrDefault(player.Slot);
@@ -630,11 +635,16 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnTrainingDeath(EventPlayerDeath @event, GameEventInfo info)
     {
-        // Reaction drill hits are logged as reaction times, kills on bots that don't shoot back and aimbot kills don't count.
-        if (PassiveBots) return HookResult.Continue;
         var victim = @event.Userid;
         var attacker = @event.Attacker;
         if (victim is not { IsValid: true }) return HookResult.Continue;
+        // Kills on bots that don't shoot back (reaction, flick, prefire) count apart: "drill headshots", not K/D.
+        if (PassiveBots)
+        {
+            if (attacker is { IsValid: true } && IsHumanPlayer(attacker) && IsBotPlayer(victim) && !HackerSlots().Contains(attacker.Slot))
+                LogTraining(attacker, "dkill", ("hs", @event.Headshot), ("w", WeaponName(@event.Weapon ?? "")));
+            return HookResult.Continue;
+        }
         if (attacker is { IsValid: true } && IsEnemy(attacker, victim) && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
             LogTraining(attacker, "kill", ("hs", @event.Headshot), ("w", WeaponName(@event.Weapon ?? "")));
         if (IsHumanPlayer(victim)) LogTraining(victim, "death");
@@ -691,6 +701,7 @@ public partial class LanSkinTester
         _thrownAt.Remove(player.Slot);
         _course.Remove(player.Slot);
         _spray.Remove(player.Slot);
+        _sprayShots.Remove(player.Slot);
         return HookResult.Continue;
     }
 
