@@ -34,11 +34,15 @@ const METRICS = [
     period: d => weighted(d, "sync", "jumps") },
   { key: "jumpBest", title: "Longest Jump", unit: "u", color: "indigo", count: "jumps", from: "Trainer › Jump Stats",
     period: d => d.some(x => x.jumpBest != null) ? Math.max(...d.map(x => x.jumpBest ?? 0)) : null },
+  { key: "prefire", title: "Prefire Time", unit: "ms", color: "yellow", lower: true, count: "prefireN", from: "Trainer › Prefire",
+    period: d => weighted(d, "prefire", "prefireN") },
+  { key: "spray", title: "Spray Spread", unit: "°", color: "teal", lower: true, digits: 2, count: "sprayN", from: "Trainer › Spray Score",
+    period: d => weighted(d, "spray", "sprayN") },
   { key: "drillPct", title: "Drill Rounds Won", unit: "%", color: "green", count: "drillRounds", from: "Trainer › Site Drills",
     period: d => weighted(d, "drillPct", "drillRounds") },
 ];
 
-const fmt = (m, v) => v == null ? "–" : `${v.toFixed(m.digits ?? 0)}${m.unit && m.unit !== "%" ? " " : ""}${m.unit}`;
+const fmt = (m, v) => v == null ? "–" : `${v.toFixed(m.digits ?? 0)}${m.unit && !"%°".includes(m.unit) ? " " : ""}${m.unit}`;
 const dayOffset = (day, today) => Math.round((Date.parse(today) - Date.parse(day)) / 864e5);
 const localToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
 
@@ -127,6 +131,59 @@ function Bests({ days }) {
   <//>`;
 }
 
+/** A plain table: columns are [title, row => text]. */
+function Table({ columns, rows }) {
+  const cell = "text-align:right;padding:6px 10px;white-space:nowrap";
+  return html`<div style="overflow:auto"><table style="width:100%;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums">
+    <thead><tr>${columns.map(c => html`<th style=${cell + ";font-weight:600;padding-top:8px"}>${c[0]}</th>`)}</tr></thead>
+    <tbody>${rows.map(r => html`<tr style="border-top:1px solid var(--hairline)">${columns.map(c => html`<td style=${cell}>${c[1](r) ?? "–"}</td>`)}</tr>`)}</tbody>
+  </table></div>`;
+}
+
+const pctText = v => v == null ? "–" : `${v}%`;
+const GUN_COLUMNS = [["Gun", g => g.name], ["Kills", g => g.kills], ["Headshots", g => pctText(g.hsPct)], ["Shots", g => g.shots], ["Accuracy", g => pctText(g.accPct)]];
+const MAP_COLUMNS = [["Map", m => m.name.replace(/^de_/, "")], ["Rounds", m => m.rounds], ["Rounds Won", m => pctText(m.winPct)], ["Kills", m => m.kills],
+  ["K/D", m => m.kd?.toFixed(2)], ["Headshots", m => pctText(m.hsPct)], ["Damage / Round", m => m.adr], ["Drill Wins", m => pctText(m.drillPct)],
+  ["Best Course", m => m.course == null ? "–" : `${m.course.toFixed(2)} s`]];
+
+// Badges for milestones over all your days. value: the number the badge looks at; done: whether it is earned.
+function badges(days, cases) {
+  const total = key => days.reduce((a, d) => a + (d[key] ?? 0), 0);
+  const min = key => Math.min(...days.map(d => d[key] ?? Infinity));
+  const max = key => Math.max(...days.map(d => d[key] ?? -Infinity));
+  const drillWins = days.reduce((a, d) => a + Math.round((d.drillPct ?? 0) * (d.drillRounds ?? 0) / 100), 0);
+  return [
+    ["First Blood", "Your first kill", total("kills") >= 1],
+    ["Centurion", "100 kills", total("kills") >= 100],
+    ["Thousand Club", "1,000 kills", total("kills") >= 1000],
+    ["Headhunter", "500 headshots", total("hs") >= 500],
+    ["Quick Hands", "Reaction drill hit under 300 ms", min("reflexBest") < 300],
+    ["Lightning", "Reaction drill hit under 200 ms", min("reflexBest") < 200],
+    ["Eyes in the Back", "Flick drill day average under 600 ms", min("flick") < 600],
+    ["Laser", "Spray day average under 1.5°", min("spray") < 1.5],
+    ["Long Jumper", "A 240+ unit jump", max("jumpBest") >= 240],
+    ["Site Taker", "10 drill rounds won", drillWins >= 10],
+    ["Clutch King", "50 drill rounds won", drillWins >= 50],
+    ["Dedicated", "Trained on 7 different days", days.length >= 7],
+    ["Sharpshooter", "A day with 40%+ accuracy (50+ shots)", days.some(d => d.fired >= 50 && d.accPct >= 40)],
+    ["Case Opener", "100 cases opened", (cases ?? 0) >= 100],
+  ];
+}
+
+function Achievements({ days }) {
+  const [cases] = useApi("cases.state");
+  const list = badges(days, cases?.opened);
+  const earned = list.filter(b => b[2]).length;
+  return html`<${Section} title="Achievements" note=${`${earned} of ${list.length}`}>
+    <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;padding:14px">
+      ${list.map(([title, text, done]) => html`<div style=${`opacity:${done ? 1 : 0.45}`} title=${text}>
+        <div style="font-weight:600"><${Icon} name=${done ? "star" : "minus"} size=${13} /> ${title}</div>
+        <div class="subtitle">${done ? text : `Locked · ${text}`}</div>
+      </div>`)}
+    </div>
+  <//>`;
+}
+
 const RANGES = [[14, "2 Weeks"], [30, "Month"], [90, "3 Months"], [100000, "All"]];
 
 export function StatsPage() {
@@ -154,12 +211,19 @@ export function StatsPage() {
       <div class="section-title">This week <span class="note">compared with last week</span></div>
       <div class="cols" style="--n:5;margin-bottom:22px">${METRICS.map(m => html`<${Tile} m=${m} days=${stats.days} />`)}</div>
       <div style="margin-bottom:22px"><${Bests} days=${stats.days} /></div>
+      <div style="margin-bottom:22px"><${Achievements} days=${stats.days} /></div>
       <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
-        <${Segmented} options=${["Charts", "Table"]} value=${view} onChange=${setView} />
-        <${Segmented} options=${RANGES.map(r => r[1])} value=${range} onChange=${setRange} />
+        <${Segmented} options=${["Charts", "Per Day", "Guns", "Maps"]} value=${view} onChange=${setView} />
+        ${view < 2 && html`<${Segmented} options=${RANGES.map(r => r[1])} value=${range} onChange=${setRange} />`}
       </div>
       ${days.length === 0 && html`<div class="subtitle" style="padding:12px 0">Nothing in this time range.</div>`}
-      ${view === 0
+      ${view === 2 ? html`<${Section} title="Guns" note="all time · since this version">
+            ${stats.guns?.length ? html`<${Table} columns=${GUN_COLUMNS} rows=${[...stats.guns].sort((a, b) => b.kills - a.kills)} />`
+              : html`<div class="subtitle" style="padding:20px">No gun stats yet: play a round.</div>`}<//>`
+      : view === 3 ? html`<${Section} title="Maps" note="all time · since this version">
+            ${stats.maps?.length ? html`<${Table} columns=${MAP_COLUMNS} rows=${[...stats.maps].sort((a, b) => b.rounds - a.rounds)} />`
+              : html`<div class="subtitle" style="padding:20px">No map stats yet: play a round.</div>`}<//>`
+      : view === 0
         ? html`<div class="cols wrap" style="--n:2">${shown.map(m => html`<${Section} title=${m.title} note=${m.lower ? "lower is better" : "higher is better"}>
             <div style="padding:12px 14px"><${Chart} m=${m} days=${days} /></div>
           <//>`)}</div>`

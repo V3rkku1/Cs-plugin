@@ -1,7 +1,7 @@
 // Inventory: what you unboxed, laid out like CS2's inventory. Click an item to inspect it, Equip puts it on.
 import { html, useState, useEffect, useRef, useMemo } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, navigate, img } from "../api.js";
-import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, sheet } from "../ui.js";
+import { Page, Button, Segmented, Select, TextField, Icon, ItemPic, Slider, Stepper, Toggle, confirm, prompt, sheet } from "../ui.js";
 
 export const wearName = w => w < 0.07 ? "Factory New" : w < 0.15 ? "Minimal Wear" : w < 0.38 ? "Field-Tested" : w < 0.45 ? "Well-Worn" : "Battle-Scarred";
 const SYMBOL = { USD: "$", EUR: "€", GBP: "£" };
@@ -582,6 +582,26 @@ function LoadoutView({ items, cur }) {
 // Favorites live in this browser only: a per-PC convenience, not game data.
 const readFavs = () => { try { return new Set(JSON.parse(localStorage.getItem("inv.favs") ?? "[]")); } catch { return new Set(); } };
 
+/** Whole loadouts saved under a name: save the current one, equip or delete a saved one. */
+function Presets({ names }) {
+  const save = async () => {
+    const name = await prompt({ title: "Save Loadout", message: "Saves every equipped skin, knife, gloves, agent, pin and music kit under a name.", placeholder: "e.g. Blue set", ok: "Save" });
+    if (name?.trim()) tryCall("inventory.presetSave", name.trim());
+  };
+  const remove = async name => {
+    if (await confirm({ title: `Delete "${name}"?`, message: "Only the preset goes: your skins and current loadout stay.", ok: "Delete", danger: true }))
+      tryCall("inventory.presetDelete", name);
+  };
+  return html`<div class="hstack inv-bar" style="flex-wrap:wrap;gap:8px">
+    <span class="small">Presets</span>
+    ${names.map(n => html`<span class="hstack" style="gap:2px">
+      <${Button} size="sm" onClick=${() => tryCall("inventory.presetApply", n)} title="Equip this loadout">${n}<//>
+      <${Button} size="sm" kind="plain" icon="x" onClick=${() => remove(n)} title="Delete preset" />
+    </span>`)}
+    <${Button} size="sm" kind="prominent" icon="save" onClick=${save}>Save Current<//>
+  </div>`;
+}
+
 export function InventoryPage() {
   const [state] = useApi("cases.inventory");
   const [favs, setFavs] = useState(readFavs);
@@ -671,7 +691,7 @@ export function InventoryPage() {
       <${TextField} width=${90} placeholder="Max price" value=${maxP} onInput=${setMaxP} />
       ${filtered && html`<${Button} size="sm" kind="plain" icon="x" onClick=${clearFilters}>Clear filters · ${items.length} shown<//>`}
     </div>`}
-    ${tab === "loadout" ? html`<${LoadoutView} items=${state.items} cur=${cur} />` : html`
+    ${tab === "loadout" ? html`<${Presets} names=${state.presets ?? []} /><${LoadoutView} items=${state.items} cur=${cur} />` : html`
     <div class=${"inv-layout" + (selected ? " with-inspect" : "")}>
       ${items.length === 0
         ? html`<div class="empty"><${Icon} name="key" size=${32} /><div>${state.items.length ? "Nothing matches." : "Your inventory is empty. Open cases to get skins."}</div>

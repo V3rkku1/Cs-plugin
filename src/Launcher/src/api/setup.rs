@@ -154,6 +154,16 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             })?;
             ok(())
         }
+        "setup.updateAll" => {
+            run_setup(app, true, |app, i| {
+                super::play::update_addons(app, i.game, true);
+                step(app, "plugin", || step_work(app, i, "plugin"));
+                step(app, "data", || download_data(app));
+                let _ = super::shell::check_update_now(app);
+                app.log("Update finished.");
+            })?;
+            ok(())
+        }
         "setup.repair" => {
             run_setup(app, true, |app, i| {
                 app.log("Repairing...");

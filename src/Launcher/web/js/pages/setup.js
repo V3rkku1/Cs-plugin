@@ -179,6 +179,10 @@ export function SetupPage() {
         <${LauncherSection} />
 
         <${Section} title="Maintenance">
+          <${Row} icon=${{ name: "download", color: "green" }} title="Update Everything"
+              subtitle="Newest Metamod, CounterStrikeSharp, server plugins, skin data and launcher (also runs by itself after a CS2 update)">
+            <${Button} size="sm" kind="prominent" disabled=${!state.hasGame || busy} onClick=${() => tryCall("setup.updateAll")}>Update<//>
+          <//>
           <${Row} icon=${{ name: "refresh", color: "blue" }} title="Check Mod Updates" subtitle="Compare with the newest Metamod and CounterStrikeSharp">
             <${Button} size="sm" disabled=${busy} onClick=${() => tryCall("setup.checkUpdates")}>Check<//>
           <//>

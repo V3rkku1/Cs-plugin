@@ -515,7 +515,8 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             let total: f64 = items.iter().filter_map(|v| v.price).sum();
             let undo = last_removed().len();
             ok(
-                json!({ "items": items, "total": (total * 100.0).round() / 100.0 + 0.0, "currency": st.settings.currency, "admin": st.settings.admin_unlocked, "undo": undo }),
+                json!({ "items": items, "total": (total * 100.0).round() / 100.0 + 0.0, "currency": st.settings.currency, "admin": st.settings.admin_unlocked, "undo": undo,
+                    "presets": st.settings.loadout_presets.keys().collect::<Vec<_>>() }),
             )
         }
         "cases.currency" => {
@@ -753,6 +754,57 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
         "cases.lock" => {
             set_admin(app, false);
             app.toast("Back to unbox only.", "info");
+            ok(())
+        }
+        "inventory.presetSave" => {
+            let name: String = arg(a)?;
+            let name: String = name.trim().chars().take(30).collect();
+            if name.is_empty() {
+                return Err(bad("Give the preset a name."));
+            }
+            let mut st = app.state();
+            require_plugin(&st)?;
+            if st.settings.loadout_presets.len() >= 30
+                && !st.settings.loadout_presets.contains_key(&name)
+            {
+                return Err(bad("30 presets at most: delete one first."));
+            }
+            let loadout = read_loadout(app, inv, &st)?;
+            st.settings.loadout_presets.insert(name.clone(), loadout);
+            app.save(&st);
+            drop(st);
+            app.toast(format!("Saved your loadout as \"{name}\"."), "good");
+            app.changed();
+            ok(())
+        }
+        "inventory.presetApply" => {
+            let name: String = arg(a)?;
+            let st = app.state();
+            let mut store = require_plugin(&st)?;
+            let mut loadout = st
+                .settings
+                .loadout_presets
+                .get(&name)
+                .cloned()
+                .ok_or_else(|| bad("That preset is gone."))?;
+            // Skins traded up or removed since the preset was saved are left out (unless admin).
+            if !st.settings.admin_unlocked {
+                prune_unowned(&mut loadout, inv.items(app)?);
+            }
+            *store.local() = loadout;
+            store.save()?;
+            drop(st);
+            app.toast(format!("Loadout \"{name}\" equipped."), "good");
+            app.changed();
+            ok(())
+        }
+        "inventory.presetDelete" => {
+            let name: String = arg(a)?;
+            let mut st = app.state();
+            st.settings.loadout_presets.remove(&name);
+            app.save(&st);
+            drop(st);
+            app.changed();
             ok(())
         }
         "inventory.weaponPics" => {

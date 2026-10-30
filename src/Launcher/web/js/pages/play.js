@@ -1,7 +1,7 @@
 // Play: the server's status with one clear action, and the quick starts (built in and saved).
 import { html, useState } from "../vendor/preact-htm.js";
 import { call, tryCall, useApi, on, navigate } from "../api.js";
-import { Page, Section, Button, Icon, confirm, prompt } from "../ui.js";
+import { Page, Section, Row, Button, Icon, confirm, prompt } from "../ui.js";
 
 // The launcher asks before some actions (restart for retakes, start without the router port, replace a
 // setup, stop while CS2 runs). Listening here, at module level, catches F5 / Shift+F5 from any page.
@@ -53,6 +53,18 @@ function Stat({ icon, label, value, color = "blue" }) {
     <div class="stat-label"><span style=${`color:var(--${color})`}><${Icon} name=${icon} size=${14} stroke=${2} /></span>${label}</div>
     <div class="stat-value">${value}</div>
   </div>`;
+}
+
+/** What would stop the server from starting (missing mods, CS2 update, port, disk), each with its fix. */
+export function Health() {
+  const [list] = useApi("play.health", undefined, ["play.tick"]);
+  if (!list?.length) return null;
+  return html`<${Section} title="Before You Start">
+    ${list.map(h => html`<${Row} icon=${{ name: h.kind === "bad" ? "warning" : "info", color: h.kind === "bad" ? "red" : "orange" }}
+        title=${h.title} subtitle=${h.detail}>
+      ${h.fix && html`<${Button} size="sm" kind="prominent" onClick=${() => h.fix.page ? navigate(h.fix.page) : tryCall(h.fix.call)}>${h.fix.label}<//>`}
+    <//>`)}
+  <//>`;
 }
 
 function Hero({ state }) {
@@ -150,6 +162,7 @@ export function PlayPage() {
 
   return html`<${Page} title="Play" subtitle="Pick a quick start, or press Start.">
     <${Hero} state=${state} />
+    <${Health} />
 
     <${Section} title="Quick Start" note=${state.testMode ? "applies to the running server" : "starts the server right away"} class="quick-section">
       <div class="tiles quick-tiles">

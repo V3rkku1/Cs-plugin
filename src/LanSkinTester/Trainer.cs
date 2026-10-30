@@ -5,6 +5,7 @@ using CounterStrikeSharp.API;
 using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
+using CounterStrikeSharp.API.Modules.Cvars;
 using CounterStrikeSharp.API.Modules.Timers;
 using CounterStrikeSharp.API.Modules.Utils;
 
@@ -21,7 +22,7 @@ namespace LanSkinTester;
 /// </summary>
 public partial class LanSkinTester
 {
-    private enum Drill { Off, Clear, Retake, Hold, Reflex }
+    private enum Drill { Off, Clear, Retake, Hold, Reflex, Prefire, Clutch }
 
     private Drill _drill;
     private bool _drillSiteB;
@@ -178,11 +179,13 @@ public partial class LanSkinTester
     {
         var drill = kind.ToLowerInvariant() switch
         {
-            "clear" => Drill.Clear, "retake" => Drill.Retake, "hold" => Drill.Hold, "reflex" or "flick" => Drill.Reflex, _ => Drill.Off,
+            "clear" => Drill.Clear, "retake" => Drill.Retake, "hold" => Drill.Hold, "reflex" or "flick" => Drill.Reflex,
+            "prefire" => Drill.Prefire, "clutch" => Drill.Clutch, _ => Drill.Off,
         };
         // The flick drill is the reaction drill with bots anywhere around you, behind too.
         _flick = kind.Equals("flick", StringComparison.OrdinalIgnoreCase);
-        var wasReflex = _drill == Drill.Reflex;
+        // Drills where bots don't shoot back; leaving one gives the bots their guns back.
+        var wasReflex = _drill is Drill.Reflex or Drill.Prefire;
         _drill = drill;
         _drillSiteB = site.StartsWith("b", StringComparison.OrdinalIgnoreCase);
         _drillWins = _drillRounds = 0;
@@ -214,7 +217,7 @@ public partial class LanSkinTester
         }
 
         // The humans play one side, the bots the other.
-        var humanTeam = drill == Drill.Hold ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+        var humanTeam = drill is Drill.Hold or Drill.Clutch ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
         if (drill == Drill.Reflex)
         {
             humanTeam = Humans().FirstOrDefault(p => p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist)?.Team ?? CsTeam.CounterTerrorist;
@@ -235,11 +238,14 @@ public partial class LanSkinTester
             return;
         }
         if (wasReflex) Server.ExecuteCommand("bot_dont_shoot 0; mp_ignore_round_win_conditions 0");
+        if (drill == Drill.Prefire) Server.ExecuteCommand("bot_dont_shoot 1");
         Server.ExecuteCommand("mp_freezetime 3; mp_buytime 20; mp_roundtime_defuse 1.92; mp_restartgame 1");
         TellHumans(drill switch
         {
             Drill.Clear => $"Clear site {siteName}: {count} bots hold angles on the site. Clear it and plant.",
             Drill.Retake => $"Plant on {siteName}: {count} bots wait at CT spawn and push when the bomb is down.",
+            Drill.Prefire => $"Prefire site {siteName}: {count} bots stand on angles and don't shoot. Clear them as fast as you can.",
+            Drill.Clutch => $"Clutch on {siteName}: the bomb is down, {count} bots guard it. Retake and defuse.",
             _ => $"Hold site {siteName}: {count} bots attack. Stop the plant.",
         });
     }
@@ -252,7 +258,7 @@ public partial class LanSkinTester
         {
             var bots = Utilities.GetPlayers().Where(p => p.IsValid && p.PawnIsAlive && IsBotPlayer(p)).ToList();
             var humans = Humans().Where(p => p.PawnIsAlive).ToList();
-            if (_drill == Drill.Clear)
+            if (_drill is Drill.Clear or Drill.Prefire)
             {
                 var spots = SiteSpots(_drillSiteB, bots.Count);
                 var face = humans.FirstOrDefault()?.PlayerPawn.Value?.AbsOrigin;
@@ -261,7 +267,9 @@ public partial class LanSkinTester
                     PlaceAt(bots[i], spots[i], face);
                     Anchor(bots[i], spots[i]);
                 }
+                if (_drill == Drill.Prefire) _prefireStart = Server.CurrentTime;
             }
+            else if (_drill == Drill.Clutch) StartClutch(bots);
             else if (_drill == Drill.Retake) bots.ForEach(b => Anchor(b));
             else
             {
@@ -306,7 +314,7 @@ public partial class LanSkinTester
     public HookResult OnDrillRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         if (_drill is Drill.Off or Drill.Reflex) return HookResult.Continue;
-        var humanTeam = _drill == Drill.Hold ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
+        var humanTeam = _drill is Drill.Hold or Drill.Clutch ? CsTeam.CounterTerrorist : CsTeam.Terrorist;
         if (@event.Winner is not ((int)CsTeam.Terrorist or (int)CsTeam.CounterTerrorist)) return HookResult.Continue;
         _drillRounds++;
         if (@event.Winner == (int)humanTeam) _drillWins++;
@@ -497,6 +505,7 @@ public partial class LanSkinTester
     private void OnTrainerTick()
     {
         if (_anchors.Count > 0) HoldAnchors();
+        TickCourses();
         if (_counterStrafe.Count > 0)
             foreach (var slot in _counterStrafe.Keys.ToList())
         {
@@ -570,10 +579,13 @@ public partial class LanSkinTester
             return HookResult.Continue;
         }
         if (weapon.Contains("knife") || weapon.Contains("bayonet") || weapon.Contains("taser")) return HookResult.Continue;
-        if (_drill != Drill.Reflex && !HackerSlots().Contains(player.Slot))
+        if (!PassiveBots && !HackerSlots().Contains(player.Slot))
         {
             var aim = _roundAim.GetValueOrDefault(player.Slot);
             _roundAim[player.Slot] = aim with { Shots = aim.Shots + 1 };
+            var key = (player.Slot, WeaponName(weapon));
+            var gun = _roundGuns.GetValueOrDefault(key);
+            _roundGuns[key] = gun with { Shots = gun.Shots + 1 };
         }
         // Only the first shot of a burst: the rest of a spray says nothing about stopping.
         var firstShot = Server.CurrentTime - _lastShot.GetValueOrDefault(player.Slot, -1f) > 0.4f;
@@ -618,13 +630,13 @@ public partial class LanSkinTester
     [GameEventHandler]
     public HookResult OnTrainingDeath(EventPlayerDeath @event, GameEventInfo info)
     {
-        // Reaction drill hits are logged as reaction times, and aimbot kills don't count.
-        if (_drill == Drill.Reflex) return HookResult.Continue;
+        // Reaction drill hits are logged as reaction times, kills on bots that don't shoot back and aimbot kills don't count.
+        if (PassiveBots) return HookResult.Continue;
         var victim = @event.Userid;
         var attacker = @event.Attacker;
         if (victim is not { IsValid: true }) return HookResult.Continue;
         if (attacker is { IsValid: true } && IsEnemy(attacker, victim) && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
-            LogTraining(attacker, "kill", ("hs", @event.Headshot));
+            LogTraining(attacker, "kill", ("hs", @event.Headshot), ("w", WeaponName(@event.Weapon ?? "")));
         if (IsHumanPlayer(victim)) LogTraining(victim, "death");
         return HookResult.Continue;
     }
@@ -635,10 +647,13 @@ public partial class LanSkinTester
         var attacker = @event.Attacker;
         var victim = @event.Userid;
         var weapon = @event.Weapon ?? "";
-        if (_drill == Drill.Reflex || attacker is not { IsValid: true } || victim is not { IsValid: true } || !IsHumanPlayer(attacker)
+        if (PassiveBots || attacker is not { IsValid: true } || victim is not { IsValid: true } || !IsHumanPlayer(attacker)
             || !IsEnemy(attacker, victim) || HackerSlots().Contains(attacker.Slot) || IsGrenade(weapon) || weapon == "inferno") return HookResult.Continue;
         var aim = _roundAim.GetValueOrDefault(attacker.Slot);
         _roundAim[attacker.Slot] = aim with { Hits = aim.Hits + 1, Damage = aim.Damage + Math.Max(0, @event.DmgHealth) };
+        var key = (attacker.Slot, WeaponName(weapon));
+        var gun = _roundGuns.GetValueOrDefault(key);
+        _roundGuns[key] = gun with { Hits = gun.Hits + 1 };
         return HookResult.Continue;
     }
 
@@ -646,13 +661,21 @@ public partial class LanSkinTester
     public HookResult OnTrainingRoundEnd(EventRoundEnd @event, GameEventInfo info)
     {
         // One line per human per round, so damage per round counts the quiet rounds too.
-        if (_drill != Drill.Reflex)
+        // Won or lost only when the round had a winning side (not free-for-all, not a draw).
+        var decided = @event.Winner is (int)CsTeam.Terrorist or (int)CsTeam.CounterTerrorist
+            && ConVar.Find("mp_teammates_are_enemies")?.GetPrimitiveValue<bool>() != true;
+        if (!PassiveBots)
             foreach (var player in Humans().Where(p => p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist))
             {
                 var aim = _roundAim.GetValueOrDefault(player.Slot);
-                LogTraining(player, "round", ("shots", aim.Shots), ("hits", Math.Min(aim.Hits, aim.Shots)), ("dmg", aim.Damage));
+                var values = new List<(string, object)> { ("shots", aim.Shots), ("hits", Math.Min(aim.Hits, aim.Shots)), ("dmg", aim.Damage) };
+                if (decided) values.Add(("won", @event.Winner == (int)player.Team));
+                LogTraining(player, "round", values.ToArray());
+                foreach (var ((slot, gun), shots) in _roundGuns.Where(g => g.Key.Slot == player.Slot && g.Value.Shots > 0))
+                    LogTraining(player, "gun", ("w", gun), ("shots", shots.Shots), ("hits", Math.Min(shots.Hits, shots.Shots)));
             }
         _roundAim.Clear();
+        _roundGuns.Clear();
         return HookResult.Continue;
     }
 
@@ -666,6 +689,8 @@ public partial class LanSkinTester
         _lastShot.Remove(player.Slot);
         _roundAim.Remove(player.Slot);
         _thrownAt.Remove(player.Slot);
+        _course.Remove(player.Slot);
+        _spray.Remove(player.Slot);
         return HookResult.Continue;
     }
 
@@ -678,6 +703,7 @@ public partial class LanSkinTester
             ["t"] = DateTimeOffset.UtcNow.ToUnixTimeSeconds(),
             ["k"] = kind,
             ["p"] = player.PlayerName,
+            ["m"] = Server.MapName,
         };
         foreach (var (key, value) in values) line[key] = value;
         try { File.AppendAllText(TrainingFile, JsonSerializer.Serialize(line) + "\n"); }
