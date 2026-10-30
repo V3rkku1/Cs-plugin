@@ -419,7 +419,7 @@ function UpgradeSheet({ close }) {
         ${targets?.targets.map(t => html`<div class="hstack" role="button" onClick=${() => setTarget(t)}
             style=${`gap:8px;padding:4px;cursor:pointer;border-radius:8px;${target?.key === t.key ? "background:var(--hairline)" : ""}`}>
           <div style=${`width:56px;border-bottom:3px solid ${t.color}`}><${ItemPic} src=${t.image} size=${128} /></div>
-          <div class="grow small">${t.name}</div><span class="small">${money(t.price, targets.currency)} · <b>${(t.chance * 100).toFixed(1)}%</b></span></div>`)}
+          <div class="grow small">${t.name}</div><span class="small" title="The cheapest exterior's price: yours gets a random float">from ${money(t.price, targets.currency)} · <b>${(t.chance * 100).toFixed(1)}%</b></span></div>`)}
       </div>
     </div>
     ${target && html`<div class="hstack" style="padding:0 18px 18px;gap:12px">

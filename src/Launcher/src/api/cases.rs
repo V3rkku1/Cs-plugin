@@ -1215,7 +1215,14 @@ fn after_equip(app: &App) {
 fn equip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
     let item = find(inv.items(app)?, uid)?.clone();
     let mut store = require_plugin(st)?;
-    let l = store.local();
+    put_on(store.local(), &item)?;
+    store.save()?;
+    after_equip(app);
+    Ok(())
+}
+
+/// Puts one item into a loadout (not saved).
+fn put_on(l: &mut PlayerLoadout, item: &InventoryItem) -> R<()> {
     match item.kind.as_str() {
         "skin" if item.def != 0 => {
             if is_knife_type(item.def) {
@@ -1224,7 +1231,7 @@ fn equip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
             if is_glove_type(item.def) {
                 (l.gloves, l.gloves_t, l.gloves_ct) = (item.def, 0, 0);
             }
-            let skin = skin_of(&item);
+            let skin = skin_of(item);
             if skin.has_customization() || is_knife_type(item.def) {
                 l.skins.insert(item.def, skin);
             }
@@ -1247,8 +1254,6 @@ fn equip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
         }
         _ => return Err(bad("This item can't be equipped.")),
     }
-    store.save()?;
-    after_equip(app);
     Ok(())
 }
 

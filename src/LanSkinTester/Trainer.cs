@@ -505,6 +505,7 @@ public partial class LanSkinTester
     private void OnTrainerTick()
     {
         if (_anchors.Count > 0) HoldAnchors();
+        TickFunModes();
         TickCourses();
         if (_counterStrafe.Count > 0)
             foreach (var slot in _counterStrafe.Keys.ToList())

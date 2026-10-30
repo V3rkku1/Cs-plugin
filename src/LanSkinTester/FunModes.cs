@@ -10,8 +10,8 @@ namespace LanSkinTester;
 
 /// <summary>
 /// Fun modes on classic rounds (Casual / Competitive), set by the launcher (lst_funmode):
-/// Zombie infection: a few players start as zombies (Terrorists, knife only, 2000 HP); a human a zombie
-/// kills joins the zombies. Humans win if any survive the round. Hide and seek: Terrorists hide with a knife
+/// Zombie infection: a few players start as zombies (Terrorists, knife only, faster, more health the more
+/// humans each has to face); a human a zombie kills joins the zombies. Humans win if any survive the round. Hide and seek: Terrorists hide with a knife
 /// while the Counter-Terrorists wait 30 seconds; Terrorists win if one is alive when time runs out.
 /// </summary>
 public partial class LanSkinTester
@@ -21,7 +21,10 @@ public partial class LanSkinTester
     private FunMode _funMode;
     private readonly HashSet<int> _zombies = new();
     private int _funRound;
-    private const int ZombieHealth = 2000;
+    private const int ZombieMinHealth = 2000;
+    private const float ZombieSpeed = 1.2f;
+    // The first zombies' health this round: more humans per zombie, more health. Infected ones get half.
+    private int _zombieHealth = ZombieMinHealth;
     private const float SeekerWait = 30;
 
     [ConsoleCommand("lst_funmode", "Fun mode: lst_funmode off|zombie|hns")]
@@ -66,6 +69,12 @@ public partial class LanSkinTester
         var players = Playing().OrderBy(_ => Random.Shared.Next()).ToList();
         if (players.Count < 2) return;
         var count = Math.Max(1, players.Count / 6);
+        _zombieHealth = Math.Clamp(ZombieMinHealth + 500 * (players.Count - count) / count, ZombieMinHealth, 8000);
+        // Moving people to their side kills them for a moment: a side with nobody alive would end the round.
+        var ignore = ConVar.Find("mp_ignore_round_win_conditions");
+        var was = ignore?.GetPrimitiveValue<bool>() ?? false;
+        Server.ExecuteCommand("mp_ignore_round_win_conditions 1");
+        AddTimer(2f, () => Server.ExecuteCommand($"mp_ignore_round_win_conditions {(was ? 1 : 0)}"), TimerFlags.STOP_ON_MAPCHANGE);
         for (var i = 0; i < players.Count; i++)
         {
             var player = players[i];
@@ -74,7 +83,7 @@ public partial class LanSkinTester
             if (zombie) _zombies.Add(player.Slot);
             if (player.Team == team)
             {
-                if (zombie) MakeZombie(player);
+                if (zombie) MakeZombie(player, _zombieHealth);
                 continue;
             }
             // ChangeTeam kills: bring them straight back on their new side (freeze time, so they can still buy).
@@ -83,18 +92,18 @@ public partial class LanSkinTester
             {
                 if (!player.IsValid) return;
                 if (!player.PawnIsAlive) player.Respawn();
-                if (zombie) AddTimer(0.2f, () => MakeZombie(player), TimerFlags.STOP_ON_MAPCHANGE);
+                if (zombie) AddTimer(0.2f, () => MakeZombie(player, _zombieHealth), TimerFlags.STOP_ON_MAPCHANGE);
             }, TimerFlags.STOP_ON_MAPCHANGE);
         }
-        TellEveryone(count == 1 ? "One zombie is loose. Don't let it touch you!" : $"{count} zombies are loose. Don't let them touch you!");
+        TellEveryone((count == 1 ? "One zombie is loose" : $"{count} zombies are loose") + $" ({_zombieHealth} HP, faster than you). Don't let them touch you!");
     }
 
-    private void MakeZombie(CCSPlayerController player)
+    private void MakeZombie(CCSPlayerController player, int health)
     {
         if (!player.IsValid || !player.PawnIsAlive || player.PlayerPawn.Value is not { IsValid: true } pawn) return;
         player.RemoveWeapons();
         player.GiveNamedItem("weapon_knife");
-        pawn.Health = pawn.MaxHealth = ZombieHealth;
+        pawn.Health = pawn.MaxHealth = health;
         Utilities.SetStateChanged(pawn, "CBaseEntity", "m_iHealth");
         Utilities.SetStateChanged(pawn, "CBaseEntity", "m_iMaxHealth");
         if (player.InGameMoneyServices is { } money)
@@ -124,11 +133,25 @@ public partial class LanSkinTester
             {
                 if (!victim.IsValid || round != _funRound) return;
                 victim.Respawn();
-                AddTimer(0.2f, () => MakeZombie(victim), TimerFlags.STOP_ON_MAPCHANGE);
+                AddTimer(0.2f, () => MakeZombie(victim, Math.Max(ZombieMinHealth, _zombieHealth / 2)), TimerFlags.STOP_ON_MAPCHANGE);
                 Reply(victim, "You were infected: you're a zombie now. Knife the humans!");
             }, TimerFlags.STOP_ON_MAPCHANGE);
         }, TimerFlags.STOP_ON_MAPCHANGE);
         return HookResult.Continue;
+    }
+
+    /// <summary>Every tick: zombies run faster (the game slows anyone who gets shot, so it's set again).</summary>
+    private void TickFunModes()
+    {
+        if (_zombies.Count == 0 || _funMode != FunMode.Zombie) return;
+        foreach (var slot in _zombies)
+        {
+            var player = Utilities.GetPlayerFromSlot(slot);
+            if (player is not { IsValid: true, PawnIsAlive: true } || player.Team != CsTeam.Terrorist
+                || player.PlayerPawn.Value is not { IsValid: true } pawn || pawn.VelocityModifier >= ZombieSpeed) continue;
+            pawn.VelocityModifier = ZombieSpeed;
+            Utilities.SetStateChanged(pawn, "CCSPlayerPawn", "m_flVelocityModifier");
+        }
     }
 
     [GameEventHandler]
