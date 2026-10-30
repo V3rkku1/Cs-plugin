@@ -122,7 +122,8 @@ Live Server puts your setup back.
 
 **Stats.** Are you improving? Each skill this week against last week (better / worse), a chart per day and
 a table (2 weeks to all time): Reaction Drill, Flick Drill and Reaction Test times, headshot %, K/D, accuracy, damage
-per round, stopped shots (counter-strafe check), strafe sync, longest jump, prefire time, spray spread and drill rounds won, plus your
+per round, stopped shots (counter-strafe check), strafe sync, longest jump, prefire time, spray spread, drill headshots (kills on bots that
+don't shoot back, kept apart from your real headshot % and K/D) and drill rounds won, plus your
 personal bests, achievements, and all-time tables per gun (kills, headshots, accuracy) and per map (rounds
 won, K/D, damage per round, drill wins, best course time). Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
 Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over

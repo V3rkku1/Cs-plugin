@@ -34,6 +34,8 @@ const METRICS = [
     period: d => weighted(d, "sync", "jumps") },
   { key: "jumpBest", title: "Longest Jump", unit: "u", color: "indigo", count: "jumps", from: "Trainer › Jump Stats",
     period: d => d.some(x => x.jumpBest != null) ? Math.max(...d.map(x => x.jumpBest ?? 0)) : null },
+  { key: "drillHsPct", title: "Drill Headshots", unit: "%", color: "pink", count: "dkills", from: "kills in the Prefire, Reaction and Flick drills",
+    period: d => sum(d, "dkills") ? sum(d, "dhs") * 100 / sum(d, "dkills") : null },
   { key: "prefire", title: "Prefire Time", unit: "ms", color: "yellow", lower: true, count: "prefireN", from: "Trainer › Prefire",
     period: d => weighted(d, "prefire", "prefireN") },
   { key: "spray", title: "Spray Spread", unit: "°", color: "teal", lower: true, digits: 2, count: "sprayN", from: "Trainer › Spray Score",

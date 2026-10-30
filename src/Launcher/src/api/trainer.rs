@@ -96,6 +96,8 @@ struct Day {
     drill_wins: u32,
     prefire: Vec<f64>,
     spray: Vec<f64>,
+    dkills: u32,
+    dhs: u32,
 }
 
 /// All-time totals for one gun or one map.
@@ -184,6 +186,10 @@ fn stats(text: &str, player: &str) -> Value {
                     g.hits += num("hits") as u32;
                 }
             }
+            "dkill" => {
+                d.dkills += 1;
+                d.dhs += yes("hs");
+            }
             "prefire" => d.prefire.push(num("ms")),
             "spray" => d.spray.push(num("deg")),
             "course" => {
@@ -246,12 +252,15 @@ fn stats(text: &str, player: &str) -> Value {
                 "jumps": d.jumps.len(), "jumpBest": d.jumps.iter().map(|j| j.0).reduce(f64::max), "sync": avg(&sync),
                 "drillRounds": d.drill_rounds, "drillPct": pct(d.drill_wins, d.drill_rounds),
                 "prefire": avg(&d.prefire), "prefireN": d.prefire.len(),
+                "dkills": d.dkills, "dhs": d.dhs, "drillHsPct": pct(d.dhs, d.dkills),
                 "spray": (!d.spray.is_empty()).then(|| (d.spray.iter().sum::<f64>() / d.spray.len() as f64 * 100.0).round() / 100.0), "sprayN": d.spray.len(),
             })
         })
         .collect();
     let table = |all: BTreeMap<String, Tally>| -> Vec<Value> {
         all.into_iter()
+            // A map seen only in jumps or drills of other kinds has nothing for these tables.
+            .filter(|(_, t)| t.kills + t.deaths + t.shots + t.rounds + t.drill_rounds > 0 || t.course.is_some())
             .map(|(name, t)| json!({
                 "name": name, "kills": t.kills, "deaths": t.deaths, "hsPct": pct(t.hs, t.kills),
                 "kd": (t.kills + t.deaths > 0).then(|| (t.kills as f64 * 100.0 / t.deaths.max(1) as f64).round() / 100.0),
@@ -357,6 +366,25 @@ mod tests {
                 m["course"].as_f64()
             ),
             (Some("de_dust2"), Some(100.0), Some(90.0), Some(12.35))
+        );
+        // Drill kills count apart; a map with only jumps on it is left out of the table.
+        let drill = format!("{{\"t\":{t},\"k\":\"dkill\",\"p\":\"me\",\"hs\":true,\"w\":\"ak47\",\"m\":\"de_x\"}}\n\
+             {{\"t\":{t},\"k\":\"jump\",\"p\":\"me\",\"dist\":240,\"m\":\"de_x\"}}\n");
+        let d = stats(&drill, "me");
+        assert_eq!(
+            (
+                d["days"][0]["dkills"].as_u64(),
+                d["days"][0]["drillHsPct"].as_f64(),
+                d["days"][0]["kills"].as_u64()
+            ),
+            (Some(1), Some(100.0), Some(0))
+        );
+        assert_eq!(
+            (
+                d["maps"].as_array().map(Vec::len),
+                d["guns"].as_array().map(Vec::len)
+            ),
+            (Some(0), Some(0))
         );
         let friend = &stats(&text, "friend")["days"][0];
         assert_eq!(
