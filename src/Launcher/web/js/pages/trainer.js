@@ -13,7 +13,55 @@ const DRILLS = [
   { id: "retake", icon: "bolt", color: "red", title: "Plant & Hold", text: "You plant, bots wait at CT spawn and retake once the bomb is down." },
   { id: "hold", icon: "shield", color: "blue", title: "Hold Site", text: "You start on the site as CT, bots push it." },
   { id: "reflex", icon: "target", color: "green", title: "Reaction Drill", text: "One bot pops up in front of you. Chat shows how fast you hit it." },
+  { id: "flick", icon: "refresh", color: "purple", title: "Flick Drill", text: "One bot appears anywhere around you, behind you too. Turn and hit it." },
 ];
+const REACTION = ["reflex", "flick"];
+const WEAPONS = [["", "Own gun"], ["ak47", "AK-47"], ["m4a1_silencer", "M4A1-S"], ["awp", "AWP"], ["deagle", "Deagle"], ["usp_silencer", "USP-S"]];
+
+// One click to a server set up for each kind of practice (the same settings as Live Server, kept for next time).
+const OFF = { noRoundEnd: false, infiniteAmmo: false, allowCheats: false, botsDontShoot: false, headshotOnly: false, freeForAll: false, autoBhop: false };
+const SETUPS = [
+  { icon: "eye", color: "indigo", title: "Lineups & Utility", text: "Competitive, no bots, endless round, infinite grenades, cheats on",
+    set: { ...OFF, mode: "Competitive", bots: 0, noRoundEnd: true, infiniteAmmo: true, allowCheats: true, maxMoney: true } },
+  { icon: "map", color: "orange", title: "Site Drills", text: "Competitive with rounds and full money: then start a drill below",
+    set: { ...OFF, mode: "Competitive", bots: 0, maxMoney: true } },
+  { icon: "crosshair", color: "red", title: "Aim Warm-up", text: "Free-for-all Deathmatch against bots",
+    set: { ...OFF, mode: "Deathmatch", freeForAll: true }, aim: true },
+  { icon: "run", color: "teal", title: "Movement", text: "No bots, endless round, auto bunnyhop, no fall damage, cheats on",
+    set: { ...OFF, mode: "Casual", bots: 0, noRoundEnd: true, autoBhop: true, noFallDamage: true, allowCheats: true } },
+];
+
+/** Map and practice setup, then Start (or Apply when the server already runs). */
+function Launch({ play }) {
+  const [map, setMap] = useState(LINEUPS[play.settings.map] ? play.settings.map : "de_mirage");
+  const [aimBots, setAimBots] = useState(10);
+  const [hs, setHs] = useState(false);
+  const [shoot, setShoot] = useState(true);
+  const running = play.testMode;
+  const go = async setup => {
+    const extra = setup.aim ? { bots: aimBots, headshotOnly: hs, botsDontShoot: !shoot } : {};
+    // Hacker Mode off: aimbot kills don't count in Stats, and practice is about your own aim.
+    if (await tryCall("live.set", { ...setup.set, ...extra, map, workshopMap: null, hackerMode: 0 }) === undefined) return;
+    tryCall(running ? "play.apply" : "play.start");
+  };
+  return html`<${Section} title="Launch" note=${running ? `running: ${play.settings.mode} on ${play.status?.map ?? play.settings.map}` : "starts the server and CS2"}
+      footer=${running ? "Pick a setup to switch the running server to it." : "CS2 opens and joins by itself when the map is up."}>
+    <${Row} icon=${{ name: "map", color: "blue" }} title="Map">
+      <${Select} options=${Object.keys(LINEUPS).map(m => ({ value: m, label: mapLabel(m) }))} value=${map} onChange=${setMap} width=${150} />
+    <//>
+    ${SETUPS.map(setup => html`<${Row} icon=${{ name: setup.icon, color: setup.color }} title=${setup.title} subtitle=${setup.text}>
+      ${setup.aim && html`<div class="hstack" style="gap:8px">
+        <${Stepper} value=${aimBots} min=${1} max=${20} onChange=${setAimBots} />
+        <${Button} size="sm" kind=${hs ? "prominent" : "default"} onClick=${() => setHs(!hs)} title="Only headshots hurt">HS only<//>
+        <${Button} size="sm" kind=${shoot ? "default" : "prominent"} onClick=${() => setShoot(!shoot)} title="Bots don't shoot back">Bots passive<//>
+      </div>`}
+      <${Button} size="sm" kind="prominent" icon="play" disabled=${!play.ready || play.busy} onClick=${() => go(setup)}>${running ? "Switch" : "Start"}<//>
+    <//>`)}
+    ${running && html`<${Row} icon=${{ name: "stop", color: "red" }} title="Stop the Server" subtitle="CS2 goes back to normal">
+      <${Button} size="sm" kind="destructive" onClick=${() => tryCall("play.stop")}>Stop<//>
+    <//>`}
+  <//>`;
+}
 
 // Cheats, endless round, free buys, infinite grenades, the trajectory preview while you hold a grenade,
 // and the air time in chat when a grenade pops.
@@ -117,14 +165,16 @@ export function TrainerPage() {
   const [play] = usePlay();
   const [site, setSite] = useState(0);
   const [bots, setBots] = useState(3);
+  const [weapon, setWeapon] = useState(0);
   if (!play) return html`<${Page} title="Trainer" />`;
   const up = !!play.status;
-  const drill = id => send(`lst_drill ${id} ${site ? "b" : "a"} ${bots}`);
+  const drill = id => send(`lst_drill ${id} ${site ? "b" : "a"} ${bots} ${REACTION.includes(id) ? WEAPONS[weapon][0] : ""}`.trim());
 
   return html`<${Page} title="Trainer"
       subtitle="Learn lineups, train your reactions, aim and movement, and practise sites against bots.">
     <div class="cols wrap" style="--n:2">
       <div class="stack">
+        <${Launch} play=${play} />
         <${Lineups} up=${up} running=${play.status?.map ?? ""} />
 
         <${Section} title="Grenade Practice" footer="Practice Mode: endless round, free buys anywhere, infinite grenades, no bots, air time in chat when a grenade pops.">
@@ -158,6 +208,9 @@ export function TrainerPage() {
           <//>
           <${Row} icon=${{ name: "bot", color: "teal" }} title="Bots" subtitle="for the site drills">
             <${Stepper} value=${bots} min=${1} max=${5} onChange=${setBots} />
+          <//>
+          <${Row} icon=${{ name: "crosshair", color: "red" }} title="Gun" subtitle="for the reaction and flick drills">
+            <${Select} options=${WEAPONS.map((w, i) => ({ value: i, label: w[1] }))} value=${weapon} onChange=${setWeapon} width=${140} />
           <//>
           ${DRILLS.map(d => html`<${Row} icon=${{ name: d.icon, color: d.color }} title=${d.title} subtitle=${d.text}>
             <${Button} size="sm" kind="prominent" disabled=${!up} onClick=${() => drill(d.id)}>Start<//>

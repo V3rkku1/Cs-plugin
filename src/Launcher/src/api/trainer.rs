@@ -83,6 +83,7 @@ struct Day {
     hs: u32,
     deaths: u32,
     reflex: Vec<f64>,
+    flick: Vec<f64>,
     test: Vec<f64>,
     cs_shots: u32,
     cs_ok: u32,
@@ -135,6 +136,7 @@ fn stats(text: &str, player: &str) -> Value {
             }
             "death" => d.deaths += 1,
             "reflex" => d.reflex.push(num("ms")),
+            "flick" => d.flick.push(num("ms")),
             "test" => d.test.push(num("ms")),
             "shot" => {
                 d.cs_shots += 1;
@@ -166,6 +168,7 @@ fn stats(text: &str, player: &str) -> Value {
                 "hsPct": pct(d.hs, d.kills),
                 "kd": (d.kills + d.deaths > 0).then(|| (d.kills as f64 * 100.0 / d.deaths.max(1) as f64).round() / 100.0),
                 "reflex": avg(&d.reflex), "reflexBest": d.reflex.iter().cloned().reduce(f64::min), "reflexN": d.reflex.len(),
+                "flick": avg(&d.flick), "flickN": d.flick.len(),
                 "test": avg(&d.test), "testN": d.test.len(),
                                 "csShots": d.cs_shots, "stopPct": pct(d.cs_ok, d.cs_shots),
                 "rounds": d.rounds, "fired": d.fired, "hits": d.hits, "damage": d.damage,

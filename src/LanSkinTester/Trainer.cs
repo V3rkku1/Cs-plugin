@@ -27,6 +27,7 @@ public partial class LanSkinTester
     private bool _drillSiteB;
     private int _drillWins, _drillRounds, _lineupIndex;
     private float _reflexShownAt = -1;
+    private bool _flick;
     private int _reflexShow; // which pop-up this is, so an old "too slow" timer leaves a newer one alone
     private readonly List<float> _reflexTimes = new();
     private readonly Dictionary<int, JumpTrack> _speedo = new();
@@ -67,17 +68,17 @@ public partial class LanSkinTester
     // Commands
     // ---------------------------------------------------------------------------------------------
 
-    [ConsoleCommand("lst_drill", "Trainer drill: lst_drill off|clear|retake|hold|reflex [a|b] [bots]")]
-    [CommandHelper(minArgs: 1, usage: "off|clear|retake|hold|reflex [a|b] [bots]", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    [ConsoleCommand("lst_drill", "Trainer drill: lst_drill off|clear|retake|hold|reflex|flick [a|b] [bots] [weapon]")]
+    [CommandHelper(minArgs: 1, usage: "off|clear|retake|hold|reflex|flick [a|b] [bots] [weapon]", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnDrillCommand(CCSPlayerController? caller, CommandInfo cmd) =>
-        StartDrill(cmd.GetArg(1), cmd.ArgCount > 2 ? cmd.GetArg(2) : "a", cmd.ArgCount > 3 ? cmd.GetArg(3) : "3");
+        StartDrill(cmd.GetArg(1), cmd.ArgCount > 2 ? cmd.GetArg(2) : "a", cmd.ArgCount > 3 ? cmd.GetArg(3) : "3", cmd.ArgCount > 4 ? cmd.GetArg(4) : "");
 
-    [ConsoleCommand("css_drill", "Trainer drill: !drill off|clear|retake|hold|reflex [a|b] [bots]")]
-    [CommandHelper(minArgs: 1, usage: "off|clear|retake|hold|reflex [a|b] [bots]")]
+    [ConsoleCommand("css_drill", "Trainer drill: !drill off|clear|retake|hold|reflex|flick [a|b] [bots] [weapon]")]
+    [CommandHelper(minArgs: 1, usage: "off|clear|retake|hold|reflex|flick [a|b] [bots] [weapon]")]
     public void OnDrillChat(CCSPlayerController? player, CommandInfo cmd)
     {
         if (!PracticeAllowed(player)) return;
-        StartDrill(cmd.GetArg(1), cmd.ArgCount > 2 ? cmd.GetArg(2) : "a", cmd.ArgCount > 3 ? cmd.GetArg(3) : "3");
+        StartDrill(cmd.GetArg(1), cmd.ArgCount > 2 ? cmd.GetArg(2) : "a", cmd.ArgCount > 3 ? cmd.GetArg(3) : "3", cmd.ArgCount > 4 ? cmd.GetArg(4) : "");
     }
 
     [ConsoleCommand("lst_speedo", "Speedometer and jump stats for every human: 1 on, 0 off, or toggle")]
@@ -173,12 +174,14 @@ public partial class LanSkinTester
     // Drills
     // ---------------------------------------------------------------------------------------------
 
-    private void StartDrill(string kind, string site, string bots)
+    private void StartDrill(string kind, string site, string bots, string weapon)
     {
         var drill = kind.ToLowerInvariant() switch
         {
-            "clear" => Drill.Clear, "retake" => Drill.Retake, "hold" => Drill.Hold, "reflex" => Drill.Reflex, _ => Drill.Off,
+            "clear" => Drill.Clear, "retake" => Drill.Retake, "hold" => Drill.Hold, "reflex" or "flick" => Drill.Reflex, _ => Drill.Off,
         };
+        // The flick drill is the reaction drill with bots anywhere around you, behind too.
+        _flick = kind.Equals("flick", StringComparison.OrdinalIgnoreCase);
         var wasReflex = _drill == Drill.Reflex;
         _drill = drill;
         _drillSiteB = site.StartsWith("b", StringComparison.OrdinalIgnoreCase);
@@ -225,7 +228,10 @@ public partial class LanSkinTester
         {
             Server.ExecuteCommand("bot_dont_shoot 1; mp_ignore_round_win_conditions 1; mp_roundtime 60; mp_roundtime_defuse 60");
             AddTimer(2f, () => ShowReflexBot(), TimerFlags.STOP_ON_MAPCHANGE);
-            TellHumans("Reaction drill: a bot pops up in front of you. Shoot it as fast as you can.");
+            if (weapon.Length > 0 && weapon.All(char.IsLetterOrDigit))
+                foreach (var player in Humans().Where(p => p.PawnIsAlive)) player.GiveNamedItem("weapon_" + weapon.ToLowerInvariant());
+            TellHumans(_flick ? "Flick drill: a bot appears anywhere around you, behind you too. Turn and shoot."
+                : "Reaction drill: a bot pops up in front of you. Shoot it as fast as you can.");
             return;
         }
         if (wasReflex) Server.ExecuteCommand("bot_dont_shoot 0; mp_ignore_round_win_conditions 0");
@@ -317,8 +323,8 @@ public partial class LanSkinTester
         {
             var ms = (Server.CurrentTime - _reflexShownAt) * 1000f;
             _reflexTimes.Add(ms);
-            LogTraining(attacker, "reflex", ("ms", MathF.Round(ms)));
-            Reply(attacker, $"Reaction {ms:0} ms · average {_reflexTimes.Average():0} · best {_reflexTimes.Min():0} · {_reflexTimes.Count} hits");
+            LogTraining(attacker, _flick ? "flick" : "reflex", ("ms", MathF.Round(ms)));
+            Reply(attacker, $"{(_flick ? "Flick" : "Reaction")} {ms:0} ms · average {_reflexTimes.Average():0} · best {_reflexTimes.Min():0} · {_reflexTimes.Count} hits");
         }
         _reflexShownAt = -1;
         AddTimer(0.6f + Random.Shared.NextSingle() * 1.4f, () => ShowReflexBot(), TimerFlags.STOP_ON_MAPCHANGE);
@@ -363,15 +369,16 @@ public partial class LanSkinTester
         }
         _reflexShownAt = Server.CurrentTime;
         var show = ++_reflexShow;
-        AddTimer(3f, () =>
+        var limit = _flick ? 4f : 3f;
+        AddTimer(limit, () =>
         {
             if (_drill != Drill.Reflex || show != _reflexShow || _reflexShownAt < 0) return;
-            TellHumans("Too slow (3 s). Next one…");
+            TellHumans($"Too slow ({limit:0} s). Next one…");
             ShowReflexBot();
         }, TimerFlags.STOP_ON_MAPCHANGE);
     }
 
-    /// <summary>A visible floor point 300 to 1000 units ahead of the player, within 45° of where they look (on screen).</summary>
+    /// <summary>A visible floor point 300 to 1000 units from the player, within 45° of where they look (on screen), or anywhere for the flick drill.</summary>
     private Vector? ReflexSpot(CCSPlayerPawn pawn)
     {
         var from = pawn.AbsOrigin!;
@@ -380,7 +387,7 @@ public partial class LanSkinTester
         {
             for (var tries = 0; tries < 12; tries++)
             {
-                var yaw = (pawn.EyeAngles.Y + (Random.Shared.NextSingle() * 90 - 45)) * MathF.PI / 180;
+                var yaw = (pawn.EyeAngles.Y + ((Random.Shared.NextSingle() * 2 - 1) * (_flick ? 180 : 45))) * MathF.PI / 180;
                 var far = 300 + Random.Shared.NextSingle() * 700;
                 var ahead = Trace.TraceEndShape(eye, new Vector(eye.X + MathF.Cos(yaw) * far, eye.Y + MathF.Sin(yaw) * far, eye.Z), pawn, SightTrace);
                 var reach = (ahead.DidHit() ? ahead.Fraction * far : far) - 40;
