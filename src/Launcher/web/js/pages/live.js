@@ -332,6 +332,14 @@ export function LivePage() {
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
 
+        <${Section} title="Experimental" note="may break after a CS2 update"
+            footer="Custom Knife: a knife model from a Steam Workshop addon (made with the CS2 Workshop Tools, using the stock knife's animations). MultiAddonManager downloads on the next Start; the server goes online (unlisted) so it and your friends can download the addon. Replaces every player's knife; skins don't show on it. Changing it restarts the server.">
+          <${Row} icon=${{ name: "sparkles", color: "purple" }} title="Custom Knife Addon" subtitle="Workshop ID or link of the addon with the model">
+            <${CommitField} width=${200} value=${s.customKnifeAddon} placeholder="ID or link" onCommit=${v => set("customKnifeAddon", v)} /><//>
+          <${Row} icon=${{ name: "sparkles", color: "purple" }} title="Model Path" subtitle="The .vmdl inside the addon, from its page or the Workshop Tools">
+            <${CommitField} width=${260} value=${s.customKnifeModel} placeholder="models/weapons/…/knife.vmdl" onCommit=${v => set("customKnifeModel", v)} /><//>
+        <//>
+
         ${s.botImprover && html`<${Section} title="Bot Improver" note=${up ? "changes reach the running server right away" : ""}
             footer="Bot Improver's settings. Forced weapons start the next round.">
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Bot Aim" subtitle="Where bots aim: mixed picks the spot for the situation">

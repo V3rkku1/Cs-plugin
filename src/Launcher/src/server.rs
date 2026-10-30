@@ -291,6 +291,9 @@ pub struct ServerSettings {
     pub friendly_fire: bool,
     pub workshop_map: String,
     pub keep_map_rules: bool,
+    /// Experimental: a knife model from a Workshop addon (its id or link, and the .vmdl path inside it).
+    pub custom_knife_addon: String,
+    pub custom_knife_model: String,
     pub game_args: String,
     pub friends: i32,
     pub shared_skins: bool,
@@ -387,6 +390,8 @@ impl Default for ServerSettings {
             friendly_fire: false,
             workshop_map: String::new(),
             keep_map_rules: false,
+            custom_knife_addon: String::new(),
+            custom_knife_model: String::new(),
             game_args: "-novid".into(),
             friends: LAN,
             shared_skins: true,
@@ -607,9 +612,19 @@ impl ServerSettings {
     pub fn uses_map_rules(&self) -> bool {
         self.keep_map_rules && self.workshop_map_id().is_some()
     }
-    /// sv_lan 0: friends over Radmin / the internet, or the server downloads a Workshop map itself.
+    /// sv_lan 0: friends over Radmin / the internet, or the server downloads a Workshop map or addon itself.
     pub fn private_server(&self) -> bool {
-        self.friends != LAN || self.workshop_needs_download()
+        self.friends != LAN || self.workshop_needs_download() || self.custom_knife().is_some()
+    }
+
+    /// The custom knife's Workshop addon id and model path, when both are set and look right.
+    pub fn custom_knife(&self) -> Option<(String, String)> {
+        static ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{6,})").unwrap());
+        static MODEL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z0-9_/.\-]+\.vmdl$").unwrap());
+        let id = ID.captures(&self.custom_knife_addon)?[1].to_string();
+        let model = self.custom_knife_model.trim().replace('\\', "/").to_lowercase();
+        let model = model.strip_suffix("_c").unwrap_or(&model).to_string();
+        MODEL.is_match(&model).then_some((id, model))
     }
     pub fn workshop_needs_download(&self) -> bool {
         self.workshop_map_id().is_some()
@@ -1062,6 +1077,9 @@ impl ServerSettings {
             format!("lst_shared_loadout {}", b(self.shared_skins)),
             format!("lst_host_account {}", active_steam_account()),
             format!("sv_password \"{}\"", self.password.replace('"', "").trim()),
+            // MultiAddonManager mounts the addon and has every player download it; the plugin puts the model on.
+            format!("mm_extra_addons \"{}\"", self.custom_knife().map(|k| k.0).unwrap_or_default()),
+            format!("lst_custom_knife \"{}\"", self.custom_knife().map(|k| k.1).unwrap_or_default()),
         ];
         if self.uses_map_rules() {
             // The map's own config decides bots, money, rounds and cheats: only the plugin's own settings are sent.
@@ -1766,6 +1784,19 @@ mod tests {
                 && cfg.contains("retakes_enabled 0")
         );
         assert!(!cfg.contains("mp_maxmoney 65535"));
+    }
+
+    #[test]
+    fn custom_knife_needs_an_id_and_a_model() {
+        let mut s = ServerSettings::default();
+        assert_eq!(s.custom_knife(), None);
+        s.custom_knife_addon = "https://steamcommunity.com/sharedfiles/filedetails/?id=3090239773".into();
+        s.custom_knife_model = "Models\\Weapons\\Custom\\Knife.vmdl_c".into();
+        assert_eq!(s.custom_knife(), Some(("3090239773".into(), "models/weapons/custom/knife.vmdl".into())));
+        assert!(s.private_server());
+        assert!(s.to_cfg().contains("mm_extra_addons \"3090239773\""));
+        s.custom_knife_model = "knife; quit".into();
+        assert_eq!(s.custom_knife(), None);
     }
 
     #[test]

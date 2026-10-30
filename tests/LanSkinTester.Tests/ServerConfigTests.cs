@@ -50,6 +50,7 @@ public class ServerConfigTests
         "bot_nades",       // ed0ard/CS2-Bot-NadeSystem (Bot Improver's NadeSystem)
         "br_reroll",       // ed0ard/CS2-Bot-Randomizer (Bot Improver's BotRandomizer)
         "retakes_enabled", // B3none/cs2-retakes: FakeConVar
+        "mm_extra_addons", // Source2ZE/MultiAddonManager: CConVar
     ];
 
     /// <summary>CS2's own commands and cvars the launcher uses.</summary>
@@ -124,4 +125,16 @@ public class ServerConfigTests
     [InlineData("m4a1", true, "weapon_m4a1")]
     public void BotGetsAnAllowedRifle(string allowed, bool t, string expected) =>
         Assert.Equal(expected, global::LanSkinTester.LanSkinTester.BotRifleFor(allowed.Split(','), t));
+}
+
+public class CustomKnifeTests
+{
+    [Fact]
+    public void ReadsTheModelFromTheLauncherCfg()
+    {
+        Assert.Equal("models/weapons/custom/knife.vmdl",
+            global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("sv_lan 0\nlst_custom_knife \"models/weapons/custom/knife.vmdl\"\n"));
+        Assert.Equal("", global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("lst_custom_knife \"\"\n"));
+        Assert.Equal("", global::LanSkinTester.LanSkinTester.CustomKnifeFromCfg("lst_custom_knife \"../evil; quit\"\n"));
+    }
 }

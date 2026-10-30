@@ -81,6 +81,7 @@ public partial class LanSkinTester : BasePlugin, IPluginConfig<LanSkinTesterConf
         LoadTrainer();
         LoadBotSkins();
         LoadExtras();
+        LoadCustomKnife();
     }
 
     public override void Unload(bool hotReload)

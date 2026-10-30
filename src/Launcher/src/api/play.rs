@@ -42,6 +42,8 @@ pub struct PlayState {
     running_for_friends: bool,
     /// Started with -maxplayers (Custom mode).
     running_slots: bool,
+    /// The custom knife (addon, model) the server started with: it's mounted and precached at start.
+    running_knife: Option<(String, String)>,
     /// Opening the router port / downloading a server plugin.
     pub busy: bool,
     /// The last "could not start", shown on the hero until the next start.
@@ -990,6 +992,7 @@ fn start_test(app: &App, for_friends: bool) -> R<()> {
     p.running_online = server.private_server();
     p.running_for_friends = for_friends;
     p.running_slots = server.needs_player_slots();
+    p.running_knife = server.custom_knife();
     p.running_retake_key = Some(server.plugin_retake_key());
     drop(st);
     let map = id.map_or(server.map.clone(), |id| format!("Workshop map {id}"));
@@ -1038,10 +1041,13 @@ pub fn apply_to_server(app: &Arc<App>, a: AskArgs) -> R<()> {
     let reload = st.play.running_mode.as_ref() != Some(&server.mode)
         || st.play.running_map.as_ref() != Some(&map);
     let needs_slots = server.needs_player_slots() && !st.play.running_slots;
-    if needs_slots || retakes_need_restart(&st, &game, &server) {
+    let knife_changed = server.custom_knife() != st.play.running_knife;
+    if needs_slots || knife_changed || retakes_need_restart(&st, &game, &server) {
         if !a.confirmed {
             let why = if needs_slots {
                 "Custom mode needs player slots that are set when the server starts, so the server needs a restart."
+            } else if knife_changed {
+                "The custom knife's addon is downloaded and loaded when the server starts, so the server needs a restart."
             } else if installer::retake_plugins_mismatch(&game, &server)
                 || installer::extra_plugins_mismatch(&game, &server)
             {
@@ -1134,6 +1140,7 @@ fn restart_server(app: &Arc<App>) -> R<()> {
                     server.needs_player_slots(),
                     Some(server.plugin_retake_key()),
                 );
+                (p.running_online, p.running_knife) = (server.private_server(), server.custom_knife());
                 // The new server boots on the normal map: switch it to the Workshop map once it's up.
                 clear_workshop_wait(&mut st);
                 if server.workshop_needs_download() {
@@ -1354,6 +1361,11 @@ pub fn update_addons(app: &App, game: &GameFolder, force: bool) -> bool {
             Box::new(|| i.install_deathmatch()),
         ),
         (
+            "MultiAddonManager",
+            installer::addon_manager_installed(game),
+            Box::new(|| i.install_addon_manager()),
+        ),
+        (
             "the retakes plugin",
             installer::retakes_installed(game),
             Box::new(|| i.install_retakes()),
@@ -1442,6 +1454,14 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
             installer::bot_hider_installed,
             |i| i.install_bot_hider(),
             "Check your internet connection, or turn Bot Hider off (Live Server › Server Plugins).",
+        ));
+    }
+    if server.custom_knife().is_some() {
+        wanted.push((
+            "MultiAddonManager",
+            installer::addon_manager_installed,
+            |i| i.install_addon_manager(),
+            "Check your internet connection, or clear the custom knife (Live Server › Experimental).",
         ));
     }
     if server.uses_deathmatch_plugin() {
