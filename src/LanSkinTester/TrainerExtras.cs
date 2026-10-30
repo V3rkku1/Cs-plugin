@@ -110,6 +110,8 @@ public partial class LanSkinTester
         public Vector? First;
         public float Last, TotalAngle;
         public int Bullets;
+        // Where each bullet landed from the first, in degrees: right and up as you look, for the Stats picture.
+        public readonly List<float> Points = new();
     }
 
     [ConsoleCommand("lst_spray", "Spray score after every spray for every human: 1 on, 0 off")]
@@ -146,6 +148,11 @@ public partial class LanSkinTester
             _spray[player.Slot] = track = new SprayTrack { First = dir };
         else
             track.TotalAngle += MathF.Acos(Math.Clamp(dir.X * track.First!.X + dir.Y * track.First.Y + dir.Z * track.First.Z, -1f, 1f)) * 180 / MathF.PI;
+        var (yaw, pitch) = (MathF.Atan2(dir.Y, dir.X), MathF.Asin(Math.Clamp(dir.Z, -1f, 1f)));
+        var (yaw0, pitch0) = (MathF.Atan2(track.First!.Y, track.First.X), MathF.Asin(Math.Clamp(track.First.Z, -1f, 1f)));
+        var right = -MathF.IEEERemainder(yaw - yaw0, 2 * MathF.PI) * 180 / MathF.PI;
+        track.Points.Add(MathF.Round(right, 2));
+        track.Points.Add(MathF.Round((pitch - pitch0) * 180 / MathF.PI, 2));
         track.Last = now;
         track.Bullets++;
         var bullets = track.Bullets;
@@ -155,7 +162,8 @@ public partial class LanSkinTester
             _spray.Remove(player.Slot);
             if (bullets < 8) return;
             var spread = t.TotalAngle / (bullets - 1);
-            LogTraining(player, "spray", ("deg", MathF.Round(spread, 2)), ("bullets", bullets));
+            var gun = player.PlayerPawn.Value?.WeaponServices?.ActiveWeapon.Value?.DesignerName ?? "";
+            LogTraining(player, "spray", ("deg", MathF.Round(spread, 2)), ("bullets", bullets), ("w", WeaponName(gun)), ("pts", t.Points));
             Reply(player, $"Spray: {bullets} bullets, {spread:0.00}° from your first bullet on average " +
                 (spread < 1.5f ? "(great)" : spread < 3f ? "(good)" : "(pull down more)"));
         }, TimerFlags.STOP_ON_MAPCHANGE);

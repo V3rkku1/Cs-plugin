@@ -27,6 +27,8 @@ const BOT_HIDER_API: &str = "https://api.github.com/repos/XBribo/CS2-Bot-Hider/r
 const DEATHMATCH_API: &str = "https://api.github.com/repos/NockyCZ/CS2-Deathmatch/releases/latest";
 const BOT_IMPROVER_API: &str =
     "https://api.github.com/repos/ed0ard/CS2-Bot-Improver/releases/latest";
+const ADDON_MANAGER_API: &str =
+    "https://api.github.com/repos/Source2ZE/MultiAddonManager/releases/latest";
 const BOT_CONTROLLER_API: &str =
     "https://api.github.com/repos/XBribo/CS2-Bot-Controller/releases/latest";
 
@@ -221,6 +223,17 @@ impl Installer<'_> {
             &[|n| has(n, "windows")],
         )?)?;
         self.log("Bot Hider installed.");
+        Ok(())
+    }
+
+    /// MultiAddonManager (Source2ZE, GPL-3.0): mounts Workshop addons and makes players download them.
+    pub fn install_addon_manager(&self) -> R<()> {
+        self.install_zip(&self.release_asset(
+            ADDON_MANAGER_API,
+            "MultiAddonManager",
+            &[|n| has(n, "windows") && zip_name(n)],
+        )?)?;
+        self.log("MultiAddonManager installed.");
         Ok(())
     }
 
@@ -567,6 +580,9 @@ pub fn deathmatch_installed(game: &GameFolder) -> bool {
 pub fn bot_improver_installed(game: &GameFolder) -> bool {
     tree_exists(game, "plugins/BotState")
 }
+pub fn addon_manager_installed(game: &GameFolder) -> bool {
+    native_installed(game, "multiaddonmanager")
+}
 pub fn bot_controller_installed(game: &GameFolder) -> bool {
     native_installed(game, "BotController")
 }
@@ -619,6 +635,7 @@ pub fn extra_plugins_mismatch(game: &GameFolder, s: &ServerSettings) -> bool {
         || native("BotVision", s.bot_improver)
         || tree("plugins/BotAI", s.bot_improver)
         || tree("plugins/Deathmatch", s.uses_deathmatch_plugin())
+        || native("multiaddonmanager", !s.custom_models().is_empty())
         || IMPROVER_PLUGINS
             .iter()
             .any(|p| tree(&format!("plugins/{p}"), want_improver_plugin(s, p)))
@@ -647,6 +664,7 @@ pub fn set_extra_plugins(game: &GameFolder, s: &ServerSettings) -> io::Result<()
         set_tree_active(game, &format!("plugins/{p}"), want_improver_plugin(s, p))?;
     }
     set_tree_active(game, "plugins/Deathmatch", s.uses_deathmatch_plugin())?;
+    set_native_active(game, "multiaddonmanager", !s.custom_models().is_empty())?;
     set_tree_active(game, "shared/DeathmatchAPI", s.uses_deathmatch_plugin())
 }
 

@@ -217,6 +217,36 @@ pub fn discover_modes(game: &GameFolder) -> bool {
     true
 }
 
+/// Experimental: a model from a Workshop addon and what it replaces.
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "PascalCase", default)]
+pub struct CustomModel {
+    /// The Workshop addon: its id or a link to it.
+    pub addon: String,
+    /// The .vmdl inside the addon.
+    pub model: String,
+    /// "knife", "agent_t", "agent_ct" or a gun's classname (weapon_ak47).
+    pub replaces: String,
+}
+
+impl CustomModel {
+    /// The Workshop id from an id or a link.
+    pub fn id(&self) -> Option<String> {
+        static ID: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d{6,})").unwrap());
+        ID.captures(&self.addon).map(|c| c[1].to_string())
+    }
+
+    fn checked(&self) -> Option<(String, String, String)> {
+        static MODEL: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^[a-z0-9_/.\-]+\.vmdl$").unwrap());
+        let id = self.id()?;
+        let model = self.model.trim().replace('\\', "/").to_lowercase();
+        let model = model.strip_suffix("_c").unwrap_or(&model).to_string();
+        let slot = matches!(self.replaces.as_str(), "knife" | "agent_t" | "agent_ct")
+            || crate::items::WEAPONS.iter().any(|w| w.1 == self.replaces);
+        (slot && MODEL.is_match(&model)).then(|| (id, model, self.replaces.clone()))
+    }
+}
+
 /// Field names are the launcher.json format (older launchers wrote PascalCase, enums as numbers).
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
 #[serde(rename_all = "PascalCase", default)]
@@ -291,6 +321,8 @@ pub struct ServerSettings {
     pub friendly_fire: bool,
     pub workshop_map: String,
     pub keep_map_rules: bool,
+    /// Experimental: models from Workshop addons that replace the knife, a gun or an agent.
+    pub custom_models: Vec<CustomModel>,
     pub game_args: String,
     pub friends: i32,
     pub shared_skins: bool,
@@ -387,6 +419,7 @@ impl Default for ServerSettings {
             friendly_fire: false,
             workshop_map: String::new(),
             keep_map_rules: false,
+            custom_models: vec![],
             game_args: "-novid".into(),
             friends: LAN,
             shared_skins: true,
@@ -607,9 +640,14 @@ impl ServerSettings {
     pub fn uses_map_rules(&self) -> bool {
         self.keep_map_rules && self.workshop_map_id().is_some()
     }
-    /// sv_lan 0: friends over Radmin / the internet, or the server downloads a Workshop map itself.
+    /// sv_lan 0: friends over Radmin / the internet, or the server downloads a Workshop map or addon itself.
     pub fn private_server(&self) -> bool {
-        self.friends != LAN || self.workshop_needs_download()
+        self.friends != LAN || self.workshop_needs_download() || !self.custom_models().is_empty()
+    }
+
+    /// The custom models that are filled in right: (addon id, model path, what it replaces).
+    pub fn custom_models(&self) -> Vec<(String, String, String)> {
+        self.custom_models.iter().filter_map(CustomModel::checked).collect()
     }
     pub fn workshop_needs_download(&self) -> bool {
         self.workshop_map_id().is_some()
@@ -1062,7 +1100,14 @@ impl ServerSettings {
             format!("lst_shared_loadout {}", b(self.shared_skins)),
             format!("lst_host_account {}", active_steam_account()),
             format!("sv_password \"{}\"", self.password.replace('"', "").trim()),
+            // MultiAddonManager mounts the addon and has every player download it; the plugin puts the model on.
         ];
+        let models = self.custom_models();
+        let mut addons: Vec<&str> = models.iter().map(|m| m.0.as_str()).collect();
+        addons.dedup();
+        o.push(format!("mm_extra_addons \"{}\"", addons.join(",")));
+        o.push("lst_custom_model clear".into());
+        o.extend(models.iter().map(|m| format!("lst_custom_model {} \"{}\"", m.2, m.1)));
         if self.uses_map_rules() {
             // The map's own config decides bots, money, rounds and cheats: only the plugin's own settings are sent.
             self.plugin_extras(&mut o);
@@ -1766,6 +1811,26 @@ mod tests {
                 && cfg.contains("retakes_enabled 0")
         );
         assert!(!cfg.contains("mp_maxmoney 65535"));
+    }
+
+    #[test]
+    fn custom_models_need_an_id_a_model_and_a_slot() {
+        let mut s = ServerSettings::default();
+        assert!(s.custom_models().is_empty() && !s.private_server());
+        let m = |addon: &str, model: &str, replaces: &str| CustomModel { addon: addon.into(), model: model.into(), replaces: replaces.into() };
+        s.custom_models = vec![
+            m("https://steamcommunity.com/sharedfiles/filedetails/?id=3090239773", "Models\\Weapons\\Custom\\Knife.vmdl_c", "knife"),
+            m("3090239773", "models/ak.vmdl", "weapon_ak47"),
+            m("3070231528", "models/agent.vmdl", "agent_ct"),
+            m("3070231528", "knife; quit", "knife"),
+            m("3070231528", "models/x.vmdl", "weapon_nope"),
+        ];
+        assert_eq!(s.custom_models()[0], ("3090239773".into(), "models/weapons/custom/knife.vmdl".into(), "knife".into()));
+        assert_eq!(s.custom_models().len(), 3);
+        assert!(s.private_server());
+        let cfg = s.to_cfg();
+        assert!(cfg.contains("mm_extra_addons \"3090239773,3070231528\""));
+        assert!(cfg.contains("lst_custom_model weapon_ak47 \"models/ak.vmdl\""));
     }
 
     #[test]

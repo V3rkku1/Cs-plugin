@@ -291,7 +291,7 @@ fn inputs(app: &App, inv: &mut Inv, uids: &[String]) -> R<Vec<InventoryItem>> {
     Ok(uids
         .iter()
         .filter(|u| seen.insert(*u))
-        .filter_map(|u| items.iter().find(|i| &i.uid == u).cloned())
+        .filter_map(|u| items.iter().find(|i| &i.uid == u && super::cases::loose(i)).cloned())
         .collect())
 }
 
@@ -354,6 +354,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 item_id: Some(drop.id.clone()),
                 team: None,
                 stickers: None,
+                unit: None,
             };
             let used: std::collections::HashSet<&String> = inputs.iter().map(|i| &i.uid).collect();
             let items = inv.items(app)?;

@@ -141,6 +141,7 @@ fn stats(text: &str, player: &str) -> Value {
     let mut days: BTreeMap<NaiveDate, Day> = BTreeMap::new();
     let mut guns: BTreeMap<String, Tally> = BTreeMap::new();
     let mut maps: BTreeMap<String, Tally> = BTreeMap::new();
+    let mut last_spray = Value::Null;
     for l in &lines {
         let p = l["p"].as_str().unwrap_or("");
         let Some(t) = l["t"].as_i64() else { continue };
@@ -188,7 +189,12 @@ fn stats(text: &str, player: &str) -> Value {
                 d.dhs += yes("hs");
             }
             "prefire" => d.prefire.push(num("ms")),
-            "spray" => d.spray.push(num("deg")),
+            "spray" => {
+                d.spray.push(num("deg"));
+                if l["pts"].is_array() {
+                    last_spray = json!({ "t": t, "w": l["w"], "deg": l["deg"], "pts": l["pts"] });
+                }
+            }
             "course" => {
                 if let Some(m) = map.as_mut() {
                     let s = num("ms") / 1000.0;
@@ -269,7 +275,7 @@ fn stats(text: &str, player: &str) -> Value {
             .collect()
     };
     json!({ "player": player, "players": players.iter().map(|p| p.0).collect::<Vec<_>>(), "days": days,
-            "guns": table(guns), "maps": table(maps) })
+            "guns": table(guns), "maps": table(maps), "lastSpray": last_spray })
 }
 
 /// The plugin's file name for a map: anything but letters and digits becomes `_`.
@@ -293,6 +299,19 @@ fn lineups(text: &str) -> Value {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn keeps_the_last_spray_with_points() {
+        let text = concat!(
+            r#"{"t":1,"k":"spray","p":"me","deg":2.0}"#, "\n",
+            r#"{"t":2,"k":"spray","p":"me","deg":1.0,"w":"ak47","pts":[0,0,0.5,1.2]}"#, "\n",
+            r#"{"t":3,"k":"spray","p":"you","deg":9.0,"pts":[0,0]}"#, "\n",
+        );
+        let s = stats(text, "me");
+        assert_eq!(s["lastSpray"]["w"], "ak47");
+        assert_eq!(s["lastSpray"]["pts"].as_array().unwrap().len(), 4);
+        assert!(stats("", "").get("lastSpray").unwrap().is_null());
+    }
 
     #[test]
     fn reads_the_plugin_lineup_file() {

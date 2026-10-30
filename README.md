@@ -62,6 +62,13 @@ the map; a few settings restart the server and ask first):
 - **Server Plugins:** clean up dropped guns, no fall damage, auto bunnyhop, spawn protection, `!guns`,
   `!ready`, `!rtv` map vote, round MVP and `!stats`, welcome message, and downloaded ones: Bot Improver,
   Bot Hider, Bot Controller and the Deathmatch plugin (see [Server plugins](#server-plugins)).
+- **Experimental › Custom Models:** models from Steam Workshop addons that replace the knife, a gun or the T / CT
+  agent for every player. Paste the addon's ID or link and subscribe to it in Steam: the launcher then lists the
+  models inside it to pick from, and what each replaces. The launcher installs
+  [MultiAddonManager](https://github.com/Source2ZE/MultiAddonManager), which mounts the addons and has everyone
+  who joins download them; the plugin puts the models on, in first person too. The server goes online (unlisted)
+  to download the addons, so it needs internet. Models must be made for CS2 (Workshop Tools) with the stock
+  animations and skeleton; skins don't show on them. May break after a CS2 update.
 - **Launch:** your own CS2 launch options, and whether CS2 starts automatically.
 - **Live controls** (when the server is up): restart, end warmup, pause, resume, swap, CT/T win; add CT,
   add T, kick bots, respawn, god; third person, noclip, armor, nades, clear, save/load spot, rethrow,
@@ -86,6 +93,11 @@ changes in game within a second.
 - **Export** / **Import** save the inventory to a file and add one back (import needs the admin code).
 - **Preview wear:** drag a slider in the inspect panel to see roughly how the skin looks from Factory New to
   Battle-Scarred. **StatTrak™ kills** really count: kills on the server add to the counter on the gun.
+- **Storage Units:** named boxes of up to 1000 items each. Stored items are hidden from the inventory and
+  can't be equipped, traded up or gifted until you take them out; an equipped item comes off when stored.
+  Deleting a unit puts its items back. *Store in a unit…* is in the inspect panel.
+- **Fade %:** Fade, Amber Fade and Acid Fade skins show their fade percentage (80–100%, from the pattern) in
+  the inspect panel.
 - **Random Loadout** (Loadout tab): a random skin you own on every gun, plus a random knife and gloves.
 - **Gift to a Friend:** the item leaves your inventory and you get a code (copied); your friend pastes it at
   **Redeem Gift**. One code, one item. (Codes are signed, but the key ships in every launcher: fine between
@@ -142,7 +154,7 @@ Live Server puts your setup back.
 a table (2 weeks to all time): Reaction Drill, Flick Drill and Reaction Test times, headshot %, K/D, accuracy, damage
 per round, stopped shots (counter-strafe check), strafe sync, longest jump, prefire time, spray spread, drill headshots (kills on bots that
 don't shoot back, kept apart from your real headshot % and K/D) and drill rounds won, plus your
-personal bests, achievements, and all-time tables per gun (kills, headshots, accuracy) and per map (rounds
+personal bests, achievements, your **last spray** drawn bullet by bullet (with the 1.5° and 3° rings), and all-time tables per gun (kills, headshots, accuracy) and per map (rounds
 won, K/D, damage per round, drill wins, best course time). Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
 Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over
 (the old file is kept as `training.jsonl.bak`). Kept in
@@ -153,7 +165,7 @@ the server on that map) and *Subscribe* (opens it in Steam). A Workshop map load
 server goes online (unlisted, no token), boots on a normal map, then switches with `host_workshop_map`; CS2
 joins once the map is loaded. A new map starts in Custom, or a fitting mode from its name (`aim_`, `ar_`,
 `de_`…); the mode you pick is remembered per map. Maps that change maps with their own script (Movement
-Hub) start as an offline game instead. Custom weapon and player models aren't supported.
+Hub) start as an offline game instead. Custom weapon and player models aren't supported (Workshop addon models are, as an experiment: Live Server › Experimental).
 
 **Friends.**
 - *Friends List:* friends hosting on your Wi-Fi or Radmin network show up by themselves (UDP port 27098),

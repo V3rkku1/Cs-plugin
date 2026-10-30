@@ -282,6 +282,21 @@ pub fn find_workshop_vpk(game: &GameFolder, id: &str) -> Option<PathBuf> {
         .max_by_key(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
 }
 
+/// The models (.vmdl paths) in an addon Steam has downloaded, or None when it isn't downloaded.
+pub fn addon_models(game: &GameFolder, id: &str) -> Option<Vec<String>> {
+    let mut all = vec![];
+    vpks(&workshop_dir(game, id), &mut all);
+    // A split addon lists every file in its _dir.vpk; a single-file one in itself.
+    let vpk = all.iter().find(|p| p.to_string_lossy().ends_with("_dir.vpk")).or(all.first())?;
+    let mut models: Vec<String> = vpk_files(vpk)
+        .into_iter()
+        .filter(|(_, _, ext)| ext == "vmdl_c")
+        .map(|(folder, name, _)| if folder.is_empty() { format!("{name}.vmdl") } else { format!("{folder}/{name}.vmdl") })
+        .collect();
+    models.sort();
+    Some(models)
+}
+
 pub struct Downloaded {
     pub id: String,
     pub bytes: u64,

@@ -1,6 +1,6 @@
 // Live Server: the server settings (most used first) and the controls for the running match.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { call, tryCall, navigate } from "../api.js";
+import { call, tryCall, navigate, useApi } from "../api.js";
 import { Page, Section, Row, Button, Toggle, Segmented, Slider, Stepper, TextField, Select, Icon, Badge, confirm, prompt, LogView } from "../ui.js";
 import { usePlay } from "./play.js";
 
@@ -19,6 +19,38 @@ const BOT_GUNS = [
   ["nova", "Nova"], ["xm1014", "XM1014"], ["mag7", "MAG-7"], ["sawedoff", "Sawed-Off"], ["negev", "Negev"], ["m249", "M249"],
   ["deagle", "Desert Eagle"], ["r8", "R8 Revolver"], ["p250", "P250"], ["fn57", "Five-SeveN"], ["cz75a", "CZ75-Auto"], ["elite", "Dual Berettas"],
 ].map(([value, label]) => ({ value, label }));
+
+// Experimental custom models. Settings are stored PascalCase, so the list goes back that way.
+const saveModels = list => set("customModels", list.map(m => ({ Addon: m.addon, Model: m.model, Replaces: m.replaces })));
+
+function CustomModelRow({ m, i, list }) {
+  const [info, reload] = useApi("live.addonModels", m.addon ?? "");
+  const edit = change => saveModels(list.map((x, j) => j === i ? { ...x, ...change } : x));
+  const models = info?.models ?? [];
+  return html`<${Row} icon=${{ name: "sparkles", color: "purple" }} title=${info?.slots?.find(o => o.value === m.replaces)?.label ?? "Model"}
+      subtitle=${!info?.id ? "Paste the addon's Workshop ID or link" : !info.downloaded ? "Subscribe in Steam, wait for the download, then press ↻ to pick the model"
+        : models.length ? `${models.length} models in this addon` : "No models in this addon"}>
+    <div class="hstack" style="gap:6px;flex-wrap:wrap;justify-content:flex-end">
+      <${CommitField} width=${150} value=${m.addon} placeholder="Addon ID or link" onCommit=${v => edit({ addon: v, model: "" })} />
+      ${models.length ? html`<${Select} width=${240} value=${m.model} placeholder="Pick the model…" options=${models} onChange=${v => edit({ model: v })} />`
+        : html`<${CommitField} width=${240} value=${m.model} placeholder="models/…/name.vmdl" onCommit=${v => edit({ model: v })} />`}
+      <${Select} width=${130} value=${m.replaces} options=${info?.slots ?? []} onChange=${v => edit({ replaces: v })} />
+      ${info?.id && !info.downloaded && html`<${Button} size="sm" onClick=${() => tryCall("workshop.subscribe", info.id)}>Subscribe<//>`}
+      <${Button} size="sm" kind="plain" icon="refresh" title="Look again for the downloaded addon" onClick=${reload} />
+      <${Button} size="sm" kind="plain" icon="x" title="Remove" onClick=${() => saveModels(list.filter((_, j) => j !== i))} />
+    </div>
+  <//>`;
+}
+
+/** Models from Workshop addons for the knife, a gun or an agent: one row each. */
+function CustomModels({ list }) {
+  return html`<${Section} title="Experimental · Custom Models" note="may break after a CS2 update"
+      footer="Models from Steam Workshop addons (made for CS2 with the stock animations) replace the knife, a gun or an agent for every player. Subscribe to the addon in Steam so its models can be listed. On Start, MultiAddonManager is installed and the server goes online (unlisted) so it and your friends download the addons. Skins don't show on custom models. Changing the list restarts the server.">
+    ${list.map((m, i) => html`<${CustomModelRow} key=${i} m=${m} i=${i} list=${list} />`)}
+    <${Row} title=${list.length ? "" : "No custom models"}>
+      <${Button} size="sm" icon="plus" onClick=${() => saveModels([...list, { addon: "", model: "", replaces: "knife" }])}>Add Model<//><//>
+  <//>`;
+}
 
 /** A text field that saves when you press Enter or leave it. */
 function CommitField({ value, onCommit, ...props }) {
@@ -331,6 +363,8 @@ export function LivePage() {
               subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, every gun (no weapon-only rounds), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
+
+        <${CustomModels} list=${s.customModels ?? []} />
 
         ${s.botImprover && html`<${Section} title="Bot Improver" note=${up ? "changes reach the running server right away" : ""}
             footer="Bot Improver's settings. Forced weapons start the next round.">

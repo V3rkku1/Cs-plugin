@@ -42,6 +42,8 @@ pub struct PlayState {
     running_for_friends: bool,
     /// Started with -maxplayers (Custom mode).
     running_slots: bool,
+    /// The custom models the server started with: they're mounted and precached at start.
+    running_models: Vec<(String, String, String)>,
     /// Opening the router port / downloading a server plugin.
     pub busy: bool,
     /// The last "could not start", shown on the hero until the next start.
@@ -336,6 +338,23 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             })?;
             app.log("Opened the map in Steam: press Subscribe there, wait for the download, then Start (or Apply).");
             ok(())
+        }
+        // Experimental custom models: what an addon Steam has downloaded holds, and what a model can replace.
+        "live.addonModels" => {
+            let addon: String = arg(a)?;
+            let id = server::CustomModel { addon, ..Default::default() }.id();
+            let game = app.state().game().ok().cloned();
+            let models = match (&id, &game) {
+                (Some(id), Some(g)) => game::addon_models(g, id),
+                _ => None,
+            };
+            let mut slots = vec![json!({ "value": "knife", "label": "Knife" }), json!({ "value": "agent_t", "label": "T Agent" }),
+                json!({ "value": "agent_ct", "label": "CT Agent" })];
+            slots.extend(crate::items::WEAPONS.iter().filter(|w| w.0 != 31).filter_map(|(def, class)| {
+                let name = crate::items::DISPLAY_NAMES.iter().find(|n| n.0 == *def)?.1;
+                Some(json!({ "value": class, "label": name }))
+            }));
+            ok(json!({ "id": id, "downloaded": models.is_some(), "models": models.unwrap_or_default(), "slots": slots }))
         }
         "live.command" => send_command(app, &arg::<String>(a)?).map(|_| Value::Null),
         "live.botweapon" => {
@@ -990,6 +1009,7 @@ fn start_test(app: &App, for_friends: bool) -> R<()> {
     p.running_online = server.private_server();
     p.running_for_friends = for_friends;
     p.running_slots = server.needs_player_slots();
+    p.running_models = server.custom_models();
     p.running_retake_key = Some(server.plugin_retake_key());
     drop(st);
     let map = id.map_or(server.map.clone(), |id| format!("Workshop map {id}"));
@@ -1038,10 +1058,13 @@ pub fn apply_to_server(app: &Arc<App>, a: AskArgs) -> R<()> {
     let reload = st.play.running_mode.as_ref() != Some(&server.mode)
         || st.play.running_map.as_ref() != Some(&map);
     let needs_slots = server.needs_player_slots() && !st.play.running_slots;
-    if needs_slots || retakes_need_restart(&st, &game, &server) {
+    let models_changed = server.custom_models() != st.play.running_models;
+    if needs_slots || models_changed || retakes_need_restart(&st, &game, &server) {
         if !a.confirmed {
             let why = if needs_slots {
                 "Custom mode needs player slots that are set when the server starts, so the server needs a restart."
+            } else if models_changed {
+                "Custom models are downloaded and loaded when the server starts, so the server needs a restart."
             } else if installer::retake_plugins_mismatch(&game, &server)
                 || installer::extra_plugins_mismatch(&game, &server)
             {
@@ -1134,6 +1157,7 @@ fn restart_server(app: &Arc<App>) -> R<()> {
                     server.needs_player_slots(),
                     Some(server.plugin_retake_key()),
                 );
+                (p.running_online, p.running_models) = (server.private_server(), server.custom_models());
                 // The new server boots on the normal map: switch it to the Workshop map once it's up.
                 clear_workshop_wait(&mut st);
                 if server.workshop_needs_download() {
@@ -1354,6 +1378,11 @@ pub fn update_addons(app: &App, game: &GameFolder, force: bool) -> bool {
             Box::new(|| i.install_deathmatch()),
         ),
         (
+            "MultiAddonManager",
+            installer::addon_manager_installed(game),
+            Box::new(|| i.install_addon_manager()),
+        ),
+        (
             "the retakes plugin",
             installer::retakes_installed(game),
             Box::new(|| i.install_retakes()),
@@ -1442,6 +1471,14 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
             installer::bot_hider_installed,
             |i| i.install_bot_hider(),
             "Check your internet connection, or turn Bot Hider off (Live Server › Server Plugins).",
+        ));
+    }
+    if !server.custom_models().is_empty() {
+        wanted.push((
+            "MultiAddonManager",
+            installer::addon_manager_installed,
+            |i| i.install_addon_manager(),
+            "Check your internet connection, or remove the custom models (Live Server › Experimental).",
         ));
     }
     if server.uses_deathmatch_plugin() {
