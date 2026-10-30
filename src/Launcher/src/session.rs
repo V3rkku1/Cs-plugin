@@ -269,6 +269,15 @@ impl Session<'_> {
             let _ = fs::remove_file(self.game.plugin_dir().join(f));
         }
         let child = self.run_cs2(&settings.start_arguments())?;
+        // Above normal: the map loads and the server ticks on time while CS2 and the launcher share the CPU.
+        #[cfg(windows)]
+        unsafe {
+            use std::os::windows::io::AsRawHandle;
+            windows_sys::Win32::System::Threading::SetPriorityClass(
+                child.as_raw_handle(),
+                windows_sys::Win32::System::Threading::ABOVE_NORMAL_PRIORITY_CLASS,
+            );
+        }
         if let Some(p) = proc_of(child.id()) {
             let _ = fs::write(pid_file(), format!("{} {}", p.pid, p.start));
         }
@@ -325,7 +334,7 @@ impl Session<'_> {
 
     /// The last lines the server wrote, to show why it stopped.
     pub fn console_tail(&self, lines: usize) -> Vec<String> {
-        util::tail(&self.console_log(), lines, u64::MAX)
+        util::tail(&self.console_log(), lines, 256 * 1024)
     }
 
     /// Closes the test server and game, then puts gameinfo.gi back to normal.
