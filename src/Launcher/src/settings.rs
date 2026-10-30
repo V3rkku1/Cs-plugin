@@ -22,6 +22,8 @@ pub struct LauncherSettings {
     pub reduce_motion: bool,
     /// Install launcher updates by itself when it starts (nothing running yet).
     pub auto_update: bool,
+    /// Windows notifications while the launcher is in the background.
+    pub notifications: bool,
     /// When the last automatic update ran (RFC 3339), so a half-published release can't cause a restart loop.
     pub last_auto_update: Option<String>,
     /// Setup › Appearance: accent, background and panel colours, opacity, corners, font, picture.
@@ -42,6 +44,10 @@ pub struct LauncherSettings {
     pub addons_cs2_build: String,
     /// Whole loadouts saved under a name (Inventory › Loadout), equipped with one click.
     pub loadout_presets: BTreeMap<String, crate::items::PlayerLoadout>,
+    /// Skin names wanted (Cases: which case has them, and the odds).
+    pub wishlist: Vec<String>,
+    /// Gift codes already redeemed on this PC (their nonce), newest last.
+    pub redeemed_gifts: Vec<String>,
     pub cases_opened: i32,
     /// Openings per container id, for "what it would have cost" on the Cases page.
     pub case_opens: BTreeMap<String, i32>,
@@ -61,6 +67,7 @@ impl Default for LauncherSettings {
             reduce_glass: false,
             reduce_motion: false,
             auto_update: true,
+            notifications: true,
             last_auto_update: None,
             theme: BTreeMap::new(),
             saved_setups: vec![],
@@ -71,6 +78,8 @@ impl Default for LauncherSettings {
             admin_hash: String::new(),
             addons_cs2_build: String::new(),
             loadout_presets: BTreeMap::new(),
+            wishlist: vec![],
+            redeemed_gifts: vec![],
             cases_opened: 0,
             case_opens: BTreeMap::new(),
             currency: "USD".into(),
@@ -123,6 +132,7 @@ impl LauncherSettings {
             Err(_) => Self::default(),
         };
         settings.admin_unlocked &= settings.admin_hash == crate::api::UNLOCK_HASH;
+        crate::notify::ENABLED.store(settings.notifications, std::sync::atomic::Ordering::Relaxed);
         crate::server::SKIN_COMMANDS.store(
             settings.admin_unlocked,
             std::sync::atomic::Ordering::Relaxed,

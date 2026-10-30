@@ -53,7 +53,11 @@ the map; a few settings restart the server and ask first):
   with *Reroll*; Bot Improver adds agents).
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
-  low gravity.
+  low gravity, and a **Fun Mode** for Casual / Competitive rounds: *Zombie* (a few players start as zombies with a
+  knife and 2000 HP; whoever they kill joins them; humans win by surviving the round) or *Hide & Seek* (T hide
+  with knives while CT wait 30 s, then seek; T win if one is alive when time runs out). Both are quick starts on
+  the Play page too.
+- **Performance:** CPU and memory of the server and CS2 and the PC's free memory, with a tip when it struggles.
 - **Server Plugins:** clean up dropped guns, no fall damage, auto bunnyhop, spawn protection, `!guns`,
   `!ready`, `!rtv` map vote, round MVP and `!stats`, welcome message, and downloaded ones: Bot Improver,
   Bot Hider, Bot Controller and the Deathmatch plugin (see [Server plugins](#server-plugins)).
@@ -79,6 +83,12 @@ changes in game within a second.
   Covert guns for a knife or gloves, with CS2's ticket odds and float formula. You see every possible result
   with its chance, float and price before you sign.
 - **Export** / **Import** save the inventory to a file and add one back (import needs the admin code).
+- **Preview wear:** drag a slider in the inspect panel to see roughly how the skin looks from Factory New to
+  Battle-Scarred. **StatTrak™ kills** really count: kills on the server add to the counter on the gun.
+- **Random Loadout** (Loadout tab): a random skin you own on every gun, plus a random knife and gloves.
+- **Gift to a Friend:** the item leaves your inventory and you get a code (copied); your friend pastes it at
+  **Redeem Gift**. One code, one item. (Codes are signed, but the key ships in every launcher: fine between
+  friends, not a real economy.)
 
 **Cases.** Open any CS2 container for free: weapon cases, capsules, souvenir packages, pins, patches,
 music kits, graffiti. Valve's odds (Mil-Spec 79.92%, Restricted 15.98%, Classified 3.20%, Covert 0.64%, knife
@@ -86,6 +96,13 @@ or gloves 0.26%), real float ranges, pattern 0–1000, StatTrak 10% in weapon ca
 opens, a click skips the reel. Prices are real market prices for information (Skinport, then the Steam
 Market; USD, EUR or GBP), and the page shows what your openings would have cost (keys at Steam's price plus the
 containers) and your profit or loss against what you unboxed.
+- **Wishlist:** ★ a skin in a case's contents; the case list then shows which cases have your wished skins and
+  the chance per opening.
+- **Collection Book:** every weapon case and souvenir package with how many of its skins you own.
+- **Case Battle:** you and 1–3 bots open the same case 1–5 times; the highest total value takes every item, a
+  loss leaves you nothing.
+- **Upgrade:** risk an unequipped skin for a better one; the chance is its value against the target's, minus 10%
+  (at most 80%). Win: the new skin. Lose: yours is gone.
 
 **Unbox only and the admin code:** by default you can equip only what you unboxed (plus vanilla guns), and
 `!skin`, `!gen`, `!knife` and `!gloves` are off on your server. The owner's admin code (Cases › *Admin code*)
@@ -158,7 +175,8 @@ router; on CGNAT (common on mobile internet) use Radmin; or forward UDP 27015 by
 the plugin, the CounterStrikeSharp skin setting and the item lists, each with its own Install/Update button.
 *Update Everything* (newest Metamod, CounterStrikeSharp, server plugins, skin data and launcher; this also
 runs by itself after a CS2 update, and Start waits for it), *Check for updates*, *Install from zip* (when a
-download fails), *Repair*, *Uninstall everything* (restores
+download fails), *Repair*, *Windows notifications* (server up, a friend joined, an update; only while the
+launcher is in the background), *Show the Tour* (the first-start guide), *Uninstall everything* (restores
 `gameinfo.gi`; the loadout is backed up), *Open folder* buttons, and *Reset Launcher*. **Appearance:** themes,
 accent / background / panel colours, opacity, title bar colour, corners, font, text size, a background picture,
 *Reduce Transparency* and *Reduce Motion*; *Theme Code* shares your look as `LST1-…`; *Open custom.css* edits

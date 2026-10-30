@@ -2,6 +2,8 @@
 //! what you unbox in an inventory and equip it on the local server. Without the owner's admin code only what
 //! was unboxed here can be equipped; the code unlocks every skin. Nothing here touches a Steam inventory.
 
+mod extras;
+
 use super::{arg, bad, ok, unknown, App, State, R};
 use crate::itemdb::{CaseInfo, CaseItem};
 use crate::items::{
@@ -47,6 +49,8 @@ pub struct InventoryItem {
     pub wear: f32,
     pub seed: i32,
     pub stat_trak: bool,
+    /// Kills counted on the server (the plugin keeps them in the loadout; copied back here).
+    pub stat_trak_count: i32,
     pub souvenir: bool,
     pub phase: Option<String>,
     pub case_name: String,
@@ -371,6 +375,7 @@ pub fn skin_of(item: &InventoryItem) -> SkinSettings {
         wear: if item.wear > 0.0 { item.wear } else { 0.01 },
         seed: item.seed,
         stat_trak: item.stat_trak,
+        stat_trak_count: item.stat_trak_count,
         stickers: item
             .stickers
             .iter()
@@ -435,6 +440,9 @@ struct StickerArgs {
 }
 
 pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
+    if let Some(result) = extras::call(app, inv, name, a) {
+        return result;
+    }
     match name {
         "cases.state" => {
             let st = app.state();
@@ -507,6 +515,9 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
         "cases.inventory" => {
             let st = app.state();
             let loadout = read_loadout(app, inv, &st)?;
+            if extras::sync_stat_trak(inv.items(app)?, &loadout) {
+                inv.save(app);
+            }
             let items: Vec<InventoryView> = inv
                 .items(app)?
                 .iter()
@@ -843,6 +854,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 wear,
                 seed: a.seed.clamp(0, 1000),
                 stat_trak: a.stat_trak && c.can_stat_trak,
+                stat_trak_count: 0,
                 souvenir: a.souvenir && c.kind == "skin",
                 phase: None,
                 case_name: "Admin".into(),
@@ -1033,9 +1045,13 @@ fn cases_state(app: &App, st: &State, items: &[InventoryItem]) -> Value {
     // Newest first, like the game's store; weapon cases before the rest.
     let mut rows: Vec<(usize, &CaseInfo)> = st.db.cases.iter().enumerate().collect();
     rows.sort_by_key(|(i, c)| ((c.kind != "Case") as u8, std::cmp::Reverse(*i)));
-    let mut rows: Vec<Value> = rows.iter().map(|(_, c)| json!({
-        "id": c.id, "name": c.name, "image": c.image, "type": c.kind, "count": c.items.len() + c.rare.len(), "rare": !c.rare.is_empty(),
-    })).collect();
+    let mut rows: Vec<Value> = rows.iter().map(|(_, c)| {
+        let wish = extras::wish_odds(st, c);
+        json!({
+            "id": c.id, "name": c.name, "image": c.image, "type": c.kind, "count": c.items.len() + c.rare.len(), "rare": !c.rare.is_empty(),
+            "wish": wish.as_ref().map(|w| w.0.clone()), "wishChance": wish.map(|w| w.1),
+        })
+    }).collect();
     // The free Care Package drop, first, whenever the skin pool is loaded.
     if !st.db.skins.is_empty() {
         let cp = care_package(st);
@@ -1072,7 +1088,7 @@ fn cases_state(app: &App, st: &State, items: &[InventoryItem]) -> Value {
         .sum();
     let round = |x: f64| (x * 100.0).round() / 100.0 + 0.0; // + 0.0: an empty sum is -0.0
     json!({
-        "dbEmpty": st.db.cases.is_empty(), "unlocked": st.settings.admin_unlocked, "opened": st.settings.cases_opened, "cases": rows,
+        "dbEmpty": st.db.cases.is_empty(), "unlocked": st.settings.admin_unlocked, "wishlist": st.settings.wishlist, "opened": st.settings.cases_opened, "cases": rows,
         "inventoryCount": items.len(), "currency": st.settings.currency, "inventoryValue": round(value), "keysUsed": keys, "casesCost": round(cost),
         "spent": round(spent), "profit": round(unboxed - spent),
     })
@@ -1171,6 +1187,7 @@ fn make_item(st: &State, case: &CaseInfo, drop: &CaseItem, rng: &mut impl Rng) -
         wear,
         seed,
         stat_trak,
+        stat_trak_count: 0,
         souvenir: case.kind.starts_with("Souvenir"),
         phase: drop.phase.clone(),
         case_name: case.name.clone(),
@@ -1768,6 +1785,7 @@ mod tests {
     fn inventory_file_format() {
         let json = serde_json::to_string(&InventoryItem {
             stat_trak: true,
+            stat_trak_count: 0,
             item_id: Some("skin-x".into()),
             ..gun(7, 282)
         })

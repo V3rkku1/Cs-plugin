@@ -109,6 +109,33 @@ function ActionGrid({ actions, disabled }) {
   </div>`;
 }
 
+/** CPU and memory of the server and CS2, every 3 seconds, with a tip when the PC struggles. */
+function Performance({ up, bots }) {
+  const [p, setP] = useState(null);
+  useEffect(() => {
+    const look = () => call("play.perf").then(setP, () => {});
+    look();
+    const timer = setInterval(look, 3000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!p) return null;
+  const cpu = p.server.cpu + p.game.cpu;
+  const tips = [
+    cpu > 85 && `The PC is working hard (${cpu}% CPU)${bots > 6 ? ": fewer bots help the most" : ": lower CS2's video settings"}.`,
+    p.ramFreeGb < 1.5 && `Only ${p.ramFreeGb} GB of memory free: close other programs (browsers use a lot).`,
+  ].filter(Boolean);
+  const bar = (v, color) => html`<div style="height:6px;border-radius:3px;background:var(--hairline);overflow:hidden;margin-top:4px">
+    <div style=${`height:100%;width:${Math.min(100, v)}%;background:var(--${color})`}></div></div>`;
+  return html`<${Section} title="Performance" note="updates every 3 seconds">
+    <div class="cols" style="--n:3;padding:14px;gap:14px">
+      <div><div class="subtitle">Server</div><b>${up ? `${p.server.cpu}% CPU · ${p.server.memMb} MB` : "not running"}</b>${up && bar(p.server.cpu, "blue")}</div>
+      <div><div class="subtitle">CS2</div><b>${p.game.memMb ? `${p.game.cpu}% CPU · ${p.game.memMb} MB` : "closed"}</b>${p.game.memMb > 0 && bar(p.game.cpu, "purple")}</div>
+      <div><div class="subtitle">PC memory</div><b>${p.ramUsedPct}% used · ${p.ramFreeGb} GB free</b>${bar(p.ramUsedPct, p.ramUsedPct > 90 ? "red" : "green")}</div>
+    </div>
+    ${tips.map(t => html`<${Row} icon=${{ name: "warning", color: "orange" }} title=${t} />`)}
+  <//>`;
+}
+
 export function LivePage() {
   const [state] = usePlay();
   const [give, setGive] = useState(null);
@@ -266,6 +293,9 @@ export function LivePage() {
               onChange=${v => set("onlyWeapon", v)} /><//>
           <${Row} icon=${{ name: "sparkles", color: "teal" }} title="Low Gravity" subtitle="Floaty jumps and fast air strafing">
             <${Toggle} value=${s.lowGravity} onChange=${v => set("lowGravity", v)} /><//>
+          <${Row} icon=${{ name: "dice", color: "red" }} title="Fun Mode" subtitle="Casual or Competitive rounds · Zombie: zombies infect who they kill · Hide & Seek: T hide with knives, CT seek after 30 s">
+            <${Segmented} options=${[{ value: "", label: "Off" }, { value: "zombie", label: "Zombie" }, { value: "hns", label: "Hide & Seek" }]}
+              value=${s.funMode ?? ""} onChange=${v => set("funMode", v)} /><//>
           <${Row} icon=${{ name: "refresh", color: "green" }} title="Reload on Kill" subtitle=${s.infiniteAmmo ? "Infinite Ammo already never empties the magazine" : "A kill refills your magazine at once · spare ammo never runs out"}>
             <${Toggle} value=${s.reloadOnKill} onChange=${v => set("reloadOnKill", v)} /><//>
           <${Row} icon=${{ name: "target", color: "pink" }} title="Damage Report" subtitle="Chat shows the damage you deal">
@@ -350,6 +380,7 @@ export function LivePage() {
             ["Add CT", "bot_add_ct", "plus"], ["Add T", "bot_add_t", "plus"], ["Kick Bots", "bot_kick", "minus"],
             ["Respawn", "lst_respawn", "run"], ["God Mode", "lst_god", "shield"]]} />
         <//>
+        <${Performance} up=${up} bots=${s.bots} />
         <${Section} title="Session Stats" note=${up ? "since the map started" : "unlocks when the server is up"}>
           <${StatsTable} stats=${state.status?.stats} />
           <${ActionGrid} disabled=${!up} actions=${[["Reset Stats", "lst_stats_reset", "refresh"]]} />

@@ -46,6 +46,8 @@ const tileLooks = {
   "Free-for-all Deathmatch": ["shuffle", "purple"],
   "Valve Retakes": ["clock", "red"],
   "Plugin Retakes": ["tag", "yellow"],
+  "Zombie Infection": ["person", "red"],
+  "Hide and Seek": ["eye", "indigo"],
 };
 
 function Stat({ icon, label, value, color = "blue" }) {

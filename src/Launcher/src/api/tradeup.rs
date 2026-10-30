@@ -345,6 +345,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 wear,
                 seed: rng.gen_range(0..=1000),
                 stat_trak: inputs[0].stat_trak && !gloves,
+                stat_trak_count: 0,
                 souvenir: false,
                 phase: drop.phase.clone(),
                 case_name: "Trade Up Contract".into(),

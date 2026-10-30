@@ -28,12 +28,29 @@ export function WearBar({ wear }) {
   </div>`;
 }
 
+// A look at other wears: CS2's pictures are one per skin, so the picture fades, dulls and gets scuffed.
+const wearLook = w => `filter:saturate(${1 - w * 0.55}) contrast(${1 - w * 0.2}) brightness(${1 - w * 0.25})`;
+const scuffs = w => `position:absolute;inset:0;pointer-events:none;opacity:${Math.min(0.85, w * 1.1)};mix-blend-mode:multiply;` +
+  "background:repeating-linear-gradient(115deg,transparent 0 7px,rgba(90,80,70,.35) 7px 8px),repeating-linear-gradient(35deg,transparent 0 11px,rgba(60,55,50,.3) 11px 12px)";
+
+/** Gives the item to a friend: it leaves your inventory and you get a code to send them. */
+async function giftItem(i, close) {
+  if (!await confirm({ title: `Gift ${i.name}?`, message: "It leaves your inventory now. Send the code to your friend: they paste it at Inventory › Redeem Gift.", ok: "Make Gift Code" })) return;
+  const r = await call("inventory.gift", i.uid).catch(() => null);
+  if (!r) return;
+  close();
+  await prompt({ title: "Gift Code", message: `For ${r.name}. It's on your clipboard too. One code, one item: keep it safe until your friend redeems it.`, value: r.code, ok: "Done" });
+}
+
 function Inspect({ v, cur, close }) {
   const i = v.item;
   const st = i.statTrak && i.kind === "skin";
+  const [preview, setPreview] = useState(null);
+  const wear = preview ?? i.wear;
   return html`<aside class="inv-inspect glass" style=${`--c:${i.color}`}>
     <div class="hstack"><div class="grow"></div><${Button} kind="plain" icon="x" onClick=${close} title="Close" /></div>
-    <div class="inspect-pic"><${ItemPic} src=${i.image} size=${512} /></div>
+    <div class="inspect-pic" style="position:relative"><div style=${preview == null ? "" : wearLook(wear)}><${ItemPic} src=${i.image} size=${512} /></div>
+      ${preview != null && html`<div style=${scuffs(wear)}></div>`}</div>
     <div class="inspect-grade">${i.grade}${i.phase ? ` · ${i.phase}` : ""}</div>
     <div class="inspect-weapon">${st ? html`<span class="st-tag">StatTrak™</span> ` : ""}${i.souvenir ? html`<span class="sv-tag">Souvenir</span> ` : ""}${v.weapon}</div>
     <h2 class="inspect-finish">${v.finish}</h2>
@@ -41,8 +58,11 @@ function Inspect({ v, cur, close }) {
       <div class="inspect-row"><span>Exterior</span><b>${wearName(i.wear)}</b></div>
       <div class="inspect-row"><span>Float</span><b class="mono">${i.wear.toFixed(14)}</b></div>
       <${WearBar} wear=${i.wear} />
+      <div class="inspect-row"><span>Preview wear</span><b>${preview == null ? "drag" : `${wearName(wear)} · ${wear.toFixed(2)}`}</b></div>
+      <div onPointerUp=${() => setTimeout(() => setPreview(null), 2500)}>
+        <${Slider} min=${0} max=${1} step=${0.01} value=${wear} onChange=${setPreview} format=${w => w.toFixed(2)} /></div>
       <div class="inspect-row"><span>Pattern</span><b class="mono">${i.seed}</b></div>`}
-    ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">0</b></div>`}
+    ${st && html`<div class="inspect-row"><span>StatTrak™ kills</span><b class="mono">${i.statTrakCount ?? 0}</b></div>`}
     ${i.kind === "skin" && v.category === "weapons" && html`
       <div class="inspect-row"><span>Stickers</span><b>${(i.stickers ?? []).length}/5</b></div>
       ${(i.stickers ?? []).length > 0 && html`<div class="inspect-stickers">${i.stickers.map(st => html`<span title=${st.name}><${ItemPic} src=${st.image} size=${128} /></span>`)}</div>`}
@@ -56,6 +76,7 @@ function Inspect({ v, cur, close }) {
         : html`<${Button} kind="prominent" block icon="check" onClick=${() => tryCall("cases.equip", i.uid)}>Equip<//>`)}
       ${i.kind === "skin" && i.def > 0 && html`<${Button} block icon="eye" onClick=${() => tryCall("cases.tryInGame", i.uid)}
         title="Equips it, kicks the bots and puts it in your hands on the running server">Try in Game<//>`}
+      ${!v.equipped && html`<${Button} block icon="friends" onClick=${() => giftItem(i, close)} title="Give it to a friend with a code">Gift to a Friend<//>`}
       <${Button} kind="destructive" block icon="trash" onClick=${async () => {
         if (await confirm({ title: "Delete item?", message: `Remove ${i.name} from your inventory?`, ok: "Delete", danger: true })) { await tryCall("cases.remove", i.uid); close(); }
       }}>Delete<//>
@@ -599,6 +620,7 @@ function Presets({ names }) {
       <${Button} size="sm" kind="plain" icon="x" onClick=${() => remove(n)} title="Delete preset" />
     </span>`)}
     <${Button} size="sm" kind="prominent" icon="save" onClick=${save}>Save Current<//>
+    <${Button} size="sm" icon="shuffle" onClick=${() => tryCall("inventory.random")} title="A random skin you own on every gun, plus a random knife and gloves">Random Loadout<//>
   </div>`;
 }
 
@@ -670,6 +692,10 @@ export function InventoryPage() {
         <${Button} icon="key" onClick=${() => navigate("cases")}>Open Cases<//>
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
         ${state.undo > 0 && html`<${Button} icon="refresh" onClick=${() => tryCall("cases.undoRemove")} title="Bring back what Remove Duplicates removed last">Undo Remove (${state.undo})<//>`}
+        <${Button} icon="friends" onClick=${async () => {
+          const code = await prompt({ title: "Redeem Gift", message: "Paste the gift code your friend sent you (it starts with LSTG1-).", placeholder: "LSTG1-…", ok: "Redeem" });
+          if (code?.trim()) tryCall("inventory.redeem", code.trim());
+        }} title="Add an item a friend gave you">Redeem Gift<//>
         <${Button} icon="save" onClick=${() => tryCall("backup.exportInventory")} title="Save your inventory to a file (a backup, or to move it to another PC)">Export<//>
         ${state.admin && html`<${Button} icon="import" onClick=${() => tryCall("backup.importInventory")} title="Admin: add the items from a saved inventory file">Import<//>`}
         <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin in the same exterior">Remove Duplicates (${duplicates.length})<//>

@@ -152,6 +152,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             ok(())
         }
         "play.health" => ok(health(app)),
+        "play.perf" => ok(session::performance()),
         "play.start" => start_server(app, arg(a)?).map(|_| Value::Null),
         "play.apply" => apply_to_server(app, arg(a)?).map(|_| Value::Null),
         "play.openGame" => {
@@ -648,6 +649,10 @@ fn announce_players(app: &App, st: &mut State, players: Option<&Vec<String>>) {
     if let Some(known) = &st.play.known_players {
         for name in players.iter().filter(|p| !known.contains(p)) {
             app.toast(format!("{name} joined the server"), "good");
+            // The first player in is usually you; after that, a friend.
+            if !known.is_empty() {
+                app.notify("A friend joined", &format!("{name} joined your server."));
+            }
         }
         for name in known.iter().filter(|p| !players.contains(p)) {
             app.toast(format!("{name} left the server"), "info");
@@ -717,9 +722,10 @@ fn handle_join_when_up(app: &App, st: &mut State, status: Option<&ServerStatus>)
     let what = st.play.join_when_up;
     set_join_when_up(st, JoinWhenUp::None);
     let result = if what == JoinWhenUp::StartGame && !session::client_running() {
-        session
-            .start_game(&st.settings.server)
-            .map(|_| app.log("Server is up - starting CS2 (VAC off)..."))
+        session.start_game(&st.settings.server).map(|_| {
+            app.log("Server is up - starting CS2 (VAC off)...");
+            app.notify("Server is up", "CS2 is starting and joins by itself.");
+        })
     } else if what == JoinWhenUp::Reconnect {
         session::reconnect_client(&st.settings.server.password)
             .map(|_| app.log("Server is up - CS2 rejoins."))

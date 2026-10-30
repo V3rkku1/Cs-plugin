@@ -176,6 +176,21 @@ impl App {
     }
 
     /// A toast in the window: kind is "info", "good", "warning" or "bad".
+    /// A Windows notification, only while the launcher isn't the window in front (Setup › Notifications).
+    /// On its own thread: asking the window whether it has focus waits for the window's thread.
+    pub fn notify(&self, title: &str, body: &str) {
+        if !crate::notify::ENABLED.load(std::sync::atomic::Ordering::Relaxed) {
+            return;
+        }
+        let Some(window) = self.window() else { return };
+        let (title, body) = (title.to_string(), body.to_string());
+        std::thread::spawn(move || {
+            if !window.is_focused().unwrap_or(true) {
+                crate::notify::show(&window, &title, &body);
+            }
+        });
+    }
+
     pub fn toast(&self, text: impl Into<String>, kind: &str) {
         self.push("toast", json!({ "text": text.into(), "kind": kind }));
     }

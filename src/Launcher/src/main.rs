@@ -12,6 +12,7 @@ mod itemdb;
 mod items;
 mod media;
 mod net;
+mod notify;
 mod odds;
 mod prices;
 mod relay;

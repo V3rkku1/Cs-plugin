@@ -281,6 +281,8 @@ pub struct ServerSettings {
     pub pistols_only: bool,
     pub reload_on_kill: bool,
     pub only_weapon: String,
+    /// "" (off), "zombie" (infection) or "hns" (hide and seek): the plugin's fun modes, for classic rounds.
+    pub fun_mode: String,
     pub low_gravity: bool,
     pub cleanup_guns: bool,
     pub no_fall_damage: bool,
@@ -376,6 +378,7 @@ impl Default for ServerSettings {
             pistols_only: false,
             reload_on_kill: false,
             only_weapon: String::new(),
+            fun_mode: String::new(),
             low_gravity: false,
             cleanup_guns: true,
             no_fall_damage: false,
@@ -423,7 +426,7 @@ pub struct Preset {
     pub apply: fn(&mut ServerSettings),
 }
 
-pub const PRESETS: [Preset; 4] = [
+pub const PRESETS: [Preset; 6] = [
     Preset {
         title: "Competitive 5v5",
         subtitle: "9 hard bots · normal rules",
@@ -467,6 +470,29 @@ pub const PRESETS: [Preset; 4] = [
             s.retake_weapons = 0;
             s.retake_buy_seconds = 12;
             s.retake_instadefuse = true;
+        },
+    },
+    Preset {
+        title: "Zombie Infection",
+        subtitle: "Zombies infect who they kill · 9 bots",
+        apply: |s| {
+            s.reset("Casual", "de_dust2");
+            s.bots = 9;
+            s.difficulty = 2;
+            s.max_money = true;
+            s.fun_mode = "zombie".into();
+        },
+    },
+    Preset {
+        title: "Hide and Seek",
+        subtitle: "T hide with knives, CT seek · 7 bots",
+        apply: |s| {
+            s.reset("Casual", "de_inferno");
+            s.bots = 7;
+            s.difficulty = 1;
+            s.max_money = true;
+            s.round_time = 4;
+            s.fun_mode = "hns".into();
         },
     },
 ];
@@ -695,6 +721,7 @@ impl ServerSettings {
             *f = false;
         }
         self.only_weapon.clear();
+        self.fun_mode.clear();
         // Every quick start uses the smarter bots (and keeps their default looks).
         self.bot_improver = true;
         self.bot_skins = false;
@@ -1016,6 +1043,13 @@ impl ServerSettings {
         ));
         out.push(format!("lst_cleanup {}", b(self.cleanup_guns)));
         out.push(format!("lst_nofall {}", b(self.no_fall_damage)));
+        out.push(format!(
+            "lst_funmode {}",
+            match self.fun_mode.as_str() {
+                "zombie" | "hns" => &self.fun_mode,
+                _ => "off",
+            }
+        ));
     }
 
     pub fn to_cfg(&self) -> String {
