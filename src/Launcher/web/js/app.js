@@ -38,10 +38,13 @@ const TOUR = [
   ["4 · Trainer & Stats", "Learn lineups, run drills and aim training. Stats shows if you're getting better.", "trainer"],
 ];
 
-function Tour({ setPage }) {
+function Tour({ setPage, ready }) {
   const [step, setStep] = useState(() => { try { return localStorage.getItem("tour.done") ? -1 : 0; } catch { return 0; } });
+  // Already set up (an existing user after an update): no tour, unless asked for in Setup.
+  const auto = useRef(true);
+  useEffect(() => { if (ready && auto.current && step === 0) { auto.current = false; setStep(-1); try { localStorage.setItem("tour.done", "1"); } catch { /* no storage */ } } }, [ready]);
   useEffect(() => {
-    const show = () => setStep(0);
+    const show = () => { auto.current = false; setStep(0); };
     window.addEventListener("show-tour", show);
     return () => window.removeEventListener("show-tour", show);
   }, []);
@@ -166,7 +169,7 @@ function App() {
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
     <${UpdatePopup} state=${state} />
-    <${Tour} setPage=${setPage} />
+    <${Tour} setPage=${setPage} ready=${state?.ready} />
     <${Toasts} />
   </div>`;
 }

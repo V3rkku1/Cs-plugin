@@ -54,7 +54,8 @@ the map; a few settings restart the server and ask first):
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
   low gravity, and a **Fun Mode** for Casual / Competitive rounds: *Zombie* (a few players start as zombies with a
-  knife and 2000 HP; whoever they kill joins them; humans win by surviving the round) or *Hide & Seek* (T hide
+  knife, extra speed and more health the more humans they face; whoever they kill joins them; humans win by
+  surviving the round) or *Hide & Seek* (T hide
   with knives while CT wait 30 s, then seek; T win if one is alive when time runs out). Both are quick starts on
   the Play page too.
 - **Performance:** CPU and memory of the server and CS2 and the PC's free memory, with a tip when it struggles.

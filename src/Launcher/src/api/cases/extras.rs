@@ -5,8 +5,8 @@
 
 use super::super::{arg, bad, ok, App, State, R};
 use super::{
-    cheapest_price, equip, find, find_case, make_item, new_uid, now, price_of, read_loadout,
-    resolve_catalog, skin_entry, view, Inv, InventoryItem,
+    cheapest_price, find, find_case, make_item, new_uid, now, price_of, put_on, read_loadout,
+    require_plugin, resolve_catalog, skin_entry, view, Inv, InventoryItem,
 };
 use crate::itemdb::{CaseInfo, CaseItem};
 use crate::items::{is_glove_type, is_knife_type};
@@ -132,16 +132,16 @@ fn collections(app: &App, inv: &mut Inv) -> R<Value> {
 // Random loadout
 // -------------------------------------------------------------------------------------------------
 
-/// A random owned skin on every gun you have one for, plus a random knife and gloves.
+/// A random owned skin on every gun you have one for, plus a random knife and gloves. One write, one toast.
 fn random_loadout(app: &App, inv: &mut Inv) -> R<Value> {
     let st = app.state();
-    let mut by_def: HashMap<u16, Vec<String>> = HashMap::new();
+    let mut by_def: HashMap<u16, Vec<InventoryItem>> = HashMap::new();
     for i in inv
         .items(app)?
         .iter()
         .filter(|i| i.kind == "skin" && i.def != 0)
     {
-        by_def.entry(i.def).or_default().push(i.uid.clone());
+        by_def.entry(i.def).or_default().push(i.clone());
     }
     if by_def.is_empty() {
         return Err(bad(
@@ -149,26 +149,29 @@ fn random_loadout(app: &App, inv: &mut Inv) -> R<Value> {
         ));
     }
     let mut rng = rand::thread_rng();
-    let mut knives: Vec<String> = vec![];
-    let mut gloves: Vec<String> = vec![];
+    let mut knives: Vec<&InventoryItem> = vec![];
+    let mut gloves: Vec<&InventoryItem> = vec![];
+    let mut store = require_plugin(&st)?;
+    let l = store.local();
     let mut picked = 0;
-    for (def, uids) in &by_def {
+    for (def, items) in &by_def {
         if is_knife_type(*def) {
-            knives.extend(uids.iter().cloned());
+            knives.extend(items);
         } else if is_glove_type(*def) {
-            gloves.extend(uids.iter().cloned());
-        } else if let Some(uid) = uids.choose(&mut rng) {
-            equip(app, inv, &st, uid)?;
+            gloves.extend(items);
+        } else if let Some(item) = items.choose(&mut rng) {
+            put_on(l, item)?;
             picked += 1;
         }
     }
     // One knife and one pair of gloves of all you own, not one of each type.
     for pool in [&knives, &gloves] {
-        if let Some(uid) = pool.choose(&mut rng) {
-            equip(app, inv, &st, uid)?;
+        if let Some(item) = pool.choose(&mut rng) {
+            put_on(l, item)?;
             picked += 1;
         }
     }
+    store.save()?;
     drop(st);
     app.toast(format!("Random loadout: {picked} items equipped."), "good");
     app.changed();
@@ -285,9 +288,10 @@ fn upgrade_targets(app: &App, inv: &mut Inv, uid: &str) -> R<Value> {
         .iter()
         .filter(|s| s.paint != 0 && seen.insert(s.full_name()))
         .filter_map(|s| {
-            let price = cheapest_price(app, &s.full_name(), false)?;
+            // The catalog name has the ★ knives and gloves need for their market price.
+            let e = skin_entry(s);
+            let price = cheapest_price(app, &e.name, false)?;
             (price >= value * 1.2 && price <= value * 20.0).then(|| {
-                let e = skin_entry(s);
                 (price, json!({ "key": e.key, "name": e.name, "image": e.image, "color": e.color, "price": price,
                     "chance": upgrade_chance(value, price) }))
             })
@@ -322,8 +326,7 @@ fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
     let value =
         price_of(app, &st, &item).ok_or_else(|| bad("This skin has no market price yet."))?;
     let target = resolve_catalog(&st, "skin", &a.key).ok_or_else(|| bad("Unknown target skin."))?;
-    let price = cheapest_price(app, target.name.replace('★', "").trim(), false)
-        .or_else(|| cheapest_price(app, &target.name, false))
+    let price = cheapest_price(app, &target.name, false)
         .ok_or_else(|| bad("The target has no market price."))?;
     let chance = upgrade_chance(value, price);
     let mut rng = rand::thread_rng();
