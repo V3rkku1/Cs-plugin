@@ -247,6 +247,8 @@ fn main() {
             net::start_listening(move |l| a.log(l));
             let a = app.clone();
             net::start_beacon(move || api::friends::beacon(&a));
+            let a = app.clone();
+            std::thread::spawn(move || a.load_db());
             open_window(&handle, &app)?;
             let a = app.clone();
             std::thread::spawn(move || {

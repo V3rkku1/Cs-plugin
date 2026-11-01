@@ -73,6 +73,8 @@ pub struct State {
     pub settings: LauncherSettings,
     pub game: Option<GameFolder>,
     pub db: Arc<ItemDatabase>,
+    /// False until load_db finishes: an empty db then means "loading", not "not downloaded".
+    pub db_loaded: bool,
     pub shell: shell::ShellState,
     pub setup: setup::SetupState,
     pub play: play::PlayState,
@@ -114,7 +116,6 @@ impl State {
 impl App {
     pub fn new(handle: AppHandle, start_page: Option<String>) -> Arc<App> {
         let settings = LauncherSettings::load();
-        let db = Arc::new(ItemDatabase::load_cached(&itemdb::data_dir()));
         Arc::new_cyclic(|me: &std::sync::Weak<App>| {
             let (log_me, changed_me) = (me.clone(), me.clone());
             App {
@@ -135,7 +136,8 @@ impl App {
                 state: Mutex::new(State {
                     settings,
                     game: None,
-                    db,
+                    db: Default::default(),
+                    db_loaded: false,
                     shell: Default::default(),
                     setup: Default::default(),
                     play: Default::default(),
@@ -263,17 +265,22 @@ impl App {
         if let Some(g) = st.game.clone() {
             st.settings.game_path = Some(g.root.display().to_string());
             self.save(st);
-            // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
-            if !st.db.is_empty()
-                && g.plugin_installed()
-                && !g.skin_names_dir().join("skins.json").exists()
-            {
-                let _ = st.db.write_plugin_skin_names(&g.skin_names_dir());
-            }
+            write_missing_skin_names(st);
             if crate::server::discover_modes(&g) {
                 self.log("Found Valve's Rush mode in your CS2 files.");
             }
         }
+        self.changed();
+    }
+
+    /// Reads the cached item lists off the main thread, so the window doesn't wait for them.
+    pub fn load_db(&self) {
+        let db = Arc::new(ItemDatabase::load_cached(&itemdb::data_dir()));
+        let mut st = self.state();
+        st.db = db;
+        st.db_loaded = true;
+        write_missing_skin_names(&st);
+        drop(st);
         self.changed();
     }
 
@@ -286,6 +293,7 @@ impl App {
             }
         }
         st.db = db;
+        st.db_loaded = true;
         drop(st);
         self.changed();
     }
@@ -371,4 +379,16 @@ fn plural(n: i32, word: &str) -> String {
 /// Opens a link, file or folder with the system's app for it.
 fn open_external(target: impl AsRef<std::ffi::OsStr>) -> R<()> {
     open::that_detached(target).map_err(|e| ApiError::Fail(e.to_string()))
+}
+
+/// Keeps the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
+fn write_missing_skin_names(st: &State) {
+    if let Some(g) = &st.game {
+        if !st.db.is_empty()
+            && g.plugin_installed()
+            && !g.skin_names_dir().join("skins.json").exists()
+        {
+            let _ = st.db.write_plugin_skin_names(&g.skin_names_dir());
+        }
+    }
 }

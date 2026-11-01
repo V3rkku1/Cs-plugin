@@ -149,7 +149,13 @@ fn state(app: &App) -> ShellView {
     };
     // First run (or something missing): start on Setup; otherwise where you left off.
     let page = app.start_page.clone().unwrap_or_else(|| {
-        if !ready || st.db.is_empty() {
+        // Still loading: the cache file on disk says whether there is data.
+        let no_db = if st.db_loaded {
+            st.db.is_empty()
+        } else {
+            !crate::itemdb::data_dir().join("skins.json").exists()
+        };
+        if !ready || no_db {
             "setup".into()
         } else {
             st.settings
