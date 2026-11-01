@@ -10,7 +10,7 @@ use regex::Regex;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeMap, HashMap};
-use std::sync::Arc;
+use std::sync::{Arc, LazyLock};
 
 #[derive(Default)]
 pub struct SetupState {
@@ -267,11 +267,8 @@ fn newer(installed: &Option<String>, latest: &Option<String>) -> &'static str {
     let (Some(i), Some(l)) = (installed, latest) else {
         return "ok";
     };
-    let build = Regex::new(r"(\d+)$")
-        .unwrap()
-        .find(l)
-        .map_or("", |m| m.as_str())
-        .to_string();
+    static BUILD: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(\d+)$").unwrap());
+    let build = BUILD.find(l).map_or("", |m| m.as_str()).to_string();
     if !build.is_empty() && !i.contains(&build) {
         "warning"
     } else {

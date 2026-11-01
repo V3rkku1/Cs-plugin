@@ -143,6 +143,12 @@ fn open_window(handle: &AppHandle, app: &Arc<App>) -> tauri::Result<()> {
             }
             own
         })
+        // Shown once the page has painted, not as an empty window while WebView2 starts.
+        .on_page_load(|w, p| {
+            if p.event() == tauri::webview::PageLoadEvent::Finished {
+                let _ = w.show();
+            }
+        })
         .on_new_window(|url, _| {
             let _ = open::that_detached(url.as_str());
             tauri::webview::NewWindowResponse::Deny
@@ -186,9 +192,14 @@ fn open_window(handle: &AppHandle, app: &Arc<App>) -> tauri::Result<()> {
     }
     drop(st);
     api::apply_title_bar(&window, &theme);
-    let _ = window.show();
     let last_zoom = Arc::new(std::sync::Mutex::new(1.0));
     fit_zoom(&window, &last_zoom);
+    // Fallback: a page that never finishes loading must not leave an invisible launcher.
+    let w = window.clone();
+    std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_secs(3));
+        let _ = w.show();
+    });
     let (w, app2) = (window.clone(), app.clone());
     window.on_window_event(move |event| match event {
         WindowEvent::Resized(_) | WindowEvent::ScaleFactorChanged { .. } => {

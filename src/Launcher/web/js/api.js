@@ -54,21 +54,43 @@ export function useApi(name, args, events = []) {
   const key = JSON.stringify(args ?? null);
   const cacheKey = `${name}|${key}`;
   const [data, setData] = useState(() => cache.get(cacheKey));
-  const seq = useRef(0);
-  const reload = useCallback(() => {
-    const mine = ++seq.current;
-    return call(name, args).then(result => {
-      cache.set(cacheKey, result);
-      if (mine === seq.current) setData(result);
-      return result;
-    }).catch(() => undefined);
-  }, [name, key]);
+  const reload = useCallback(() => load(cacheKey, name, args), [cacheKey]);
   useEffect(() => {
+    const subs = shared(cacheKey).subs;
+    subs.add(setData);
     reload();
     const offs = ["changed", ...events].map(type => on(type, () => reload()));
-    return () => offs.forEach(off => off());
+    return () => { subs.delete(setData); offs.forEach(off => off()); };
   }, [reload]);
   return [data, reload];
+}
+
+/** One load at a time per call: hooks with the same call share it, and a reload asked for meanwhile runs once after. */
+const loads = new Map();
+const shared = cacheKey => loads.get(cacheKey) ?? loads.set(cacheKey, { subs: new Set(), running: null, again: false, error: null }).get(cacheKey);
+
+function load(cacheKey, name, args) {
+  const s = shared(cacheKey);
+  if (s.running) { s.again = true; return s.running; }
+  s.running = (async () => {
+    let result;
+    do {
+      s.again = false;
+      try {
+        result = await invoke("call", { name, args: args ?? null });
+        s.error = null;
+        cache.set(cacheKey, result);
+        s.subs.forEach(set => set(result));
+      } catch (error) {
+        // A failing poll (every few seconds) toasts once, not every time.
+        if (String(error) !== s.error) toast(String(error), "bad");
+        s.error = String(error);
+      }
+    } while (s.again);
+    s.running = null;
+    return result;
+  })();
+  return s.running;
 }
 
 /** Loads calls into the useApi cache in the background (the pages you are likely to open next). */

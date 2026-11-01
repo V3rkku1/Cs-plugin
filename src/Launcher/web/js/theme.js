@@ -41,6 +41,7 @@ export function applyTheme(theme = {}, solid = false) {
   // See-through panels blur what is behind them; fully solid ones don't need to.
   root.setProperty("--glass-blur", opacity < 100 ? "22px" : "0px");
   root.setProperty("--glass-sat", opacity < 100 ? "140%" : "100%");
+  document.documentElement.classList.toggle("see-through", opacity < 100);
   const k = (Number(t.radius) || 0) / 100;
   for (const [name, px] of Object.entries(RADII)) root.setProperty(name, `${Math.round(px * k)}px`);
   root.setProperty("--font", FONTS[t.font] ?? FONTS.inter);

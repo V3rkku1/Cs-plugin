@@ -163,7 +163,8 @@ function App() {
 
   // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page); a removed page
   // (Hacker Mode) opens Play.
-  const Current = pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component ?? PlayPage;
+  // No page until app.state says which: otherwise Play mounts (and loads) first, then gets swapped.
+  const Current = page != null && (pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component ?? PlayPage);
   return html`<div class="app">
     <${Sidebar} page=${page} setPage=${setPage} state=${state} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
