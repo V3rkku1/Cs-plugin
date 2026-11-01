@@ -195,13 +195,12 @@ fn state(app: &App) -> ShellView {
 /// Called once the window is up: find CS2 and look for a launcher update.
 pub fn started(app: &Arc<App>) {
     {
-        let mut st = app.state();
-        let path = st
-            .settings
-            .game_path
-            .clone()
+        // Finding CS2 searches Steam's libraries: do it before taking the lock.
+        let saved = app.state().settings.game_path.clone();
+        let path = saved
             .filter(|p| GameFolder::is_valid(Some(p)))
             .or_else(|| GameFolder::find(game::steam_path()));
+        let mut st = app.state();
         app.set_game(&mut st, path);
         if st.game.is_none() {
             app.log("CS2 not found automatically - press Browse on the Setup page.");
@@ -459,25 +458,28 @@ pub fn remember_window(w: &tauri::WebviewWindow, st: &mut State) {
 /// Every 5 seconds: when CS2 and the test server are both closed but test mode is still on (game closed with
 /// the X, a crash, or a previous launcher session), put CS2 back to normal.
 pub fn watch_game(app: &Arc<App>) {
-    let mut st = app.state();
+    // Process lookups and gameinfo.gi reads first, without the lock.
+    let game = app.state().game.clone();
     // No server for 10 seconds but the Metamod line is still in gameinfo.gi: take it out, so CS2 started from
     // Steam doesn't try to load Metamod.
-    let stale_line = st
-        .game
+    let stale_line = game
         .as_ref()
         .is_some_and(|g| session::find_server().is_none() && game::metamod_enabled(&g.game_info()));
+    let on = super::test_mode_on(game.as_ref());
+    let cs2 = on && session::cs2_running();
+    let mut st = app.state();
     if stale_line {
         st.shell.line_no_server_ticks += 1;
         if st.shell.line_no_server_ticks >= 2 {
             st.shell.line_no_server_ticks = 0;
-            if let Err(e) = game::disable_metamod(&st.game.as_ref().unwrap().game_info()) {
+            if let Err(e) = game::disable_metamod(&game.as_ref().unwrap().game_info()) {
                 app.log(format!("Could not update gameinfo.gi: {e}"));
             }
         }
     } else {
         st.shell.line_no_server_ticks = 0;
     }
-    if !st.test_mode_on() || session::cs2_running() {
+    if !on || cs2 {
         st.shell.cs2_gone_ticks = 0;
         return;
     }

@@ -555,11 +555,12 @@ fn query_friend(app: &App, address: &str) -> Option<ServerInfo> {
 
 /// What this PC announces to friends' launchers on the same network while it hosts.
 pub fn beacon(app: &App) -> Option<net::BeaconInfo> {
-    let st = app.state();
-    if !st.test_mode_on() {
+    let game = app.state().game.clone();
+    if !super::test_mode_on(game.as_ref()) {
         return None;
     }
-    let status = st.server_status()?;
+    let status = super::server_status(game.as_ref())?;
+    let st = app.state();
     Some((
         st.settings.host_name.clone(),
         status.map,

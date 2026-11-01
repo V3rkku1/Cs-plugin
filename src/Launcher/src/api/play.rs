@@ -420,8 +420,8 @@ fn ask(app: &App, title: &str, message: &str, ok: &str, call: &str, args: Value,
 // -------------------------------------------------------------------------------------------------
 
 /// Where a start is: 0 server loading, 1 map up (CS2 not started), 2 CS2 joining, 3 joined, -1 not running.
-fn join_step(st: &State, status: Option<&ServerStatus>) -> i32 {
-    if !st.test_mode_on() {
+fn join_step(on: bool, status: Option<&ServerStatus>) -> i32 {
+    if !on {
         -1
     } else {
         match status {
@@ -590,7 +590,7 @@ fn view(st: &State) -> PlayView {
         busy: st.play.busy,
         start_error: st.play.start_error.clone(),
         settings: util::web(s),
-        step: join_step(st, status.as_ref()),
+        step: join_step(test, status.as_ref()),
         console_error: if status.is_none() && test {
             map_error(st)
         } else {
@@ -632,20 +632,29 @@ fn isolate_client(app: &App, game: &GameFolder, status: Option<&ServerStatus>) {
 }
 
 pub fn poll_server(app: &Arc<App>) {
-    let mut st = app.state();
-    let status = st.server_status();
-    if let Some(g) = st.game.clone() {
-        isolate_client(app, &g, status.as_ref());
+    // File reads and process lookups first, without the lock: page calls don't wait behind them.
+    let (game, id) = {
+        let st = app.state();
+        (st.game.clone(), st.settings.server.workshop_map_id())
+    };
+    let status = super::server_status(game.as_ref());
+    if let Some(g) = &game {
+        isolate_client(app, g, status.as_ref());
     }
+    let on = super::test_mode_on(game.as_ref());
+    let sub = game
+        .as_ref()
+        .zip(id)
+        .is_some_and(|(g, id)| game::workshop_downloaded(g, &id));
+    let mut st = app.state();
     announce_players(app, &mut st, status.as_ref().map(|s| &s.players));
-    handle_workshop_startup(app, &mut st, status.as_ref());
-    handle_join_when_up(app, &mut st, status.as_ref());
+    handle_workshop_startup(app, &mut st, status.as_ref(), on);
+    handle_join_when_up(app, &mut st, status.as_ref(), on);
     check_server_crash(app, &mut st);
-    let id = st.settings.server.workshop_map_id();
     let tick = json!({
         "status": status.as_ref().map(|s| json!([s.map, s.game_type, s.game_mode, s.humans, s.bots, s.players, s.skins_allowed, s.disabled_reason, s.stats])),
-        "on": st.test_mode_on(), "step": join_step(&st, status.as_ref()), "w": st.play.pending_workshop_id, "s": st.play.workshop_sent_at.is_some(),
-        "sub": st.game.as_ref().zip(id).is_some_and(|(g, id)| game::workshop_downloaded(g, &id)),
+        "on": on, "step": join_step(on, status.as_ref()), "w": st.play.pending_workshop_id, "s": st.play.workshop_sent_at.is_some(),
+        "sub": sub,
     })
     .to_string();
     let changed = tick != st.play.last_tick;
@@ -695,7 +704,7 @@ fn clear_workshop_wait(st: &mut State) {
 }
 
 /// Starts CS2 while the server loads, or reconnects it once the server reports it is up.
-fn handle_join_when_up(app: &App, st: &mut State, status: Option<&ServerStatus>) {
+fn handle_join_when_up(app: &App, st: &mut State, status: Option<&ServerStatus>, on: bool) {
     let Some(game) = st
         .game
         .clone()
@@ -704,8 +713,8 @@ fn handle_join_when_up(app: &App, st: &mut State, status: Option<&ServerStatus>)
         return;
     };
     let asked = st.play.join_asked_at.unwrap_or(0);
-    if !st.test_mode_on() || util::unix_now() - asked > 180 {
-        if st.test_mode_on() {
+    if !on || util::unix_now() - asked > 180 {
+        if on {
             app.log(format!("The server took too long to load - press \"Open CS2\" (or connect 127.0.0.1:{PORT})."));
         }
         set_join_when_up(st, JoinWhenUp::None);
@@ -772,11 +781,11 @@ fn start_game_early(app: &App, st: &mut State, session: &Session) {
     }
 }
 
-fn handle_workshop_startup(app: &App, st: &mut State, status: Option<&ServerStatus>) {
+fn handle_workshop_startup(app: &App, st: &mut State, status: Option<&ServerStatus>, on: bool) {
     let (Some(id), Some(game)) = (st.play.pending_workshop_id.clone(), st.game.clone()) else {
         return;
     };
-    if !st.test_mode_on() {
+    if !on {
         clear_workshop_wait(st); // stopped meanwhile
         return;
     }

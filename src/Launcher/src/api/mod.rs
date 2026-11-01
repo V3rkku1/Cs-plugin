@@ -91,9 +91,7 @@ impl State {
     }
 
     pub fn test_mode_on(&self) -> bool {
-        self.game
-            .as_ref()
-            .is_some_and(|g| Session { game: g }.is_on())
+        test_mode_on(self.game.as_ref())
     }
 
     pub fn game(&self) -> R<&GameFolder> {
@@ -104,13 +102,22 @@ impl State {
 
     /// The plugin's live report, or None if the server isn't running (or the report is stale).
     pub fn server_status(&self) -> Option<ServerStatus> {
-        let text =
-            std::fs::read_to_string(self.game.as_ref()?.plugin_dir().join(STATUS_FILE)).ok()?;
-        let status: ServerStatus = util::read_json(&text).ok()?;
-        (-5..=8)
-            .contains(&(util::unix_now() - status.time))
-            .then_some(status)
+        server_status(self.game.as_ref())
     }
+}
+
+// The pollers call these without holding the State lock: they read files and look up processes.
+
+pub fn test_mode_on(game: Option<&GameFolder>) -> bool {
+    game.is_some_and(|g| Session { game: g }.is_on())
+}
+
+pub fn server_status(game: Option<&GameFolder>) -> Option<ServerStatus> {
+    let text = std::fs::read_to_string(game?.plugin_dir().join(STATUS_FILE)).ok()?;
+    let status: ServerStatus = util::read_json(&text).ok()?;
+    (-5..=8)
+        .contains(&(util::unix_now() - status.time))
+        .then_some(status)
 }
 
 impl App {
