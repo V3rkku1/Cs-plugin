@@ -479,7 +479,7 @@ export function CasesPage() {
     (state.keysUsed || state.casesCost ? ` · for real: ${state.keysUsed} key${state.keysUsed === 1 ? "" : "s"} + ${money(state.casesCost, cur)} of cases` +
       ` = ${money(state.spent, cur)} · ${state.profit >= 0 ? "profit" : "loss"} ${money(Math.abs(state.profit), cur)}` : "")}
       actions=${html`
-        <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
+        <${Button} icon=${mute ? "x" : "music"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
         <${Button} icon="layers" onClick=${() => sheet(close => html`<${CollectionSheet} close=${close} />`, { wide: true })}>Collection Book<//>
         <${Button} icon="bolt" onClick=${() => sheet(close => html`<${BattleSheet} cases=${state.cases.filter(c => c.type === "Case")} close=${close} />`, { wide: true })}>Case Battle<//>
