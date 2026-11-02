@@ -62,6 +62,12 @@ public partial class LanSkinTester
         }
         foreach (var bot in bots) bot.RemoveItemByDesignerName("weapon_c4");
         for (var i = 0; i < bots.Count && i + 1 < spots.Count; i++) PlaceAt(bots[i], spots[i + 1], null);
+        PlantBomb(spots[0], site!, bots.FirstOrDefault());
+    }
+
+    /// <summary>Puts a ticking bomb on <paramref name="spot"/> and tells the bots and the HUD it is down.</summary>
+    private void PlantBomb(Vector spot, CBaseEntity site, CCSPlayerController? planter)
+    {
         try
         {
             var c4 = Utilities.CreateEntityByName<CPlantedC4>("planted_c4");
@@ -74,7 +80,7 @@ public partial class LanSkinTester
             c4.TimerLength = 40;
             c4.C4Blow = Server.CurrentTime + 40;
             c4.SourceSoundscapeHash = 2005810340; // the beeping (what a real plant sets)
-            c4.Teleport(spots[0], new QAngle(0, 0, 0), new Vector(0, 0, 0));
+            c4.Teleport(spot, new QAngle(0, 0, 0), new Vector(0, 0, 0));
             c4.DispatchSpawn();
             var rules = Utilities.FindAllEntitiesByDesignerName<CCSGameRulesProxy>("cs_gamerules").FirstOrDefault()?.GameRules;
             if (rules != null)
@@ -82,8 +88,8 @@ public partial class LanSkinTester
                 rules.BombPlanted = true;
                 rules.BombDefused = false;
             }
-            // Tells the bots and the HUD the bomb is down. The event's site is the bomb site's entity, not A/B.
-            if (bots.FirstOrDefault() is { } planter) new EventBombPlanted(true) { Userid = planter, Site = (int)site!.Index }.FireEvent(false);
+            // The event's site is the bomb site's entity, not A/B.
+            if (planter != null) new EventBombPlanted(true) { Userid = planter, Site = (int)site.Index }.FireEvent(false);
             AddTimer(0.5f, () =>
             {
                 if (!c4.IsValid) TellHumans("The bomb didn't stay down (CS2 update?): this round plays like Hold Site.");
@@ -91,8 +97,23 @@ public partial class LanSkinTester
         }
         catch (Exception ex)
         {
-            Logger.LogWarning(ex, "Could not plant the clutch drill's bomb");
+            Logger.LogWarning(ex, "Could not plant the drill's bomb");
         }
+    }
+
+    /// <summary>Retake drill: the humans start on the site with the bomb already down; the bots push at once.</summary>
+    private void StartPlanted(List<CCSPlayerController> humans)
+    {
+        var spots = SiteSpots(_drillSiteB, humans.Count + 1);
+        if (spots.Count == 0 || !FindSite(_drillSiteB, out _, out _, out var site))
+        {
+            TellHumans("Could not find a spot for the bomb on this site: plant it yourself.");
+            return;
+        }
+        foreach (var human in humans) human.RemoveItemByDesignerName("weapon_c4");
+        for (var i = 0; i < humans.Count && i + 1 < spots.Count; i++) PlaceAt(humans[i], spots[i + 1], null);
+        PlantBomb(spots[0], site!, humans.FirstOrDefault());
+        TellHumans("Bomb down: here they come.");
     }
 
     // ---------------------------------------------------------------------------------------------

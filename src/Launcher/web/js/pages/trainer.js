@@ -10,7 +10,7 @@ const send = command => tryCall("live.command", command);
 
 const DRILLS = [
   { id: "clear", icon: "crosshair", color: "orange", title: "Clear Site", text: "Bots hold angles on the site. Clear it and plant." },
-  { id: "retake", icon: "bolt", color: "red", title: "Plant & Hold", text: "You plant, bots wait at CT spawn and retake once the bomb is down." },
+  { id: "retake", icon: "bolt", color: "red", title: "Plant & Hold", text: "You start on the site with the bomb already planted. Bots retake it: hold them off." },
   { id: "hold", icon: "shield", color: "blue", title: "Hold Site", text: "You start on the site as CT, bots push it." },
   { id: "prefire", icon: "clock", color: "yellow", title: "Prefire", text: "Bots stand on site angles and don't shoot. Clear them: chat shows your time." },
   { id: "clutch", icon: "person", color: "pink", title: "Clutch Retake", text: "The bomb is already planted and bots guard it. Retake alone and defuse." },
