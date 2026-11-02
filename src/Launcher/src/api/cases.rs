@@ -1122,13 +1122,29 @@ fn cheapest_price(app: &App, name: &str, souvenir: bool) -> Option<f64> {
     {
         return app.prices.price(name);
     }
-    [0.03, 0.1, 0.25, 0.4, 0.6]
+    cheapest_exterior(app, name, souvenir).map(|e| e.0)
+}
+
+/// Each exterior: a float to price it by, and its float range.
+const EXTERIORS: [(f32, f32, f32); 5] = [
+    (0.03, 0.0, 0.07),
+    (0.1, 0.07, 0.15),
+    (0.25, 0.15, 0.38),
+    (0.4, 0.38, 0.45),
+    (0.6, 0.45, 1.0),
+];
+
+/// A skin's cheapest exterior: (price, lowest float, highest float).
+pub fn cheapest_exterior(app: &App, name: &str, souvenir: bool) -> Option<(f64, f32, f32)> {
+    EXTERIORS
         .iter()
-        .filter_map(|w| {
-            app.prices
-                .price(&prices::market_name(name, true, true, *w, false, souvenir))
+        .filter_map(|&(w, lo, hi)| {
+            let p = app
+                .prices
+                .price(&prices::market_name(name, true, true, w, false, souvenir))?;
+            Some((p, lo, hi))
         })
-        .min_by(f64::total_cmp)
+        .min_by(|a, b| a.0.total_cmp(&b.0))
 }
 
 fn contents(app: &App, st: &State, id: &str) -> R<Value> {

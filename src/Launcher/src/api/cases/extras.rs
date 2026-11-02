@@ -5,8 +5,8 @@
 
 use super::super::{arg, bad, ok, App, State, R};
 use super::{
-    cheapest_price, find, find_case, make_item, new_uid, now, price_of, put_on, read_loadout,
-    require_plugin, resolve_catalog, skin_entry, view, Inv, InventoryItem,
+    cheapest_exterior, cheapest_price, find, find_case, loose, make_item, new_uid, now, price_of,
+    put_on, read_loadout, require_plugin, resolve_catalog, skin_entry, view, Inv, InventoryItem,
 };
 use crate::itemdb::{CaseInfo, CaseItem};
 use crate::items::{is_glove_type, is_knife_type};
@@ -244,7 +244,7 @@ fn battle(app: &App, inv: &mut Inv, a: BattleArgs) -> R<Value> {
     }
     let view_players: Vec<Value> = players
         .iter()
-        .map(|p| json!({ "name": p.0, "total": (p.2 * 100.0).round() / 100.0, "drops": p.1.iter().map(|i| small(app, &st, i)).collect::<Vec<_>>() }))
+        .map(|p| json!({ "name": p.0, "top": p.2 == best, "total": (p.2 * 100.0).round() / 100.0, "drops": p.1.iter().map(|i| small(app, &st, i)).collect::<Vec<_>>() }))
         .collect();
     inv.items(app)?.splice(0..0, gained.iter().cloned());
     inv.save(app);
@@ -275,9 +275,7 @@ fn upgrade_chance(input: f64, target: f64) -> f64 {
 fn upgrade_targets(app: &App, inv: &mut Inv, uid: &str) -> R<Value> {
     let st = app.state();
     let item = find(inv.items(app)?, uid)?.clone();
-    if item.kind != "skin" {
-        return Err(bad("Only weapon skins, knives and gloves can be upgraded."));
-    }
+    upgradable(&item)?;
     app.prices.ensure(&st.settings.currency);
     let value = price_of(app, &st, &item)
         .ok_or_else(|| bad("This skin has no market price yet, so it can't be upgraded."))?;
@@ -316,9 +314,20 @@ struct UpgradeArgs {
     key: String,
 }
 
+fn upgradable(item: &InventoryItem) -> R<()> {
+    if item.kind != "skin" {
+        return Err(bad("Only weapon skins, knives and gloves can be upgraded."));
+    }
+    if !loose(item) {
+        return Err(bad("Take it out of the storage unit first."));
+    }
+    Ok(())
+}
+
 fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
     let st = app.state();
     let item = find(inv.items(app)?, &a.uid)?.clone();
+    upgradable(&item)?;
     let loadout = read_loadout(app, inv, &st)?;
     if view(app, &st, &item, &loadout).equipped {
         return Err(bad("Unequip it first: an equipped skin can't be risked."));
@@ -326,7 +335,8 @@ fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
     let value =
         price_of(app, &st, &item).ok_or_else(|| bad("This skin has no market price yet."))?;
     let target = resolve_catalog(&st, "skin", &a.key).ok_or_else(|| bad("Unknown target skin."))?;
-    let price = cheapest_price(app, &target.name, false)
+    // The win comes in the exterior the chance was priced by, so the odds match what you get.
+    let (price, lo, hi) = cheapest_exterior(app, &target.name, false)
         .ok_or_else(|| bad("The target has no market price."))?;
     let chance = upgrade_chance(value, price);
     let mut rng = rand::thread_rng();
@@ -345,7 +355,7 @@ fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
             color: target.color.clone(),
             def: target.def,
             paint: target.paint,
-            wear: odds::roll_wear(target.min, target.max, &mut rng),
+            wear: exterior_wear(target.min, target.max, lo, hi, &mut rng),
             seed: rng.gen_range(0..=1000),
             case_name: "Upgrade".into(),
             opened: now(),
@@ -359,6 +369,16 @@ fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
     drop(st);
     app.changed();
     ok(json!({ "won": won, "chance": chance, "roll": roll, "item": new_item }))
+}
+
+/// A float inside both the skin's range and the exterior's; the skin's own range if they don't overlap.
+fn exterior_wear(min: f32, max: f32, lo: f32, hi: f32, rng: &mut impl Rng) -> f32 {
+    let (a, b) = (min.max(lo), max.min(hi));
+    if a < b {
+        rng.gen_range(a..b).max(0.000001)
+    } else {
+        odds::roll_wear(min, max, rng)
+    }
 }
 
 // -------------------------------------------------------------------------------------------------
@@ -510,6 +530,20 @@ mod tests {
         let tampered = format!("{}x.{sig}", body);
         assert!(decode_gift(&tampered).is_none());
         assert!(decode_gift("LSTG1-abc.def").is_none());
+    }
+
+    #[test]
+    fn upgrade_win_stays_in_the_priced_exterior() {
+        let mut rng = rand::thread_rng();
+        for _ in 0..1000 {
+            let w = exterior_wear(0.0, 0.8, 0.15, 0.38, &mut rng);
+            assert!((0.15..0.38).contains(&w));
+            let w = exterior_wear(0.06, 0.8, 0.0, 0.07, &mut rng);
+            assert!((0.06..0.07).contains(&w));
+        }
+        // No overlap: falls back to the skin's own range.
+        let w = exterior_wear(0.0, 0.08, 0.45, 1.0, &mut rng);
+        assert!((0.0..=0.08).contains(&w));
     }
 
     #[test]

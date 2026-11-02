@@ -353,7 +353,6 @@ function BattleSheet({ cases, close }) {
     setResult(await call("cases.battle", { id, rounds, bots }).catch(() => null));
     setBusy(false);
   };
-  const best = result ? Math.max(...result.players.map(p => p.total)) : 0;
   return html`<div class="case-sheet">
     <div class="case-topbar">
       <div class="grow"><h2>Case Battle</h2><div class="faint small">Everyone opens the same case. Highest total value takes every item; lose and you keep nothing.</div></div>
@@ -368,7 +367,7 @@ function BattleSheet({ cases, close }) {
     ${result && html`<div style="padding:0 18px 18px">
       <h3 style=${`color:var(--${result.wonAll ? "green" : result.won ? "orange" : "red"})`}>${result.wonAll ? `You won all ${result.gained} items!` : result.won ? "A draw at the top: you keep your own drops." : "You lost: the items go to the bots."}</h3>
       <div style=${`display:grid;grid-template-columns:repeat(${result.players.length},minmax(0,1fr));gap:12px`}>
-        ${result.players.map(p => html`<div class="card glass pad" style=${p.total === best ? "outline:2px solid var(--green)" : ""}>
+        ${result.players.map(p => html`<div class="card glass pad" style=${p.top ? "outline:2px solid var(--green)" : ""}>
           <div class="hstack"><b class="grow">${p.name}</b><b>${money(p.total, result.currency)}</b></div>
           ${p.drops.map(d => html`<div class="hstack" style="gap:8px;margin-top:8px" title=${d.name}>
             <div style=${`width:64px;border-bottom:3px solid ${d.color}`}><${ItemPic} src=${d.image} size=${128} /></div>
@@ -419,7 +418,7 @@ function UpgradeSheet({ close }) {
         ${targets?.targets.map(t => html`<div class="hstack" role="button" onClick=${() => setTarget(t)}
             style=${`gap:8px;padding:4px;cursor:pointer;border-radius:8px;${target?.key === t.key ? "background:var(--hairline)" : ""}`}>
           <div style=${`width:56px;border-bottom:3px solid ${t.color}`}><${ItemPic} src=${t.image} size=${128} /></div>
-          <div class="grow small">${t.name}</div><span class="small" title="The cheapest exterior's price: yours gets a random float">from ${money(t.price, targets.currency)} · <b>${(t.chance * 100).toFixed(1)}%</b></span></div>`)}
+          <div class="grow small">${t.name}</div><span class="small" title="The cheapest exterior's price: a win comes in that exterior">${money(t.price, targets.currency)} · <b>${(t.chance * 100).toFixed(1)}%</b></span></div>`)}
       </div>
     </div>
     ${target && html`<div class="hstack" style="padding:0 18px 18px;gap:12px">

@@ -15,7 +15,6 @@ pub const RETAKES_MODE: &str = "Retakes";
 pub const RUSH_MODE: &str = "Rush";
 pub const WEAPONS_EXPERT_MODE: &str = "Weapons Expert";
 pub const PORT: u16 = 27015;
-pub const CLIENT_CFG: &str = "lanskintester_client";
 pub const SCOUTS_ON_CFG: &str = "lanskintester_scouts_on.cfg";
 pub const SCOUTS_OFF_CFG: &str = "lanskintester_scouts_off.cfg";
 
@@ -60,29 +59,6 @@ pub const ONLY_WEAPONS: [(&str, &str); 5] = [
     ("weapon_deagle", "Deagle only"),
     ("knife", "Knives only"),
 ];
-pub const HACKER_MODES: [&str; 3] = ["Off", "Everyone", "One random"];
-pub const AIM_KEYS: [&str; 7] = [
-    "Hold fire (Mouse 1)",
-    "Always on",
-    "Hold right click",
-    "Hold Shift",
-    "Hold E",
-    "Hold F",
-    "Only my own key",
-];
-const AIM_KEY_COMMANDS: [&str; 7] = ["fire", "always", "mouse2", "shift", "e", "f", "custom"];
-pub const AIM_TARGETS: [&str; 4] = [
-    "Closest enemy",
-    "Nearest crosshair",
-    "Lowest HP",
-    "Highest threat",
-];
-const AIM_TARGET_COMMANDS: [&str; 4] = ["closest", "crosshair", "health", "threat"];
-pub const AIM_STYLES: [&str; 3] = ["Legit", "Silent", "Rage"];
-const AIM_STYLE_COMMANDS: [&str; 3] = ["legit", "silent", "rage"];
-pub const AIM_BONES: [&str; 3] = ["Head", "Neck", "Chest"];
-const AIM_BONE_COMMANDS: [&str; 3] = ["head", "neck", "chest"];
-
 /// Flying Scoutsman (Bot Improver's scouts_on / scouts_off were cfg aliases): the Live Server buttons exec these.
 pub const SCOUTS_ON_COMMANDS: [&str; 20] = [
     "sv_cheats 1", // weapon_accuracy_nospread is cheat-protected
@@ -327,30 +303,6 @@ pub struct ServerSettings {
     pub friends: i32,
     pub shared_skins: bool,
     pub password: String,
-    pub hacker_mode: i32,
-    pub hack_wallhack: bool,
-    pub hack_aimbot: bool,
-    pub hack_one_tap: bool,
-    pub hack_ammo: bool,
-    pub hack_speed: bool,
-    pub hack_bhop: bool,
-    pub hack_no_flash: bool,
-    pub hack_esp_info: bool,
-    pub hack_aim_walls: bool,
-    pub hack_no_recoil: bool,
-    pub hack_no_spread: bool,
-    pub hack_radar: bool,
-    pub hack_box_esp: bool,
-    pub hack_bone_esp: bool,
-    pub hack_tags: bool,
-    pub hack_trigger: bool,
-    pub hack_aim_target: i32,
-    pub hack_aim_style: i32,
-    pub hack_aim_bone: i32,
-    pub hack_aim_key: i32,
-    /// Any key bound to the aimbot in CS2 on this PC (mouse4, x, alt). Empty = none.
-    pub aim_bind_key: String,
-    pub hack_aggression: i32,
     pub auto_start_game: bool,
 }
 
@@ -424,29 +376,6 @@ impl Default for ServerSettings {
             friends: LAN,
             shared_skins: true,
             password: String::new(),
-            hacker_mode: 0,
-            hack_wallhack: true,
-            hack_aimbot: true,
-            hack_one_tap: false,
-            hack_ammo: true,
-            hack_speed: false,
-            hack_bhop: false,
-            hack_no_flash: false,
-            hack_esp_info: false,
-            hack_aim_walls: false,
-            hack_no_recoil: false,
-            hack_no_spread: false,
-            hack_radar: false,
-            hack_box_esp: false,
-            hack_bone_esp: false,
-            hack_tags: false,
-            hack_trigger: false,
-            hack_aim_target: 0,
-            hack_aim_style: 0,
-            hack_aim_bone: 0,
-            hack_aim_key: 0,
-            aim_bind_key: String::new(),
-            hack_aggression: 5,
             auto_start_game: true,
         }
     }
@@ -546,13 +475,6 @@ pub fn clean_password(text: &str) -> String {
         .collect::<String>()
         .trim()
         .to_string()
-}
-
-/// A key name CS2 understands (mouse4, x, alt, f6, kp_5...), or None.
-pub fn clean_key(key: &str) -> Option<String> {
-    static KEY: LazyLock<Regex> = LazyLock::new(|| Regex::new("^[a-z0-9_]{1,16}$").unwrap());
-    let key = key.trim().to_lowercase();
-    KEY.is_match(&key).then_some(key)
 }
 
 /// What Bot Improver's weapon "commands" did: set the engine's bot_loadout. None for an unknown weapon.
@@ -680,9 +602,6 @@ impl ServerSettings {
     pub fn needs_player_slots(&self) -> bool {
         self.get_mode().game_type == 3
     }
-    fn hack_recoil_or_spread(&self) -> bool {
-        self.hacker_mode != 0 && (self.hack_no_recoil || self.hack_no_spread)
-    }
     fn needs_cheats(&self) -> bool {
         self.allow_cheats
             || self.infinite_ammo
@@ -690,7 +609,6 @@ impl ServerSettings {
             || self.low_gravity
             || self.auto_bhop
             || self.bots_dont_shoot
-            || self.hack_recoil_or_spread()
             || self.forces_bot_weapon()
     }
 
@@ -737,7 +655,6 @@ impl ServerSettings {
 
     /// Back to plain defaults for a mode (keeps launch options and auto-start).
     fn reset(&mut self, mode: &str, map: &str) {
-        let d = ServerSettings::default();
         self.mode = mode.into();
         self.map = map.into();
         self.workshop_map.clear();
@@ -789,28 +706,6 @@ impl ServerSettings {
         self.retake_scramble_rounds = 5;
         self.retake_buy_seconds = 12;
         self.retake_bomb_timer = 40;
-        self.hacker_mode = 0;
-        (self.hack_wallhack, self.hack_aimbot, self.hack_ammo) = (true, true, true);
-        for f in [
-            &mut self.hack_one_tap,
-            &mut self.hack_speed,
-            &mut self.hack_bhop,
-            &mut self.hack_no_flash,
-            &mut self.hack_esp_info,
-            &mut self.hack_aim_walls,
-            &mut self.hack_no_recoil,
-            &mut self.hack_no_spread,
-            &mut self.hack_radar,
-            &mut self.hack_box_esp,
-            &mut self.hack_bone_esp,
-            &mut self.hack_tags,
-            &mut self.hack_trigger,
-        ] {
-            *f = false;
-        }
-        self.hack_aim_style = 0;
-        self.hack_aim_bone = 0;
-        self.hack_aggression = d.hack_aggression;
     }
 
     /// A plain CS2 server: Casual on Dust II, no bots, stock rules, no add-on plugins except the skins plugin.
@@ -822,7 +717,6 @@ impl ServerSettings {
             shared_skins: old.shared_skins,
             game_args: old.game_args.clone(),
             auto_start_game: old.auto_start_game,
-            aim_bind_key: old.aim_bind_key.clone(),
             map_modes: old.map_modes.clone(),
             map_team_sizes: old.map_team_sizes.clone(),
             mode: "Casual".into(),
@@ -915,29 +809,15 @@ impl ServerSettings {
         } else {
             format!("+password \"{clean}\" ")
         };
-        let exec = if self.write_client_cfg(game) {
-            format!("+exec {CLIENT_CFG} ")
-        } else {
-            String::new()
-        };
+        // The old hacker mode's aimbot key cfg: CS2 must not run it again.
+        let _ = fs::remove_file(game.cfg_dir().join("lanskintester_client.cfg"));
         format!(
-            "-insecure -netconport {} -netconpassword {} {} {exec}{pass}+connect {address}",
+            "-insecure -netconport {} -netconpassword {} {} {pass}+connect {address}",
             crate::console::PORT,
             crate::console::password(),
             extra.trim()
         )
         .replace("  ", " ")
-    }
-
-    /// Writes the game's own config for this PC's player (the aimbot key). Returns whether CS2 should run it.
-    pub fn write_client_cfg(&self, game: &GameFolder) -> bool {
-        let file = game.cfg_dir().join(format!("{CLIENT_CFG}.cfg"));
-        let Some(key) = clean_key(&self.aim_bind_key) else {
-            let _ = fs::remove_file(file);
-            return false;
-        };
-        fs::create_dir_all(game.cfg_dir()).is_ok()
-            && fs::write(file, format!("// Written by the LAN Skin Tester launcher.\n// Hacker mode: hold this key for the aimbot (does nothing on other servers).\nbind \"{key}\" \"+lst_aim\"\n")).is_ok()
     }
 
     pub fn bot_improver_commands(&self) -> Vec<String> {
@@ -969,97 +849,7 @@ impl ServerSettings {
         ]
     }
 
-    /// Zero recoil / zero spread cvars (cheat-protected; the "off" values are CS2's defaults).
-    fn recoil_cvars(&self) -> Vec<String> {
-        let no_recoil = self.hacker_mode != 0 && self.hack_no_recoil;
-        vec![
-            format!("weapon_recoil_scale {}", if no_recoil { 0 } else { 2 }),
-            format!(
-                "weapon_recoil_view_punch_extra {}",
-                if no_recoil { "0" } else { "0.055" }
-            ),
-            format!(
-                "weapon_recoil_suppression_shots {}",
-                if no_recoil { 999 } else { 4 }
-            ),
-            format!(
-                "weapon_accuracy_nospread {}",
-                b(self.hacker_mode != 0 && self.hack_no_spread)
-            ),
-        ]
-    }
-
-    /// Everything hacker mode needs, without touching bots or the round (for live changes).
-    pub fn hacker_commands(&self, with_cvars: bool) -> Vec<String> {
-        let mut out = vec![];
-        if with_cvars {
-            out.push("sv_cheats 1".into());
-            out.extend(self.recoil_cvars());
-            out.push(format!("sv_cheats {}", b(self.needs_cheats())));
-        }
-        let powers: Vec<&str> = [
-            (self.hack_wallhack, "wallhack"),
-            (self.hack_aimbot, "aimbot"),
-            (self.hack_one_tap, "onetap"),
-            (self.hack_ammo, "ammo"),
-            (self.hack_speed, "speed"),
-            (self.hack_bhop, "bhop"),
-            (self.hack_no_flash, "noflash"),
-            (self.hack_esp_info, "espinfo"),
-            (self.hack_aim_walls, "aimwalls"),
-            (self.hack_no_recoil, "norecoil"),
-            (self.hack_radar, "radar"),
-            (self.hack_box_esp, "boxesp"),
-            (self.hack_bone_esp, "boneesp"),
-            (self.hack_tags, "tags"),
-            (self.hack_trigger, "trigger"),
-        ]
-        .into_iter()
-        .filter(|p| p.0)
-        .map(|p| p.1)
-        .collect();
-        out.push(format!(
-            "lst_hack_powers {}",
-            if powers.is_empty() {
-                "none".into()
-            } else {
-                powers.join(",")
-            }
-        ));
-        out.push(format!(
-            "lst_aim_aggression {}",
-            self.hack_aggression.clamp(1, 10)
-        ));
-        out.push(format!(
-            "lst_aim_target {}",
-            pick(&AIM_TARGET_COMMANDS, self.hack_aim_target)
-        ));
-        out.push(format!(
-            "lst_aim_style {}",
-            pick(&AIM_STYLE_COMMANDS, self.hack_aim_style)
-        ));
-        out.push(format!(
-            "lst_aim_bone {}",
-            pick(&AIM_BONE_COMMANDS, self.hack_aim_bone)
-        ));
-        out.push(format!(
-            "lst_aim_key {}",
-            pick(&AIM_KEY_COMMANDS, self.hack_aim_key)
-        ));
-        out.push(format!(
-            "lst_hack {}",
-            match self.hacker_mode {
-                1 => "all",
-                2 => "one",
-                _ => "off",
-            }
-        ));
-        out
-    }
-
     fn plugin_extras(&self, out: &mut Vec<String>) {
-        out.extend(self.hacker_commands(false));
-        out.push(format!("lst_fire_relay {}", crate::relay::PORT));
         out.push(format!(
             "lst_skin_commands {}",
             b(SKIN_COMMANDS.load(Ordering::Relaxed))
@@ -1171,7 +961,16 @@ impl ServerSettings {
         ));
         o.push(format!("sv_autobunnyhopping {}", b(self.auto_bhop)));
         o.push(format!("sv_enablebunnyhopping {}", b(self.auto_bhop)));
-        o.extend(self.recoil_cvars());
+        // CS2's defaults, in case Flying Scoutsman's no-spread is still set.
+        o.extend(
+            [
+                "weapon_recoil_scale 2",
+                "weapon_recoil_view_punch_extra 0.055",
+                "weapon_recoil_suppression_shots 4",
+                "weapon_accuracy_nospread 0",
+            ]
+            .map(String::from),
+        );
         o.push(self.bot_loadout_command());
         o.push(format!("sv_cheats {}", b(self.needs_cheats())));
 
@@ -1504,12 +1303,6 @@ impl ServerSettings {
         )
     }
 
-    /// Sends the hacker settings to the running server right away (and keeps them for map changes).
-    pub fn apply_hacker_to_running_server(&self, game: &GameFolder) -> std::io::Result<()> {
-        self.write_cfg(game)?;
-        send_commands(game, &self.hacker_commands(true))
-    }
-
     /// Applies the settings to a running server through the plugin. Changing mode or map reloads the map; otherwise
     /// the cfg is re-run. Returns a warning when the new Workshop map can't load on this server.
     pub fn apply_to_running_server(
@@ -1562,14 +1355,6 @@ mod tests {
             .map(|l| l.trim().to_string())
             .filter(|l| !l.is_empty() && !l.starts_with("//"))
             .collect()
-    }
-
-    fn arg(commands: &[String], name: &str) -> String {
-        commands
-            .iter()
-            .find(|c| c.starts_with(&format!("{name} ")))
-            .unwrap()[name.len() + 1..]
-            .to_string()
     }
 
     #[test]
@@ -1865,58 +1650,6 @@ mod tests {
     }
 
     #[test]
-    fn hacker_commands() {
-        let s = ServerSettings {
-            hacker_mode: 1,
-            hack_wallhack: false,
-            hack_aimbot: false,
-            hack_ammo: false,
-            ..Default::default()
-        };
-        assert_eq!(arg(&s.hacker_commands(true), "lst_hack_powers"), "none");
-        for (mode, want) in [(0, "off"), (1, "all"), (2, "one")] {
-            assert_eq!(
-                arg(
-                    &ServerSettings {
-                        hacker_mode: mode,
-                        ..Default::default()
-                    }
-                    .hacker_commands(true),
-                    "lst_hack"
-                ),
-                want
-            );
-        }
-        let mut s = ServerSettings {
-            allow_cheats: false,
-            hacker_mode: 1,
-            hack_no_recoil: true,
-            hack_no_spread: true,
-            ..Default::default()
-        };
-        let l = s.hacker_commands(true);
-        assert_eq!(l[0], "sv_cheats 1");
-        assert!(
-            l.contains(&"weapon_accuracy_nospread 1".into())
-                && l.contains(&"weapon_recoil_scale 0".into())
-        );
-        assert_eq!(
-            l.iter().rev().find(|x| x.starts_with("sv_cheats")).unwrap(),
-            "sv_cheats 1"
-        );
-        s.hacker_mode = 0;
-        let l = s.hacker_commands(true);
-        assert!(
-            l.contains(&"weapon_accuracy_nospread 0".into())
-                && l.contains(&"weapon_recoil_scale 2".into())
-        );
-        assert_eq!(
-            l.iter().rev().find(|x| x.starts_with("sv_cheats")).unwrap(),
-            "sv_cheats 0"
-        );
-    }
-
-    #[test]
     fn workshop_mode_from_title() {
         for (title, mode) in [
             ("aim_redline", Some("Deathmatch")),
@@ -1940,7 +1673,6 @@ mod tests {
         assert!(
             json.contains("\"TeamSizeCT\":5")
                 && json.contains("\"Friends\":0")
-                && json.contains("\"HackAggression\":5")
         );
         let back: ServerSettings =
             crate::util::read_json(r#"{"Mode":"Casual","WorkshopMapId":null,"Password":null}"#)
@@ -1964,46 +1696,6 @@ mod tests {
                 all.extend(s.bot_weapon_commands());
             }
         }
-        let mut every = ServerSettings {
-            hacker_mode: 1,
-            ..Default::default()
-        };
-        for f in [
-            &mut every.hack_one_tap,
-            &mut every.hack_speed,
-            &mut every.hack_bhop,
-            &mut every.hack_no_flash,
-            &mut every.hack_esp_info,
-            &mut every.hack_aim_walls,
-            &mut every.hack_no_recoil,
-            &mut every.hack_radar,
-            &mut every.hack_box_esp,
-            &mut every.hack_bone_esp,
-            &mut every.hack_tags,
-            &mut every.hack_trigger,
-        ] {
-            *f = true;
-        }
-        all.extend(every.hacker_commands(true));
-        for mode in 0..3 {
-            all.extend(
-                ServerSettings {
-                    hacker_mode: mode,
-                    ..Default::default()
-                }
-                .hacker_commands(true),
-            );
-        }
-        all.extend(
-            ServerSettings {
-                hacker_mode: 1,
-                hack_wallhack: false,
-                hack_aimbot: false,
-                hack_ammo: false,
-                ..Default::default()
-            }
-            .hacker_commands(true),
-        );
         all.extend(
             SCOUTS_ON_COMMANDS
                 .iter()
@@ -2046,8 +1738,6 @@ mod tests {
         }
         let fixture = json!({
             "commands": commands,
-            "allPowers": arg(&every.hacker_commands(false), "lst_hack_powers"),
-            "aimKeys": AIM_KEY_COMMANDS, "aimStyles": AIM_STYLE_COMMANDS, "aimBones": AIM_BONE_COMMANDS, "aimTargets": AIM_TARGET_COMMANDS,
             "retakeQuotas": quotas,
         });
         let text = serde_json::to_string_pretty(&fixture).unwrap() + "\n";

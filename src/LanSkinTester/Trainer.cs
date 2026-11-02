@@ -434,6 +434,26 @@ public partial class LanSkinTester
         return true;
     }
 
+    // Line-of-sight traces hit the world only (walls, floors, props, glass), not players.
+    private static readonly TraceOptions SightTrace = new()
+    {
+        InteractsAs = Contents.Player,
+        InteractsWith = Contents.Solid | Contents.WorldGeometry | Contents.Window | Contents.BlockLos | Contents.PhysicsProp,
+        InteractsExclude = Contents.Player | Contents.Hitbox | Contents.Debris,
+    };
+
+    private static float EyeHeight(CCSPlayerPawn pawn)
+    {
+        var z = pawn.ViewOffset.Z;
+        return z > 1 ? z : 64f;
+    }
+
+    private static bool IsEnemy(CCSPlayerController a, CCSPlayerController b)
+    {
+        if (a.Slot == b.Slot || b.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return false;
+        return a.Team != b.Team || ConVar.Find("mp_teammates_are_enemies")?.GetPrimitiveValue<bool>() == true;
+    }
+
     /// <summary>Up to <paramref name="count"/> floor points inside the bomb site, at least 120 units apart where possible.</summary>
     private List<Vector> SiteSpots(bool siteB, int count)
     {
@@ -585,7 +605,7 @@ public partial class LanSkinTester
             var shots = _sprayShots.GetValueOrDefault(player.Slot);
             _sprayShots[player.Slot] = shots with { Fired = shots.Fired + 1 };
         }
-        if (!PassiveBots && !HackerSlots().Contains(player.Slot))
+        if (!PassiveBots)
         {
             var aim = _roundAim.GetValueOrDefault(player.Slot);
             _roundAim[player.Slot] = aim with { Shots = aim.Shots + 1 };
@@ -642,11 +662,11 @@ public partial class LanSkinTester
         // Kills on bots that don't shoot back (reaction, flick, prefire) count apart: "drill headshots", not K/D.
         if (PassiveBots)
         {
-            if (attacker is { IsValid: true } && IsHumanPlayer(attacker) && IsBotPlayer(victim) && !HackerSlots().Contains(attacker.Slot))
+            if (attacker is { IsValid: true } && IsHumanPlayer(attacker) && IsBotPlayer(victim))
                 LogTraining(attacker, "dkill", ("hs", @event.Headshot), ("w", WeaponName(@event.Weapon ?? "")));
             return HookResult.Continue;
         }
-        if (attacker is { IsValid: true } && IsEnemy(attacker, victim) && IsHumanPlayer(attacker) && !HackerSlots().Contains(attacker.Slot))
+        if (attacker is { IsValid: true } && IsEnemy(attacker, victim) && IsHumanPlayer(attacker))
             LogTraining(attacker, "kill", ("hs", @event.Headshot), ("w", WeaponName(@event.Weapon ?? "")));
         if (IsHumanPlayer(victim)) LogTraining(victim, "death");
         return HookResult.Continue;
@@ -659,7 +679,7 @@ public partial class LanSkinTester
         var victim = @event.Userid;
         var weapon = @event.Weapon ?? "";
         if (PassiveBots || attacker is not { IsValid: true } || victim is not { IsValid: true } || !IsHumanPlayer(attacker)
-            || !IsEnemy(attacker, victim) || HackerSlots().Contains(attacker.Slot) || IsGrenade(weapon) || weapon == "inferno") return HookResult.Continue;
+            || !IsEnemy(attacker, victim) || IsGrenade(weapon) || weapon == "inferno") return HookResult.Continue;
         var aim = _roundAim.GetValueOrDefault(attacker.Slot);
         _roundAim[attacker.Slot] = aim with { Hits = aim.Hits + 1, Damage = aim.Damage + Math.Max(0, @event.DmgHealth) };
         var key = (attacker.Slot, WeaponName(weapon));

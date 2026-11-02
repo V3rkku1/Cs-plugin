@@ -382,13 +382,6 @@ export function LivePage() {
             ["Flying Scoutsman Off", () => tryCall("live.scouts", false), "stop"]]} />
         <//>`}
 
-        <${Section} title="Hacker Mode">
-          <${Row} icon=${{ name: "hacker", color: "green" }} title="Hacker Mode" subtitle=${state.hackerDetail}
-              subtitleClass=${s.hackerMode !== 0 ? "note-good" : ""} onClick=${() => navigate("hacker")}>
-            <${Button} size="sm" onClick=${e => { e.stopPropagation(); navigate("hacker"); }}>Open<//>
-          <//>
-        <//>
-
         <${Section} title="Launch">
           <${Row} icon=${{ name: "play", color: "blue" }} title="Open CS2 Automatically" subtitle="Off = start only the server">
             <${Toggle} value=${s.autoStartGame} onChange=${v => set("autoStartGame", v)} />

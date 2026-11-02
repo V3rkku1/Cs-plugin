@@ -4,7 +4,6 @@
 
 mod cases;
 pub mod friends;
-mod hacker;
 mod logs;
 mod play;
 mod setup;
@@ -74,11 +73,12 @@ pub struct State {
     pub settings: LauncherSettings,
     pub game: Option<GameFolder>,
     pub db: Arc<ItemDatabase>,
+    /// False until load_db finishes: an empty db then means "loading", not "not downloaded".
+    pub db_loaded: bool,
     pub shell: shell::ShellState,
     pub setup: setup::SetupState,
     pub play: play::PlayState,
     pub friends: friends::FriendsState,
-    pub hacker_sent: bool,
     pub collections: tradeup::Collections,
 }
 
@@ -91,9 +91,7 @@ impl State {
     }
 
     pub fn test_mode_on(&self) -> bool {
-        self.game
-            .as_ref()
-            .is_some_and(|g| Session { game: g }.is_on())
+        test_mode_on(self.game.as_ref())
     }
 
     pub fn game(&self) -> R<&GameFolder> {
@@ -104,21 +102,27 @@ impl State {
 
     /// The plugin's live report, or None if the server isn't running (or the report is stale).
     pub fn server_status(&self) -> Option<ServerStatus> {
-        let text =
-            std::fs::read_to_string(self.game.as_ref()?.plugin_dir().join(STATUS_FILE)).ok()?;
-        let status: ServerStatus = util::read_json(&text).ok()?;
-        (-5..=8)
-            .contains(&(util::unix_now() - status.time))
-            .then_some(status)
+        server_status(self.game.as_ref())
     }
+}
+
+// The pollers call these without holding the State lock: they read files and look up processes.
+
+pub fn test_mode_on(game: Option<&GameFolder>) -> bool {
+    game.is_some_and(|g| Session { game: g }.is_on())
+}
+
+pub fn server_status(game: Option<&GameFolder>) -> Option<ServerStatus> {
+    let text = std::fs::read_to_string(game?.plugin_dir().join(STATUS_FILE)).ok()?;
+    let status: ServerStatus = util::read_json(&text).ok()?;
+    (-5..=8)
+        .contains(&(util::unix_now() - status.time))
+        .then_some(status)
 }
 
 impl App {
     pub fn new(handle: AppHandle, start_page: Option<String>) -> Arc<App> {
-        let mut settings = LauncherSettings::load();
-        // Hacker mode is never carried over from last time: it is on only when picked in this session.
-        settings.server.hacker_mode = 0;
-        let db = Arc::new(ItemDatabase::load_cached(&itemdb::data_dir()));
+        let settings = LauncherSettings::load();
         Arc::new_cyclic(|me: &std::sync::Weak<App>| {
             let (log_me, changed_me) = (me.clone(), me.clone());
             App {
@@ -139,12 +143,12 @@ impl App {
                 state: Mutex::new(State {
                     settings,
                     game: None,
-                    db,
+                    db: Default::default(),
+                    db_loaded: false,
                     shell: Default::default(),
                     setup: Default::default(),
                     play: Default::default(),
                     friends: Default::default(),
-                    hacker_sent: false,
                     collections: Default::default(),
                 }),
                 inv: Mutex::new(Inv::default()),
@@ -268,17 +272,22 @@ impl App {
         if let Some(g) = st.game.clone() {
             st.settings.game_path = Some(g.root.display().to_string());
             self.save(st);
-            // Keep the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
-            if !st.db.is_empty()
-                && g.plugin_installed()
-                && !g.skin_names_dir().join("skins.json").exists()
-            {
-                let _ = st.db.write_plugin_skin_names(&g.skin_names_dir());
-            }
+            write_missing_skin_names(st);
             if crate::server::discover_modes(&g) {
                 self.log("Found Valve's Rush mode in your CS2 files.");
             }
         }
+        self.changed();
+    }
+
+    /// Reads the cached item lists off the main thread, so the window doesn't wait for them.
+    pub fn load_db(&self) {
+        let db = Arc::new(ItemDatabase::load_cached(&itemdb::data_dir()));
+        let mut st = self.state();
+        st.db = db;
+        st.db_loaded = true;
+        write_missing_skin_names(&st);
+        drop(st);
         self.changed();
     }
 
@@ -291,6 +300,7 @@ impl App {
             }
         }
         st.db = db;
+        st.db_loaded = true;
         drop(st);
         self.changed();
     }
@@ -358,7 +368,6 @@ fn dispatch(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             _ => play::call(app, name, a),
         },
         "friends" => friends::call(app, name, a),
-        "hacker" => hacker::call(app, name, a),
         "trainer" => trainer::call(app, name, a),
         "workshop" => workshop::call(app, name, a),
         "backup" => cases::backup(app, name),
@@ -377,4 +386,16 @@ fn plural(n: i32, word: &str) -> String {
 /// Opens a link, file or folder with the system's app for it.
 fn open_external(target: impl AsRef<std::ffi::OsStr>) -> R<()> {
     open::that_detached(target).map_err(|e| ApiError::Fail(e.to_string()))
+}
+
+/// Keeps the plugin's skin names in sync with the launcher's data (e.g. after picking another folder).
+fn write_missing_skin_names(st: &State) {
+    if let Some(g) = &st.game {
+        if !st.db.is_empty()
+            && g.plugin_installed()
+            && !g.skin_names_dir().join("skins.json").exists()
+        {
+            let _ = st.db.write_plugin_skin_names(&g.skin_names_dir());
+        }
+    }
 }

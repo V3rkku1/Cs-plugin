@@ -5,7 +5,6 @@ const paths = {
   play: `<circle cx="12" cy="12" r="9.2"/><path d="M10 8.6v6.8l5.4-3.4z" fill="currentColor" stroke="none"/>`,
   server: `<rect x="4" y="4" width="16" height="6.5" rx="2"/><rect x="4" y="13.5" width="16" height="6.5" rx="2"/><circle cx="8" cy="7.25" r="1" fill="currentColor"/><circle cx="8" cy="16.75" r="1" fill="currentColor"/><path d="M12 7.25h5M12 16.75h5"/>`,
   skins: `<path d="M6.5 4h11l3.5 5-9 11L3 9z"/><path d="M3 9h18M9 4l3 16 3-16M6.5 4 9 9l3-5 3 5 2.5-5"/>`,
-  hacker: `<circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/>`,
   friends: `<circle cx="9" cy="8" r="3.4"/><path d="M2.8 19.5c.6-3.4 3.1-5.4 6.2-5.4s5.6 2 6.2 5.4"/><circle cx="17" cy="9" r="2.6"/><path d="M15.8 14.2c2.8-.4 4.9 1.3 5.4 4.3"/>`,
   setup: `<circle cx="12" cy="12" r="3.2"/><path d="M12 2.8v2.6M12 18.6v2.6M21.2 12h-2.6M5.4 12H2.8M18.5 5.5l-1.8 1.8M7.3 16.7l-1.8 1.8M18.5 18.5l-1.8-1.8M7.3 7.3 5.5 5.5"/>`,
   check: `<path d="m5 12.5 4.5 4.5L19 7.5"/>`,

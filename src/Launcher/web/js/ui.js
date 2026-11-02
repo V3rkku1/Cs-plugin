@@ -235,11 +235,12 @@ let sheetRoot;
 export function sheet(content, { wide = false } = {}) {
   sheetRoot ??= document.body.appendChild(document.createElement("div"));
   return new Promise(resolve => {
-    const close = value => { render(null, sheetRoot); resolve(value); };
-    const onKey = e => { if (e.key === "Escape") { window.removeEventListener("keydown", onKey); close(undefined); } };
+    // Every way out drops the Escape listener (a scrim click used to leave one behind per sheet).
+    const close = value => { window.removeEventListener("keydown", onKey); render(null, sheetRoot); resolve(value); };
+    const onKey = e => { if (e.key === "Escape") close(undefined); };
     window.addEventListener("keydown", onKey);
     render(html`<div class="scrim" onPointerDown=${e => e.target === e.currentTarget && close(undefined)}>
-      <div class=${"sheet glass" + (wide ? " wide" : "")}>${content(v => { window.removeEventListener("keydown", onKey); close(v); })}</div>
+      <div class=${"sheet glass" + (wide ? " wide" : "")}>${content(close)}</div>
     </div>`, sheetRoot);
   });
 }

@@ -32,7 +32,7 @@ On first start it opens on **Setup**. Press **Install Everything**, then go to *
 
 ### Pages
 
-The sidebar has ten pages (**Ctrl+1** to **Ctrl+9** for the first nine). **Ctrl+K** finds any page, quick start or action
+The sidebar has nine pages (**Ctrl+1** to **Ctrl+9**). **Ctrl+K** finds any page, quick start or action
 (type "dm", Enter starts Deathmatch). **F5** starts or applies changes, **Shift+F5** stops, **F11** is full
 screen, **Ctrl+F** searches the inventory. On a big screen the page zooms to fill the window.
 
@@ -122,14 +122,6 @@ containers) and your profit or loss against what you unboxed.
 unlocks every item on that PC and Inventory › **Add Item** (any skin, knife, glove, sticker, agent, pin or
 music kit with the float and pattern you pick).
 
-**Hacker Mode** (fun, on your own server against bots or friends who agreed). Always off when the launcher
-starts; changes reach the running server at once. Profiles (Legit, Closet, Rage, Movement, All Off), who hacks
-(*Everyone*, or *One random* per round who glows for the others), and each power: chams, box and skeleton
-ESP, name tags, aimbot (legit / silent / rage, body part, target, key, aggression 1–10, through walls),
-triggerbot, recoil control, zero spread, radar, bunnyhop, no flash, enemy info, infinite ammo, speed, damage
-boost. In game, `!cheats` opens a menu where each player sets their own. The triggerbot clicks your mouse
-through the launcher (localhost port 27099), only while the test session runs and CS2 is in front.
-
 **Trainer.** *Launch:* pick a map and a practice setup (Lineups & Utility, Site Drills, Aim Warm-up
 with bot count, headshots only and passive bots, Movement) and the server starts, or switches if it runs.
 *Lineups:* 278 built-in smokes, flashes and molotovs for Mirage, Inferno, Dust II, Ancient,
@@ -155,7 +147,7 @@ a table (2 weeks to all time): Reaction Drill, Flick Drill and Reaction Test tim
 per round, stopped shots (counter-strafe check), strafe sync, longest jump, prefire time, spray spread, drill headshots (kills on bots that
 don't shoot back, kept apart from your real headshot % and K/D) and drill rounds won, plus your
 personal bests, achievements, your **last spray** drawn bullet by bullet (with the 1.5° and 3° rings), and all-time tables per gun (kills, headshots, accuracy) and per map (rounds
-won, K/D, damage per round, drill wins, best course time). Kills, shots and damage count in every mode, except with an aimbot and in the Reaction
+won, K/D, damage per round, drill wins, best course time). Kills, shots and damage count in every mode, except in the Reaction
 Drill; only flat jumps count. With friends on the server, pick whose stats to see. **Reset** starts over
 (the old file is kept as `training.jsonl.bak`). Kept in
 `plugins/LanSkinTester/training.jsonl`.
@@ -379,10 +371,6 @@ example `css_skin 282`). Most commands change **the weapon in your hands**.
 | `!damage` | Toggle the damage report in chat |
 | `!armor` / `!nades` / `!clear` | Armor and a kit, a set of grenades, or remove smokes and fires |
 | `!swap` | Swap the two teams |
-| `!hacks` | Who is hacking in hacker mode |
-| `!cheats` | Open the cheat menu (W/S move, D switch, R close) |
-| `!aimkey fire\|always\|mouse2\|shift\|e\|f` | Your own aimbot key |
-| `!aimtoggle` | Aimbot always on / back to your key (bind a key: `bind x css_aimtoggle`) |
 
 The practice commands (`!give`, `!3p`, `!respawn`, `!noclip`, `!god`, `!save`, `!rethrow` and the rest) only work on a LAN or private server, like the skins.
 
@@ -428,13 +416,6 @@ The launcher's quick actions use these. You can also type them in the server win
 | `lst_endround ct` / `t` | End the round |
 | `lst_score <ct> <t>` | Set the score |
 | `lst_pause on` / `off` | Pause or resume |
-| `lst_hack off` / `all` / `one` | Hacker mode: off, everyone hacks, or one random hacker per round |
-| `lst_hack_powers wallhack,boxesp,boneesp,tags,aimbot,trigger,aimwalls,onetap,ammo,speed,bhop,noflash,espinfo,norecoil,radar` | Which hacker powers are on (`onetap` = damage boost; `all` or `none` also work) |
-| `lst_aim_target closest\|crosshair\|health\|threat` | Who the aimbot picks: nearest, closest to the crosshair, lowest HP, or who is aiming at you |
-| `lst_aim_style legit\|silent\|rage` | Smooth aim, bullet-only aim, or snap-and-shoot |
-| `lst_aim_bone head\|neck\|chest` | Body part for the aimbot and the triggerbot |
-| `lst_aim_key fire\|always\|mouse2\|shift\|e\|f\|custom` | When the aimbot works (`custom`: only a key bound to `+lst_aim`) |
-| `lst_aim_aggression 1-10` | Default aimbot aggression (players can change their own in `!cheats`) |
 | `lst_bot_no_snipers 1` / `0` | Bots only keep the rifles `lst_bot_rifles` allows (snipers and other rifles are swapped) |
 | `lst_bot_rifles ak47,m4a1,m4a1_silencer` | Rifles bots may keep (`famas`, `galilar`, `aug`, `sg556` too) |
 | `lst_stats_reset` | Start the session stats over |
