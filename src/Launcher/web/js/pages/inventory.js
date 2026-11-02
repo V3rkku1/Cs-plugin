@@ -750,14 +750,16 @@ export function InventoryPage() {
         <${Button} icon="layers" onClick=${tradeUp}>Trade Up<//>
         <${Button} icon="folder" onClick=${() => sheet(close => html`<${StorageSheet} close=${close} />`, { wide: true })}
           title="Boxes for items you don't use right now">Storage Units${state.units ? ` (${state.units})` : ""}<//>
-        ${state.undo > 0 && html`<${Button} icon="refresh" onClick=${() => tryCall("cases.undoRemove")} title="Bring back what Remove Duplicates removed last">Undo Remove (${state.undo})<//>`}
         <${Button} icon="friends" onClick=${async () => {
           const code = await prompt({ title: "Redeem Gift", message: "Paste the gift code your friend sent you (it starts with LSTG1-).", placeholder: "LSTG1-…", ok: "Redeem" });
           if (code?.trim()) tryCall("inventory.redeem", code.trim());
         }} title="Add an item a friend gave you">Redeem Gift<//>
-        <${Button} icon="save" onClick=${() => tryCall("backup.exportInventory")} title="Save your inventory to a file (a backup, or to move it to another PC)">Export<//>
-        ${state.admin && html`<${Button} icon="import" onClick=${() => tryCall("backup.importInventory")} title="Admin: add the items from a saved inventory file">Import<//>`}
-        <${Button} icon="trash" disabled=${!duplicates.length} onClick=${removeDuplicates} title="Remove extra copies of the same skin in the same exterior">Remove Duplicates (${duplicates.length})<//>
+        <${Select} width=${110} placeholder="More" value=${null} onChange=${f => f()} options=${[
+          { value: () => tryCall("backup.exportInventory"), label: "Export to file" },
+          state.admin && { value: () => tryCall("backup.importInventory"), label: "Import from file" },
+          duplicates.length > 0 && { value: removeDuplicates, label: "Remove duplicates", note: duplicates.length },
+          state.undo > 0 && { value: () => tryCall("cases.undoRemove"), label: "Undo remove", note: state.undo },
+        ].filter(Boolean)} />
         ${state.admin && html`<${Button} kind="prominent" icon="plus" onClick=${addItem} title="Admin: put any item in your inventory">Add Item<//>`}`}>
     <div class="hstack inv-bar">
       <${Segmented} options=${[{ value: "all", label: "All Items" }, { value: "loadout", label: "Loadout" }, { value: "weapons", label: "Weapons" }, { value: "special", label: "Knives & Gloves" },

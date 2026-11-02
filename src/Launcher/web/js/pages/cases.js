@@ -379,52 +379,83 @@ function BattleSheet({ cases, close }) {
 }
 
 /** Risk one skin for a chance at a better one: the cheaper yours is next to the target, the lower the chance. */
+const UP_SPIN_MS = 4500;
+function UpCard({ name, image, color, price, cur, chance, on, onClick }) {
+  return html`<div class=${"up-card" + (on ? " on" : "")} role="button" style=${`--c:${color}`} onClick=${onClick} title=${name}>
+    <${ItemPic} src=${image} size=${128} />
+    <div class="up-card-name">${name}</div>
+    <div class="up-card-price">${money(price, cur)}${chance != null && html` · <b>${(chance * 100).toFixed(1)}%</b>`}</div>
+  </div>`;
+}
+function UpSlot({ item, cur, label }) {
+  return html`<div class="up-slot" style=${item ? `--c:${item.color}` : ""}>
+    ${item ? html`<${ItemPic} src=${item.image} size=${256} /><div class="up-card-name">${item.name}</div><div class="up-card-price">${money(item.price, cur)}</div>`
+      : html`<div class="faint small">${label}</div>`}
+  </div>`;
+}
+
 function UpgradeSheet({ close }) {
   const [inv] = useApi("cases.inventory");
   const [uid, setUid] = useState(null);
   const [targets, setTargets] = useState(null);
   const [target, setTarget] = useState(null);
   const [result, setResult] = useState(null);
+  const [turn, setTurn] = useState(0);
+  const [spinning, setSpinning] = useState(false);
   const pick = async u => {
+    if (spinning) return;
     setUid(u); setTarget(null); setResult(null); setTargets(null);
     setTargets(await call("cases.upgradeTargets", u).catch(() => ({ targets: [] })));
   };
   const roll = async () => {
     const r = await call("cases.upgrade", { uid, key: target.key }).catch(() => null);
-    if (r) { setResult(r); setUid(null); setTargets(null); setTarget(null); }
+    if (!r) return;
+    // Needle starts at the top like the green arc, so landing inside the arc means roll < chance.
+    setSpinning(true); setResult(null);
+    setTurn(t => Math.ceil(t / 360) * 360 + 5 * 360 + r.roll * 360);
+    setTimeout(() => {
+      setSpinning(false); setResult(r);
+      if (r.won) sound.reveal(r.item.item.color); else if (!muted) thump(ctx().currentTime, 0.4);
+      setUid(null); setTargets(null); setTarget(null);
+    }, UP_SPIN_MS);
   };
   if (!inv) return html`<div class="case-sheet"><div class="empty small">Loading…</div></div>`;
   const skins = inv.items.filter(v => v.item.kind === "skin" && v.price && !v.equipped).sort((a, b) => b.price - a.price).slice(0, 120);
   const cur = inv.currency;
+  const mine = skins.find(v => v.item.uid === uid);
+  const chance = target?.chance ?? result?.chance ?? 0;
+  const won = result && !spinning ? (result.won ? " won" : " lost") : "";
   return html`<div class="case-sheet">
     <div class="case-topbar">
       <div class="grow"><h2>Upgrade</h2><div class="faint small">Pick a skin to risk, then a better one. Win: you get the new skin. Lose: yours is gone.</div></div>
       <${Button} kind="plain" icon="x" onClick=${() => close(undefined)} title="Close" />
     </div>
-    ${result && html`<div style="padding:0 18px 12px"><h3 style=${`color:var(--${result.won ? "green" : "red"})`}>
-      ${result.won ? `Upgraded! ${result.item.item.name}` : "Lost. Better luck next time."}</h3>
-      <div class="faint small">Chance ${(result.chance * 100).toFixed(1)}% · rolled ${(result.roll * 100).toFixed(1)}</div></div>`}
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:0 18px 18px;max-height:64vh">
-      <div style="overflow:auto"><div class="small faint" style="margin-bottom:6px">1. Your skin (unequipped, with a price)</div>
-        ${skins.length === 0 && html`<div class="small faint">No skins to risk: open some cases.</div>`}
-        ${skins.map(v => html`<div class=${"hstack" + (uid === v.item.uid ? " selected" : "")} role="button"
-            style=${`gap:8px;padding:4px;cursor:pointer;border-radius:8px;${uid === v.item.uid ? "background:var(--hairline)" : ""}`} onClick=${() => pick(v.item.uid)}>
-          <div style=${`width:56px;border-bottom:3px solid ${v.item.color}`}><${ItemPic} src=${v.item.image} size=${128} /></div>
-          <div class="grow small">${v.item.name} <span class="faint">${wearName(v.item.wear)}</span></div><span class="small">${money(v.price, cur)}</span></div>`)}
+    <div class="up-stage">
+      <${UpSlot} item=${mine && { ...mine.item, price: mine.price }} cur=${cur} label="Your skin" />
+      <div class="up-wheel-wrap">
+        <div class=${"up-wheel" + won} style=${`--p:${chance * 360}deg`}>
+          <div class="up-needle" style=${`transform:rotate(${turn}deg);transition-duration:${spinning ? UP_SPIN_MS : 0}ms`} />
+          <div class="up-hub">
+            <b>${result && !spinning ? (result.won ? "WIN" : "LOST") : `${(chance * 100).toFixed(1)}%`}</b>
+            <span class="faint small">${result && !spinning ? `rolled ${(result.roll * 100).toFixed(1)}` : "chance"}</span>
+          </div>
+        </div>
+        <${Button} kind="prominent" icon="dice" disabled=${!target || spinning} onClick=${roll}>${spinning ? "Rolling…" : "Upgrade"}<//>
       </div>
-      <div style="overflow:auto"><div class="small faint" style="margin-bottom:6px">2. The skin you want</div>
+      <${UpSlot} item=${target ?? (result?.won && !spinning ? { ...result.item.item, price: result.item.price } : null)} cur=${targets?.currency ?? cur} label="Target skin" />
+    </div>
+    <div class="up-lists">
+      <div class="up-list"><div class="small faint">Your skins</div>
+        ${skins.length === 0 && html`<div class="small faint">No skins to risk: open some cases.</div>`}
+        <div class="up-grid">${skins.map(v => html`<${UpCard} ...${v.item} price=${v.price} cur=${cur} on=${uid === v.item.uid} onClick=${() => pick(v.item.uid)} />`)}</div>
+      </div>
+      <div class="up-list"><div class="small faint">You get</div>
+        ${!uid && html`<div class="small faint">Pick your skin first.</div>`}
         ${uid && !targets && html`<div class="small faint">Loading…</div>`}
         ${targets?.targets.length === 0 && html`<div class="small faint">No better skins with a price found.</div>`}
-        ${targets?.targets.map(t => html`<div class="hstack" role="button" onClick=${() => setTarget(t)}
-            style=${`gap:8px;padding:4px;cursor:pointer;border-radius:8px;${target?.key === t.key ? "background:var(--hairline)" : ""}`}>
-          <div style=${`width:56px;border-bottom:3px solid ${t.color}`}><${ItemPic} src=${t.image} size=${128} /></div>
-          <div class="grow small">${t.name}</div><span class="small" title="The cheapest exterior's price: a win comes in that exterior">${money(t.price, targets.currency)} · <b>${(t.chance * 100).toFixed(1)}%</b></span></div>`)}
+        <div class="up-grid">${targets?.targets.map(t => html`<${UpCard} ...${t} cur=${targets.currency} on=${target?.key === t.key} onClick=${() => !spinning && setTarget(t)} />`)}</div>
       </div>
     </div>
-    ${target && html`<div class="hstack" style="padding:0 18px 18px;gap:12px">
-      <div class="grow">Chance to win <b>${(target.chance * 100).toFixed(1)}%</b> · you risk ${money(targets.value, targets.currency)} for ${money(target.price, targets.currency)}</div>
-      <${Button} kind="prominent" icon="dice" onClick=${roll}>Upgrade<//>
-    </div>`}
   </div>`;
 }
 
@@ -448,7 +479,7 @@ export function CasesPage() {
     (state.keysUsed || state.casesCost ? ` · for real: ${state.keysUsed} key${state.keysUsed === 1 ? "" : "s"} + ${money(state.casesCost, cur)} of cases` +
       ` = ${money(state.spent, cur)} · ${state.profit >= 0 ? "profit" : "loss"} ${money(Math.abs(state.profit), cur)}` : "")}
       actions=${html`
-        <${Button} icon=${mute ? "x" : "bolt"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
+        <${Button} icon=${mute ? "x" : "music"} onClick=${() => { setMuted(!mute); setMute(!mute); }} title="Case opening sounds">${mute ? "Sound off" : "Sound on"}<//>
         <${Select} width=${90} value=${cur} onChange=${v => tryCall("cases.currency", v)} options=${["USD", "EUR", "GBP"]} />
         <${Button} icon="layers" onClick=${() => sheet(close => html`<${CollectionSheet} close=${close} />`, { wide: true })}>Collection Book<//>
         <${Button} icon="bolt" onClick=${() => sheet(close => html`<${BattleSheet} cases=${state.cases.filter(c => c.type === "Case")} close=${close} />`, { wide: true })}>Case Battle<//>

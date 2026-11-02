@@ -226,7 +226,8 @@ public partial class LanSkinTester
         else foreach (var player in Humans().Where(p => p.Team is CsTeam.Terrorist or CsTeam.CounterTerrorist && p.Team != humanTeam))
             player.ChangeTeam(humanTeam); // not SwitchTeam: its native call crashed the server (0xC0000005)
         var botTeam = humanTeam == CsTeam.Terrorist ? "ct" : "t";
-        Server.ExecuteCommand($"mp_warmup_end; bot_kick; bot_quota_mode normal; bot_join_team {botTeam}; bot_quota {count}");
+        // No auto balance: it moved a bot onto the humans' side after the first round (1 human vs 3 bots).
+        Server.ExecuteCommand($"mp_warmup_end; mp_autoteambalance 0; mp_limitteams 0; bot_kick; bot_quota_mode normal; bot_join_team {botTeam}; bot_quota {count}");
         if (drill == Drill.Reflex)
         {
             Server.ExecuteCommand("bot_dont_shoot 1; mp_ignore_round_win_conditions 1; mp_roundtime 60; mp_roundtime_defuse 60");
@@ -243,7 +244,7 @@ public partial class LanSkinTester
         TellHumans(drill switch
         {
             Drill.Clear => $"Clear site {siteName}: {count} bots hold angles on the site. Clear it and plant.",
-            Drill.Retake => $"Plant on {siteName}: {count} bots wait at CT spawn and push when the bomb is down.",
+            Drill.Retake => $"Hold the plant on {siteName}: you start on the site with the bomb down, {count} bots retake.",
             Drill.Prefire => $"Prefire site {siteName}: {count} bots stand on angles and don't shoot. Clear them as fast as you can.",
             Drill.Clutch => $"Clutch on {siteName}: the bomb is down, {count} bots guard it. Retake and defuse.",
             _ => $"Hold site {siteName}: {count} bots attack. Stop the plant.",
@@ -270,7 +271,7 @@ public partial class LanSkinTester
                 if (_drill == Drill.Prefire) _prefireStart = Server.CurrentTime;
             }
             else if (_drill == Drill.Clutch) StartClutch(bots);
-            else if (_drill == Drill.Retake) bots.ForEach(b => Anchor(b));
+            else if (_drill == Drill.Retake) StartPlanted(humans);
             else
             {
                 var spots = SiteSpots(_drillSiteB, humans.Count);
@@ -298,15 +299,6 @@ public partial class LanSkinTester
             money.Account = 16000;
             Utilities.SetStateChanged(player, "CCSPlayerController", "m_pInGameMoneyServices");
         }
-        return HookResult.Continue;
-    }
-
-    [GameEventHandler]
-    public HookResult OnDrillBombPlanted(EventBombPlanted @event, GameEventInfo info)
-    {
-        if (_drill != Drill.Retake) return HookResult.Continue;
-        _anchors.Clear();
-        TellHumans("Bomb down: here they come.");
         return HookResult.Continue;
     }
 
