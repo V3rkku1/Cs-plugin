@@ -31,6 +31,7 @@ roxmltree = "0.20"
 rfd = "0.15"
 arboard = { version = "3", default-features = false }
 open = "5"
+tauri-plugin-single-instance = "2"
 
 [target.'cfg(windows)'.dependencies]
 winreg = "0.55"

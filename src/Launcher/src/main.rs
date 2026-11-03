@@ -238,6 +238,14 @@ fn main() {
         update::wait_for_exit(pid);
     }
     tauri::Builder::default()
+        // Opening the launcher again brings the open window forward instead of starting a second one.
+        .plugin(tauri_plugin_single_instance::init(|handle, _, _| {
+            if let Some(w) = handle.get_webview_window("main") {
+                let _ = w.unminimize();
+                let _ = w.show();
+                let _ = w.set_focus();
+            }
+        }))
         .register_asynchronous_uri_scheme_protocol("lst", |ctx, request, responder| {
             let handle = ctx.app_handle().clone();
             let uri = request.uri().clone();
