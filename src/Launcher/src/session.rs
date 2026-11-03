@@ -273,7 +273,9 @@ impl Session<'_> {
         game::enable_metamod(&self.game.game_info())?;
         settings.write_cfg(self.game).map_err(|e| e.to_string())?;
         mark_session();
-        let _ = fs::remove_file(self.console_log());
+        // Kept as console.previous.log: after a crash and a new Start, the crashed server's log is still there.
+        let log = self.console_log();
+        let _ = fs::rename(&log, log.with_file_name("console.previous.log"));
         // The last server's: CS2 must wait until this server's plugin writes new ones.
         let _ = fs::remove_file(self.game.plugin_dir().join(LOADED_FILE));
         let _ = fs::remove_file(self.game.plugin_dir().join(STATUS_FILE));
@@ -347,7 +349,8 @@ impl Session<'_> {
 
     /// The server's console output (it runs with -condebug).
     pub fn console_log(&self) -> PathBuf {
-        self.game.csgo().join("console.log")
+        // Metamod in gameinfo.gi makes its folder the server's write path, so -condebug writes there.
+        self.game.addons().join("metamod").join("console.log")
     }
 
     /// The last lines the server wrote, to show why it stopped.
