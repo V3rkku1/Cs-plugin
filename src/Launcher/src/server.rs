@@ -276,6 +276,8 @@ pub struct ServerSettings {
     pub welcome_message: bool,
     pub bot_hider: bool,
     pub deathmatch_plugin: bool,
+    /// Deathmatch: each player's kill feed shows only their own kills and deaths.
+    pub own_kill_feed: bool,
     pub bot_improver: bool,
     pub bot_controller: bool,
     pub bot_aim: i32,
@@ -353,6 +355,7 @@ impl Default for ServerSettings {
             welcome_message: true,
             bot_hider: false,
             deathmatch_plugin: false,
+            own_kill_feed: true,
             bot_improver: true,
             bot_controller: false,
             bot_aim: 0,
@@ -1180,6 +1183,21 @@ impl ServerSettings {
         };
         o.push(format!("mp_items_prohibited \"{}\"", prohibited.join(",")));
         let dm = self.uses_deathmatch_plugin();
+        // The Deathmatch plugin does its own (its config); two would show each kill twice.
+        o.push(format!(
+            "lst_own_killfeed {}",
+            b(self.own_kill_feed && self.mode == "Deathmatch" && !dm)
+        ));
+        // Valve's deathmatch bonus-weapon rounds ("kill with the X for bonus points"): off.
+        o.extend(
+            [
+                "mp_dm_bonus_length_max 0",
+                "mp_dm_bonus_length_min 0",
+                "mp_dm_time_between_bonus_max 9999",
+                "mp_dm_time_between_bonus_min 9999",
+            ]
+            .map(String::from),
+        );
         o.push(format!(
             "lst_qol spawn={} guns={} ready={} vote={} summary={} welcome={} maps={}",
             b(self.spawn_protection && !dm),
