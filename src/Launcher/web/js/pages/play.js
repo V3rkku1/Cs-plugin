@@ -121,13 +121,14 @@ function Hero({ state }) {
         ${["Server loading", "Map loaded", "CS2 joining", "Joined"].map((name, n) =>
           html`<span class=${"join-step" + (n < state.step ? " done" : n === state.step ? " now" : "")}>${name}</span>`)}</div>`}
       ${state.consoleError && html`<div class="hero-error"><${Icon} name="warning" size=${16} stroke=${2} /><span>Server console: ${state.consoleError}</span></div>`}
-      ${state.startError && html`<div class="hero-error"><${Icon} name="warning" size=${16} stroke=${2} /><span>${state.startError}</span></div>`}
+      ${state.startError && html`<div class="hero-error"><${Icon} name="warning" size=${16} stroke=${2} /><span>${state.startError}</span>
+        <${Button} size="sm" kind="plain" icon="copy" onClick=${() => tryCall("live.copyLogs")}>Copy Logs<//></div>`}
       <div class="hero-actions">
         ${on
           ? html`<${Button} kind="prominent" size="lg" icon="refresh" title="Send the Live Server settings to the running server (F5)"
               onClick=${() => tryCall("play.apply")}>Apply Changes<//>`
           : html`<${Button} kind="prominent" size="lg" icon="play" disabled=${!state.ready} busy=${state.busy} title="Start the server and CS2 (F5)"
-              onClick=${() => tryCall("play.start")}>${state.busy ? "Starting…" : "Start"}<//>`}
+              onClick=${() => tryCall("play.start")}>${state.busy ? "Starting…" : state.startError ? "Start Again" : "Start"}<//>`}
         ${on && html`<${Button} size="lg" icon="game" onClick=${() => tryCall("play.openGame")}>Open CS2<//>`}
         ${on && html`<${Button} size="lg" kind="destructive" icon="stop" title="Close the server and CS2, back to normal (Shift+F5)"
             onClick=${() => tryCall("play.stop")}>Stop<//>`}
