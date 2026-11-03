@@ -51,6 +51,12 @@ const tileLooks = {
   "Casual": ["game", "blue"],
   "Wingman": ["friends", "teal"],
   "Arms Race": ["refresh", "orange"],
+  "Headshot DM": ["crosshair", "red"],
+  "Deagle DM": ["crosshair", "orange"],
+  "Pistol DM": ["crosshair", "yellow"],
+  "AWP DM": ["crosshair", "green"],
+  "SMG DM": ["crosshair", "teal"],
+  "Shotgun DM": ["crosshair", "purple"],
 };
 
 function Stat({ icon, label, value, color = "blue" }) {

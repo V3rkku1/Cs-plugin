@@ -330,7 +330,7 @@ export function LivePage() {
           <${Row} icon=${{ name: "person", color: "pink" }} title="Only Your Kills in Kill Feed" subtitle=${s.mode === "Deathmatch" ? "Each player sees only their own kills and deaths" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.ownKillFeed} disabled=${s.mode !== "Deathmatch"} onChange=${v => set("ownKillFeed", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Deathmatch Plugin"
-              subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, every gun (no weapon-only rounds), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
+              subtitle=${s.mode === "Deathmatch" ? `NockyCZ's Deathmatch: !gun menu, ${s.dmMode ? "one mode all game (from a quick start)" : "every gun (no weapon-only rounds)"}, kill sounds · replaces spawn protection and !guns` : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>
         <//>
 
