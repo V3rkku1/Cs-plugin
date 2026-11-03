@@ -2,10 +2,9 @@
 //! map. Subscribing happens in Steam (the launcher opens the item's page there).
 
 use super::play::{apply_to_server, start_server, AskArgs};
-use super::{arg, bad, ok, open_external, unknown, App, State, R};
+use super::{arg, bad, ok, open_external, unknown, App, R};
 use crate::game;
 use crate::server::{self, ServerSettings};
-use crate::session::{self, Session};
 use crate::util;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
@@ -124,9 +123,6 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             }
             let on = {
                 let mut st = app.state();
-                if try_play_offline(app, &st, &id)? {
-                    return ok(());
-                }
                 let mut s = ServerSettings::for_workshop(&st.settings.server, &id);
                 // Never played here before: a mode that fits its name (de_, aim_, arms race...), else Custom.
                 if !s.map_modes.contains_key(&id) {
@@ -153,28 +149,6 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
         }
         _ => Err(unknown(name)),
     }
-}
-
-/// Movement Hub and similar maps switch maps with map_workshop, which a dedicated server doesn't have: those
-/// start as an offline game instead. Returns false for a normal map.
-pub fn try_play_offline(app: &App, st: &State, id: &str) -> R<bool> {
-    let Some(game) = &st.game else {
-        return Ok(false);
-    };
-    let Some(map) = game::offline_only_map(game, id) else {
-        return Ok(false);
-    };
-    const WHY: &str = "This map only works as an offline game (its own script changes maps), so it doesn't run on the server.";
-    if st.test_mode_on() {
-        return Err(bad(format!("{WHY} Press Stop first, then Host it again.")));
-    }
-    if session::cs2_running() {
-        return Err(bad(format!("{WHY} Close CS2 first, then Host it again.")));
-    }
-    Session { game }.play_offline(&st.settings.server, id, &map)?;
-    app.log(format!("Workshop map {id} ({map}) starts as an offline game: its script changes maps itself, which only works without the server. Friends can't join it."));
-    app.toast(format!("Starting {map} offline…"), "info");
-    Ok(true)
 }
 
 fn html_decode(text: &str) -> String {

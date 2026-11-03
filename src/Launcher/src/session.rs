@@ -302,18 +302,6 @@ impl Session<'_> {
             .map(drop)
     }
 
-    /// Starts CS2 as an offline game on a Workshop map (no server, gameinfo.gi untouched).
-    pub fn play_offline(
-        &self,
-        settings: &ServerSettings,
-        id: &str,
-        map: &str,
-    ) -> Result<(), String> {
-        let extra = settings.game_args.replace("+connect", "");
-        self.run_cs2(format!("{} +map_workshop {id} {map}", extra.trim()).trim())
-            .map(drop)
-    }
-
     fn run_cs2(&self, arguments: &str) -> Result<Child, String> {
         forget_cs2();
         let exe = self.game.exe();
