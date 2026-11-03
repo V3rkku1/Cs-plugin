@@ -282,21 +282,6 @@ pub fn find_workshop_vpk(game: &GameFolder, id: &str) -> Option<PathBuf> {
         .max_by_key(|p| fs::metadata(p).map(|m| m.len()).unwrap_or(0))
 }
 
-/// The models (.vmdl paths) in an addon Steam has downloaded, or None when it isn't downloaded.
-pub fn addon_models(game: &GameFolder, id: &str) -> Option<Vec<String>> {
-    let mut all = vec![];
-    vpks(&workshop_dir(game, id), &mut all);
-    // A split addon lists every file in its _dir.vpk; a single-file one in itself.
-    let vpk = all.iter().find(|p| p.to_string_lossy().ends_with("_dir.vpk")).or(all.first())?;
-    let mut models: Vec<String> = vpk_files(vpk)
-        .into_iter()
-        .filter(|(_, _, ext)| ext == "vmdl_c")
-        .map(|(folder, name, _)| if folder.is_empty() { format!("{name}.vmdl") } else { format!("{folder}/{name}.vmdl") })
-        .collect();
-    models.sort();
-    Some(models)
-}
-
 pub struct Downloaded {
     pub id: String,
     pub bytes: u64,
@@ -458,13 +443,6 @@ fn vpk_entries(dir_file: &Path) -> Option<(Vec<VpkEntry>, usize)> {
         }
     }
     Some((out, header_size + tree))
-}
-
-/// Every file in the archive as (folder, name, extension); the root folder is "".
-pub fn vpk_files(dir_file: &Path) -> Vec<(String, String, String)> {
-    vpk_entries(dir_file)
-        .map(|(e, _)| e.into_iter().map(|e| (e.folder, e.name, e.ext)).collect())
-        .unwrap_or_default()
 }
 
 /// One file out of the archive; `folder` "" is the root.
@@ -794,7 +772,7 @@ mod tests {
     }
 
     #[test]
-    fn vpk_files_inside_the_archive() {
+    fn vpk_reads_files_inside_the_archive() {
         let mut tree = vec![];
         let mut entry = |ext: &str, folder: &str, name: &str, offset: u32, len: u32| {
             for s in [ext, folder, name] {
@@ -819,13 +797,6 @@ mod tests {
         vpk.extend(b"hellomap");
         let file = std::env::temp_dir().join(format!("lst-{}_dir.vpk", crate::util::random_hex(6)));
         fs::write(&file, vpk).unwrap();
-        assert_eq!(
-            vpk_files(&file),
-            [
-                ("".into(), "gamemodes".into(), "txt".into()),
-                ("scripts".into(), "hub".into(), "vjs_c".into())
-            ]
-        );
         assert_eq!(vpk_read(&file, "", "gamemodes", "txt").unwrap(), b"hello");
         assert_eq!(vpk_read(&file, "scripts", "hub", "vjs_c").unwrap(), b"map");
         fs::remove_file(file).unwrap();
