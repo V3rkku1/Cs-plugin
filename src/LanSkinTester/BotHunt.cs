@@ -10,13 +10,31 @@ namespace LanSkinTester;
 /// Hardest bots: lst_bot_hunt 1 = bots deal no damage to other bots, so every fight is with a person.
 /// lst_bot_aimbot 0-100 = a bot that can see a person turns its view onto that person's head every tick
 /// (100 snaps at once, lower turns part of the way). "Can see" is CS2's own spotted state, so no aiming
-/// through walls.
+/// through walls. lst_bot_reaction ms = how long a bot must see you before it aims (your window to shoot
+/// first). lst_bot_onetap 1 = any bullet from a bot that hits a person kills.
 /// </summary>
 public partial class LanSkinTester
 {
     private bool _botHunt;
     private int _botAimbot;
     private bool _botHuntListening;
+    private bool _botOneTap;
+    private int _botReactionMs;
+    /// <summary>Bot slot: when it started seeing the person it aims at (server time).</summary>
+    private readonly Dictionary<int, float> _botSeenSince = new();
+
+    [ConsoleCommand("lst_bot_onetap", "1 = a bot's bullet that hits a person kills")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotOneTapCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        _botOneTap = cmd.GetArg(1) == "1";
+        ListenForBotHunt();
+    }
+
+    [ConsoleCommand("lst_bot_reaction", "Milliseconds a bot must see a person before the aimbot turns it (0 = at once)")]
+    [CommandHelper(minArgs: 1, usage: "0-2000", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotReactionCommand(CCSPlayerController? caller, CommandInfo cmd) =>
+        _botReactionMs = int.TryParse(cmd.GetArg(1), out var v) ? Math.Clamp(v, 0, 2000) : 0;
 
     [ConsoleCommand("lst_bot_hunt", "1 = bots can't hurt other bots, only people")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
@@ -44,14 +62,22 @@ public partial class LanSkinTester
 
     private HookResult OnBotHuntDamage(CBaseEntity victim, CTakeDamageInfo damage)
     {
-        if (!_botHunt || victim.DesignerName != "player") return HookResult.Continue;
+        if ((!_botHunt && !_botOneTap) || victim.DesignerName != "player") return HookResult.Continue;
         try
         {
             var attacker = damage.Attacker.Value;
-            if (attacker == null || !attacker.IsValid || attacker.DesignerName != "player") return HookResult.Continue;
-            if (!PawnIsBot(attacker) || !PawnIsBot(victim)) return HookResult.Continue;
-            damage.Damage = 0;
-            return HookResult.Handled;
+            if (attacker == null || !attacker.IsValid || attacker.DesignerName != "player" || !PawnIsBot(attacker))
+                return HookResult.Continue;
+            if (PawnIsBot(victim))
+            {
+                if (!_botHunt) return HookResult.Continue;
+                damage.Damage = 0;
+                return HookResult.Handled;
+            }
+            if (!_botOneTap || !IsOneTapWeapon(damage.Ability.Value?.DesignerName ?? damage.Inflictor.Value?.DesignerName))
+                return HookResult.Continue;
+            damage.Damage = 1000; // through any armor
+            return HookResult.Changed;
         }
         catch (Exception)
         {
@@ -86,13 +112,28 @@ public partial class LanSkinTester
                 var d = (head.X - eye.X) * (head.X - eye.X) + (head.Y - eye.Y) * (head.Y - eye.Y) + (head.Z - eye.Z) * (head.Z - eye.Z);
                 if (d < bestDistance) (best, bestDistance) = (head, d);
             }
-            if (best is not { } aim) continue;
+            if (best is not { } aim)
+            {
+                _botSeenSince.Remove(bot.Slot);
+                continue;
+            }
+            // A time from the last map (the clock restarts) counts as not seen yet.
+            var time = Server.CurrentTime;
+            var since = _botSeenSince.TryGetValue(bot.Slot, out var seen) && seen <= time ? seen : _botSeenSince[bot.Slot] = time;
+            if (!Reacted(since, time, _botReactionMs)) continue;
             var (pitch, yaw) = AimAngles(eye, aim);
-            var now = pawn.EyeAngles;
+            var view = pawn.EyeAngles;
             var t = _botAimbot / 100f;
-            pawn.Teleport(null, new QAngle(Approach(now.X, pitch, t), Approach(now.Y, yaw, t), 0), null);
+            pawn.Teleport(null, new QAngle(Approach(view.X, pitch, t), Approach(view.Y, yaw, t), 0), null);
         }
     }
+
+    /// <summary>Guns only: not knives, grenades or fire.</summary>
+    internal static bool IsOneTapWeapon(string? classname) =>
+        classname != null && classname.StartsWith("weapon_") && !ItemData.IsKnifeClassname(classname) &&
+        classname is not ("weapon_hegrenade" or "weapon_molotov" or "weapon_incgrenade" or "weapon_taser");
+
+    internal static bool Reacted(float seenSince, float now, int reactionMs) => (now - seenSince) * 1000 >= reactionMs;
 
     /// <summary>The spotted mask has one bit per player slot, in 32-bit words.</summary>
     internal static bool SeenBy(ReadOnlySpan<uint> mask, int slot) =>
