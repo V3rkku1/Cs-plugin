@@ -62,13 +62,6 @@ the map; a few settings restart the server and ask first):
 - **Server Plugins:** clean up dropped guns, no fall damage, auto bunnyhop, spawn protection, `!guns`,
   `!ready`, `!rtv` map vote, round MVP and `!stats`, welcome message, and downloaded ones: Bot Improver,
   Bot Hider, Bot Controller and the Deathmatch plugin (see [Server plugins](#server-plugins)).
-- **Experimental › Custom Models:** models from Steam Workshop addons that replace the knife, a gun or the T / CT
-  agent for every player. Paste the addon's ID or link and subscribe to it in Steam: the launcher then lists the
-  models inside it to pick from, and what each replaces. The launcher installs
-  [MultiAddonManager](https://github.com/Source2ZE/MultiAddonManager), which mounts the addons and has everyone
-  who joins download them; the plugin puts the models on, in first person too. The server goes online (unlisted)
-  to download the addons, so it needs internet. Models must be made for CS2 (Workshop Tools) with the stock
-  animations and skeleton; skins don't show on them. May break after a CS2 update.
 - **Launch:** your own CS2 launch options, and whether CS2 starts automatically.
 - **Live controls** (when the server is up): restart, end warmup, pause, resume, swap, CT/T win; add CT,
   add T, kick bots, respawn, god; third person, noclip, armor, nades, clear, save/load spot, rethrow,
@@ -156,8 +149,8 @@ Drill; only flat jumps count. With friends on the server, pick whose stats to se
 the server on that map) and *Subscribe* (opens it in Steam). A Workshop map loads the official way: the
 server goes online (unlisted, no token), boots on a normal map, then switches with `host_workshop_map`; CS2
 joins once the map is loaded. A new map starts in Custom, or a fitting mode from its name (`aim_`, `ar_`,
-`de_`…); the mode you pick is remembered per map. Maps that change maps with their own script (Movement
-Hub) start as an offline game instead. Custom weapon and player models aren't supported (Workshop addon models are, as an experiment: Live Server › Experimental).
+`de_`…); the mode you pick is remembered per map. CS2 opens while the server loads the map. Custom weapon
+and player models aren't supported.
 
 **Friends.**
 - *Friends List:* friends hosting on your Wi-Fi or Radmin network show up by themselves (UDP port 27098),
