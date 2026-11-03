@@ -266,6 +266,13 @@ export function LivePage() {
           <${Row} icon=${{ name: "run", color: "teal" }} title="Calm Bots" subtitle="Bots don't keep jumping around: one jump every few seconds">
             <${Toggle} value=${s.calmBots} onChange=${v => set("calmBots", v)} />
           <//>
+          <${Row} icon=${{ name: "person", color: "red" }} title="Bots Hunt You" subtitle="Bots can't hurt each other: every fight is with a person">
+            <${Toggle} value=${s.botHunt} onChange=${v => set("botHunt", v)} />
+          <//>
+          <${Row} icon=${{ name: "crosshair", color: "red" }} title="Bot Aimbot" subtitle="A bot that sees you turns onto your head · 100 snaps at once">
+            <${LiveSlider} min=${0} max=${100} step=${5} value=${s.botAimbot} width=${230} tint="var(--red)" format=${v => v === 0 ? "Off" : v + "%"}
+              onCommit=${v => set("botAimbot", v)} />
+          <//>
           <${Row} icon=${{ name: "sun", color: "green" }} title="Peaceful Bots" subtitle="Bots don't shoot - look at your skins in peace">
             <${Toggle} value=${s.botsDontShoot} onChange=${v => set("botsDontShoot", v)} />
           <//>

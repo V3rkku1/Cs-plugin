@@ -49,7 +49,7 @@ the map; a few settings restart the server and ask first):
   (*Save for this map*).
 - **Bots:** 0–20, skill, team, weapons (**Rifles** by default: no AWPs, shotguns, SMGs or machine guns, and
   *Rifles* picks what bots keep: AK-47 and M4s, AK only, M4A4 only, M4A1-S only or all rifles; anything else
-  is swapped), *Calm Bots* (no bunny-hopping), *Bot Skins* (random skins, knife and gloves on every bot,
+  is swapped), *Calm Bots* (no bunny-hopping), *Bots Hunt You* (bots can't hurt each other), *Bot Aimbot* (0–100 %: a bot that sees you turns onto your head), *Bot Skins* (random skins, knife and gloves on every bot,
   with *Reroll*; Bot Improver adds agents).
 - **Rules:** free-for-all, max money, infinite ammo, endless rounds, bots don't shoot, cheats, round time,
   friendly fire, headshot only, pistols only, reload on kill, one weapon (AWP, Scout, Deagle or knives),
