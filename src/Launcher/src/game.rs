@@ -326,33 +326,6 @@ pub fn all_downloaded(game: &GameFolder) -> Vec<Downloaded> {
         .collect()
 }
 
-/// A map whose own script changes maps with map_workshop (Movement Hub and other single-player hubs): that
-/// only works in an offline game. Returns the map to start offline (the first in its addoninfo.txt).
-pub fn offline_only_map(game: &GameFolder, id: &str) -> Option<String> {
-    static MAPS: LazyLock<Regex> =
-        LazyLock::new(|| Regex::new(r#"maps\s*=\s*\[\s*"([^"]+)""#).unwrap());
-    let dir = workshop_dir(game, id);
-    let vpk = fs::read_dir(&dir)
-        .ok()?
-        .flatten()
-        .map(|e| e.path())
-        .find(|p| p.to_string_lossy().ends_with("_dir.vpk"))
-        .or_else(|| find_workshop_vpk(game, id))?;
-    let text = |folder: &str, name: &str, ext: &str| {
-        vpk_read(&vpk, folder, name, ext)
-            .map(|b| String::from_utf8_lossy(&b).into_owned())
-            .unwrap_or_default()
-    };
-    let scripted = vpk_files(&vpk).iter().any(|(folder, name, ext)| {
-        folder == "scripts" && ext == "vjs_c" && text(folder, name, ext).contains("map_workshop")
-    });
-    if !scripted {
-        return None;
-    }
-    MAPS.captures(&text("", "addoninfo", "txt"))
-        .map(|c| c[1].to_string())
-}
-
 /// Deletes the map copies older launchers made (after CS2 has closed).
 pub fn remove_workshop_copies(game: &GameFolder) {
     let maps = game.csgo().join("maps");

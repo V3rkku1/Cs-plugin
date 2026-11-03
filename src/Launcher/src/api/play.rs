@@ -905,11 +905,6 @@ pub fn start_server(app: &Arc<App>, a: AskArgs) -> R<()> {
         if !st.ready() {
             return Err(bad("Install first (Setup page)."));
         }
-        if let Some(id) = st.settings.server.workshop_map_id() {
-            if super::workshop::try_play_offline(app, &st, &id)? {
-                return Ok(());
-            }
-        }
         st.play.busy = true;
         st.settings.server.friends
     };
