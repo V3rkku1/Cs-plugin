@@ -572,7 +572,7 @@ fn view(st: &State) -> PlayView {
     };
     let presets = PRESETS
         .iter()
-        .map(|p| json!({ "title": p.title, "subtitle": p.subtitle, "saved": false }))
+        .map(|p| json!({ "title": p.title, "subtitle": p.subtitle, "custom": p.custom, "saved": false }))
         .chain(
             st.settings
                 .saved_setups
