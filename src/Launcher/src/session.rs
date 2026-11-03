@@ -278,12 +278,23 @@ impl Session<'_> {
                 windows_sys::Win32::System::Threading::ABOVE_NORMAL_PRIORITY_CLASS,
             );
         }
+        #[cfg(windows)]
+        if !settings.show_server_console {
+            hide_console(child.id());
+        }
         if let Some(p) = proc_of(child.id()) {
             let _ = fs::write(pid_file(), format!("{} {}", p.pid, p.start));
         }
         *SERVER.lock().unwrap() = Some(child);
         STOPPED_ON_PURPOSE.store(false, Ordering::Relaxed);
         Ok(())
+    }
+
+    /// Starts CS2 to its main menu (VAC off, no connect): it loads while the server fetches a Workshop map.
+    pub fn open_game(&self, settings: &ServerSettings) -> Result<(), String> {
+        let args = settings.game_arguments(self.game);
+        let cut = args.find("+password").or(args.find("+connect")).unwrap_or(args.len());
+        self.run_cs2(args[..cut].trim()).map(drop)
     }
 
     /// Starts CS2 (VAC off) and joins the local server.
@@ -397,4 +408,30 @@ mod tests {
         );
         fs::remove_dir_all(root).unwrap();
     }
+}
+
+/// Hides the server's console window once it appears (cs2 -dedicated opens it itself, so no spawn flag helps).
+/// shortcut: only the classic console host; with Windows Terminal as the default terminal the window stays.
+#[cfg(windows)]
+fn hide_console(pid: u32) {
+    use windows_sys::Win32::Foundation::{BOOL, HWND, LPARAM};
+    use windows_sys::Win32::UI::WindowsAndMessaging::{
+        EnumWindows, GetClassNameW, GetWindowThreadProcessId, ShowWindow, SW_HIDE,
+    };
+    unsafe extern "system" fn hide(hwnd: HWND, pid: LPARAM) -> BOOL {
+        let (mut owner, mut class) = (0u32, [0u16; 32]);
+        GetWindowThreadProcessId(hwnd, &mut owner);
+        let n = GetClassNameW(hwnd, class.as_mut_ptr(), class.len() as i32) as usize;
+        if owner == pid as u32 && String::from_utf16_lossy(&class[..n]) == "ConsoleWindowClass" {
+            ShowWindow(hwnd, SW_HIDE);
+        }
+        1
+    }
+    // The window shows up a moment after start: look for it for 20 s.
+    std::thread::spawn(move || {
+        for _ in 0..80 {
+            unsafe { EnumWindows(Some(hide), pid as LPARAM) };
+            std::thread::sleep(Duration::from_millis(250));
+        }
+    });
 }

@@ -804,6 +804,17 @@ fn handle_workshop_startup(app: &App, st: &mut State, status: Option<&ServerStat
         {
             return;
         }
+        // Faster: CS2 loads to its menu while the server fetches the map, then only has to join.
+        let session = Session { game: &game };
+        if st.play.start_game_after_workshop
+            && !session::client_running()
+            && matches!(session.isolate_client_early(), Ok(true))
+        {
+            match session.open_game(&st.settings.server) {
+                Ok(()) => app.log("Starting CS2 now, it joins once the Workshop map is loaded..."),
+                Err(e) => app.log(format!("Could not start CS2: {e}")),
+            }
+        }
         match server::send(&game, &format!("host_workshop_map {id}")) {
             Ok(()) => {
                 st.play.workshop_sent_at = Some(Instant::now());
@@ -830,7 +841,12 @@ fn handle_workshop_startup(app: &App, st: &mut State, status: Option<&ServerStat
             "info",
         );
         if st.play.start_game_after_workshop {
-            if let Err(e) = (Session { game: &game }).start_game(&st.settings.server) {
+            let result = if session::client_running() {
+                session::reconnect_client(&st.settings.server.password)
+            } else {
+                (Session { game: &game }).start_game(&st.settings.server)
+            };
+            if let Err(e) = result {
                 app.log(format!("Could not start CS2: {e}"));
             }
         }
@@ -1714,6 +1730,7 @@ fn setup_from_code(
         (mine.friends, mine.password.clone(), mine.shared_skins);
     s.game_args = mine.game_args.clone();
     s.auto_start_game = mine.auto_start_game;
+    s.show_server_console = mine.show_server_console;
     s.map_modes = mine.map_modes.clone();
     s.map_team_sizes = mine.map_team_sizes.clone();
     clean_settings(s);
