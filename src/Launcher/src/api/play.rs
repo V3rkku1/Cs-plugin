@@ -1497,7 +1497,7 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
     }
     // Only a config file: safe to write while CS2 runs, so before the check below that skips the plugin files.
     if server.uses_deathmatch_plugin() {
-        installer::plain_deathmatch(&game, server.own_kill_feed);
+        installer::plain_deathmatch(&game, server.own_kill_feed, &server.dm_mode);
     }
     // A running CS2 refuses to start anyway: leave its plugin folder alone until it is closed. (A server-only
     // restart changes the files with the game left open: the game doesn't load them.)
@@ -1629,6 +1629,9 @@ fn clean_settings(s: &mut ServerSettings) {
         s.only_weapon.clear();
     }
     s.round_time = s.round_time.clamp(0, 60);
+    if server::dm_mode(&s.dm_mode).is_none() {
+        s.dm_mode.clear();
+    }
     s.retake_style = (s.retake_style == 1) as i32;
     s.retake_max_players = s.retake_max_players.clamp(2, 10);
     s.retake_terrorist_percent = s.retake_terrorist_percent.clamp(10, 80);

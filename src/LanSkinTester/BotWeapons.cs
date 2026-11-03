@@ -41,11 +41,18 @@ public partial class LanSkinTester
     }
 
     // Deathmatch plugin only arms people; bots are left to buy, and CT bots often end up with just a pistol.
+    // A plugin mode (Deagle, AWP...) instead: the guns that mode allows.
     private bool _botDmRifle;
+    private string[] _botDmWeapons = [];
 
-    [ConsoleCommand("lst_bot_dm_rifle", "1 = a Deathmatch bot that spawns without a main gun gets an allowed rifle")]
-    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
-    public void OnBotDmRifleCommand(CCSPlayerController? caller, CommandInfo cmd) => _botDmRifle = cmd.GetArg(1) == "1";
+    [ConsoleCommand("lst_bot_dm_rifle", "1 = a Deathmatch bot without a main gun gets an allowed rifle; weapon_a,weapon_b = one of these")]
+    [CommandHelper(minArgs: 1, usage: "0|1|weapon_a,weapon_b", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotDmRifleCommand(CCSPlayerController? caller, CommandInfo cmd)
+    {
+        var arg = cmd.GetArg(1);
+        _botDmWeapons = arg.Split(',', StringSplitOptions.RemoveEmptyEntries).Where(w => w.StartsWith("weapon_")).ToArray();
+        _botDmRifle = arg == "1" || _botDmWeapons.Length > 0;
+    }
 
     [GameEventHandler]
     public HookResult OnBotDmSpawn(EventPlayerSpawn @event, GameEventInfo info)
@@ -56,7 +63,12 @@ public partial class LanSkinTester
         AddTimer(0.5f, () =>
         {
             if (!bot.IsValid || !bot.PawnIsAlive || bot.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
-            if (FindPlayerWeapon(bot, w => w.As<CCSWeaponBase>().VData?.GearSlot == gear_slot_t.GEAR_SLOT_RIFLE) == null)
+            if (_botDmWeapons.Length > 0)
+            {
+                if (FindPlayerWeapon(bot, w => _botDmWeapons.Contains(w.DesignerName)) == null)
+                    bot.GiveNamedItem(_botDmWeapons[Random.Shared.Next(_botDmWeapons.Length)]);
+            }
+            else if (FindPlayerWeapon(bot, w => w.As<CCSWeaponBase>().VData?.GearSlot == gear_slot_t.GEAR_SLOT_RIFLE) == null)
                 bot.GiveNamedItem(BotRifleFor(_botRifles, bot.Team == CsTeam.Terrorist));
         });
         return HookResult.Continue;

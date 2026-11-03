@@ -247,6 +247,8 @@ pub struct ServerSettings {
     pub welcome_message: bool,
     pub bot_hider: bool,
     pub deathmatch_plugin: bool,
+    /// A Deathmatch plugin mode the whole game (DM_MODES id), "" = every gun.
+    pub dm_mode: String,
     /// Deathmatch: each player's kill feed shows only their own kills and deaths.
     pub own_kill_feed: bool,
     pub bot_improver: bool,
@@ -326,6 +328,7 @@ impl Default for ServerSettings {
             welcome_message: true,
             bot_hider: false,
             deathmatch_plugin: false,
+            dm_mode: String::new(),
             own_kill_feed: true,
             bot_improver: true,
             bot_controller: false,
@@ -358,6 +361,52 @@ impl Default for ServerSettings {
     }
 }
 
+/// A Deathmatch plugin mode for the whole game: id, name, main guns, pistols, headshots only, random guns.
+pub struct DmMode {
+    pub id: &'static str,
+    pub name: &'static str,
+    pub primary: &'static [&'static str],
+    pub secondary: &'static [&'static str],
+    pub only_hs: bool,
+    pub random: bool,
+}
+
+const DM_RIFLES: &[&str] = &[
+    "weapon_ak47", "weapon_m4a1", "weapon_m4a1_silencer", "weapon_famas", "weapon_galilar", "weapon_aug",
+    "weapon_sg556", "weapon_awp", "weapon_ssg08", "weapon_mp9", "weapon_mac10", "weapon_ump45", "weapon_p90",
+];
+pub const DM_PISTOLS: &[&str] = &[
+    "weapon_usp_silencer", "weapon_hkp2000", "weapon_glock", "weapon_p250", "weapon_fiveseven", "weapon_tec9",
+    "weapon_cz75a", "weapon_deagle", "weapon_elite",
+];
+
+pub const DM_MODES: [DmMode; 6] = [
+    DmMode { id: "hs", name: "Headshot Only", primary: DM_RIFLES, secondary: DM_PISTOLS, only_hs: true, random: false },
+    DmMode { id: "deagle", name: "Only Deagle", primary: &[], secondary: &["weapon_deagle"], only_hs: false, random: false },
+    DmMode { id: "pistols", name: "Only Pistols", primary: &[], secondary: DM_PISTOLS, only_hs: false, random: false },
+    DmMode { id: "awp", name: "Only AWP", primary: &["weapon_awp"], secondary: &["weapon_deagle"], only_hs: false, random: false },
+    DmMode {
+        id: "smg",
+        name: "Only SMG",
+        primary: &["weapon_mp9", "weapon_mac10", "weapon_mp7", "weapon_mp5sd", "weapon_ump45", "weapon_p90", "weapon_bizon"],
+        secondary: &[],
+        only_hs: false,
+        random: true,
+    },
+    DmMode {
+        id: "shotguns",
+        name: "Only Shotguns",
+        primary: &["weapon_nova", "weapon_xm1014", "weapon_mag7", "weapon_sawedoff"],
+        secondary: &[],
+        only_hs: false,
+        random: true,
+    },
+];
+
+pub fn dm_mode(id: &str) -> Option<&'static DmMode> {
+    DM_MODES.iter().find(|m| m.id == id)
+}
+
 /// A one-click setup on the Play page.
 pub struct Preset {
     pub title: &'static str,
@@ -367,7 +416,17 @@ pub struct Preset {
     pub apply: fn(&mut ServerSettings),
 }
 
-pub const PRESETS: [Preset; 9] = [
+/// Deathmatch plugin, free-for-all, one mode all game.
+fn dm_preset(s: &mut ServerSettings, mode: &str, map: &str) {
+    s.reset("Deathmatch", map);
+    s.bots = 10;
+    s.difficulty = 2;
+    s.free_for_all = true;
+    s.deathmatch_plugin = true;
+    s.dm_mode = mode.into();
+}
+
+pub const PRESETS: [Preset; 15] = [
     Preset {
         title: "Competitive 5v5",
         subtitle: "9 hard bots · normal rules",
@@ -474,6 +533,42 @@ pub const PRESETS: [Preset; 9] = [
             s.round_time = 4;
             s.fun_mode = "hns".into();
         },
+    },
+    Preset {
+        title: "Headshot DM",
+        subtitle: "Headshots only · every gun · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "hs", "de_mirage"),
+    },
+    Preset {
+        title: "Deagle DM",
+        subtitle: "Desert Eagle only · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "deagle", "de_dust2"),
+    },
+    Preset {
+        title: "Pistol DM",
+        subtitle: "Pistols only · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "pistols", "de_inferno"),
+    },
+    Preset {
+        title: "AWP DM",
+        subtitle: "AWP and Deagle · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "awp", "de_dust2"),
+    },
+    Preset {
+        title: "SMG DM",
+        subtitle: "A random SMG each life · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "smg", "de_inferno"),
+    },
+    Preset {
+        title: "Shotgun DM",
+        subtitle: "A random shotgun each life · 10 bots",
+        custom: true,
+        apply: |s| dm_preset(s, "shotguns", "de_nuke"),
     },
 ];
 
@@ -677,6 +772,7 @@ impl ServerSettings {
         self.bot_weapons = 0;
         self.round_time = 0;
         (self.team_size_t, self.team_size_ct) = (5, 5);
+        self.dm_mode.clear();
         for f in [
             &mut self.free_for_all,
             &mut self.bots_dont_shoot,
@@ -1021,10 +1117,16 @@ impl ServerSettings {
         o.push("bot_allow_rifles 1".into());
         o.push("bot_allow_pistols 1".into());
         o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps the rifles not allowed
-        // Deathmatch: a bot that couldn't buy (mostly CT, the dearer rifles) still gets a rifle.
+        // Deathmatch: a bot that couldn't buy (mostly CT, the dearer rifles) still gets a rifle, or in a plugin
+        // mode one of that mode's guns (the plugin only arms people).
+        let dm_guns = self
+            .uses_deathmatch_plugin()
+            .then(|| dm_mode(&self.dm_mode))
+            .flatten()
+            .map(|m| [m.primary, m.secondary].concat().join(","));
         o.push(format!(
             "lst_bot_dm_rifle {}",
-            b(rifles && self.mode == "Deathmatch" && !self.forces_bot_weapon())
+            dm_guns.unwrap_or_else(|| b(rifles && self.mode == "Deathmatch" && !self.forces_bot_weapon()).to_string())
         ));
         o.push(format!(
             "lst_bot_rifles {}",
@@ -1416,6 +1518,9 @@ mod tests {
         }
         let cfg = preset("Free-for-all Deathmatch").to_cfg();
         assert!(!preset("Competitive 5v5").to_cfg().contains("lst_bot_dm_rifle 1"));
+        let deagle = preset("Deagle DM");
+        assert!(deagle.uses_deathmatch_plugin() && deagle.to_cfg().lines().any(|l| l.trim() == "lst_bot_dm_rifle weapon_deagle"));
+        assert!(preset("Free-for-all Deathmatch").dm_mode.is_empty());
         for want in [
             "lst_bot_dm_rifle 1",
             "lst_retake_seats 0 10 0",
