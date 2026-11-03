@@ -1021,6 +1021,11 @@ impl ServerSettings {
         o.push("bot_allow_rifles 1".into());
         o.push("bot_allow_pistols 1".into());
         o.push(format!("lst_bot_no_snipers {}", b(rifles))); // plugin safety net: swaps the rifles not allowed
+        // Deathmatch: a bot that couldn't buy (mostly CT, the dearer rifles) still gets a rifle.
+        o.push(format!(
+            "lst_bot_dm_rifle {}",
+            b(rifles && self.mode == "Deathmatch" && !self.forces_bot_weapon())
+        ));
         o.push(format!(
             "lst_bot_rifles {}",
             BOT_RIFLE_CHOICES
@@ -1410,7 +1415,9 @@ mod tests {
             assert!(cfg.contains(want), "{want}");
         }
         let cfg = preset("Free-for-all Deathmatch").to_cfg();
+        assert!(!preset("Competitive 5v5").to_cfg().contains("lst_bot_dm_rifle 1"));
         for want in [
+            "lst_bot_dm_rifle 1",
             "lst_retake_seats 0 10 0",
             "mp_limitteams 2",
             "retakes_enabled 0",

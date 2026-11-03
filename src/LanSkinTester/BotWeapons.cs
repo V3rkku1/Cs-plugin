@@ -40,6 +40,28 @@ public partial class LanSkinTester
         return "weapon_" + pick[Random.Shared.Next(pick.Length)];
     }
 
+    // Deathmatch plugin only arms people; bots are left to buy, and CT bots often end up with just a pistol.
+    private bool _botDmRifle;
+
+    [ConsoleCommand("lst_bot_dm_rifle", "1 = a Deathmatch bot that spawns without a main gun gets an allowed rifle")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnBotDmRifleCommand(CCSPlayerController? caller, CommandInfo cmd) => _botDmRifle = cmd.GetArg(1) == "1";
+
+    [GameEventHandler]
+    public HookResult OnBotDmSpawn(EventPlayerSpawn @event, GameEventInfo info)
+    {
+        var bot = @event.Userid;
+        if (!_botDmRifle || bot is not { IsValid: true } || !IsBotPlayer(bot)) return HookResult.Continue;
+        // After the spawn buy: only a bot still without a main gun gets one.
+        AddTimer(0.5f, () =>
+        {
+            if (!bot.IsValid || !bot.PawnIsAlive || bot.Team is not (CsTeam.Terrorist or CsTeam.CounterTerrorist)) return;
+            if (FindPlayerWeapon(bot, w => w.As<CCSWeaponBase>().VData?.GearSlot == gear_slot_t.GEAR_SLOT_RIFLE) == null)
+                bot.GiveNamedItem(BotRifleFor(_botRifles, bot.Team == CsTeam.Terrorist));
+        });
+        return HookResult.Continue;
+    }
+
     [GameEventHandler]
     public HookResult OnBotItemPickup(EventItemPickup @event, GameEventInfo info)
     {
