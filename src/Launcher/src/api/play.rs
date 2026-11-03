@@ -1695,6 +1695,7 @@ fn setup_from_code(
     s.game_args = mine.game_args.clone();
     s.auto_start_game = mine.auto_start_game;
     s.show_server_console = mine.show_server_console;
+    s.fps_boost = mine.fps_boost;
     s.map_modes = mine.map_modes.clone();
     s.map_team_sizes = mine.map_team_sizes.clone();
     clean_settings(s);

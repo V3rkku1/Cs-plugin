@@ -277,6 +277,8 @@ pub struct ServerSettings {
     pub auto_start_game: bool,
     /// Off: the server's console window is hidden (Stop closes it).
     pub show_server_console: bool,
+    /// Experimental: the server gets the last CPU cores and normal priority, CS2 the rest and above normal.
+    pub fps_boost: bool,
 }
 
 impl Default for ServerSettings {
@@ -351,6 +353,7 @@ impl Default for ServerSettings {
             password: String::new(),
             auto_start_game: true,
             show_server_console: false,
+            fps_boost: false,
         }
     }
 }
@@ -730,6 +733,7 @@ impl ServerSettings {
             game_args: old.game_args.clone(),
             auto_start_game: old.auto_start_game,
             show_server_console: old.show_server_console,
+            fps_boost: old.fps_boost,
             map_modes: old.map_modes.clone(),
             map_team_sizes: old.map_team_sizes.clone(),
             mode: "Casual".into(),
@@ -760,10 +764,10 @@ impl ServerSettings {
     /// Copies a saved quick start onto this server. Friends, password and shared skins live on the Friends page.
     pub fn copy_practice_from(&mut self, source: &ServerSettings) {
         let (friends, password, shared) = (self.friends, self.password.clone(), self.shared_skins);
-        let console = self.show_server_console;
+        let (console, boost) = (self.show_server_console, self.fps_boost);
         *self = source.clone();
         (self.friends, self.password, self.shared_skins) = (friends, password, shared);
-        self.show_server_console = console;
+        (self.show_server_console, self.fps_boost) = (console, boost);
     }
 
     /// One line for a saved quick-start tile.

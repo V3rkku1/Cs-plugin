@@ -270,14 +270,9 @@ impl Session<'_> {
         }
         let child = self.run_cs2(&settings.start_arguments())?;
         // Above normal: the map loads and the server ticks on time while CS2 and the launcher share the CPU.
+        // FPS boost: the server stays on its own cores at normal priority, CS2 gets the rest.
         #[cfg(windows)]
-        unsafe {
-            use std::os::windows::io::AsRawHandle;
-            windows_sys::Win32::System::Threading::SetPriorityClass(
-                child.as_raw_handle(),
-                windows_sys::Win32::System::Threading::ABOVE_NORMAL_PRIORITY_CLASS,
-            );
-        }
+        tune(&child, Some(settings.fps_boost));
         #[cfg(windows)]
         if !settings.show_server_console {
             hide_console(child.id());
@@ -294,12 +289,24 @@ impl Session<'_> {
     pub fn open_game(&self, settings: &ServerSettings) -> Result<(), String> {
         let args = settings.game_arguments(self.game);
         let cut = args.find("+password").or(args.find("+connect")).unwrap_or(args.len());
-        self.run_cs2(args[..cut].trim()).map(drop)
+        self.run_game(settings, args[..cut].trim())
     }
 
     /// Starts CS2 (VAC off) and joins the local server.
     pub fn start_game(&self, settings: &ServerSettings) -> Result<(), String> {
-        self.run_cs2(&settings.game_arguments(self.game)).map(drop)
+        self.run_game(settings, &settings.game_arguments(self.game))
+    }
+
+    /// CS2 itself (not the server): with FPS boost it keeps off the server's cores.
+    fn run_game(&self, settings: &ServerSettings, arguments: &str) -> Result<(), String> {
+        let _child = self.run_cs2(arguments)?;
+        #[cfg(not(windows))]
+        let _ = settings;
+        #[cfg(windows)]
+        if settings.fps_boost {
+            tune(&_child, None);
+        }
+        Ok(())
     }
 
     /// Starts CS2 (VAC off for this run) joining another server.
@@ -309,8 +316,7 @@ impl Session<'_> {
         address: &str,
         password: &str,
     ) -> Result<(), String> {
-        self.run_cs2(&settings.join_arguments(self.game, address, password))
-            .map(drop)
+        self.run_game(settings, &settings.join_arguments(self.game, address, password))
     }
 
     fn run_cs2(&self, arguments: &str) -> Result<Child, String> {
@@ -434,4 +440,57 @@ fn hide_console(pid: u32) {
             std::thread::sleep(Duration::from_millis(250));
         }
     });
+}
+
+/// FPS boost split of `n` logical CPUs: (server, CS2) masks. The server gets the last 2 (4 from 12 up);
+/// None under 4 CPUs (no room to split).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn cpu_masks(n: usize) -> Option<(usize, usize)> {
+    let n = n.min(usize::BITS as usize);
+    let server = match n {
+        0..=3 => return None,
+        4..=11 => 2,
+        _ => 4,
+    };
+    let all = if n == usize::BITS as usize { usize::MAX } else { (1 << n) - 1 };
+    let game = (1usize << (n - server)) - 1;
+    Some((all & !game, game))
+}
+
+/// Priority and cores. `server`: Some(boost) for the server, None for CS2 itself (only called with boost on).
+#[cfg(windows)]
+fn tune(child: &Child, server: Option<bool>) {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::Threading::{
+        SetPriorityClass, SetProcessAffinityMask, ABOVE_NORMAL_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS,
+    };
+    let h = child.as_raw_handle();
+    let masks = std::thread::available_parallelism().ok().and_then(|n| cpu_masks(n.get()));
+    unsafe {
+        match (server, masks) {
+            (Some(true), Some((srv, _))) => {
+                SetPriorityClass(h, NORMAL_PRIORITY_CLASS);
+                SetProcessAffinityMask(h, srv);
+            }
+            (Some(_), _) => {
+                SetPriorityClass(h, ABOVE_NORMAL_PRIORITY_CLASS);
+            }
+            (None, Some((_, game))) => {
+                SetPriorityClass(h, ABOVE_NORMAL_PRIORITY_CLASS);
+                SetProcessAffinityMask(h, game);
+            }
+            (None, None) => {}
+        }
+    }
+}
+
+#[cfg(test)]
+mod cpu_tests {
+    #[test]
+    fn fps_boost_splits_the_cores() {
+        assert_eq!(super::cpu_masks(2), None);
+        assert_eq!(super::cpu_masks(8), Some((0b1100_0000, 0b0011_1111)));
+        assert_eq!(super::cpu_masks(16), Some((0xF000, 0x0FFF)));
+        assert_eq!(super::cpu_masks(64).map(|m| m.0 | m.1), Some(usize::MAX));
+    }
 }
