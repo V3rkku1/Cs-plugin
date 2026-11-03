@@ -51,6 +51,7 @@ const tileLooks = {
   "Casual": ["game", "blue"],
   "Wingman": ["friends", "teal"],
   "Arms Race": ["refresh", "orange"],
+  "Plugin DM": ["crosshair", "blue"],
   "Headshot DM": ["crosshair", "red"],
   "Deagle DM": ["crosshair", "orange"],
   "Pistol DM": ["crosshair", "yellow"],
