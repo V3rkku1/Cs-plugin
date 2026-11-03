@@ -258,6 +258,10 @@ pub struct ServerSettings {
     pub bot_force_weapon: String,
     pub bot_skins: bool,
     pub calm_bots: bool,
+    /// Bots can't hurt other bots, only people.
+    pub bot_hunt: bool,
+    /// 0-100: how hard bots snap their aim onto a person they can see (0 = off).
+    pub bot_aimbot: i32,
     pub headshot_only: bool,
     pub pistols_only: bool,
     pub reload_on_kill: bool,
@@ -337,6 +341,8 @@ impl Default for ServerSettings {
             bot_force_weapon: String::new(),
             bot_skins: false,
             calm_bots: true,
+            bot_hunt: false,
+            bot_aimbot: 0,
             headshot_only: false,
             pistols_only: false,
             reload_on_kill: false,
@@ -542,13 +548,15 @@ pub const PRESETS: [Preset; 17] = [
     },
     Preset {
         title: "Hardest Bots DM",
-        subtitle: "Expert bots aim for the head and bunny-hop · every gun",
+        subtitle: "Expert bots hunt only you, snap to your head and bunny-hop",
         custom: true,
         apply: |s| {
             dm_preset(s, "", "de_mirage");
             s.difficulty = 3;
             s.bot_aim = 1; // head
             s.calm_bots = false;
+            s.bot_hunt = true;
+            s.bot_aimbot = 60;
         },
     },
     Preset {
@@ -809,6 +817,7 @@ impl ServerSettings {
         self.bot_improver = true;
         self.bot_skins = false;
         self.calm_bots = true;
+        (self.bot_hunt, self.bot_aimbot) = (false, 0);
         self.max_money = true;
         self.allow_cheats = true;
         self.show_damage = false;
@@ -1047,6 +1056,7 @@ impl ServerSettings {
                 .map(String::from),
             );
             o.push(format!("lst_bot_calm {}", b(self.calm_bots)));
+            o.extend(["lst_bot_hunt 0", "lst_bot_aimbot 0"].map(String::from));
             o.extend(
                 [
                     "lst_bot_skins 0",
@@ -1156,6 +1166,8 @@ impl ServerSettings {
             o.push("bh_namesource 1".into());
         }
         o.push(format!("lst_bot_calm {}", b(self.calm_bots)));
+        o.push(format!("lst_bot_hunt {}", b(self.bot_hunt)));
+        o.push(format!("lst_bot_aimbot {}", self.bot_aimbot.clamp(0, 100)));
         // Bot Improver brings its own (BotRandomizer, agents too); otherwise the plugin's random skins.
         o.push(format!(
             "lst_bot_skins {}",
@@ -1539,7 +1551,7 @@ mod tests {
         assert!(deagle.uses_deathmatch_plugin() && deagle.to_cfg().lines().any(|l| l.trim() == "lst_bot_dm_rifle weapon_deagle"));
         assert!(preset("Free-for-all Deathmatch").dm_mode.is_empty());
         let hard = preset("Hardest Bots DM").to_cfg();
-        assert!(["bot_difficulty 3", "bot_aim head", "lst_bot_calm 0"].iter().all(|l| hard.contains(l)));
+        assert!(["bot_difficulty 3", "bot_aim head", "lst_bot_calm 0", "lst_bot_hunt 1", "lst_bot_aimbot 60"].iter().all(|l| hard.contains(l)));
         let all = preset("Plugin DM");
         assert!(all.uses_deathmatch_plugin() && all.dm_mode.is_empty() && !all.headshot_only);
         for want in [
