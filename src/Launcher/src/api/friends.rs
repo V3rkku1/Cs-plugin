@@ -127,6 +127,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
             super::play::AskArgs {
                 confirmed: false,
                 for_friends: true,
+                ..Default::default()
             },
         )
         .map(|_| Value::Null),

@@ -151,15 +151,28 @@ pub fn server_exit() -> Option<Option<i32>> {
 }
 
 fn kill(pid: u32) {
-    let sys = system(ProcessesToUpdate::Some(&[Pid::from_u32(pid)]));
-    if let Some(p) = sys.process(Pid::from_u32(pid)) {
-        p.kill();
-        let deadline = Instant::now() + Duration::from_secs(10);
-        while Instant::now() < deadline && proc_of(pid).is_some() {
-            std::thread::sleep(Duration::from_millis(100));
+    kill_all(&[pid]);
+}
+
+/// Ends every process at once, then waits (up to 10 s in all) until they are gone.
+fn kill_all(pids: &[u32]) {
+    let ids: Vec<Pid> = pids.iter().map(|&p| Pid::from_u32(p)).collect();
+    let sys = system(ProcessesToUpdate::Some(&ids));
+    for id in &ids {
+        if let Some(p) = sys.process(*id) {
+            p.kill();
         }
     }
+    let deadline = Instant::now() + Duration::from_secs(10);
+    while Instant::now() < deadline && pids.iter().any(|&p| proc_of(p).is_some()) {
+        std::thread::sleep(Duration::from_millis(100));
+    }
     forget_cs2();
+}
+
+/// Closes every CS2 process (game and server).
+pub fn close_cs2() {
+    kill_all(&cs2_ids());
 }
 
 /// Closes the server process only.
@@ -345,9 +358,7 @@ impl Session<'_> {
     /// Closes the test server and game, then puts gameinfo.gi back to normal.
     pub fn stop(&self) -> std::io::Result<()> {
         STOPPED_ON_PURPOSE.store(true, Ordering::Relaxed);
-        for pid in cs2_ids() {
-            kill(pid);
-        }
+        close_cs2();
         SERVER.lock().unwrap().take();
         game::disable_metamod(&self.game.game_info())?;
         let _ = fs::remove_file(session_file());
