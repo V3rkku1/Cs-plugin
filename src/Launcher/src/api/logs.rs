@@ -1,4 +1,4 @@
-//! Live Server › Logs: the launcher's activity, the server console (csgo\console.log, -condebug) and
+//! Live Server › Logs: the launcher's activity, the server console (csgo\addons\metamod\console.log, -condebug) and
 //! CounterStrikeSharp's newest log in one place, and a button that copies all of it as one report.
 
 use super::{arg, bad, ok, open_external, unknown, App, State, R};
