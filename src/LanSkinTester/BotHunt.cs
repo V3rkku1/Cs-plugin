@@ -3,6 +3,7 @@ using CounterStrikeSharp.API.Core;
 using CounterStrikeSharp.API.Core.Attributes.Registration;
 using CounterStrikeSharp.API.Modules.Commands;
 using CounterStrikeSharp.API.Modules.Utils;
+using CounterStrikeSharp.API.Modules.Timers;
 
 namespace LanSkinTester;
 
@@ -22,6 +23,8 @@ public partial class LanSkinTester
     private int _botReactionMs;
     /// <summary>Bot slot: when it started seeing the person it aims at (server time).</summary>
     private readonly Dictionary<int, float> _botSeenSince = new();
+    /// <summary>Off from a map change until the new map has run a few seconds: pawns are being torn down and made.</summary>
+    private bool _botAimLive = true;
 
     [ConsoleCommand("lst_bot_onetap", "1 = a bot's bullet that hits a person kills")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
@@ -58,6 +61,13 @@ public partial class LanSkinTester
         _botHuntListening = true;
         RegisterListener<Listeners.OnEntityTakeDamagePre>(OnBotHuntDamage);
         RegisterListener<Listeners.OnTick>(OnBotAimbotTick);
+        RegisterListener<Listeners.OnMapEnd>(() => _botAimLive = false);
+        RegisterListener<Listeners.OnMapStart>(_ =>
+        {
+            _botAimLive = false;
+            _botSeenSince.Clear();
+            AddTimer(5.0f, () => _botAimLive = true, TimerFlags.STOP_ON_MAPCHANGE);
+        });
     }
 
     private HookResult OnBotHuntDamage(CBaseEntity victim, CTakeDamageInfo damage)
@@ -90,7 +100,7 @@ public partial class LanSkinTester
 
     private void OnBotAimbotTick()
     {
-        if (_botAimbot == 0) return;
+        if (_botAimbot == 0 || !_botAimLive) return;
         var players = Utilities.GetPlayers();
         var ffa = CvarInt("mp_teammates_are_enemies") != 0;
         foreach (var bot in players)
@@ -124,7 +134,9 @@ public partial class LanSkinTester
             var (pitch, yaw) = AimAngles(eye, aim);
             var view = pawn.EyeAngles;
             var t = _botAimbot / 100f;
-            pawn.Teleport(null, new QAngle(Approach(view.X, pitch, t), Approach(view.Y, yaw, t), 0), null);
+            var (newPitch, newYaw) = (Approach(view.X, pitch, t), Approach(view.Y, yaw, t));
+            if (MathF.Abs(newPitch - view.X) < 0.05f && MathF.Abs(newYaw - view.Y) < 0.05f) continue; // already on target
+            pawn.Teleport(null, new QAngle(newPitch, newYaw, 0), null);
         }
     }
 
