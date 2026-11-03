@@ -285,7 +285,7 @@ impl Session<'_> {
         }
         let child = self.run_cs2(&settings.start_arguments())?;
         // Above normal: the map loads and the server ticks on time while CS2 and the launcher share the CPU.
-        // FPS boost: the server stays on its own cores at normal priority, CS2 gets the rest.
+        // FPS boost: the server stays on its own cores, CS2 gets the rest.
         #[cfg(windows)]
         tune(&child, Some(settings.fps_boost));
         #[cfg(windows)]
@@ -476,14 +476,16 @@ fn cpu_masks(n: usize) -> Option<(usize, usize)> {
 fn tune(child: &Child, server: Option<bool>) {
     use std::os::windows::io::AsRawHandle;
     use windows_sys::Win32::System::Threading::{
-        SetPriorityClass, SetProcessAffinityMask, ABOVE_NORMAL_PRIORITY_CLASS, NORMAL_PRIORITY_CLASS,
+        SetPriorityClass, SetProcessAffinityMask, ABOVE_NORMAL_PRIORITY_CLASS,
     };
     let h = child.as_raw_handle();
     let masks = std::thread::available_parallelism().ok().and_then(|n| cpu_masks(n.get()));
     unsafe {
         match (server, masks) {
+            // Above normal on its own cores too: at normal, any other program on those cores (Steam, the
+            // launcher's window) made server ticks run late ("LONG FRAME" in its console).
             (Some(true), Some((srv, _))) => {
-                SetPriorityClass(h, NORMAL_PRIORITY_CLASS);
+                SetPriorityClass(h, ABOVE_NORMAL_PRIORITY_CLASS);
                 SetProcessAffinityMask(h, srv);
             }
             (Some(_), _) => {
