@@ -426,7 +426,7 @@ fn dm_preset(s: &mut ServerSettings, mode: &str, map: &str) {
     s.dm_mode = mode.into();
 }
 
-pub const PRESETS: [Preset; 16] = [
+pub const PRESETS: [Preset; 17] = [
     Preset {
         title: "Competitive 5v5",
         subtitle: "9 hard bots · normal rules",
@@ -539,6 +539,17 @@ pub const PRESETS: [Preset; 16] = [
         subtitle: "Deathmatch plugin · every gun · 10 bots",
         custom: true,
         apply: |s| dm_preset(s, "", "de_mirage"),
+    },
+    Preset {
+        title: "Hardest Bots DM",
+        subtitle: "Expert bots aim for the head and bunny-hop · every gun",
+        custom: true,
+        apply: |s| {
+            dm_preset(s, "", "de_mirage");
+            s.difficulty = 3;
+            s.bot_aim = 1; // head
+            s.calm_bots = false;
+        },
     },
     Preset {
         title: "Headshot DM",
@@ -1527,6 +1538,8 @@ mod tests {
         let deagle = preset("Deagle DM");
         assert!(deagle.uses_deathmatch_plugin() && deagle.to_cfg().lines().any(|l| l.trim() == "lst_bot_dm_rifle weapon_deagle"));
         assert!(preset("Free-for-all Deathmatch").dm_mode.is_empty());
+        let hard = preset("Hardest Bots DM").to_cfg();
+        assert!(["bot_difficulty 3", "bot_aim head", "lst_bot_calm 0"].iter().all(|l| hard.contains(l)));
         let all = preset("Plugin DM");
         assert!(all.uses_deathmatch_plugin() && all.dm_mode.is_empty() && !all.headshot_only);
         for want in [
