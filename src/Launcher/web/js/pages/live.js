@@ -354,6 +354,9 @@ export function LivePage() {
           <${Row} icon=${{ name: "play", color: "blue" }} title="Open CS2 Automatically" subtitle="Off = start only the server">
             <${Toggle} value=${s.autoStartGame} onChange=${v => set("autoStartGame", v)} />
           <//>
+          <${Row} icon=${{ name: "sparkles", color: "orange" }} title="FPS Boost (Experimental)" subtitle="The server keeps to its own CPU cores, CS2 gets the rest and a higher priority · next Start">
+            <${Toggle} value=${s.fpsBoost} onChange=${v => set("fpsBoost", v)} />
+          <//>
           <${Row} icon=${{ name: "terminal", color: "teal" }} title="Show Server Console" subtitle="Off = the server window stays hidden (Stop closes it)">
             <${Toggle} value=${s.showServerConsole} onChange=${v => set("showServerConsole", v)} />
           <//>
