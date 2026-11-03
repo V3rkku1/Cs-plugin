@@ -1533,7 +1533,7 @@ fn prepare_plugins(app: &App, game_may_run: bool) -> R<()> {
     }
     // Only a config file: safe to write while CS2 runs, so before the check below that skips the plugin files.
     if server.uses_deathmatch_plugin() {
-        installer::plain_deathmatch(&game);
+        installer::plain_deathmatch(&game, server.own_kill_feed);
     }
     // A running CS2 refuses to start anyway: leave its plugin folder alone until it is closed. (A server-only
     // restart changes the files with the game left open: the game doesn't load them.)

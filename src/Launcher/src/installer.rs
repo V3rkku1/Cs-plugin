@@ -669,8 +669,10 @@ pub fn set_extra_plugins(game: &GameFolder, s: &ServerSettings) -> io::Result<()
 }
 
 /// NockyCZ's Deathmatch rotates "Only Headshot", "Only Deagle", "Only Pistols"… by default: turn that off so it
-/// stays on its Default mode (every gun). A missing config is written with just this; the plugin fills the rest.
-pub fn plain_deathmatch(game: &GameFolder) {
+/// stays on its Default mode (every gun), and drops those modes so nothing can switch to them. `own_feed`: its
+/// "Display All Kill Feed" (despite the name) sends each kill only to the killer and the victim.
+/// A missing config is written with just this; the plugin fills the rest.
+pub fn plain_deathmatch(game: &GameFolder, own_feed: bool) {
     let path = game
         .css()
         .join("configs/plugins/Deathmatch/Deathmatch.json");
@@ -683,16 +685,19 @@ pub fn plain_deathmatch(game: &GameFolder) {
             _ => return,
         },
     };
-    let g = &root["Gameplay Settings"];
-    // Off and already starting on the Default (every-gun) mode: nothing to write.
-    if g["Custom Modes"] == false && g["Map Start Custom Mode"] == 0 {
-        return;
-    }
+    let before = root.clone();
     if !root["Gameplay Settings"].is_object() {
         root["Gameplay Settings"] = serde_json::json!({});
     }
     root["Gameplay Settings"]["Custom Modes"] = false.into();
     root["Gameplay Settings"]["Map Start Custom Mode"] = 0.into();
+    root["Gameplay Settings"]["Display All Kill Feed"] = own_feed.into();
+    if let Some(modes) = root["Custom Modes"].as_object_mut() {
+        modes.retain(|id, _| id == "0");
+    }
+    if root == before {
+        return;
+    }
     // A file we create needs the plugin's config version, or CounterStrikeSharp regenerates it with the
     // rotating modes back on at load. An existing file keeps whatever version it already carries.
     if !existed && root["ConfigVersion"].is_null() {
@@ -1050,16 +1055,18 @@ mod tests {
             .css()
             .join("configs/plugins/Deathmatch/Deathmatch.json");
         let read = || serde_json::from_str::<Value>(&fs::read_to_string(&path).unwrap()).unwrap();
-        plain_deathmatch(&game);
+        plain_deathmatch(&game, true);
         let fresh = read();
         // A file we created: off, starts on Default, and carries a version so CSS keeps it.
         assert_eq!(fresh["Gameplay Settings"]["Custom Modes"], false);
         assert_eq!(fresh["Gameplay Settings"]["Map Start Custom Mode"], 0);
         assert_eq!(fresh["ConfigVersion"], 1);
-        fs::write(&path, r#"{"ConfigVersion": 7, "Gameplay Settings": {"Custom Modes": true, "Map Start Custom Mode": 4, "Game Length": 45}, "Save Players Weapons": true}"#).unwrap();
-        plain_deathmatch(&game);
+        fs::write(&path, r#"{"ConfigVersion": 7, "Gameplay Settings": {"Custom Modes": true, "Map Start Custom Mode": 4, "Game Length": 45}, "Custom Modes": {"0": {"Name": "Default"}, "1": {"Name": "Only Headshot"}}, "Save Players Weapons": true}"#).unwrap();
+        plain_deathmatch(&game, true);
         let v = read();
-        // Existing file: forced off and to Default, its own version and other keys kept.
+        // Existing file: forced off and to Default, gun-only modes dropped, its own version and other keys kept.
+        assert_eq!(v["Custom Modes"], serde_json::json!({"0": {"Name": "Default"}}));
+        assert_eq!(v["Gameplay Settings"]["Display All Kill Feed"], true);
         assert_eq!(
             (
                 &v["Gameplay Settings"]["Custom Modes"],
@@ -1077,7 +1084,7 @@ mod tests {
             )
         );
         fs::write(&path, "// hand edited\n{").unwrap();
-        plain_deathmatch(&game);
+        plain_deathmatch(&game, true);
         assert_eq!(fs::read_to_string(&path).unwrap(), "// hand edited\n{");
         fs::remove_dir_all(&game.root).unwrap();
     }

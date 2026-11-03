@@ -359,6 +359,8 @@ export function LivePage() {
             <${Toggle} value=${s.botController || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botController", v)} /><//>
           <${Row} icon=${{ name: "bot", color: "indigo" }} title="Bot Hider" subtitle=${s.botImprover ? "Included in Bot Improver" : "Bots look like real players: no BOT tag, names, avatars, ping · downloads from GitHub on first Start"}>
             <${Toggle} value=${s.botHider || s.botImprover} disabled=${s.botImprover} onChange=${v => set("botHider", v)} /><//>
+          <${Row} icon=${{ name: "person", color: "pink" }} title="Only Your Kills in Kill Feed" subtitle=${s.mode === "Deathmatch" ? "Each player sees only their own kills and deaths" : "Only in Deathmatch mode"}>
+            <${Toggle} value=${s.ownKillFeed} disabled=${s.mode !== "Deathmatch"} onChange=${v => set("ownKillFeed", v)} /><//>
           <${Row} icon=${{ name: "crosshair", color: "red" }} title="Deathmatch Plugin"
               subtitle=${s.mode === "Deathmatch" ? "NockyCZ's Deathmatch: !gun menu, every gun (no weapon-only rounds), kill sounds · replaces spawn protection and !guns" : "Only in Deathmatch mode"}>
             <${Toggle} value=${s.deathmatchPlugin} onChange=${v => set("deathmatchPlugin", v)} /><//>

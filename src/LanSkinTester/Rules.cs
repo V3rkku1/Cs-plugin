@@ -41,6 +41,24 @@ public partial class LanSkinTester
         return HookResult.Continue;
     }
 
+    private bool _ownKillFeed;
+
+    [ConsoleCommand("lst_own_killfeed", "1 = each player's kill feed shows only their own kills and deaths")]
+    [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
+    public void OnOwnKillFeedCommand(CCSPlayerController? caller, CommandInfo cmd) => _ownKillFeed = cmd.GetArg(1) == "1";
+
+    [GameEventHandler(HookMode.Pre)]
+    public HookResult OnOwnKillFeed(EventPlayerDeath @event, GameEventInfo info)
+    {
+        if (!_ownKillFeed) return HookResult.Continue;
+        info.DontBroadcast = true;
+        var victim = @event.Userid;
+        var killer = @event.Attacker;
+        if (victim is { IsValid: true, IsBot: false }) @event.FireEventToClient(victim);
+        if (killer is { IsValid: true, IsBot: false } && killer.Slot != victim?.Slot) @event.FireEventToClient(killer);
+        return HookResult.Continue;
+    }
+
     [ConsoleCommand("lst_hsonly", "1 = only headshots (and knives) hurt players")]
     [CommandHelper(minArgs: 1, usage: "0|1", whoCanExecute: CommandUsage.SERVER_ONLY)]
     public void OnHeadshotOnlyCommand(CCSPlayerController? caller, CommandInfo cmd)

@@ -63,7 +63,8 @@ public class ServerConfigTests
         "mp_respawn_on_death_t", "mp_respawn_on_death_ct", "mp_friendlyfire", "mp_items_prohibited", "mp_limitteams",
         "mp_retake_t_count", "mp_retake_ct_count", "mp_c4timer", "mp_warmup_end", "mp_restartgame", "mp_free_armor",
         "mp_give_player_c4", "mp_default_team_winner_no_objective", "mp_ct_default_primary", "mp_t_default_primary",
-        "mp_ct_default_secondary", "mp_t_default_secondary",
+        "mp_ct_default_secondary", "mp_t_default_secondary", "mp_dm_bonus_length_max", "mp_dm_bonus_length_min",
+        "mp_dm_time_between_bonus_max", "mp_dm_time_between_bonus_min",
         "nav_path_fixup_gap_segments", "game_type", "game_mode", "map", "changelevel", "host_workshop_map", "exec",
     ];
 
