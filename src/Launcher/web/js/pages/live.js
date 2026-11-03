@@ -273,6 +273,13 @@ export function LivePage() {
             <${LiveSlider} min=${0} max=${100} step=${5} value=${s.botAimbot} width=${230} tint="var(--red)" format=${v => v === 0 ? "Off" : v + "%"}
               onCommit=${v => set("botAimbot", v)} />
           <//>
+          <${Row} icon=${{ name: "clock", color: "orange" }} title="Bot Reaction" subtitle="How long a bot sees you before the aimbot turns it: your time to shoot first">
+            <${LiveSlider} min=${0} max=${1000} step=${50} value=${s.botReaction} width=${230} tint="var(--orange)" format=${v => v === 0 ? "Instant" : v + " ms"}
+              onCommit=${v => set("botReaction", v)} />
+          <//>
+          <${Row} icon=${{ name: "bolt", color: "red" }} title="One-Tap Bots" subtitle="Any bot bullet that hits you kills (bots still die normally)">
+            <${Toggle} value=${s.botOneTap} onChange=${v => set("botOneTap", v)} />
+          <//>
           <${Row} icon=${{ name: "sun", color: "green" }} title="Peaceful Bots" subtitle="Bots don't shoot - look at your skins in peace">
             <${Toggle} value=${s.botsDontShoot} onChange=${v => set("botsDontShoot", v)} />
           <//>

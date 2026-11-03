@@ -39,3 +39,26 @@ public class BotHuntTests
         Assert.False(SeenBy(mask, -1));
     }
 }
+
+public class BotOneTapTests
+{
+    [Fact]
+    public void OnlyGunsOneTap()
+    {
+        Assert.True(LanSkinTester.IsOneTapWeapon("weapon_ak47"));
+        Assert.True(LanSkinTester.IsOneTapWeapon("weapon_deagle"));
+        Assert.False(LanSkinTester.IsOneTapWeapon("weapon_knife"));
+        Assert.False(LanSkinTester.IsOneTapWeapon("weapon_hegrenade"));
+        Assert.False(LanSkinTester.IsOneTapWeapon("hegrenade_projectile"));
+        Assert.False(LanSkinTester.IsOneTapWeapon("inferno"));
+        Assert.False(LanSkinTester.IsOneTapWeapon(null));
+    }
+
+    [Fact]
+    public void BotsWaitTheirReactionTime()
+    {
+        Assert.False(LanSkinTester.Reacted(10f, 10.2f, 250));
+        Assert.True(LanSkinTester.Reacted(10f, 10.25f, 250));
+        Assert.True(LanSkinTester.Reacted(10f, 10f, 0));
+    }
+}
