@@ -1,6 +1,6 @@
 // Play: the server's status with one clear action, and the quick starts (built in and saved).
 import { html, useState } from "../vendor/preact-htm.js";
-import { call, tryCall, useApi, on, navigate } from "../api.js";
+import { call, tryCall, toast, useApi, on, navigate } from "../api.js";
 import { Page, Section, Row, Button, Icon, confirm, prompt } from "../ui.js";
 
 // The launcher asks before some actions (restart for retakes, start without the router port, replace a
@@ -48,6 +48,9 @@ const tileLooks = {
   "Plugin Retakes": ["tag", "yellow"],
   "Zombie Infection": ["person", "red"],
   "Hide and Seek": ["eye", "indigo"],
+  "Casual": ["game", "blue"],
+  "Wingman": ["friends", "teal"],
+  "Arms Race": ["refresh", "orange"],
 };
 
 function Stat({ icon, label, value, color = "blue" }) {
@@ -62,10 +65,21 @@ export function Health() {
   const [list] = useApi("play.health", undefined, ["play.tick"]);
   if (!list?.length) return null;
   return html`<${Section} title="Before You Start">
-    ${list.map(h => html`<${Row} icon=${{ name: h.kind === "bad" ? "warning" : "info", color: h.kind === "bad" ? "red" : "orange" }}
-        title=${h.title} subtitle=${h.detail}>
-      ${h.fix && html`<${Button} size="sm" kind="prominent" onClick=${() => h.fix.page ? navigate(h.fix.page) : tryCall(h.fix.call)}>${h.fix.label}<//>`}
-    <//>`)}
+    ${list.map(h => html`<${Fix} key=${h.title} h=${h} />`)}
+  <//>`;
+}
+
+/** One problem row; its fix button stays busy until the call returns (updates take a while). */
+function Fix({ h }) {
+  const [busy, setBusy] = useState(false);
+  const run = async () => {
+    if (h.fix.page) return navigate(h.fix.page);
+    setBusy(true);
+    try { await call(h.fix.call); toast(`${h.fix.label}: done`, "good"); } catch {} finally { setBusy(false); }
+  };
+  return html`<${Row} icon=${{ name: h.kind === "bad" ? "warning" : "info", color: h.kind === "bad" ? "red" : "orange" }}
+      title=${h.title} subtitle=${busy ? "Working… see the log on the Setup page" : h.detail}>
+    ${h.fix && html`<${Button} size="sm" kind="prominent" busy=${busy} disabled=${busy} onClick=${run}>${busy ? "Working…" : h.fix.label}<//>`}
   <//>`;
 }
 
@@ -159,16 +173,23 @@ export function PlayPage() {
     const code = await prompt({ title: "Add a Friend's Setup", message: "Paste a setup code a friend sent you (it starts with LSTQ1-).", placeholder: "LSTQ1-…", ok: "Add" });
     if (code?.trim()) tryCall("play.importSetup", code.trim());
   };
-  const builtIn = state.presets.filter(p => !p.saved);
+  const builtIn = state.presets.filter(p => !p.saved && !p.custom);
+  const custom = state.presets.filter(p => p.custom);
   const saved = state.presets.filter(p => p.saved);
 
   return html`<${Page} title="Play" subtitle="Pick a quick start, or press Start.">
     <${Hero} state=${state} />
     <${Health} />
 
-    <${Section} title="Quick Start" note=${state.testMode ? "applies to the running server" : "starts the server right away"} class="quick-section">
+    <${Section} title="Default Modes" note=${state.testMode ? "applies to the running server" : "starts the server right away"} class="quick-section">
       <div class="tiles quick-tiles">
         ${builtIn.map((p, i) => html`<${Tile} key=${p.title} preset=${p} index=${i} disabled=${!state.hasGame} />`)}
+      </div>
+    <//>
+
+    <${Section} title="Custom Modes" note="need server plugins" class="quick-section">
+      <div class="tiles quick-tiles">
+        ${custom.map((p, i) => html`<${Tile} key=${p.title} preset=${p} index=${i} disabled=${!state.hasGame} />`)}
       </div>
     <//>
 

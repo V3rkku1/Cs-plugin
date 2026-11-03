@@ -1,6 +1,6 @@
 // Setup: CS2 folder, the install checklist, maintenance, folders and the activity log.
 import { html, useState, useEffect } from "../vendor/preact-htm.js";
-import { tryCall, useApi, useEvent } from "../api.js";
+import { call, tryCall, toast, useApi, useEvent } from "../api.js";
 import { Page, Section, Row, Button, Segmented, Toggle, Slider, Stepper, TextField, StateIcon, Progress, LogView, confirm, prompt } from "../ui.js";
 import { PRESETS, DEFAULTS } from "../theme.js";
 import { openUpdate } from "../update.js";
@@ -187,7 +187,8 @@ export function SetupPage() {
         <${Section} title="Maintenance">
           <${Row} icon=${{ name: "download", color: "green" }} title="Update Everything"
               subtitle="Newest Metamod, CounterStrikeSharp, server plugins, skin data and launcher (also runs by itself after a CS2 update)">
-            <${Button} size="sm" kind="prominent" disabled=${!state.hasGame || busy} onClick=${() => tryCall("setup.updateAll")}>Update<//>
+            <${Button} size="sm" kind="prominent" disabled=${!state.hasGame || busy} busy=${busy}
+              onClick=${() => call("setup.updateAll").then(() => toast("Update finished", "good"), () => {})}>${busy ? "Updating…" : "Update"}<//>
           <//>
           <${Row} icon=${{ name: "refresh", color: "blue" }} title="Check Mod Updates" subtitle="Compare with the newest Metamod and CounterStrikeSharp">
             <${Button} size="sm" disabled=${busy} onClick=${() => tryCall("setup.checkUpdates")}>Check<//>

@@ -385,13 +385,16 @@ impl Default for ServerSettings {
 pub struct Preset {
     pub title: &'static str,
     pub subtitle: &'static str,
+    /// Needs a plugin (not one of CS2's own modes): listed under Custom Modes.
+    pub custom: bool,
     pub apply: fn(&mut ServerSettings),
 }
 
-pub const PRESETS: [Preset; 6] = [
+pub const PRESETS: [Preset; 9] = [
     Preset {
         title: "Competitive 5v5",
         subtitle: "9 hard bots · normal rules",
+        custom: false,
         apply: |s| {
             s.reset("Competitive", "de_mirage");
             s.bots = 9;
@@ -402,6 +405,7 @@ pub const PRESETS: [Preset; 6] = [
     Preset {
         title: "Free-for-all Deathmatch",
         subtitle: "Everyone vs everyone · 10 hard bots",
+        custom: false,
         apply: |s| {
             s.reset("Deathmatch", "de_mirage");
             s.bots = 10;
@@ -410,8 +414,42 @@ pub const PRESETS: [Preset; 6] = [
         },
     },
     Preset {
+        title: "Casual",
+        subtitle: "9 hard bots · casual rules",
+        custom: false,
+        apply: |s| {
+            s.reset("Casual", "de_dust2");
+            s.bots = 9;
+            s.difficulty = 2;
+            s.max_money = false;
+        },
+    },
+    Preset {
+        title: "Wingman",
+        subtitle: "2v2 · 3 hard bots",
+        custom: false,
+        apply: |s| {
+            s.reset("Wingman", "de_inferno");
+            s.bots = 3;
+            s.difficulty = 2;
+            s.max_money = false;
+            (s.team_size_t, s.team_size_ct) = (2, 2);
+        },
+    },
+    Preset {
+        title: "Arms Race",
+        subtitle: "A new gun every kill · 9 bots",
+        custom: false,
+        apply: |s| {
+            s.reset("Arms Race", "ar_baggage");
+            s.bots = 9;
+            s.difficulty = 2;
+        },
+    },
+    Preset {
         title: "Valve Retakes",
         subtitle: "Valve's retakes · 3v4 · loadout cards",
+        custom: false,
         apply: |s| {
             s.reset(RETAKES_MODE, "de_mirage");
             s.bots = 6; // you + 6 bots fills the 3 T vs 4 CT match
@@ -423,6 +461,7 @@ pub const PRESETS: [Preset; 6] = [
     Preset {
         title: "Plugin Retakes",
         subtitle: "Retakes plugin · you buy the guns · 8 bots",
+        custom: true,
         apply: |s| {
             s.reset(RETAKES_MODE, "de_mirage");
             s.bots = 8;
@@ -437,6 +476,7 @@ pub const PRESETS: [Preset; 6] = [
     Preset {
         title: "Zombie Infection",
         subtitle: "Zombies infect who they kill · 9 bots",
+        custom: true,
         apply: |s| {
             s.reset("Casual", "de_dust2");
             s.bots = 9;
@@ -448,6 +488,7 @@ pub const PRESETS: [Preset; 6] = [
     Preset {
         title: "Hide and Seek",
         subtitle: "T hide with knives, CT seek · 7 bots",
+        custom: true,
         apply: |s| {
             s.reset("Casual", "de_inferno");
             s.bots = 7;
@@ -662,6 +703,7 @@ impl ServerSettings {
         self.bot_team = 0;
         self.bot_weapons = 0;
         self.round_time = 0;
+        (self.team_size_t, self.team_size_ct) = (5, 5);
         for f in [
             &mut self.free_for_all,
             &mut self.bots_dont_shoot,
