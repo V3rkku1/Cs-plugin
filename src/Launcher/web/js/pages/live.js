@@ -386,6 +386,9 @@ export function LivePage() {
           <${Row} icon=${{ name: "play", color: "blue" }} title="Open CS2 Automatically" subtitle="Off = start only the server">
             <${Toggle} value=${s.autoStartGame} onChange=${v => set("autoStartGame", v)} />
           <//>
+          <${Row} icon=${{ name: "terminal", color: "teal" }} title="Show Server Console" subtitle="Off = the server window stays hidden (Stop closes it)">
+            <${Toggle} value=${s.showServerConsole} onChange=${v => set("showServerConsole", v)} />
+          <//>
           <${Row} icon=${{ name: "terminal", color: "indigo" }} title="Launch Options" subtitle="Extra options for the game window">
             <${CommitField} width=${230} value=${s.gameArgs} placeholder="-windowed -w 1920 -h 1080" onCommit=${v => set("gameArgs", v)} />
           <//>
