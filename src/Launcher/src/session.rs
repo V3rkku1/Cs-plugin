@@ -162,6 +162,13 @@ fn kill(pid: u32) {
     forget_cs2();
 }
 
+/// Closes every CS2 process (game and server).
+pub fn close_cs2() {
+    for pid in cs2_ids() {
+        kill(pid);
+    }
+}
+
 /// Closes the server process only.
 pub fn stop_server_only() {
     STOPPED_ON_PURPOSE.store(true, Ordering::Relaxed);
@@ -345,9 +352,7 @@ impl Session<'_> {
     /// Closes the test server and game, then puts gameinfo.gi back to normal.
     pub fn stop(&self) -> std::io::Result<()> {
         STOPPED_ON_PURPOSE.store(true, Ordering::Relaxed);
-        for pid in cs2_ids() {
-            kill(pid);
-        }
+        close_cs2();
         SERVER.lock().unwrap().take();
         game::disable_metamod(&self.game.game_info())?;
         let _ = fs::remove_file(session_file());

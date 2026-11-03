@@ -65,6 +65,8 @@ pub struct PlayState {
 pub struct AskArgs {
     pub confirmed: bool,
     pub for_friends: bool,
+    /// The user agreed to close an open CS2 so the server can start.
+    pub close_game: bool,
 }
 
 #[derive(Serialize)]
@@ -886,6 +888,23 @@ pub fn start_server(app: &Arc<App>, a: AskArgs) -> R<()> {
             return Ok(());
         }
     }
+    // CS2 must restart with -insecure: offer to close it instead of failing.
+    if !app.state().test_mode_on() && session::cs2_running() {
+        if !a.close_game {
+            ask(
+                app,
+                "Close CS2?",
+                "CS2 is open. It has to restart with VAC off for the skin test. Close it and start?",
+                "Close & Start",
+                "play.start",
+                json!(AskArgs { close_game: true, ..a.clone() }),
+                false,
+            );
+            return Ok(());
+        }
+        app.log("Closing CS2 so it can restart with VAC off...");
+        session::close_cs2();
+    }
     // Prunes skins you don't own before the plugin reads them (an equip may be saving: same gate).
     {
         let mut inv = app.inv();
@@ -901,6 +920,11 @@ pub fn start_server(app: &Arc<App>, a: AskArgs) -> R<()> {
         }
         if !st.ready() {
             return Err(bad("Install first (Setup page)."));
+        }
+        if port_busy() {
+            return Err(bad(format!(
+                "Port {PORT} is in use: another CS2 server is running on this PC. Close it, then Start again."
+            )));
         }
         st.play.busy = true;
         st.settings.server.friends
@@ -1075,7 +1099,8 @@ pub fn apply_to_server(app: &Arc<App>, a: AskArgs) -> R<()> {
                 "play.apply",
                 json!(AskArgs {
                     confirmed: true,
-                    for_friends: false
+                    for_friends: false,
+                    ..Default::default()
                 }),
                 false,
             );
@@ -1193,6 +1218,7 @@ fn restart_server(app: &Arc<App>) -> R<()> {
         AskArgs {
             confirmed: false,
             for_friends,
+            ..Default::default()
         },
     )
 }
@@ -1211,7 +1237,8 @@ fn stop_test(app: &App, a: AskArgs) -> R<()> {
             "play.stop",
             json!(AskArgs {
                 confirmed: true,
-                for_friends: false
+                for_friends: false,
+                ..Default::default()
             }),
             true,
         );
@@ -1308,11 +1335,16 @@ fn health(app: &App) -> Vec<Value> {
                 "detail": "Updates and the server's files need space: free some up." }));
         }
     }
-    if !running && std::net::UdpSocket::bind(("0.0.0.0", PORT)).is_err() {
+    if !running && port_busy() {
         list.push(json!({ "kind": "warn", "title": format!("Port {PORT} is in use"),
             "detail": "Another CS2 server is running on this PC: close it, or the server can't start." }));
     }
     list
+}
+
+/// Something else holds the server's UDP port, so a new server could not take it.
+fn port_busy() -> bool {
+    std::net::UdpSocket::bind(("0.0.0.0", PORT)).is_err()
 }
 
 /// CS2 changed build since the add-ons were last updated for it.
