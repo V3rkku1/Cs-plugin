@@ -145,7 +145,8 @@ fn lan_addresses() -> Vec<(Ipv4Addr, Vec<Ipv4Addr>)> {
 // Windows firewall
 // -------------------------------------------------------------------------------------------------
 
-pub const FIREWALL_RULE: &str = "LAN Skin Tester (CS2)";
+#[cfg(windows)]
+const FIREWALL_RULE: &str = "LAN Skin Tester (CS2)";
 
 #[cfg(windows)]
 fn hidden(cmd: &mut std::process::Command) -> &mut std::process::Command {
