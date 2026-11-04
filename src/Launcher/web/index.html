@@ -6,6 +6,17 @@
   <title>LAN Skin Tester</title>
   <!-- Dark before the stylesheets load (the window colour matches; the saved theme follows in app.js). -->
   <style>html, body { background: #0f1117; color-scheme: dark; }</style>
+  <!-- Fetched in parallel instead of import by import, font by font. -->
+  <link rel="preload" href="fonts/inter-latin-400-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="preload" href="fonts/inter-latin-600-normal.woff2" as="font" type="font/woff2" crossorigin />
+  <link rel="modulepreload" href="js/vendor/preact-htm.js" />
+  <link rel="modulepreload" href="js/api.js" />
+  <link rel="modulepreload" href="js/icons.js" />
+  <link rel="modulepreload" href="js/ui.js" />
+  <link rel="modulepreload" href="js/palette.js" />
+  <link rel="modulepreload" href="js/update.js" />
+  <link rel="modulepreload" href="js/theme.js" />
+  <link rel="modulepreload" href="js/pages/play.js" />
   <link rel="stylesheet" href="css/glass.css" />
   <link rel="stylesheet" href="css/pages/play.css" />
   <link rel="stylesheet" href="css/pages/friends.css" />

@@ -80,9 +80,8 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                     });
                 let _ = w.set_title(&title);
             }
-            let mut st = app.state();
-            st.settings.last_page = Some(page);
-            app.save(&st);
+            // Kept in memory only: the next settings save (at the latest on close) writes it, not every click.
+            app.state().settings.last_page = Some(page);
             ok(())
         }
         "app.openUrl" => {
