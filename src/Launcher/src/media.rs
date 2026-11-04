@@ -30,11 +30,13 @@ pub fn image(http: &ureq::Agent, url: &str, size: u32) -> Option<Vec<u8>> {
         return Some(bytes);
     }
     let (lock, cvar) = &SLOTS;
-    let mut free = cvar.wait_while(lock.lock().unwrap(), |n| *n == 0).unwrap();
+    let mut free = cvar
+        .wait_while(lock.lock().unwrap_or_else(|e| e.into_inner()), |n| *n == 0)
+        .unwrap_or_else(|e| e.into_inner());
     *free -= 1;
     drop(free);
     let bytes = util::get_bytes(http, &url).ok();
-    *lock.lock().unwrap() += 1;
+    *lock.lock().unwrap_or_else(|e| e.into_inner()) += 1;
     cvar.notify_one();
     let bytes = bytes?;
     let _ = fs::create_dir_all(&dir);

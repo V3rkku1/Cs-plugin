@@ -361,7 +361,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             items.retain(|i| !used.contains(&i.uid));
             items.insert(0, item.clone());
             inv.save(app);
-            app.changed();
+            app.inventory_changed();
             let loadout = read_loadout(app, inv, &st)?;
             ok(json!({ "item": view(app, &st, &item, &loadout), "outcomes": check.outcomes }))
         }

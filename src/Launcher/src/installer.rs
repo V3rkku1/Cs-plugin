@@ -134,7 +134,7 @@ impl Installer<'_> {
     fn release_assets(&self, api: &str, label: &str) -> R<Vec<(String, String)>> {
         type Cache = Mutex<HashMap<String, (Instant, Vec<(String, String)>)>>;
         static CACHE: LazyLock<Cache> = LazyLock::new(Default::default);
-        if let Some((at, assets)) = CACHE.lock().unwrap().get(api) {
+        if let Some((at, assets)) = CACHE.lock().unwrap_or_else(|e| e.into_inner()).get(api) {
             if at.elapsed() < Duration::from_secs(3600) {
                 return Ok(assets.clone());
             }
@@ -155,7 +155,7 @@ impl Installer<'_> {
             .filter(|a| !a.1.is_empty())
             .collect();
         if !assets.is_empty() {
-            CACHE.lock().unwrap().insert(api.to_string(), (Instant::now(), assets.clone()));
+            CACHE.lock().unwrap_or_else(|e| e.into_inner()).insert(api.to_string(), (Instant::now(), assets.clone()));
         }
         Ok(assets)
     }

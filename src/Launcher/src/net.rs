@@ -463,7 +463,7 @@ fn add_mapping(router: &Router) -> Result<(), (i32, String)> {
         Err((725 | 402 | 501, _)) => soap(router, "AddPortMapping", &args(0)).map(drop),
         r => r.map(drop),
     }?;
-    ROUTER.lock().unwrap().active = Some((router.clone(), Instant::now()));
+    ROUTER.lock().unwrap_or_else(|e| e.into_inner()).active = Some((router.clone(), Instant::now()));
     Ok(())
 }
 
@@ -483,7 +483,7 @@ pub fn renew_if_needed() {
 
 /// Best effort, for Stop and closing the launcher (the lease runs out by itself otherwise).
 pub fn remove_mapping() {
-    let Some((router, _)) = ROUTER.lock().unwrap().active.take() else {
+    let Some((router, _)) = ROUTER.lock().unwrap_or_else(|e| e.into_inner()).active.take() else {
         return;
     };
     let _ = soap(
@@ -499,16 +499,16 @@ pub fn remove_mapping() {
 
 /// Look for the router again next time (e.g. the user switched to Internet mode).
 pub fn forget_search() {
-    ROUTER.lock().unwrap().checked = false;
+    ROUTER.lock().unwrap_or_else(|e| e.into_inner()).checked = false;
 }
 
 /// Looks for the router; while a search runs, callers wait for that one instead of seeing no router yet.
 pub fn find_router(log: &dyn Fn(String)) {
     {
-        let mut r = ROUTER.lock().unwrap();
+        let mut r = ROUTER.lock().unwrap_or_else(|e| e.into_inner());
         if r.searching {
             drop(r);
-            while ROUTER.lock().unwrap().searching {
+            while ROUTER.lock().unwrap_or_else(|e| e.into_inner()).searching {
                 std::thread::sleep(Duration::from_millis(100));
             }
             return;
@@ -536,7 +536,7 @@ pub fn find_router(log: &dyn Fn(String)) {
         ));
     }
     {
-        let mut r = ROUTER.lock().unwrap();
+        let mut r = ROUTER.lock().unwrap_or_else(|e| e.into_inner());
         (r.router, r.external, r.searching, r.checked) = (router, external, false, true);
     }
     router_changed();
@@ -544,18 +544,18 @@ pub fn find_router(log: &dyn Fn(String)) {
 
 /// Opens the server port on the router. Returns an error message, or None when it's open.
 pub fn open_port(log: &dyn Fn(String)) -> Option<String> {
-    if ROUTER.lock().unwrap().active.is_some() {
+    if ROUTER.lock().unwrap_or_else(|e| e.into_inner()).active.is_some() {
         return None;
     }
     let missing = {
-        let r = ROUTER.lock().unwrap();
+        let r = ROUTER.lock().unwrap_or_else(|e| e.into_inner());
         r.router.is_none() || r.external.is_none()
     };
     if missing {
         find_router(log);
     }
     let (router, external) = {
-        let r = ROUTER.lock().unwrap();
+        let r = ROUTER.lock().unwrap_or_else(|e| e.into_inner());
         (r.router.clone(), r.external)
     };
     let Some(router) = router else {
@@ -673,7 +673,7 @@ pub fn start_listening(log: impl Fn(String) + Send + 'static) {
                 continue;
             };
             let address = format!("{}:{}", from.ip(), b.port);
-            let mut hosts = HOSTS.lock().unwrap();
+            let mut hosts = HOSTS.lock().unwrap_or_else(|e| e.into_inner());
             hosts.insert(
                 address.clone(),
                 LanHost {
@@ -819,7 +819,7 @@ pub const DOWNLOAD_URL: &str = "https://github.com/V3rkku1/Cs-plugin/releases/ta
 /// This PC's address for the current friends mode, or None when there isn't one yet.
 pub fn host_address(s: &ServerSettings) -> Option<String> {
     if s.friends == server::INTERNET {
-        return ROUTER.lock().unwrap().external.map(|e| e.to_string());
+        return ROUTER.lock().unwrap_or_else(|e| e.into_inner()).external.map(|e| e.to_string());
     }
     let vpn = s.friends == server::VPN;
     addresses()

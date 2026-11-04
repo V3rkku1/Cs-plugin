@@ -126,7 +126,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                 let mut s = ServerSettings::for_workshop(&st.settings.server, &id);
                 // Never played here before: a mode that fits its name (de_, aim_, arms race...), else Custom.
                 if !s.map_modes.contains_key(&id) {
-                    if let Some(d) = DETAILS.lock().unwrap().get(&id) {
+                    if let Some(d) = DETAILS.lock().unwrap_or_else(|e| e.into_inner()).get(&id) {
                         if let Some(guess) = server::guess_mode(
                             &html_decode(d["title"].as_str().unwrap_or("")),
                             &tags(d),
@@ -199,7 +199,7 @@ fn to_item(
                 .to_string()
         })
     };
-    let Some(d) = DETAILS.lock().unwrap().get(id).cloned() else {
+    let Some(d) = DETAILS.lock().unwrap_or_else(|e| e.into_inner()).get(id).cloned() else {
         return WorkshopItem {
             id: id.into(),
             title: if downloaded {
@@ -249,7 +249,7 @@ fn to_item(
 /// Steam's public details call (no key needed): titles, pictures, sizes and tags. Offline: ids instead of titles.
 fn load_details(app: &App, ids: Vec<String>) {
     let missing: Vec<String> = {
-        let d = DETAILS.lock().unwrap();
+        let d = DETAILS.lock().unwrap_or_else(|e| e.into_inner());
         ids.into_iter().filter(|id| !d.contains_key(id)).collect()
     };
     for batch in missing.chunks(50) {
@@ -275,7 +275,7 @@ fn load_details(app: &App, ids: Vec<String>) {
         else {
             continue;
         };
-        let mut d = DETAILS.lock().unwrap();
+        let mut d = DETAILS.lock().unwrap_or_else(|e| e.into_inner());
         for item in doc["response"]["publishedfiledetails"]
             .as_array()
             .into_iter()

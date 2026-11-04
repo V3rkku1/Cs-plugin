@@ -70,7 +70,7 @@ pub fn performance() -> serde_json::Value {
 }
 
 fn cs2_ids() -> Vec<u32> {
-    let mut cache = CS2.lock().unwrap();
+    let mut cache = CS2.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((at, ids)) = cache.as_ref() {
         if at.elapsed() < Duration::from_secs(1) {
             return ids.clone();
@@ -87,7 +87,7 @@ fn cs2_ids() -> Vec<u32> {
 }
 
 fn forget_cs2() {
-    *CS2.lock().unwrap() = None;
+    *CS2.lock().unwrap_or_else(|e| e.into_inner()) = None;
 }
 
 pub fn cs2_running() -> bool {
@@ -120,7 +120,7 @@ fn proc_of(pid: u32) -> Option<Proc> {
 
 /// The running dedicated server (this launcher's, or the one a previous launcher started).
 pub fn find_server() -> Option<Proc> {
-    if let Some(child) = SERVER.lock().unwrap().as_mut() {
+    if let Some(child) = SERVER.lock().unwrap_or_else(|e| e.into_inner()).as_mut() {
         if matches!(child.try_wait(), Ok(None)) {
             if let Some(p) = proc_of(child.id()) {
                 return Some(p);
@@ -144,7 +144,7 @@ pub fn client_running() -> bool {
 
 /// The server we started exited (Some(exit code)) without Stop; None while it runs or when it isn't ours.
 pub fn server_exit() -> Option<Option<i32>> {
-    let mut guard = SERVER.lock().unwrap();
+    let mut guard = SERVER.lock().unwrap_or_else(|e| e.into_inner());
     let status = guard.as_mut()?.try_wait().ok()??;
     *guard = None;
     Some(status.code())
@@ -181,7 +181,7 @@ pub fn stop_server_only() {
     if let Some(p) = find_server() {
         kill(p.pid);
     }
-    SERVER.lock().unwrap().take();
+    SERVER.lock().unwrap_or_else(|e| e.into_inner()).take();
 }
 
 /// The plugin was loaded (unix seconds) by the server process that started at this time.
@@ -295,7 +295,7 @@ impl Session<'_> {
         if let Some(p) = proc_of(child.id()) {
             let _ = fs::write(pid_file(), format!("{} {}", p.pid, p.start));
         }
-        *SERVER.lock().unwrap() = Some(child);
+        *SERVER.lock().unwrap_or_else(|e| e.into_inner()) = Some(child);
         STOPPED_ON_PURPOSE.store(false, Ordering::Relaxed);
         Ok(())
     }
@@ -362,7 +362,7 @@ impl Session<'_> {
     pub fn stop(&self) -> std::io::Result<()> {
         STOPPED_ON_PURPOSE.store(true, Ordering::Relaxed);
         close_cs2();
-        SERVER.lock().unwrap().take();
+        SERVER.lock().unwrap_or_else(|e| e.into_inner()).take();
         game::disable_metamod(&self.game.game_info())?;
         let _ = fs::remove_file(session_file());
         crate::net::remove_mapping(); // close the router port again (internet mode)

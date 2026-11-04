@@ -24,6 +24,7 @@ use std::fs;
 use std::path::PathBuf;
 use std::sync::atomic::Ordering;
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
 /// SHA-256 of "lst-cases-v1:" + the code in capitals. Only the owner knows the code.
 pub const UNLOCK_HASH: &str = "5e0d1df55fe4b0fc7528ff9f2b62aec673bb31d82ed6c9bfc7179bf3fd557f69";
@@ -88,7 +89,14 @@ pub struct AppliedSticker {
 #[derive(Default)]
 pub struct Inv {
     items: Option<Vec<InventoryItem>>,
+    /// Changes not on disk yet (a save right after another waits for `flush`).
+    dirty: bool,
+    saved_at: Option<Instant>,
+    flush_queued: bool,
 }
+
+/// Saves closer together than this (case after case) are written once, at the end of it.
+const SAVE_GAP: Duration = Duration::from_secs(2);
 
 pub fn inventory_file() -> PathBuf {
     util::data_dir().join("inventory.json")
@@ -99,8 +107,10 @@ fn removed_file() -> PathBuf {
 }
 
 impl Inv {
+    /// Drops the list (and unsaved changes: Reset deletes the file on purpose).
     pub fn forget(&mut self) {
         self.items = None;
+        self.dirty = false;
     }
 
     pub fn items(&mut self, app: &App) -> R<&mut Vec<InventoryItem>> {
@@ -131,8 +141,41 @@ impl Inv {
         Ok(self.items.as_mut().unwrap())
     }
 
+    /// Writes now, or, right after another write, once SAVE_GAP is over (one write for a burst of changes).
+    /// Pending changes are written on exit and before an update's backup (`flush`).
     pub fn save(&mut self, app: &App) {
+        if self.write_now(Instant::now()) {
+            self.write(app);
+        } else if !std::mem::replace(&mut self.flush_queued, true) {
+            let handle = app.handle.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(SAVE_GAP);
+                crate::with_app(&handle, |a| a.inv().flush(a));
+            });
+        }
+    }
+
+    /// Whether a save at `now` writes at once; otherwise it is marked for the queued flush.
+    fn write_now(&mut self, now: Instant) -> bool {
+        let recent = self
+            .saved_at
+            .is_some_and(|t| now.duration_since(t) < SAVE_GAP);
+        self.dirty = recent;
+        !recent
+    }
+
+    /// Writes changes that are still waiting.
+    pub fn flush(&mut self, app: &App) {
+        self.flush_queued = false;
+        if self.dirty {
+            self.write(app);
+        }
+    }
+
+    fn write(&mut self, app: &App) {
         let Some(items) = &self.items else { return };
+        self.dirty = false;
+        self.saved_at = Some(Instant::now());
         let result = fs::create_dir_all(util::data_dir()).and_then(|_| {
             util::safe_write(&inventory_file(), &serde_json::to_string(items).unwrap())
         });
@@ -555,7 +598,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 st.settings.currency = currency;
                 app.save(&st);
                 drop(st);
-                app.changed();
+                app.inventory_changed();
             }
             ok(())
         }
@@ -647,7 +690,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 },
                 "good",
             );
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "cases.unequipSide" => {
@@ -689,7 +732,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                     },
                     "info",
                 );
-                app.changed();
+                app.inventory_changed();
                 return ok(());
             }
             // The shared skin becomes the other side's own, so it stays there.
@@ -703,14 +746,14 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 .insert(item.def, SkinSettings::default());
             store.save()?;
             app.toast("Default gun on that side.", "info");
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "cases.remove" => {
             let uid: String = arg(a)?;
             inv.items(app)?.retain(|i| i.uid != uid);
             inv.save(app);
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "cases.undoRemove" => {
@@ -730,7 +773,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 ),
                 "good",
             );
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "cases.removeMany" => {
@@ -754,7 +797,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
                 ),
                 "good",
             );
-            app.changed();
+            app.inventory_changed();
             ok(removed)
         }
         "cases.unlock" => {
@@ -803,7 +846,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             app.save(&st);
             drop(st);
             app.toast(format!("Saved your loadout as \"{name}\"."), "good");
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "inventory.presetApply" => {
@@ -824,7 +867,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             store.save()?;
             drop(st);
             app.toast(format!("Loadout \"{name}\" equipped."), "good");
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "inventory.presetDelete" => {
@@ -833,7 +876,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             st.settings.loadout_presets.remove(&name);
             app.save(&st);
             drop(st);
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         "inventory.weaponPics" => {
@@ -893,7 +936,7 @@ pub fn call(app: &Arc<App>, inv: &mut Inv, name: &str, a: &Value) -> R<Value> {
             };
             inv.items(app)?.insert(0, item.clone());
             inv.save(app);
-            app.changed();
+            app.inventory_changed();
             let loadout = read_loadout(app, inv, &st)?;
             ok(view(app, &st, &item, &loadout))
         }
@@ -1244,7 +1287,7 @@ fn after_equip(app: &App) {
         },
         "good",
     );
-    app.changed();
+    app.inventory_changed();
 }
 
 /// Puts an unboxed item on: weapon skin, knife or gloves into the loadout; pin, music kit or agent too.
@@ -1300,7 +1343,7 @@ fn unequip(app: &App, inv: &mut Inv, st: &State, uid: &str) -> R<()> {
     take_off(store.local(), &item);
     store.save()?;
     app.toast("Unequipped.", "info");
-    app.changed();
+    app.inventory_changed();
     Ok(())
 }
 
@@ -1676,7 +1719,7 @@ fn replace_gun(
             store.save()?;
         }
     }
-    app.changed();
+    app.inventory_changed();
     Ok(())
 }
 
@@ -1753,7 +1796,7 @@ pub fn backup(app: &Arc<App>, name: &str) -> R<Value> {
                 ),
                 "good",
             );
-            app.changed();
+            app.inventory_changed();
             ok(())
         }
         _ => Err(unknown(name)),
@@ -1764,6 +1807,22 @@ pub fn backup(app: &Arc<App>, name: &str) -> R<Value> {
 mod tests {
     use super::*;
     use crate::itemdb::SkinInfo;
+
+    #[test]
+    fn saves_close_together_wait_for_flush() {
+        let mut inv = Inv::default();
+        let t = Instant::now();
+        assert!(inv.write_now(t), "first save writes");
+        inv.saved_at = Some(t);
+        assert!(!inv.write_now(t + Duration::from_millis(500)), "a save right after waits");
+        assert!(inv.dirty, "and is kept for the flush");
+        assert!(inv.write_now(t + SAVE_GAP), "after the gap it writes again");
+        assert!(!inv.dirty);
+        inv.saved_at = Some(t);
+        inv.write_now(t + Duration::from_millis(100));
+        inv.forget();
+        assert!(!inv.dirty, "Reset drops unsaved changes instead of writing them back");
+    }
 
     #[test]
     fn care_package_pool_is_weapon_skins_only() {

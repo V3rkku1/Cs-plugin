@@ -179,6 +179,11 @@ impl App {
         self.push("changed", Value::Null);
     }
 
+    /// Only the inventory, loadout or cases changed: only the Inventory and Cases calls reload (see api.js).
+    pub fn inventory_changed(&self) {
+        self.push("changed", json!("inventory"));
+    }
+
     /// A toast in the window: kind is "info", "good", "warning" or "bad".
     /// A Windows notification, only while the launcher isn't the window in front (Setup › Notifications).
     /// On its own thread: asking the window whether it has focus waits for the window's thread.
@@ -202,7 +207,7 @@ impl App {
     pub fn log(&self, line: impl Into<String>) {
         let line = util::stamp(&line.into());
         {
-            let mut log = self.log.lock().unwrap();
+            let mut log = self.log.lock().unwrap_or_else(|e| e.into_inner());
             log.push(line.clone());
             let extra = log.len().saturating_sub(600);
             log.drain(..extra);
@@ -211,7 +216,7 @@ impl App {
     }
 
     pub fn log_lines(&self) -> Vec<String> {
-        self.log.lock().unwrap().clone()
+        self.log.lock().unwrap_or_else(|e| e.into_inner()).clone()
     }
 
     /// Saves launcher.json; a failure is only logged (it is saved again with the next change).

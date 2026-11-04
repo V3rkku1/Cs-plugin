@@ -178,7 +178,7 @@ pub static MODES: LazyLock<RwLock<Vec<GameMode>>> = LazyLock::new(|| {
 });
 
 pub fn modes() -> Vec<GameMode> {
-    MODES.read().unwrap().clone()
+    MODES.read().unwrap_or_else(|e| e.into_inner()).clone()
 }
 
 /// Adds modes the launcher only knows by name from the game's own files (Rush). Returns whether one was found.
@@ -189,7 +189,7 @@ pub fn discover_modes(game: &GameFolder) -> bool {
     let Some(rush) = game::find_game_mode(game, "rush", RUSH_MODE) else {
         return false;
     };
-    MODES.write().unwrap().push(rush);
+    MODES.write().unwrap_or_else(|e| e.into_inner()).push(rush);
     true
 }
 

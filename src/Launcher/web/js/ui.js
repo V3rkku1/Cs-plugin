@@ -75,8 +75,20 @@ export function Toggle({ value, onChange, disabled }) {
  */
 export function Segmented({ options, value, onChange, disabled, cols = 0, class: cls = "" }) {
   const items = options.map((o, i) => typeof o === "string" ? { value: i, label: o } : o);
-  const root = useRef();
+  const root = useRef(), thumbEl = useRef(), prev = useRef(null);
   const [thumb, setThumb] = useState(null);
+  // FLIP: start from the old place and size as a transform, then animate to none (no layout per frame).
+  useLayoutEffect(() => {
+    const from = prev.current, el = thumbEl.current;
+    prev.current = thumb;
+    if (!from || !thumb || !el || document.documentElement.classList.contains("reduce-motion")
+      || matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    if (from.x === thumb.x && from.y === thumb.y && from.w === thumb.w && from.h === thumb.h) return;
+    el.animate([
+      { transform: `translate(${from.x}px,${from.y}px) scale(${from.w / thumb.w},${from.h / thumb.h})` },
+      { transform: `translate(${thumb.x}px,${thumb.y}px)` },
+    ], { duration: 500, easing: "cubic-bezier(0.32, 1.38, 0.45, 1)" });
+  }, [thumb?.x, thumb?.y, thumb?.w, thumb?.h]);
   // The sliding thumb sits under the active button: measured after each change and on resize.
   const measure = (clear = true) => {
     const active = root.current?.querySelector("button.active");
@@ -90,7 +102,7 @@ export function Segmented({ options, value, onChange, disabled, cols = 0, class:
     return () => ro.disconnect();
   }, []);
   return html`<div ref=${root} class=${`segmented ${cols ? "rows" : ""} ${disabled ? "disabled" : ""} ${cls}`} style=${cols ? `--cols:${cols}` : undefined}>
-    ${thumb && html`<div class="thumb" style=${`width:${thumb.w}px;height:${thumb.h}px;transform:translate(${thumb.x}px,${thumb.y}px)`}></div>`}
+    ${thumb && html`<div class="thumb" ref=${thumbEl} style=${`width:${thumb.w}px;height:${thumb.h}px;transform:translate(${thumb.x}px,${thumb.y}px)`}></div>`}
     ${items.map(o => html`<button class=${o.value === value ? "active" : ""} disabled=${o.disabled}
       onClick=${() => o.value !== value && onChange?.(o.value)}>${o.label}</button>`)}
   </div>`;

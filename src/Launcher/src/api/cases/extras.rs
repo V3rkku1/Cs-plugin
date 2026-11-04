@@ -95,7 +95,7 @@ fn wish(app: &App, a: WishArgs) -> R<Value> {
     }
     app.save(&st);
     drop(st);
-    app.changed();
+    app.inventory_changed();
     ok(())
 }
 
@@ -174,7 +174,7 @@ fn random_loadout(app: &App, inv: &mut Inv) -> R<Value> {
     store.save()?;
     drop(st);
     app.toast(format!("Random loadout: {picked} items equipped."), "good");
-    app.changed();
+    app.inventory_changed();
     ok(())
 }
 
@@ -253,7 +253,7 @@ fn battle(app: &App, inv: &mut Inv, a: BattleArgs) -> R<Value> {
     app.save(&st);
     let currency = st.settings.currency.clone();
     drop(st);
-    app.changed();
+    app.inventory_changed();
     ok(
         json!({ "players": view_players, "won": won, "wonAll": won_all, "gained": gained.len(), "currency": currency }),
     )
@@ -367,7 +367,7 @@ fn upgrade(app: &App, inv: &mut Inv, a: UpgradeArgs) -> R<Value> {
     }
     inv.save(app);
     drop(st);
-    app.changed();
+    app.inventory_changed();
     ok(json!({ "won": won, "chance": chance, "roll": roll, "item": new_item }))
 }
 
@@ -457,7 +457,7 @@ fn gift(app: &App, inv: &mut Inv, uid: &str) -> R<Value> {
         },
         "good",
     );
-    app.changed();
+    app.inventory_changed();
     ok(json!({ "code": code, "name": item.name }))
 }
 
@@ -481,7 +481,7 @@ fn redeem(app: &App, inv: &mut Inv, code: &str) -> R<Value> {
     app.save(&st);
     drop(st);
     app.toast(format!("Gift received: {name}"), "good");
-    app.changed();
+    app.inventory_changed();
     ok(json!({ "name": name }))
 }
 

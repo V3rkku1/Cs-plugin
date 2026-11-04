@@ -576,6 +576,7 @@ fn delete_quietly(dir: &std::path::Path) {
 
 /// Copies inventory.json and loadouts.json to a dated folder before an update; keeps the last 5.
 fn backup_user_data(app: &App) {
+    app.inv().flush(app);
     let root = util::data_dir().join("backups");
     let dir = root.join(chrono::Local::now().format("%Y%m%d-%H%M%S").to_string());
     let loadout = app.state().game.as_ref().map(|g| g.loadout_file());

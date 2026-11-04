@@ -86,7 +86,7 @@ impl PriceList {
     }
 
     fn notify(inner: &Mutex<Inner>, changed: &(dyn Fn() + Send + Sync)) {
-        let mut i = inner.lock().unwrap();
+        let mut i = inner.lock().unwrap_or_else(|e| e.into_inner());
         if i.last_notify
             .is_some_and(|t| t.elapsed() < Duration::from_secs(3))
         {
@@ -104,7 +104,7 @@ impl PriceList {
         } else {
             "USD"
         };
-        let mut i = self.inner.lock().unwrap();
+        let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         if i.currency != currency {
             i.currency = currency.into();
             let file = cache_file(currency);
@@ -134,7 +134,7 @@ impl PriceList {
             );
             std::thread::spawn(move || {
                 let result = download(&http, &currency);
-                let mut i = inner.lock().unwrap();
+                let mut i = inner.lock().unwrap_or_else(|e| e.into_inner());
                 i.loading = false;
                 match result {
                     Ok(prices) => {
@@ -168,7 +168,7 @@ impl PriceList {
     /// The price of a market name. Without an exact price, the nearest wear or the cheapest variant; only when
     /// nothing at all is known is Steam asked (in the background; the page refreshes when it answers).
     pub fn price(&self, market_name: &str) -> Option<f64> {
-        let mut i = self.inner.lock().unwrap();
+        let mut i = self.inner.lock().unwrap_or_else(|e| e.into_inner());
         let key = market_name.to_lowercase();
         if let Some(p) = i.prices.get(&key) {
             return Some(*p);
@@ -214,7 +214,7 @@ impl PriceList {
         );
         std::thread::spawn(move || {
             // Steam rate-limits: one request at a time, spaced out.
-            let _turn = gate.lock().unwrap();
+            let _turn = gate.lock().unwrap_or_else(|e| e.into_inner());
             let url = format!("https://steamcommunity.com/market/priceoverview/?appid=730&currency={currency_id}&market_hash_name={}", util::escape(&name));
             let doc: Option<Value> = util::get_text(&http, &url)
                 .ok()
@@ -223,7 +223,7 @@ impl PriceList {
                 .as_ref()
                 .and_then(|d| d["median_price"].as_str().or(d["lowest_price"].as_str()));
             if let Some(price) = parse_steam_price(text.unwrap_or("")) {
-                inner.lock().unwrap().steam.insert(key, Some(price));
+                inner.lock().unwrap_or_else(|e| e.into_inner()).steam.insert(key, Some(price));
                 Self::notify(&inner, &*changed);
             }
             std::thread::sleep(Duration::from_millis(3500));

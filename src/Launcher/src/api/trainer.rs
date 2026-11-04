@@ -37,7 +37,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                 meta.and_then(|m| m.modified().ok()),
                 player,
             );
-            let mut cache = STATS_CACHE.lock().unwrap();
+            let mut cache = STATS_CACHE.lock().unwrap_or_else(|e| e.into_inner());
             if let Some((_, v)) = cache.as_ref().filter(|c| c.0 == key) {
                 return ok(v.clone());
             }

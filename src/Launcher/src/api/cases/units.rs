@@ -101,7 +101,7 @@ fn create(app: &App, inv: &mut Inv, name: &str) -> R<Value> {
         },
     );
     inv.save(app);
-    app.changed();
+    app.inventory_changed();
     ok(uid)
 }
 
@@ -109,7 +109,7 @@ fn rename(app: &App, inv: &mut Inv, a: RenameArgs) -> R<Value> {
     let name = clean_name(&a.name)?;
     unit_of(inv.items(app)?, &a.uid)?.name = name;
     inv.save(app);
-    app.changed();
+    app.inventory_changed();
     ok(())
 }
 
@@ -125,7 +125,7 @@ fn delete(app: &App, inv: &mut Inv, uid: &str) -> R<Value> {
     items.retain(|i| i.uid != uid);
     inv.save(app);
     app.toast(format!("Storage unit deleted. {back} item{} back in your inventory.", if back == 1 { "" } else { "s" }), "info");
-    app.changed();
+    app.inventory_changed();
     ok(())
 }
 
@@ -165,7 +165,7 @@ fn store(app: &App, inv: &mut Inv, a: StoreArgs) -> R<Value> {
     inv.save(app);
     let s = if n == 1 { "" } else { "s" };
     app.toast(if a.unit.is_some() { format!("{n} item{s} stored.") } else { format!("{n} item{s} taken out.") }, "good");
-    app.changed();
+    app.inventory_changed();
     ok(n)
 }
 

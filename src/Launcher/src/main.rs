@@ -121,7 +121,7 @@ fn fit_zoom(window: &tauri::WebviewWindow, last: &std::sync::Mutex<f64>) {
         .min(size.height as f64 / scale / DESIGN_HEIGHT)
         .clamp(1.0, MAX_ZOOM);
     let zoom = (zoom * 20.0).round() / 20.0;
-    let mut last = last.lock().unwrap();
+    let mut last = last.lock().unwrap_or_else(|e| e.into_inner());
     if (*last - zoom).abs() > 0.001 {
         *last = zoom;
         let _ = window.set_zoom(zoom);
@@ -295,8 +295,12 @@ fn main() {
         .expect("could not start the launcher")
         .run(|handle, event| {
             if let tauri::RunEvent::Exit = event {
-                // The router port closes again (internet mode); the lease would run out by itself.
-                with_app(handle, |_| net::remove_mapping());
+                with_app(handle, |a| {
+                    // Inventory changes still waiting to be written (see Inv::save).
+                    a.inv().flush(a);
+                    // The router port closes again (internet mode); the lease would run out by itself.
+                    net::remove_mapping();
+                });
             }
         });
 }

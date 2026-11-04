@@ -76,7 +76,7 @@ pub fn call(app: &Arc<App>, name: &str, a: &Value) -> R<Value> {
                     app.log("Connection type changes on the next Start (press Stop, then Start Hosting).");
                 }
                 app.changed();
-                if n != server::INTERNET && net::ROUTER.lock().unwrap().port_open() {
+                if n != server::INTERNET && net::ROUTER.lock().unwrap_or_else(|e| e.into_inner()).port_open() {
                     drop(st);
                     net::close_port(&|l| app.log(l));
                     st = app.state();
@@ -306,7 +306,7 @@ fn state(app: &App) -> R<Value> {
     let s = app.state().settings.server.clone();
     let (internet, vpn) = (s.friends == server::INTERNET, s.friends == server::VPN);
     let (router, external, searching, checked, open) = {
-        let r = net::ROUTER.lock().unwrap();
+        let r = net::ROUTER.lock().unwrap_or_else(|e| e.into_inner());
         (
             r.router.clone(),
             r.external,

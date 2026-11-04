@@ -59,11 +59,14 @@ export function useApi(name, args, events = []) {
     const subs = shared(cacheKey).subs;
     subs.add(setData);
     reload();
-    const offs = ["changed", ...events].map(type => on(type, () => reload()));
+    const offs = [on("changed", scope => (!scope || inScope(name, scope)) && reload()), ...events.map(type => on(type, () => reload()))];
     return () => { subs.delete(setData); offs.forEach(off => off()); };
   }, [reload]);
   return [data, reload];
 }
+
+/** A scoped "changed" ("inventory") reloads only the calls it can affect; an unscoped one reloads everything. */
+const inScope = (name, scope) => scope === "inventory" && /^(cases|inventory|tradeup|backup)\./.test(name);
 
 /** One load at a time per call: hooks with the same call share it, and a reload asked for meanwhile runs once after. */
 const loads = new Map();
