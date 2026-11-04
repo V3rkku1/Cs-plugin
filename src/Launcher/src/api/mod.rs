@@ -16,7 +16,7 @@ mod workshop;
 pub use cases::{Inv, UNLOCK_HASH};
 pub use play::poll_server;
 pub use shell::{confirm_close, started, watch_game};
-pub use theme::apply_title_bar;
+pub use theme::{apply_title_bar, background_color};
 
 use crate::game::{self, GameFolder};
 use crate::itemdb::{self, ItemDatabase};

@@ -98,7 +98,12 @@ pub fn strip_nulls(v: &mut Value) {
 
 /// Reads a JSON file in the file format, tolerating nulls.
 pub fn read_json<T: serde::de::DeserializeOwned>(text: &str) -> serde_json::Result<T> {
-    let mut v: Value = serde_json::from_str(text.trim_start_matches('\u{feff}'))?;
+    let text = text.trim_start_matches('\u{feff}');
+    // One direct pass first; only a file whose nulls trip a field pays for the strip-and-retry.
+    if let Ok(v) = serde_json::from_str(text) {
+        return Ok(v);
+    }
+    let mut v: Value = serde_json::from_str(text)?;
     strip_nulls(&mut v);
     serde_json::from_value(v)
 }

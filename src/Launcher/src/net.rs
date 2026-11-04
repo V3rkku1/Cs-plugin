@@ -651,17 +651,22 @@ pub fn start_listening(log: impl Fn(String) + Send + 'static) {
             }
         };
         let mut buf = [0u8; 2048];
+        // Own addresses, looked up again at most every 10 s (a VPN may connect later), not once per packet.
+        let mut own: (Option<Instant>, HashSet<Ipv4Addr>) = (None, HashSet::new());
         loop {
             let Ok((n, SocketAddr::V4(from))) = udp.recv_from(&mut buf) else {
                 std::thread::sleep(Duration::from_millis(200));
                 continue;
             };
             let text = String::from_utf8_lossy(&buf[..n]);
-            // Noise, or our own announcement (addresses looked up each time: a VPN may connect later).
+            // Noise, or our own announcement.
             let Some(json) = text.strip_prefix(MAGIC) else {
                 continue;
             };
-            if own_addresses().contains(from.ip()) {
+            if own.0.is_none_or(|t| t.elapsed() > Duration::from_secs(10)) {
+                own = (Some(Instant::now()), own_addresses());
+            }
+            if own.1.contains(from.ip()) {
                 continue;
             }
             let Ok(b) = serde_json::from_str::<Beacon>(json) else {

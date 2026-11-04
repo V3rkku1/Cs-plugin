@@ -697,6 +697,29 @@ export function InventoryPage() {
   const [open, setOpen] = useState(null);
   const [limit, setLimit] = useState(PAGE);
   useEffect(() => setLimit(PAGE), [q, tab, sort, grade, wear, fromCase, onlyST, onlyFav, minP, maxP]);
+  // Filters on the search a moment after typing stops, not on every key.
+  const [fq, setFq] = useState("");
+  useEffect(() => { const t = setTimeout(() => setFq(q), 150); return () => clearTimeout(t); }, [q]);
+  // Filter and sort only when the inventory or a filter changes (not on every open / hover re-render).
+  const items = useMemo(() => {
+    if (!state) return [];
+    const words = searchWords(fq);
+    const lo = parseFloat(minP), hi = parseFloat(maxP);
+    const by = {
+      newest: (a, b) => openedAt(b) - openedAt(a),
+      rarity: (a, b) => GRADE_RANK.indexOf(b.item.grade) - GRADE_RANK.indexOf(a.item.grade) || (b.price ?? 0) - (a.price ?? 0),
+      price: (a, b) => (b.price ?? -1) - (a.price ?? -1),
+      name: (a, b) => a.item.name.localeCompare(b.item.name),
+    };
+    return state.items.filter(v => (tab === "all" || tab === "loadout" || v.category === tab)
+      && (!onlyST || v.item.statTrak) && (!onlyFav || favs.has(v.item.uid)) && (!fromCase || v.item.caseName === fromCase)
+      && (isNaN(lo) || (v.price ?? 0) >= lo) && (isNaN(hi) || (v.price ?? 0) <= hi)
+      && (!grade || v.item.grade === grade) && (!wear || (v.item.kind === "skin" && v.item.paint > 0 && wearName(v.item.wear) === wear))
+      && words.every(w => haystack(v).includes(w)))
+      .sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
+  }, [state, fq, tab, sort, grade, wear, fromCase, onlyST, onlyFav, minP, maxP, favs]);
+  const grades = useMemo(() => !state ? [] : GRADE_RANK.filter(g => state.items.some(v => v.item.grade === g)).reverse(), [state]);
+  const cases = useMemo(() => !state ? [] : [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort(), [state]);
   // Copies of the same skin in the same exterior (and StatTrak™ / Souvenir): the lowest float stays, and anything
   // equipped, favorite or with stickers. Other exteriors are different items, so they all stay.
   const duplicates = useMemo(() => !state ? [] : Object.values(Object.groupBy(state.items.filter(v => v.item.kind === "skin"),
@@ -706,29 +729,13 @@ export function InventoryPage() {
   if (!state) return html`<${Page} title="Inventory" />`;
 
   const cur = state.currency;
-  const words = searchWords(q);
   const toggleFav = uid => setFavs(f => {
     const n = new Set(f); n.has(uid) ? n.delete(uid) : n.add(uid);
     try { localStorage.setItem("inv.favs", JSON.stringify([...n])); } catch { /* no storage */ }
     return n;
   });
-  const lo = parseFloat(minP), hi = parseFloat(maxP);
-  let items = state.items.filter(v => (tab === "all" || tab === "loadout" || v.category === tab)
-    && (!onlyST || v.item.statTrak) && (!onlyFav || favs.has(v.item.uid)) && (!fromCase || v.item.caseName === fromCase)
-    && (isNaN(lo) || (v.price ?? 0) >= lo) && (isNaN(hi) || (v.price ?? 0) <= hi)
-    && (!grade || v.item.grade === grade) && (!wear || (v.item.kind === "skin" && v.item.paint > 0 && wearName(v.item.wear) === wear))
-    && words.every(w => haystack(v).includes(w)));
   const filtered = q || grade || wear || fromCase || onlyST || onlyFav || minP || maxP;
   const clearFilters = () => { setQ(""); setGrade(""); setWear(""); setFromCase(""); setOnlyST(false); setOnlyFav(false); setMinP(""); setMaxP(""); };
-  const grades = GRADE_RANK.filter(g => state.items.some(v => v.item.grade === g)).reverse();
-  const by = {
-    newest: (a, b) => openedAt(b) - openedAt(a),
-    rarity: (a, b) => GRADE_RANK.indexOf(b.item.grade) - GRADE_RANK.indexOf(a.item.grade) || (b.price ?? 0) - (a.price ?? 0),
-    price: (a, b) => (b.price ?? -1) - (a.price ?? -1),
-    name: (a, b) => a.item.name.localeCompare(b.item.name),
-  };
-  items = [...items].sort((a, b) => favs.has(b.item.uid) - favs.has(a.item.uid) || by[sort](a, b)); // favorites first
-  const cases = [...new Set(state.items.map(v => v.item.caseName).filter(Boolean))].sort();
   const removeDuplicates = async () => {
     if (await confirm({ title: "Remove duplicates?", message: `Remove ${duplicates.length} extra copies?\nOne copy of each skin per exterior stays (the lowest float), and equipped and favorite items and guns with stickers. Undo Remove brings them back.`, ok: "Remove", danger: true }))
       tryCall("cases.removeMany", duplicates.map(v => v.item.uid));

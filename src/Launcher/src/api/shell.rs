@@ -200,6 +200,12 @@ pub fn started(app: &Arc<App>) {
         let path = saved
             .filter(|p| GameFolder::is_valid(Some(p)))
             .or_else(|| GameFolder::find(game::steam_path()));
+        // Reading the game's mode files too (set_game then finds them already known).
+        if let Some(p) = path.as_deref().filter(|p| GameFolder::is_valid(Some(p))) {
+            if crate::server::discover_modes(&GameFolder::new(p.to_string())) {
+                app.log("Found Valve's Rush mode in your CS2 files.");
+            }
+        }
         let mut st = app.state();
         app.set_game(&mut st, path);
         if st.game.is_none() {

@@ -79,7 +79,11 @@ function load(cacheKey, name, args) {
       try {
         result = await invoke("call", { name, args: args ?? null });
         s.error = null;
-        cache.set(cacheKey, result);
+        // Same answer as last time (most reloads after "changed"): hand out the old object, so hooks that
+        // already hold it don't re-render (Preact skips a setState to the same value).
+        const json = JSON.stringify(result);
+        if (json === s.json && cache.has(cacheKey)) result = cache.get(cacheKey);
+        else { s.json = json; cache.set(cacheKey, result); }
         s.subs.forEach(set => set(result));
       } catch (error) {
         // A failing poll (every few seconds) toasts once, not every time.
@@ -96,7 +100,7 @@ function load(cacheKey, name, args) {
 /** Loads calls into the useApi cache in the background (the pages you are likely to open next). */
 export function prefetch(names) {
   for (const name of names)
-    call(name).then(result => cache.set(`${name}|null`, result), () => undefined);
+    call(name).then(result => { cache.set(`${name}|null`, result); shared(`${name}|null`).json = JSON.stringify(result); }, () => undefined);
 }
 
 /** Subscribes to an event for the component's lifetime. */

@@ -6,25 +6,36 @@ import { openPalette } from "./palette.js";
 import { UpdatePopup, openUpdate } from "./update.js";
 import { applyTheme, watchCustomCss } from "./theme.js";
 import { PlayPage } from "./pages/play.js";
-import { LivePage } from "./pages/live.js";
-import { TrainerPage } from "./pages/trainer.js";
-import { StatsPage } from "./pages/stats.js";
-import { FriendsPage } from "./pages/friends.js";
-import { WorkshopPage } from "./pages/workshop.js";
-import { CasesPage } from "./pages/cases.js";
-import { InventoryPage } from "./pages/inventory.js";
-import { SetupPage } from "./pages/setup.js";
+
+// Only Play loads with the window; the other pages load on first open (and are warmed when the launcher is idle).
+const lazy = (load, name) => { let C = null; const get = () => load().then(m => (C = m[name])); return { get, component: props => C ? html`<${C} ...${props} />` : null, ready: () => C }; };
+const LAZY = {
+  live: lazy(() => import("./pages/live.js"), "LivePage"),
+  inventory: lazy(() => import("./pages/inventory.js"), "InventoryPage"),
+  cases: lazy(() => import("./pages/cases.js"), "CasesPage"),
+  trainer: lazy(() => import("./pages/trainer.js"), "TrainerPage"),
+  stats: lazy(() => import("./pages/stats.js"), "StatsPage"),
+  workshop: lazy(() => import("./pages/workshop.js"), "WorkshopPage"),
+  friends: lazy(() => import("./pages/friends.js"), "FriendsPage"),
+  setup: lazy(() => import("./pages/setup.js"), "SetupPage"),
+};
+
+/** Last page and look, kept in the browser so the first frame already shows them (app.state fixes them up). */
+const local = {
+  get: k => { try { return JSON.parse(localStorage.getItem(k)); } catch { return null; } },
+  set: (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* no storage */ } },
+};
 
 const pages = [
-  { id: "play", label: "Play", icon: "play", component: PlayPage },
-  { id: "live", label: "Live Server", icon: "server", component: LivePage },
-  { id: "inventory", label: "Inventory", icon: "skins", component: InventoryPage },
-  { id: "cases", label: "Cases", icon: "key", component: CasesPage },
-  { id: "trainer", label: "Trainer", icon: "target", component: TrainerPage },
-  { id: "stats", label: "Stats", icon: "sliders", component: StatsPage },
-  { id: "workshop", label: "Workshop", icon: "map", component: WorkshopPage },
-  { id: "friends", label: "Friends", icon: "friends", component: FriendsPage },
-  { id: "setup", label: "Setup", icon: "setup", component: SetupPage },
+  { id: "play", label: "Play", icon: "play" },
+  { id: "live", label: "Live Server", icon: "server" },
+  { id: "inventory", label: "Inventory", icon: "skins" },
+  { id: "cases", label: "Cases", icon: "key" },
+  { id: "trainer", label: "Trainer", icon: "target" },
+  { id: "stats", label: "Stats", icon: "sliders" },
+  { id: "workshop", label: "Workshop", icon: "map" },
+  { id: "friends", label: "Friends", icon: "friends" },
+  { id: "setup", label: "Setup", icon: "setup" },
 ];
 
 // The first-start tour: what to press first, one step at a time (again from Setup › Show the Tour).
@@ -109,20 +120,60 @@ function Sidebar({ page, setPage, state }) {
   </aside>`;
 }
 
-function App() {
-  const [state] = useApi("app.state");
-  const [page, setPageState] = useState(null);
+/** Look from Setup › Appearance: classes, theme colours, corners, font, background picture. */
+function applyAppearance(a) {
+  const root = document.documentElement.classList;
+  root.toggle("large-text", a.textSize === "large");
+  root.toggle("small-text", a.textSize === "small");
+  root.toggle("reduce-glass", !!a.reduceGlass);
+  root.toggle("reduce-motion", !!a.reduceMotion);
+  applyTheme(a.theme ?? {}, a.reduceGlass);
+}
+
+// Its own component: Setup's state changing re-renders this, not the page.
+function Appearance() {
   const [settings] = useApi("setup.state");
+  const look = settings && { textSize: settings.textSize, reduceGlass: settings.reduceGlass, reduceMotion: settings.reduceMotion, theme: settings.theme };
+  const key = JSON.stringify(look);
+  useEffect(() => { if (look) { applyAppearance(look); local.set("appearance", look); } }, [key]);
+  return null;
+}
 
-  useEffect(() => { if (page == null && state) setPageState(state.page); }, [state]);
+// The parts that follow app.state live in their own components: a new state re-renders them, not the page.
+// (Both share one app.state load through useApi.)
+function Nav({ page, setPage, initPage }) {
+  const [state] = useApi("app.state");
+  useEffect(() => { if (state) initPage(state.page); }, [state?.page]);
+  return html`<${Sidebar} page=${page} setPage=${setPage} state=${state} />`;
+}
 
-  // Every page's data is ready before you click it: no empty page while it loads.
-  useEffect(() => prefetch(["play.state", "cases.inventory", "friends.state"]), []);
+function Overlays({ setPage }) {
+  const [state] = useApi("app.state");
+  return html`<${UpdatePopup} state=${state} /><${Tour} setPage=${setPage} ready=${state?.ready} />`;
+}
+
+function App() {
+  // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page); a removed page
+  // (Hacker Mode) opens Play.
+  const known = id => (id === "skins" ? "inventory" : pages.some(p => p.id === id) ? id : "play");
+  const [page, setPageState] = useState(() => { const p = local.get("page"); return p ? known(p) : null; });
+  // Bumped when a lazy page's code arrives, so it renders.
+  const [, loaded] = useState(0);
+
+  // Every page's data is ready before you click it: no empty page while it loads. Page code too, once idle.
+  useEffect(() => {
+    prefetch(["play.state", "cases.inventory", "friends.state"]);
+    const idle = window.requestIdleCallback ?? (f => setTimeout(f, 1500));
+    idle(() => Object.values(LAZY).forEach(l => l.get().catch(() => undefined)));
+  }, []);
 
   const setPage = id => {
     setPageState(id);
+    local.set("page", id);
     tryCall("app.page", id);
   };
+  // No page until app.state (or the saved one) says which: otherwise Play mounts (and loads) first, then gets swapped.
+  const initPage = id => setPageState(p => { if (p != null) return p; const k = known(id); local.set("page", k); return k; });
 
   useEffect(() => {
     const go = e => setPage(e.detail);
@@ -141,17 +192,6 @@ function App() {
     return () => { window.removeEventListener("navigate", go); window.removeEventListener("keydown", keys); };
   }, []);
 
-  // Appearance from the Setup page.
-  useEffect(() => {
-    if (!settings) return;
-    document.documentElement.classList.toggle("large-text", settings.textSize === "large");
-    document.documentElement.classList.toggle("small-text", settings.textSize === "small");
-    document.documentElement.classList.toggle("reduce-glass", settings.reduceGlass);
-    document.documentElement.classList.toggle("reduce-motion", settings.reduceMotion);
-  }, [settings?.textSize, settings?.reduceGlass, settings?.reduceMotion]);
-
-  // Theme colours, corners, font and background picture from Setup › Appearance.
-  useEffect(() => { if (settings) applyTheme(settings.theme, settings.reduceGlass); }, [JSON.stringify(settings?.theme ?? null), settings?.reduceGlass]);
   useEffect(() => watchCustomCss(), []);
 
   // The sheen on glass buttons and tiles follows the pointer.
@@ -161,18 +201,19 @@ function App() {
     return () => window.removeEventListener("pointermove", move);
   }, []);
 
-  // The old Skins page was replaced by the Inventory ("skins" may still be the saved last page); a removed page
-  // (Hacker Mode) opens Play.
-  // No page until app.state says which: otherwise Play mounts (and loads) first, then gets swapped.
-  const Current = page != null && (pages.find(p => p.id === (page === "skins" ? "inventory" : page))?.component ?? PlayPage);
+  const lazyPage = page != null && page !== "play" && LAZY[page];
+  useEffect(() => { if (lazyPage && !lazyPage.ready()) lazyPage.get().then(() => loaded(n => n + 1), () => undefined); }, [page]);
+  const Current = page == null ? null : lazyPage ? lazyPage.component : PlayPage;
   return html`<div class="app">
-    <${Sidebar} page=${page} setPage=${setPage} state=${state} />
+    <${Nav} page=${page} setPage=${setPage} initPage=${initPage} />
     <main class="main">${Current && html`<${Current} key=${page} />`}</main>
-    <${UpdatePopup} state=${state} />
-    <${Tour} setPage=${setPage} ready=${state?.ready} />
+    <${Overlays} setPage=${setPage} />
+    <${Appearance} />
     <${Toasts} />
   </div>`;
 }
 
 window.addEventListener("contextmenu", e => e.preventDefault());
+// The saved look before the first render: no flash of the default theme.
+{ const look = local.get("appearance"); if (look) applyAppearance(look); }
 render(html`<${App} />`, document.getElementById("app"));

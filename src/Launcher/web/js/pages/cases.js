@@ -113,7 +113,7 @@ function Reel({ result, onDone, skip }) {
     const start = performance.now();
     // Every spin takes a slightly different time, like the game.
     const spinMs = SPIN_MS * (0.94 + Math.random() * 0.12);
-    let last = -1, lastX = 0, frame;
+    let last = -1, lastX = 0, lastBlur = "none", frame;
     // Quick start, long slow end: CS2's reel slows down over its last few seconds.
     const ease = t => 1 - Math.pow(1 - t, 4.6);
     const step = now => {
@@ -123,7 +123,9 @@ function Reel({ result, onDone, skip }) {
       // Motion blur while it's fast.
       const speed = x - lastX;
       lastX = x;
-      strip.current.style.filter = speed > 18 ? `blur(${Math.min(3, speed / 22).toFixed(1)}px)` : "none";
+      // Only on change: a new filter value re-rasterizes the whole strip.
+      const blur = speed > 18 ? `blur(${Math.min(3, speed / 22).toFixed(1)}px)` : "none";
+      if (blur !== lastBlur) strip.current.style.filter = lastBlur = blur;
       const under = Math.floor((x + width / 2) / CARD);
       if (under !== last) { last = under; if (t < 1) sound.tick(); }
       if (t < 1) frame = requestAnimationFrame(step);

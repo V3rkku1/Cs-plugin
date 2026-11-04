@@ -55,16 +55,19 @@ export function applyTheme(theme = {}, solid = false) {
   }
 }
 
-/** Loads custom.css after the built-in styles, and reloads it when the window gets focus (after editing it). */
+/** Loads custom.css after the built-in styles, and again when the window gets focus (after editing it).
+ *  Only a changed file touches the page: restyling the whole document on every focus is wasted work. */
 export function watchCustomCss() {
-  let link = document.getElementById("custom-css");
-  if (!link) {
-    link = document.createElement("link");
-    link.id = "custom-css";
-    link.rel = "stylesheet";
-    document.head.appendChild(link);
+  let style = document.getElementById("custom-css");
+  if (!style) {
+    style = document.createElement("style");
+    style.id = "custom-css";
+    document.head.appendChild(style);
   }
-  const reload = () => { link.href = `${media}theme/custom.css?v=${Date.now()}`; };
+  const reload = () => fetch(`${media}theme/custom.css?v=${Date.now()}`)
+    .then(r => (r.ok ? r.text() : ""), () => "")
+    .then(css => { if (css !== style.textContent) style.textContent = css; });
   reload();
   window.addEventListener("focus", reload);
+  return () => window.removeEventListener("focus", reload);
 }

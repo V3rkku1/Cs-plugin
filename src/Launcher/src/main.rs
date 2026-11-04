@@ -52,7 +52,7 @@ async fn call(
 }
 
 /// lst://localhost/img?u=<url>&s=<size>, /theme/background and /theme/custom.css.
-fn protocol(app: &App, uri: &tauri::http::Uri) -> Response<Vec<u8>> {
+fn protocol(uri: &tauri::http::Uri) -> Response<Vec<u8>> {
     let reply = |status: StatusCode, kind: &str, cache: &str, body: Vec<u8>| {
         Response::builder()
             .status(status)
@@ -72,7 +72,9 @@ fn protocol(app: &App, uri: &tauri::http::Uri) -> Response<Vec<u8>> {
     match uri.path() {
         "/img" => {
             let size = param("s").and_then(|s| s.parse().ok()).unwrap_or(256);
-            match param("u").and_then(|u| media::image(&app.http, &u, size)) {
+            // Own short timeout: a stalled picture must not hold one of the 6 download slots for 5 minutes.
+            static PICS: std::sync::LazyLock<ureq::Agent> = std::sync::LazyLock::new(|| util::http_agent(30));
+            match param("u").and_then(|u| media::image(&PICS, &u, size)) {
                 Some(bytes) => reply(
                     StatusCode::OK,
                     media::content_type(&bytes),
@@ -91,12 +93,17 @@ fn protocol(app: &App, uri: &tauri::http::Uri) -> Response<Vec<u8>> {
             ),
             None => reply(StatusCode::NOT_FOUND, "text/plain", "no-cache", vec![]),
         },
-        "/theme/custom.css" => reply(
-            StatusCode::OK,
-            "text/css; charset=utf-8",
-            "no-cache",
-            std::fs::read(media::custom_css_file()).unwrap_or_default(),
-        ),
+        "/theme/custom.css" => {
+            let mut r = reply(
+                StatusCode::OK,
+                "text/css; charset=utf-8",
+                "no-cache",
+                std::fs::read(media::custom_css_file()).unwrap_or_default(),
+            );
+            // The page fetch()es it (to skip unchanged reloads) from its own origin.
+            r.headers_mut().insert("Access-Control-Allow-Origin", tauri::http::HeaderValue::from_static("*"));
+            r
+        }
         _ => reply(StatusCode::NOT_FOUND, "text/plain", "no-cache", vec![]),
     }
 }
@@ -130,6 +137,7 @@ fn open_window(handle: &AppHandle, app: &Arc<App>) -> tauri::Result<()> {
         .min_inner_size(1080.0, 700.0)
         .center()
         .visible(false)
+        .background_color(api::background_color(&theme))
         .devtools(devtools)
         .data_directory(util::data_dir().join("webview"))
         // Links to the web open in the real browser; the window only ever shows the launcher.
@@ -246,12 +254,10 @@ fn main() {
                 let _ = w.set_focus();
             }
         }))
-        .register_asynchronous_uri_scheme_protocol("lst", |ctx, request, responder| {
-            let handle = ctx.app_handle().clone();
+        .register_asynchronous_uri_scheme_protocol("lst", |_, request, responder| {
             let uri = request.uri().clone();
-            std::thread::spawn(move || {
-                with_app(&handle, |app| responder.respond(protocol(app, &uri)))
-            });
+            // The bounded blocking pool `call` uses, not one OS thread per picture.
+            tauri::async_runtime::spawn_blocking(move || responder.respond(protocol(&uri)));
         })
         .invoke_handler(tauri::generate_handler![call])
         .setup(move |tauri_app| {

@@ -145,7 +145,7 @@ button { cursor: pointer; }
 
 /* "Liquid" panels used to bend the backdrop; with a solid background they are plain panels. */
 /* Only see-through panels blur: a 0px blur still costs a backdrop layer per panel. */
-:root.see-through .glass {
+:root.see-through .glass, :root.see-through .btn {
   -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
 }
@@ -390,8 +390,7 @@ button { cursor: pointer; }
   font-weight: 600;
   white-space: nowrap;
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.16), rgba(255, 255, 255, 0.08));
-  -webkit-backdrop-filter: blur(16px) saturate(160%);
-  backdrop-filter: blur(16px) saturate(160%);
+  /* Blurs only on see-through themes (--glass-blur is 0px otherwise; see :root.see-through .glass). */
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 0 0 1px rgba(255, 255, 255, 0.10), 0 4px 14px rgba(0, 0, 0, 0.22);
   transition: transform 0.35s var(--spring), background 0.2s, box-shadow 0.2s, opacity 0.2s;
 }
@@ -814,7 +813,8 @@ kbd { font-family: var(--font); }
 .inv-layout.with-inspect { grid-template-columns: minmax(0, 1fr) 340px; }
 .cs-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
 .cs-item { position: relative; display: flex; flex-direction: column; height: 168px; padding: 0; border: 0; border-radius: 6px; overflow: hidden; text-align: left; color: var(--text);
-  background: linear-gradient(180deg, #2a2d36 0%, #1d1f26 60%, color-mix(in srgb, var(--c) 30%, #1d1f26) 100%); box-shadow: inset 0 -3px 0 var(--c); transition: transform 0.12s, box-shadow 0.12s; }
+  background: linear-gradient(180deg, #2a2d36 0%, #1d1f26 60%, color-mix(in srgb, var(--c) 30%, #1d1f26) 100%); box-shadow: inset 0 -3px 0 var(--c); transition: transform 0.12s, box-shadow 0.12s;
+  content-visibility: auto; contain-intrinsic-size: auto 168px; }
 .cs-item:hover { transform: translateY(-2px); box-shadow: inset 0 -3px 0 var(--c), 0 0 0 1px rgba(255, 255, 255, 0.25); }
 .cs-item.selected { box-shadow: inset 0 -3px 0 var(--c), 0 0 0 2px var(--blue); }
 .cs-item .pic { height: 96px; display: grid; place-items: center; color: var(--text-3); }
@@ -855,8 +855,8 @@ kbd { font-family: var(--font); }
 .add-form { display: flex; flex-direction: column; gap: 8px; }
 .reel-card { transition: box-shadow 0.4s, transform 0.4s; }
 .reel.landed .reel-card:not(.winner) { opacity: 0.45; transition: opacity 0.6s; }
-.reel-card.winner { transform: scale(1.06); box-shadow: inset 0 -3px 0 var(--c), 0 0 26px color-mix(in srgb, var(--c) 70%, transparent); animation: winner-pulse 0.9s ease-in-out infinite alternate; }
-@keyframes winner-pulse { to { box-shadow: inset 0 -3px 0 var(--c), 0 0 40px var(--c); } }
+.reel-card.winner { transform: scale(1.06); box-shadow: inset 0 -3px 0 var(--c), 0 0 26px color-mix(in srgb, var(--c) 70%, transparent); }
+/* No endless glow pulse: animating box-shadow repaints the card every frame (and ::after would be clipped). */
 .reel-card .pic { height: 118px; }
 .reel-card img { max-height: 108px; }
 .reel-card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: center; }

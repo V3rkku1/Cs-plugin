@@ -234,17 +234,17 @@ fn color(theme: &BTreeMap<String, String>, key: &str, fallback: (u8, u8, u8)) ->
         .unwrap_or(fallback)
 }
 
+/// The theme's background as a window colour (also set before the first paint: no white flash).
+pub fn background_color(theme: &BTreeMap<String, String>) -> tauri::window::Color {
+    let (r, g, b) = color(theme, "background", (15, 17, 23));
+    tauri::window::Color(r, g, b, 255)
+}
+
 /// Colours the window like the launcher (Setup › Appearance › Title Bar): the theme's background with a
 /// panel-coloured border, the accent colour, or Windows' own. Colours need Windows 11; Windows 10 only gets
 /// the dark bar.
 pub fn apply_title_bar(window: &tauri::WebviewWindow, theme: &BTreeMap<String, String>) {
-    let background = color(theme, "background", (15, 17, 23));
-    let _ = window.set_background_color(Some(tauri::window::Color(
-        background.0,
-        background.1,
-        background.2,
-        255,
-    )));
+    let _ = window.set_background_color(Some(background_color(theme)));
     #[cfg(windows)]
     {
         use windows_sys::Win32::Graphics::Dwm::DwmSetWindowAttribute;
